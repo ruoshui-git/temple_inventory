@@ -24,9 +24,22 @@ const next = ref<number | null>(null),
 let generation = 0;
 let controller: AbortController | undefined;
 let failedStart = 0;
+let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 const labels = new Map<string, string>();
-async function search(value = query.value, start = 0) {
+async function search(value = query.value, start = 0, immediate = false) {
 	query.value = value;
+	if (debounceTimer) clearTimeout(debounceTimer);
+	if (start === 0 && value && !immediate) {
+		generation++;
+		controller?.abort();
+		rows.value = [];
+		total.value = 0;
+		next.value = null;
+		loading.value = true;
+		error.value = "";
+		debounceTimer = setTimeout(() => void search(value, start, true), 250);
+		return;
+	}
 	const request = ++generation;
 	controller?.abort();
 	controller = new AbortController();
@@ -59,13 +72,18 @@ watch(
 	() => {
 		generation++;
 		controller?.abort();
+		if (debounceTimer) clearTimeout(debounceTimer);
 		rows.value = [];
+		total.value = 0;
 		next.value = null;
+		loading.value = false;
+		error.value = "";
 	},
 );
 onBeforeUnmount(() => {
 	generation++;
 	controller?.abort();
+	if (debounceTimer) clearTimeout(debounceTimer);
 });
 </script>
 <template>
@@ -83,8 +101,8 @@ onBeforeUnmount(() => {
 		:external-label="externalLabel"
 		:aria-label="externalLabel ? label : undefined"
 		@update:model-value="emit('update:modelValue', $event)"
-		@search="search($event)"
-		@load-more="next !== null && search(query, next)"
-		@retry="search(query, failedStart)"
+		@search="search($event, 0, !$event)"
+		@load-more="next !== null && search(query, next, true)"
+		@retry="search(query, failedStart, true)"
 	/>
 </template>

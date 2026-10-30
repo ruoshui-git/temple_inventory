@@ -135,7 +135,7 @@ def _apply(doc, data):
 	if not isinstance(data, dict):
 		frappe.throw("记录内容无效")
 	if doc.doctype == "Stock Reconciliation" and "ti_borrower" in data:
-		frappe.throw("盘点调整不支持借用人字段")
+		frappe.throw("盘点调整不支持借用方字段")
 	allowed = HEADER_FIELDS | (COUNT_HEADER_FIELDS if doc.doctype == "Stock Reconciliation" else set())
 	if doc.doctype == "Stock Reconciliation":
 		allowed.discard("remarks")

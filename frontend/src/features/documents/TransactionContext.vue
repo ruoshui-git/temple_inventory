@@ -2,11 +2,11 @@
 import { nextTick, ref, watch } from "vue";
 import type { OperationDraft } from "./operationModel";
 import { useInventoryServices, useReferenceData } from "../../services/contracts";
-import { newReportQuery } from "../../lib/reportContract";
 import RemoteSelect from "../../components/ui/RemoteSelect.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import FormField from "../../components/ui/FormField.vue";
 import ActivityEditor from "../activities/ActivityEditor.vue";
+import Overlay from "../../components/ui/Overlay.vue";
 const props = defineProps<{
 	draft: Pick<OperationDraft, "source" | "purpose" | "activity" | "loanName"> & { kind: string };
 	disabled?: boolean;
@@ -17,29 +17,65 @@ const emit = defineEmits<{ dirtyChange: [value: boolean] }>();
 const services = useInventoryServices(),
 	reference = useReferenceData();
 const creating = ref(false),
-	trigger = ref<InstanceType<typeof UiButton>>();
-watch(creating, (value) => emit("dirtyChange", value), { flush: "sync" });
-async function finish(id?: string) {
-	if (id) props.draft.activity = id;
+	activityDirty = ref(false),
+	trigger = ref<InstanceType<typeof UiButton>>(),
+	activityEditor = ref<InstanceType<typeof ActivityEditor>>(),
+	selectedTitle = ref(""),
+	selectedId = ref("");
+watch([creating, activityDirty], ([open, dirty]) => emit("dirtyChange", open || dirty), {
+	flush: "sync",
+});
+watch(
+	() => props.draft.activity,
+	(value) => {
+		if (value !== selectedId.value) selectedTitle.value = "";
+	},
+);
+async function finish(activity?: string | { name: string; title: string }) {
+	if (activity) {
+		const name = typeof activity === "string" ? activity : activity.name;
+		const title =
+			typeof activity === "string"
+				? reference.activities.find((row) => row.value === activity)?.label || ""
+				: activity.title;
+		selectedId.value = name;
+		selectedTitle.value = title;
+		props.draft.activity = name;
+		const option = reference.activities.find((row) => row.value === name);
+		if (option && title) option.label = title;
+		else if (title) reference.activities.push({ value: name, label: title });
+	}
 	creating.value = false;
+	activityDirty.value = false;
 	await nextTick();
 	(trigger.value?.$el as HTMLElement)?.focus();
 }
+async function closeCreation() {
+	if (await activityEditor.value?.requestLeave()) await finish();
+}
 async function search(search: string, start: number, signal: AbortSignal) {
-	const query = newReportQuery("activities");
-	query.view = "metadata";
-	query.activityStatus = "active";
-	query.search = search;
-	const page = await services.report(query, { start, page_length: 30 }, signal);
+	const page = await services.call<{
+		rows: {
+			name: string;
+			title: string;
+			type_label: string;
+			start_date: string | null;
+			end_date: string | null;
+		}[];
+		total: number;
+		next: number | null;
+	}>("activities.search_activities", { search, start, limit: 30 }, signal);
 	const rows = page.rows.map((row) => ({
-		value: String(row.activity || row.id),
-		label: String(row.title),
-		detail: String(row.activity_type_label || ""),
+		value: row.name,
+		label: row.title,
+		detail: [row.type_label, [row.start_date, row.end_date].filter(Boolean).join(" – ")]
+			.filter(Boolean)
+			.join(" · "),
 	}));
 	for (const row of rows)
 		if (!reference.activities.some((old) => old.value === row.value))
 			reference.activities.push(row);
-	return { rows, total: page.matched_count, next: page.next_start };
+	return { rows, total: page.total, next: page.next };
 }
 </script>
 <template>
@@ -71,7 +107,13 @@ async function search(search: string, start: number, signal: AbortSignal) {
 				v-model="draft.activity"
 				:disabled="disabled"
 				:load="search"
-				:selected-label="draft.activity ? activityLabel : undefined"
+				:selected-label="
+					draft.activity
+						? selectedTitle && selectedId === draft.activity
+							? selectedTitle
+							: activityLabel
+						: undefined
+				"
 			/><UiButton
 				v-if="!draft.loanName"
 				ref="trigger"
@@ -92,6 +134,24 @@ async function search(search: string, start: number, signal: AbortSignal) {
 				</template>
 			</FormField>
 		</template>
-		<ActivityEditor v-else contextual class="full-field" @saved="finish" @cancel="finish()" />
 	</div>
+	<Overlay v-if="creating" title="新建活动" size="small" @close="closeCreation">
+		<ActivityEditor
+			ref="activityEditor"
+			contextual
+			class="activity-dialog-editor"
+			@saved="finish"
+			@cancel="finish()"
+			@dirty-change="activityDirty = $event"
+		/>
+	</Overlay>
 </template>
+
+<style scoped>
+/* The dialog already frames the editor; drop the inline card chrome. */
+.activity-dialog-editor {
+	padding: 0;
+	background: none;
+	border: 0;
+}
+</style>

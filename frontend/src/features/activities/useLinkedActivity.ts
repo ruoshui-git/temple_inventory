@@ -1,4 +1,4 @@
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import {
   useInventoryServices,
   useReferenceData,
@@ -14,6 +14,7 @@ export function useLinkedActivity(
   const account = reference.user;
   const site = reference.site;
   const resolved = ref("");
+  const rejected = ref("");
   const loading = ref(false);
   let request: AbortController | undefined;
   let disposed = false;
@@ -22,12 +23,11 @@ export function useLinkedActivity(
   const label = computed(() => {
     if (!activity()) return "未填写";
     if (!active()) return "活动暂不可用";
-    if (resolved.value === activity())
-      return (
-        reference.activities.find((row) => row.value === activity())?.label ||
-        "活动暂不可用"
-      );
-    return loading.value ? "" : "活动暂不可用";
+    if (rejected.value === activity()) return "活动暂不可用";
+    const known = reference.activities.find((row) => row.value === activity());
+    if (resolved.value === activity() || known)
+      return known?.label || "活动暂不可用";
+    return loading.value ? "正在读取活动…" : "活动暂不可用";
   });
 
   async function refresh() {
@@ -36,44 +36,56 @@ export function useLinkedActivity(
     request = current;
     const id = activity();
     resolved.value = "";
+    rejected.value = "";
     loading.value = false;
     if (!id || !active()) return;
+    const option = reference.activities.find((row) => row.value === id);
+    const snapshot = documentSnapshot() as Record<string, unknown> | undefined;
+    const knownTitle =
+      option?.label ||
+      (snapshot &&
+        String(snapshot.activity_title || snapshot.ti_activity_title || ""));
+    if (knownTitle) {
+      if (!option) reference.activities.push({ value: id, label: knownTitle });
+      resolved.value = id;
+    }
     loading.value = true;
     try {
-      // This endpoint checks app access and the exact Activity's read permission;
-      // archived records remain readable without becoming new picker candidates.
-      const result = await services.call<{ name: string; title: string }>(
-        "activities.load_activity",
-        { name: id },
-        current.signal,
-      );
+      const result = await services.call<{
+        name: string;
+        title: string;
+        archived: boolean;
+      }>("activities.activity_label", { name: id }, current.signal);
       if (request !== current || !active() || activity() !== id) return;
-      if (result.name !== id || !result.title) return;
+      if (result.name !== id || !result.title) {
+        rejected.value = id;
+        reference.activities = reference.activities.filter(
+          (row) => row.value !== id,
+        );
+        return;
+      }
       const option = reference.activities.find((row) => row.value === id);
       if (option) option.label = result.title;
       else reference.activities.push({ value: id, label: result.title });
       resolved.value = id;
     } catch {
-      // Do not retain a previously cached title when access can no longer be verified.
+      if (request === current && active() && activity() === id) {
+        rejected.value = id;
+        reference.activities = reference.activities.filter(
+          (row) => row.value !== id,
+        );
+      }
     } finally {
       if (request === current) loading.value = false;
     }
   }
 
-  watch(
-    [activity, documentSnapshot, () => reference.user, () => reference.site],
-    refresh,
-    { immediate: true },
-  );
-  onMounted(() => {
-    window.addEventListener("focus", refresh);
-    document.addEventListener("inventory-session-restored", refresh);
+  watch([activity, () => reference.user, () => reference.site], refresh, {
+    immediate: true,
   });
   onBeforeUnmount(() => {
     disposed = true;
     request?.abort();
-    window.removeEventListener("focus", refresh);
-    document.removeEventListener("inventory-session-restored", refresh);
   });
   return label;
 }

@@ -259,9 +259,7 @@ validation.register(
 	() => draft.value.borrower,
 	[
 		(value) =>
-			draft.value.kind !== "Loan" || String(value || "").trim()
-				? true
-				: "请填写借用人或团体",
+			draft.value.kind !== "Loan" || String(value || "").trim() ? true : "请填写借用方",
 	],
 	() => formRoot.value?.querySelector<HTMLElement>('[data-field="borrower"]')?.focus(),
 );
@@ -698,7 +696,8 @@ async function lifecycle() {
 						<div class="form-fields">
 							<template v-if="draft.kind === 'Loan'">
 								<FormField
-									label="借用人 / 团体"
+									label="借用方"
+									hint="可填个人或团体"
 									required
 									:error="validation.errors.borrower"
 								>
@@ -983,8 +982,8 @@ async function lifecycle() {
 						<h3>附件</h3>
 						<Attachments
 							:controller="files"
-							:disabled="!writable || busy"
-							:mode="editing ? 'edit' : 'display'"
+							:disabled="(!writable && state.server?.docstatus !== 1) || busy"
+							:mode="editing || state.server?.docstatus === 1 ? 'edit' : 'display'"
 						/>
 					</div>
 					<fieldset v-if="editing" class="people-fields" :disabled="!writable || busy">

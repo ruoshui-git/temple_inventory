@@ -779,6 +779,42 @@ export const fixtureServices: InventoryServices = {
         });
       return nativeActivity(row) as T;
     }
+    if (endpoint === "activities.activity_label") {
+      const row = activities.find((row) => row.id === args.name);
+      if (!row) throw new Error("活动不存在或不可访问");
+      return {
+        name: row.id,
+        title: row.title,
+        archived: row.status === "archived",
+      } as T;
+    }
+    if (endpoint === "activities.search_activities") {
+      const needle = String(args.search || "").toLocaleLowerCase();
+      const matching = activities
+        .filter((row) => row.status === "active")
+        .filter((row) => {
+          const type =
+            activityTypes.find((entry) => entry.id === row.typeId)?.label || "";
+          return `${row.id} ${row.title} ${row.description} ${row.notes} ${type}`
+            .toLocaleLowerCase()
+            .includes(needle);
+        });
+      const start = Number(args.start || 0),
+        limit = Number(args.limit || 30),
+        rows = matching.slice(start, start + limit);
+      return {
+        rows: rows.map((row) => ({
+          name: row.id,
+          title: row.title,
+          type_label:
+            activityTypes.find((entry) => entry.id === row.typeId)?.label || "",
+          start_date: row.start,
+          end_date: row.end,
+        })),
+        total: matching.length,
+        next: start + limit < matching.length ? start + limit : null,
+      } as T;
+    }
     if (endpoint === "activities.save_activity") {
       const data = args.data as Record<string, string>;
       const previous = activities.find((row) => row.id === args.name);

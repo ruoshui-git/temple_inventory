@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { watch } from "vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
@@ -6,8 +7,19 @@ import RecoverySummary from "../../components/ui/RecoverySummary.vue";
 import FormField from "../../components/ui/FormField.vue";
 import { useActivityEditor } from "./useActivityEditor";
 const props = defineProps<{ activityId?: string; contextual?: boolean; recoveryId?: string }>();
-const emit = defineEmits<{ saved: [id: string]; cancel: [] }>();
-const controller = useActivityEditor(props, (name) => emit("saved", name));
+const emit = defineEmits<{
+	saved: [activity: any];
+	cancel: [];
+	dirtyChange: [dirty: boolean];
+}>();
+const controller = useActivityEditor(props, (activity) =>
+	emit("saved", props.contextual ? activity : activity.name),
+);
+watch(
+	() => controller.dirty.value,
+	(dirty) => emit("dirtyChange", dirty),
+	{ immediate: true },
+);
 defineExpose({
 	requestLeave: controller.requestLeave,
 	breadcrumbLabel: () => controller.existing.value?.title || undefined,
@@ -124,7 +136,7 @@ async function cancel() {
 			<UiButton @click="reload">重新读取</UiButton>
 		</div>
 		<div class="form-actions">
-			<UiButton @click="cancel">{{ contextual ? "返回选择" : "取消" }}</UiButton
+			<UiButton @click="cancel">取消</UiButton
 			><UiButton
 				v-if="writable"
 				variant="primary"

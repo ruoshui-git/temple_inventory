@@ -61,6 +61,95 @@ test.afterEach(async ({ page }, testInfo) => {
     );
 });
 
+test("submitted stock record attachments can be added, previewed inline and removed", async ({
+  page,
+}) => {
+  const list = await page.request.post("/api/method/frappe.client.get_list", {
+    data: {
+      doctype: "Stock Entry",
+      filters: { docstatus: 1 },
+      fields: ["name"],
+      order_by: "creation desc",
+      limit_page_length: 20,
+    },
+    headers: { "X-Frappe-CSRF-Token": csrf },
+  });
+  expect(list.ok()).toBe(true);
+  const records = (await list.json()).message as { name: string }[];
+  expect(
+    records.length,
+    "at least one submitted Stock Entry exists",
+  ).toBeGreaterThan(0);
+  const parent = records[0]!.name;
+  const pdfName = `attachment-preview-${crypto.randomUUID().slice(0, 8)}.pdf`;
+  const officeName = `attachment-preview-${crypto.randomUUID().slice(0, 8)}.docx`;
+  try {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(`/inventory/movements/${parent}`);
+    const picker = page.locator('.attachments input[type="file"]').last();
+    await picker.setInputFiles({
+      name: pdfName,
+      mimeType: "application/pdf",
+      buffer: Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF"),
+    });
+    const pdfRow = page
+      .locator(".attachments article")
+      .filter({ hasText: pdfName });
+    await expect(
+      pdfRow.getByRole("button", { name: "查看附件" }),
+    ).toBeVisible();
+    await page.screenshot({
+      path: test.info().outputPath("submitted-attachments.png"),
+    });
+    await pdfRow.getByRole("button", { name: "查看附件" }).click();
+    const frame = page.locator("iframe");
+    await expect(frame).toBeVisible();
+    await expect(frame).toHaveAttribute("src", /private\/files\//);
+    await page.screenshot({
+      path: test.info().outputPath("pdf-viewer-1280.png"),
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({
+      path: test.info().outputPath("pdf-viewer-390.png"),
+    });
+    await page.keyboard.press("Escape");
+    await picker.setInputFiles({
+      name: officeName,
+      mimeType:
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      buffer: Buffer.from("office fixture"),
+    });
+    const officeRow = page
+      .locator(".attachments article")
+      .filter({ hasText: officeName });
+    await expect(
+      officeRow.getByRole("button", { name: "查看附件" }),
+    ).toBeVisible();
+    await officeRow.getByRole("button", { name: "查看附件" }).click();
+    await expect(page.getByText(officeName, { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "在新标签打开" }),
+    ).toBeVisible();
+    await page.screenshot({
+      path: test.info().outputPath("office-file-card.png"),
+    });
+  } finally {
+    const attachments = (await call(page.request, "native_files.attachments", {
+      doctype: "Stock Entry",
+      name: parent,
+    })) as { name: string; file_name: string }[];
+    for (const file of attachments.filter((row) =>
+      [pdfName, officeName].includes(row.file_name),
+    )) {
+      await call(page.request, "native_files.remove_attachment", {
+        doctype: "Stock Entry",
+        name: parent,
+        file_name: file.name,
+      });
+    }
+  }
+});
+
 async function removeNative(
   request: APIRequestContext,
   doctype: string,
@@ -1207,7 +1296,7 @@ test("real movement editor writes batch receipts, existing-batch outbound flows,
       .locator(".operation-compact-row")
       .filter({ hasText: code });
     await expect(loanCard).toBeVisible();
-    await page.getByLabel("借用人 / 团体").fill(borrower);
+    await page.getByLabel("借用方").fill(borrower);
     await pickBatch(loanCard, batchIds[1]!);
     await loanCard.locator('input[data-field="qty"]').fill("1");
     const loanDoc = await submitCurrent();

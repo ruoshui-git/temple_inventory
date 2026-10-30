@@ -127,6 +127,72 @@ def activity_types():
 	)
 
 
+@frappe.whitelist()
+def search_activities(search="", start=0, limit=30):
+	"""Return assignable activity options without building activity report projections."""
+	require_app()
+	search = str(search or "").strip()
+	start = max(0, int(start or 0))
+	limit = min(100, max(1, int(limit or 30)))
+	types = frappe.get_list(
+		"Inventory Activity Type",
+		filters={"enabled": 1},
+		fields=["name", "label"],
+		limit_page_length=0,
+	)
+	type_labels = {row.name: row.label for row in types}
+	if not type_labels:
+		return {"rows": [], "total": 0, "next": None}
+	filters = {"status": "Active", "activity_type": ["in", list(type_labels)]}
+	or_filters = None
+	if search:
+		pattern = f"%{search}%"
+		or_filters = [
+			["Inventory Activity", field, "like", pattern]
+			for field in ("title", "name", "description", "notes", "activity_type")
+		]
+		or_filters.extend(
+			[
+				["Inventory Activity", "activity_type", "=", name]
+				for name, label in type_labels.items()
+				if search.casefold() in label.casefold()
+			]
+		)
+	rows = frappe.get_list(
+		"Inventory Activity",
+		filters=filters,
+		or_filters=or_filters,
+		fields=["name", "title", "activity_type", "start_date", "end_date", "modified"],
+		order_by="modified desc, name asc",
+		limit_start=start,
+		limit_page_length=limit + 1,
+	)
+	more = len(rows) > limit
+	rows = rows[:limit]
+	return {
+		"rows": [
+			{
+				"name": row.name,
+				"title": row.title,
+				"type_label": type_labels[row.activity_type],
+				"start_date": row.start_date,
+				"end_date": row.end_date,
+			}
+			for row in rows
+		],
+		"total": start + len(rows) + int(more),
+		"next": start + limit if more else None,
+	}
+
+
+@frappe.whitelist()
+def activity_label(name):
+	require_app()
+	doc = frappe.get_doc("Inventory Activity", name)
+	doc.check_permission("read")
+	return {"name": doc.name, "title": doc.title, "archived": doc.status != "Active"}
+
+
 @frappe.whitelist(methods=["POST"])
 def save_activity(data, name=None, version=None):
 	require_app()

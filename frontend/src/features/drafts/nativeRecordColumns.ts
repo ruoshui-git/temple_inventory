@@ -11,7 +11,7 @@ export function nativeRecordColumns(mode: "drafts" | "counts"): DataColumn[] {
         pinned: "start",
       },
       { id: "kind", label: "类型 / 状态", defaultVisible: true },
-      { id: "activity_title", label: "活动 / 借用人", defaultVisible: true },
+      { id: "activity_title", label: "活动 / 借用方", defaultVisible: true },
       { id: "summary", label: "整份记录", defaultVisible: true },
       { id: "date", label: "记账日期", defaultVisible: true, sortable: true },
       {

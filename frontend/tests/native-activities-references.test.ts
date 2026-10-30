@@ -21,7 +21,11 @@ afterEach(() => {
   wrappers.splice(0).forEach((wrapper) => wrapper.unmount());
   localStorage.clear();
 });
-function setup<T>(call: InventoryServices["call"], create: () => T) {
+function setup<T>(
+  call: InventoryServices["call"],
+  create: () => T,
+  prepareReference?: (reference: ReferenceData) => void,
+) {
   let controller!: T;
   const reference = createReferenceData();
   reference.site = "unit-site";
@@ -31,6 +35,7 @@ function setup<T>(call: InventoryServices["call"], create: () => T) {
     { value: "TYPE-DISABLED", label: "停用", enabled: false },
   ];
   reference.categories = [{ name: "ROOT", label: "全部", is_group: true }];
+  prepareReference?.(reference);
   const child = defineComponent({
     setup() {
       controller = create();
@@ -106,7 +111,10 @@ describe("native Activity editing", () => {
         notes: "第一段\n\n<b>纯文本</b>",
       }),
     });
-    expect(saved).toHaveBeenCalledWith("IMMUTABLE-A");
+    expect(saved).toHaveBeenCalledWith({
+      name: "IMMUTABLE-A",
+      title: "改名后的活动",
+    });
     expect(reference.activities).toContainEqual(
       expect.objectContaining({ value: "IMMUTABLE-A", label: "改名后的活动" }),
     );
@@ -147,7 +155,11 @@ describe("native Activity editing", () => {
     controller.input.typeId = "TYPE-A";
     await controller.save();
     expect(controller.writable.value).toBe(false);
-    expect(call).toHaveBeenCalledTimes(1);
+    expect(call).toHaveBeenCalledWith(
+      "activities.load_activity",
+      { name: "DELETED" },
+      expect.any(AbortSignal),
+    );
   });
   it("allows retaining a disabled type only for the existing Activity", async () => {
     const call = vi
@@ -285,6 +297,37 @@ describe("Activity browser recovery", () => {
 });
 
 describe("linked Activity resolution", () => {
+  it("shows a picked title immediately and never falls back to the linked ID", async () => {
+    const call = vi.fn(() => new Promise(() => {}));
+    const id = ref("PICKED-ACTIVITY-ID");
+    const { controller: label } = setup(
+      call as InventoryServices["call"],
+      () =>
+        useLinkedActivity(
+          () => id.value,
+          () => undefined,
+        ),
+      (reference) =>
+        reference.activities.push({ value: id.value, label: "刚选中的活动" }),
+    );
+    await flushPromises();
+    expect(label.value).toBe("刚选中的活动");
+    expect(call).toHaveBeenCalledWith(
+      "activities.activity_label",
+      { name: "PICKED-ACTIVITY-ID" },
+      expect.any(AbortSignal),
+    );
+    wrappers.at(-1)!.unmount();
+
+    const unknown = setup(call, () =>
+      useLinkedActivity(
+        () => "UNKNOWN-ACTIVITY-ID",
+        () => undefined,
+      ),
+    );
+    expect(unknown.controller.value).not.toContain("UNKNOWN-ACTIVITY-ID");
+  });
+
   it("ignores stale resolutions when the link changes", async () => {
     const pending: Record<string, (value: unknown) => void> = {};
     const id = ref("A");
@@ -330,8 +373,10 @@ describe("linked Activity resolution", () => {
     expect(label.value).toBe("活动暂不可用");
     expect(reference.activities).toEqual([]);
   });
-  it("rechecks renames and revoked access on focus/session restoration and cleans up", async () => {
-    const call = vi.fn().mockResolvedValue({ name: "A", title: "原活动" });
+  it("uses the cheap label endpoint for unknown links and does not refresh on focus", async () => {
+    const call = vi
+      .fn()
+      .mockResolvedValue({ name: "A", title: "原活动", archived: false });
     const { controller: label, reference } = setup(call, () =>
       useLinkedActivity(
         () => "A",
@@ -340,16 +385,21 @@ describe("linked Activity resolution", () => {
     );
     await flushPromises();
     expect(label.value).toBe("原活动");
+    expect(call).toHaveBeenCalledWith(
+      "activities.activity_label",
+      { name: "A" },
+      expect.any(AbortSignal),
+    );
     reference.activities[0]!.label = "本页已保存的改名";
     expect(label.value).toBe("本页已保存的改名");
     call.mockRejectedValueOnce(new Error("PermissionError"));
     window.dispatchEvent(new Event("focus"));
     await flushPromises();
-    expect(label.value).toBe("活动暂不可用");
-    call.mockResolvedValue({ name: "A", title: "服务器改名" });
+    expect(label.value).toBe("本页已保存的改名");
+    expect(call).toHaveBeenCalledTimes(1);
     document.dispatchEvent(new Event("inventory-session-restored"));
     await flushPromises();
-    expect(label.value).toBe("服务器改名");
+    expect(call).toHaveBeenCalledTimes(1);
     wrappers.at(-1)!.unmount();
     call.mockClear();
     window.dispatchEvent(new Event("focus"));

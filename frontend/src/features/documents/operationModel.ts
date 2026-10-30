@@ -280,7 +280,7 @@ export function operationIssues(
   if (!draft.items.length)
     issues.push({ message: "请先添加至少一项物品", field: "items" });
   if (draft.kind === "Loan" && !draft.borrower.trim())
-    issues.push({ message: "请填写借用人或团体", field: "borrower" });
+    issues.push({ message: "请填写借用方", field: "borrower" });
   if (
     draft.kind === "Loan" &&
     draft.items.some(

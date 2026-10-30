@@ -28,7 +28,7 @@ export interface NativeActivity {
 }
 export function useActivityEditor(
   props: { activityId?: string; recoveryId?: string },
-  saved: (name: string) => void,
+  saved: (activity: { name: string; title: string }) => void,
 ) {
   const services = useInventoryServices(),
     reference = useReferenceData(),
@@ -261,7 +261,7 @@ export function useActivityEditor(
       }
       recovery.remove(editorId, sentRevision);
       showToast(wasExisting ? "活动资料已更新" : "活动已创建");
-      saved(result.name);
+      saved({ name: result.name, title: result.title });
     } catch (reason) {
       if (!active() || current !== generation) return;
       error.value =
