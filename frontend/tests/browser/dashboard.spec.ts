@@ -251,7 +251,7 @@ test("movement tiles are scoped browse links with a separate unit disclosure", a
     expect(href.pathname).toBe("/inventory/movements");
     const state = JSON.parse(href.searchParams.get("query") || "{}");
     expect(state.scope.kinds).toEqual(["Issue"]);
-    expect(state.scope.period).toBeTruthy();
+    expect(state.scope.period).toBeUndefined();
     const card = link.locator("..");
     const disclosure = card.locator(".dashboard-movement-disclosure");
     await expect(disclosure).toContainText("+1 单位");

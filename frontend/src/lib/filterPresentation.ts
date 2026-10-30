@@ -82,9 +82,11 @@ export function scopeFilterChips(scope: BrowseScope, reference: ReferenceData) {
 }
 
 /** Compact toolbar chips summarize each field; individual values stay editable in the filter form. */
+/** `defaultPeriod` is the page's own default (users may choose one per page). */
 export function scopeFilterFieldChips(
   scope: BrowseScope,
   reference?: ReferenceData,
+  defaultPeriod: BrowseScope["period"]["key"] = "all",
 ) {
   const chips: Array<{
     key: string;
@@ -130,7 +132,7 @@ export function scopeFilterFieldChips(
       ];
     },
   );
-  if (scope.period.key !== "all") {
+  if (scope.period.key !== defaultPeriod) {
     const value = reference
       ? sitePeriodSummary(scope.period, reference.siteDate)
       : scope.period.key === "custom"
@@ -149,9 +151,10 @@ export function scopeFilterFieldChips(
 export function clearScopeField(
   scope: BrowseScope,
   field: ScopeFilterField | "period",
+  defaultPeriod: BrowseScope["period"]["key"] = "all",
 ) {
   if (field === "period") {
-    scope.period = { key: "all", from: "", to: "" };
+    scope.period = { key: defaultPeriod, from: "", to: "" };
     return;
   }
   if (field === "tracking") {

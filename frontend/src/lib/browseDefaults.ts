@@ -3,6 +3,7 @@ import {
   type ReportDataset,
   type ReportQuery,
 } from "./reportContract";
+import { defaultPeriods } from "./uiPreferences";
 
 export type BrowseDefaultMode = "browse" | "drafts";
 
@@ -14,6 +15,17 @@ export function browseDefaults(
 ): ReportQuery {
   const query = newReportQuery(dataset);
   if (view) query.view = view;
+
+  if (
+    dataset === "loans" ||
+    dataset === "counts" ||
+    (dataset === "movements" && mode === "browse")
+  )
+    query.scope.period = {
+      key: defaultPeriods.value[dataset],
+      from: "",
+      to: "",
+    };
 
   if (dataset === "inventory") {
     if (query.view === "summary" || query.view === "locations") {

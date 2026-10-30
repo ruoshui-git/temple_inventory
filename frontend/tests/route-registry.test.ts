@@ -28,6 +28,8 @@ import { serializeBrowseQuery } from "../src/lib/routeRegistry";
 import { serializeReportRouteQuery } from "../src/lib/routeRegistry";
 import { browseDefaults } from "../src/lib/browseDefaults";
 import { sortableColumnsForView } from "../src/lib/reportContract";
+import { hydrateUiPreferences } from "../src/lib/uiPreferences";
+import { defaultDisplayPreferences } from "../src/lib/displayPreferences";
 
 const router = createRouter({
   history: createMemoryHistory(),
@@ -278,6 +280,62 @@ describe("canonical application route registry", () => {
     expect(decodeReportQuery(reportTarget.query?.query).query).toEqual(
       historical,
     );
+  });
+
+  it("resolves per-area defaults and encodes explicit periods relative to them", () => {
+    hydrateUiPreferences("ranges-user", {
+      ...defaultDisplayPreferences,
+      default_periods: {
+        dashboard: "today",
+        movements: "this_month",
+        loans: "last_30_days",
+        counts: "q1",
+      },
+    });
+    const movement = browseDefaults("movements", "records");
+    const drafts = browseDefaults("movements", "records", "drafts");
+    const loan = browseDefaults("loans", "items");
+    const count = browseDefaults("counts", "records");
+    expect(movement.scope.period.key).toBe("this_month");
+    expect(drafts.scope.period.key).toBe("all");
+    expect(loan.scope.period.key).toBe("last_30_days");
+    expect(count.scope.period.key).toBe("q1");
+    expect(
+      decodeReportQuery(undefined, "loans", "items").query.scope.period.key,
+    ).toBe("last_30_days");
+    expect(serializeBrowseQuery(movement)).toBeUndefined();
+
+    movement.scope.period = { key: "all", from: "", to: "" };
+    expect(JSON.parse(serializeBrowseQuery(movement)!)).toMatchObject({
+      scope: { period: { key: "all" } },
+    });
+    const crossPage = browseStateDestination("movements", "records", movement);
+    expect(JSON.parse(String(crossPage.query?.query))).toMatchObject({
+      scope: { period: { key: "all" } },
+    });
+    const restored = decodeReportQuery(
+      restoreBrowseQueryPayload(
+        serializeBrowseQuery(movement),
+        "movements",
+        "records",
+      ),
+      "movements",
+    );
+    expect(restored.query.scope.period.key).toBe("all");
+
+    movement.scope.period = { key: "this_month", from: "", to: "" };
+    hydrateUiPreferences("ranges-user", {
+      ...defaultDisplayPreferences,
+      default_periods: {
+        ...defaultDisplayPreferences.default_periods,
+        movements: "all",
+      },
+    });
+    expect(movement.scope.period.key).toBe("this_month");
+    expect(JSON.parse(serializeBrowseQuery(movement)!)).toMatchObject({
+      scope: { period: { key: "this_month" } },
+    });
+    hydrateUiPreferences("ranges-user", defaultDisplayPreferences);
   });
 
   it("sanitizes route targets to the destination view contract", () => {

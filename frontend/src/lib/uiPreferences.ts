@@ -4,6 +4,7 @@ import {
   applyDisplayPreferences,
   themes,
   textScales,
+  defaultPeriodOptions,
   type Density,
   type DisplayPreferences,
 } from "./displayPreferences";
@@ -13,6 +14,9 @@ type PreferenceSaveState = "saved" | "saving" | "error";
 export const density = ref(defaultDisplayPreferences.density);
 export const theme = ref(defaultDisplayPreferences.theme);
 export const textScale = ref(defaultDisplayPreferences.textScale);
+export const defaultPeriods = ref({
+  ...defaultDisplayPreferences.default_periods,
+});
 export const preferenceUser = ref("");
 export const preferenceSaveState = ref<PreferenceSaveState>("saved");
 export const preferenceError = ref("");
@@ -24,10 +28,17 @@ let editRevision = 0;
 function isDisplayPreferences(value: unknown): value is DisplayPreferences {
   if (!value || typeof value !== "object") return false;
   const candidate = value as DisplayPreferences;
+  const periods = candidate.default_periods;
   return (
     themes.some((entry) => entry.id === candidate.theme) &&
     ["compact", "balanced", "spacious"].includes(candidate.density) &&
-    textScales.includes(candidate.textScale)
+    textScales.includes(candidate.textScale) &&
+    (!periods ||
+      (typeof periods === "object" &&
+        Object.keys(periods).length === 4 &&
+        (["dashboard", "movements", "loans", "counts"] as const).every((area) =>
+          defaultPeriodOptions.includes(periods[area]),
+        )))
   );
 }
 
@@ -36,6 +47,7 @@ function snapshot(): DisplayPreferences {
     theme: theme.value,
     density: density.value,
     textScale: textScale.value,
+    default_periods: { ...defaultPeriods.value },
   };
 }
 
@@ -73,6 +85,10 @@ function apply(values: DisplayPreferences) {
   density.value = values.density;
   theme.value = values.theme;
   textScale.value = values.textScale;
+  defaultPeriods.value = {
+    ...defaultDisplayPreferences.default_periods,
+    ...values.default_periods,
+  };
   applyDisplayPreferences(values);
 }
 

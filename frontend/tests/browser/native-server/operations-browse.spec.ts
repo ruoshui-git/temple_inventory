@@ -46,6 +46,31 @@ async function capture(
   });
 }
 
+test("fresh movement browse uses the saved account period", async ({
+  page,
+}) => {
+  let requestedPeriod = "";
+  page.on("request", (request) => {
+    if (
+      request
+        .url()
+        .includes("/api/method/temple_inventory.browse.operation_page")
+    )
+      requestedPeriod = request.postDataJSON().query.scope.period.key;
+  });
+  await settled(page, "/inventory/movements");
+  expect(requestedPeriod).toBe("this_month");
+  await page.getByRole("button", { name: /^筛选/ }).click();
+  await page.locator('details[data-filter-field="period"] > summary').click();
+  await expect(page.getByLabel("流动日期时间范围预设")).toHaveValue(
+    "this_month",
+  );
+  await page.screenshot({
+    path: test.info().outputPath("fresh-movements-this-month.png"),
+    fullPage: true,
+  });
+});
+
 test("loan scope, movement effects and multi-location records render at desktop and phone widths", async ({
   page,
 }) => {
@@ -106,7 +131,11 @@ test("loan scope, movement effects and multi-location records render at desktop 
     record,
     "development data should include a record with multiple destinations",
   ).toBeTruthy();
-  await settled(page, "/inventory/movements?view=records");
+  // The record was found across all dates; the page defaults to the account's month.
+  const allTime = encodeURIComponent(
+    JSON.stringify({ scope: { period: { key: "all", from: "", to: "" } } }),
+  );
+  await settled(page, `/inventory/movements?view=records&query=${allTime}`);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.locator("input[data-browse-search]").fill(record.document);
   await expect(page.getByText(record.document, { exact: true })).toBeVisible();

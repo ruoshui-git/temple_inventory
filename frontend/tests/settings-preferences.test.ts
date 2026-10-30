@@ -19,6 +19,12 @@ const defaults = {
   theme: "jade" as const,
   density: "balanced" as const,
   textScale: 100 as const,
+  default_periods: {
+    dashboard: "this_month" as const,
+    movements: "this_month" as const,
+    loans: "this_month" as const,
+    counts: "this_month" as const,
+  },
 };
 beforeEach(() => {
   localStorage.clear();
@@ -73,7 +79,25 @@ describe("shared account display settings", () => {
     ).toBe("1.75");
     expect(call).toHaveBeenLastCalledWith(
       "preferences.save_display_preferences",
-      { theme: "blue", density: "compact", textScale: 175 },
+      { ...defaults, theme: "blue", density: "compact", textScale: 175 },
+    );
+  });
+  it("autosaves each area's default period with the preset's Chinese label", async () => {
+    const { wrapper, call } = setup();
+    await flushPromises();
+    const counts = wrapper.find('select[aria-label="盘点"]');
+    expect(counts.find('option[value="all"]').text()).toBe("全部时间");
+    await counts.setValue("last_30_days");
+    await flushPromises();
+    expect(call).toHaveBeenLastCalledWith(
+      "preferences.save_display_preferences",
+      {
+        ...defaults,
+        default_periods: {
+          ...defaults.default_periods,
+          counts: "last_30_days",
+        },
+      },
     );
   });
   it("retains failed working preferences, preserves the confirmed cache and retries the same selection", async () => {

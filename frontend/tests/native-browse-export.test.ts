@@ -10,6 +10,8 @@ import {
   type ReportPage,
 } from "../src/services/contracts";
 import { newReportQuery } from "../src/lib/reportContract";
+import { hydrateUiPreferences } from "../src/lib/uiPreferences";
+import { defaultDisplayPreferences } from "../src/lib/displayPreferences";
 import { useStockBrowseController } from "../src/features/inventory/useStockBrowseController";
 import { useReportController } from "../src/features/export/useReportController";
 import { useDashboardController } from "../src/features/dashboard/useDashboardController";
@@ -662,6 +664,19 @@ describe("background quick export", () => {
 });
 
 describe("native dashboard cards", () => {
+  it("starts the dashboard movement overview with the account default period", () => {
+    hydrateUiPreferences("dashboard-user", {
+      ...defaultDisplayPreferences,
+      default_periods: {
+        ...defaultDisplayPreferences.default_periods,
+        dashboard: "today",
+      },
+    });
+    const controller = setup(services(), () => useDashboardController(vi.fn()));
+    expect(controller.filters.period.key).toBe("today");
+    hydrateUiPreferences("dashboard-user", defaultDisplayPreferences);
+  });
+
   it("routes permission-qualified dashboard actions and keeps uncategorized in shared filters", async () => {
     localStorage.clear();
     const service = services();

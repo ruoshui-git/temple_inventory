@@ -3,17 +3,35 @@ import PageHeader from "../../components/ui/PageHeader.vue";
 import BackButton from "../../components/ui/BackButton.vue";
 import type { DisplaySettings } from "./useDisplaySettings";
 import { themes, textScales, type TextScale } from "../../lib/displayPreferences";
+import { periodLabels } from "../../lib/browseQuery";
+import { defaultPeriodOptions, type DefaultPeriod } from "../../lib/displayPreferences";
 import UiButton from "../../components/ui/UiButton.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 const props = defineProps<{ controller: DisplaySettings }>();
 const emit = defineEmits<{ back: [] }>();
 const c = props.controller,
-	{ theme, density, textScale, loading, initialized, error, saveError, saveState } = c;
+	{
+		theme,
+		density,
+		textScale,
+		defaultPeriods,
+		loading,
+		initialized,
+		error,
+		saveError,
+		saveState,
+	} = c;
 const densities = [
 	{ value: "compact", label: "紧凑" },
 	{ value: "balanced", label: "均衡" },
 	{ value: "spacious", label: "宽松" },
 ] as const;
+const periodAreaLabels = {
+	dashboard: "首页概览",
+	movements: "货物流动",
+	loans: "借用",
+	counts: "盘点",
+} as const;
 </script>
 <template>
 	<section class="utility-page">
@@ -87,6 +105,33 @@ const densities = [
 						@change="c.change({ density: option.value })"
 					/>{{ option.label }}</label
 				>
+			</div>
+			<h2>默认时间范围</h2>
+			<div class="default-periods">
+				<label v-for="(_, area) in periodAreaLabels" :key="area" class="form-field">
+					{{ periodAreaLabels[area] }}
+					<select
+						:aria-label="periodAreaLabels[area]"
+						:value="defaultPeriods[area]"
+						@change="
+							c.change({
+								default_periods: {
+									...defaultPeriods,
+									[area]: ($event.target as HTMLSelectElement)
+										.value as DefaultPeriod,
+								},
+							})
+						"
+					>
+						<option
+							v-for="period in defaultPeriodOptions"
+							:key="period"
+							:value="period"
+						>
+							{{ periodLabels[period as keyof typeof periodLabels] }}
+						</option>
+					</select>
+				</label>
 			</div>
 			<p role="status" aria-live="polite">
 				{{

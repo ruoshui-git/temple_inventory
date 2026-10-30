@@ -7,12 +7,25 @@ import json
 import frappe
 
 from temple_inventory.native_access import require_app
+from temple_inventory.periods import PERIOD_KEYS as PERIOD_PRESETS
 
 DISPLAY_KEY = "temple_inventory_display_v2"
 THEMES = {"jade", "blue", "bronze"}
 DENSITIES = {"compact", "balanced", "spacious"}
 TEXT_SCALES = {100, 125, 150, 175, 200}
-DEFAULTS = {"theme": "jade", "density": "balanced", "textScale": 100}
+PERIOD_KEYS = PERIOD_PRESETS - {"custom"}
+DEFAULT_PERIODS = {
+	"dashboard": "this_month",
+	"movements": "this_month",
+	"loans": "this_month",
+	"counts": "this_month",
+}
+DEFAULTS = {
+	"theme": "jade",
+	"density": "balanced",
+	"textScale": 100,
+	"default_periods": DEFAULT_PERIODS,
+}
 PUSH_PROMPT_KEY = "temple_inventory_push_prompt_dismissed_v1"
 
 
@@ -38,6 +51,9 @@ def _valid(values):
 		and values["density"] in DENSITIES
 		and type(values.get("textScale")) is int
 		and values["textScale"] in TEXT_SCALES
+		and isinstance(values.get("default_periods"), dict)
+		and set(values["default_periods"]) == set(DEFAULT_PERIODS)
+		and all(isinstance(key, str) and key in PERIOD_KEYS for key in values["default_periods"].values())
 	)
 
 
@@ -46,16 +62,36 @@ def display_preferences():
 		values = json.loads(frappe.defaults.get_user_default(DISPLAY_KEY) or "null")
 	except TypeError, ValueError:
 		values = None
-	return {field: values[field] for field in DEFAULTS} if _valid(values) else dict(DEFAULTS)
+	if not isinstance(values, dict):
+		return {**DEFAULTS, "default_periods": dict(DEFAULT_PERIODS)}
+	# Existing accounts may have saved display settings before default ranges existed.
+	periods = values.get("default_periods")
+	if (
+		not isinstance(periods, dict)
+		or set(periods) != set(DEFAULT_PERIODS)
+		or not all(isinstance(value, str) and value in PERIOD_KEYS for value in periods.values())
+	):
+		periods = DEFAULT_PERIODS
+	merged = {**values, "default_periods": periods}
+	return (
+		{field: merged[field] for field in DEFAULTS}
+		if _valid(merged)
+		else {**DEFAULTS, "default_periods": dict(DEFAULT_PERIODS)}
+	)
 
 
 @frappe.whitelist(methods=["POST"])
-def save_display_preferences(theme, density, textScale):
+def save_display_preferences(theme, density, textScale, default_periods=None):
 	require_app()
 	# Frappe may decode form scalar strings as well as JSON numbers.
 	if isinstance(textScale, str) and textScale.isdecimal():
 		textScale = int(textScale)
-	values = {"theme": theme, "density": density, "textScale": textScale}
+	values = {
+		"theme": theme,
+		"density": density,
+		"textScale": textScale,
+		"default_periods": default_periods,
+	}
 	if not _valid(values):
 		frappe.throw("请选择有效的主题、密度和文字大小")
 	frappe.get_doc("User", frappe.session.user, for_update=True)

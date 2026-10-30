@@ -32,6 +32,7 @@ import { removeGroupByField } from "../../lib/groupBy";
 import { groupLabels } from "../../lib/reportContract";
 import { sitePeriodSummary } from "../../lib/sitePeriod";
 import { clearScopeField, scopeFilterFieldChips } from "../../lib/filterPresentation";
+import { defaultPeriods } from "../../lib/uiPreferences";
 import { useFilterRailPreference } from "../../composables/useFilterRailPreference";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import DataTable from "../../components/ui/DataTable.vue";
@@ -99,7 +100,12 @@ const {
 	localTarget,
 	extraChips,
 } = c;
-const scopeChips = computed(() => scopeFilterFieldChips(scope.value, c.reference));
+const defaultPeriod = computed(() =>
+	props.mode === "drafts" ? "all" : defaultPeriods.value.counts,
+);
+const scopeChips = computed(() =>
+	scopeFilterFieldChips(scope.value, c.reference, defaultPeriod.value),
+);
 const {
 	open: sidebarOpen,
 	toggle: toggleSidebar,
@@ -109,7 +115,7 @@ const {
 const { isMobile } = useResponsiveLayout();
 const filterSheetOpen = ref(false);
 function removeScopeChip(chip: (typeof scopeChips.value)[number]) {
-	clearScopeField(scope.value, chip.field);
+	clearScopeField(scope.value, chip.field, defaultPeriod.value);
 }
 watch(
 	() => props.active,

@@ -256,7 +256,10 @@ export function useNativeRecords(
   });
   function clear() {
     clearReportSecondaryFilters(query.value, reference);
-    query.value.scope = newReportQuery(query.value.dataset).scope;
+    query.value.scope =
+      props.mode === "counts"
+        ? browseDefaults("counts", "records").scope
+        : newReportQuery(query.value.dataset).scope;
   }
   function reset() {
     const dataset = props.mode === "counts" ? "counts" : "movements";

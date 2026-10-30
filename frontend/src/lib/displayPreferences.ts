@@ -50,16 +50,47 @@ export type Density = "compact" | "balanced" | "spacious";
 export const textScales = [100, 125, 150, 175, 200] as const;
 export type TextScale = (typeof textScales)[number];
 
+export const defaultPeriodOptions = [
+  "all",
+  "today",
+  "this_week",
+  "this_month",
+  "this_year",
+  "this_quarter",
+  "last_quarter",
+  "q1",
+  "q2",
+  "q3",
+  "q4",
+  "last_year",
+  "last_7_days",
+  "last_30_days",
+  "last_90_days",
+  "last_365_days",
+] as const;
+export type DefaultPeriod = (typeof defaultPeriodOptions)[number];
+export type DefaultPeriods = Record<
+  "dashboard" | "movements" | "loans" | "counts",
+  DefaultPeriod
+>;
+
 export interface DisplayPreferences {
   theme: ThemeId;
   density: Density;
   textScale: TextScale;
+  default_periods: DefaultPeriods;
 }
 
 export const defaultDisplayPreferences: DisplayPreferences = {
   theme: "jade",
   density: "balanced",
   textScale: 100,
+  default_periods: {
+    dashboard: "this_month",
+    movements: "this_month",
+    loans: "this_month",
+    counts: "this_month",
+  },
 };
 
 /** Apply the same exact tokens to the app, gallery and teleported surfaces. */

@@ -13,6 +13,7 @@ import {
 import { movementLabels } from "../../lib/presentationLabels";
 import { sortByUnit } from "../../lib/units";
 import { formatQuantityWithUnit } from "../../lib/formatQuantity";
+import { defaultPeriods } from "../../lib/uiPreferences";
 import { onCategoryRenamed } from "../../lib/categoryRename";
 import { useBrowseState } from "../../lib/browseMemory";
 import {
@@ -109,7 +110,11 @@ export function useDashboardController(navigate: (query: ReportQuery) => void) {
     uncategorized: false,
     distribution: "location",
     expiry: "expired" as "expired" | "upcoming",
-    period: { key: "this_month", from: "", to: "" } as DatePeriod,
+    period: {
+      key: defaultPeriods.value.dashboard,
+      from: "",
+      to: "",
+    } as DatePeriod,
   });
   const stopCategoryRename = onCategoryRenamed(({ oldName, category }) => {
     if (!filters.categories.includes(oldName)) return;

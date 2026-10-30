@@ -1554,6 +1554,7 @@ describe("native operation browsing", () => {
     const query = newReportQuery("movements");
     query.view = "records";
     query.sortBy = "quantity";
+    query.scope.period.key = "this_month";
     const { c } = setup(
       service(),
       reactive({
@@ -1622,7 +1623,7 @@ describe("native operation browsing", () => {
     expect(decodeReportQuery(c.loanHistory()).error).toBe("");
     c.clearFilters();
     expect(c.query.value.search).toBe("typed");
-    expect(c.query.value.scope.period.key).toBe("all");
+    expect(c.query.value.scope.period.key).toBe("this_month");
     expect(c.query.value.scope.categories).toEqual([]);
     expect(c.query.value.scope.warehouses).toEqual([]);
     expect(c.query.value.scope.item).toBe("");

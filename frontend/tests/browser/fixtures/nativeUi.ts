@@ -154,7 +154,17 @@ export async function nativeUiSession(
     "session.info": {
       user: "manager",
       csrf_token: "native-ui-test",
-      ui_preferences: { theme: "jade", density: "balanced", textScale },
+      ui_preferences: {
+        theme: "jade",
+        density: "balanced",
+        textScale,
+        default_periods: {
+          dashboard: "this_month",
+          movements: "this_month",
+          loans: "this_month",
+          counts: "this_month",
+        },
+      },
     },
     "configuration.status": {
       setup_required: false,

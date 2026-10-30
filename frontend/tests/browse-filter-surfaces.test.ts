@@ -742,3 +742,21 @@ it("limits browse grouping to two ordered fields and preserves category-to-item 
   ]);
   wrapper.unmount();
 });
+
+it("shows the date chip only when the period differs from the page default and clears back to it", () => {
+  const scope = emptyScope();
+  scope.period = { key: "this_month", from: "", to: "" };
+  expect(
+    scopeFilterFieldChips(scope, undefined, "this_month").some(
+      (chip) => chip.field === "period",
+    ),
+  ).toBe(false);
+  scope.period = { key: "all", from: "", to: "" };
+  expect(
+    scopeFilterFieldChips(scope, undefined, "this_month").find(
+      (chip) => chip.field === "period",
+    )?.label,
+  ).toBe("日期：全部时间");
+  clearScopeField(scope, "period", "this_month");
+  expect(scope.period.key).toBe("this_month");
+});

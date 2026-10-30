@@ -14,6 +14,8 @@ import {
 } from "../src/lib/browserRecovery";
 import { recoveryDestination } from "../src/lib/recoveryNavigation";
 import { newReportQuery } from "../src/lib/reportContract";
+import { hydrateUiPreferences } from "../src/lib/uiPreferences";
+import { defaultDisplayPreferences } from "../src/lib/displayPreferences";
 import { resetReviewSession } from "./support/reviewModel";
 const wrappers: VueWrapper[] = [];
 beforeEach(() => localStorage.clear());
@@ -98,6 +100,21 @@ function setup(
   return { wrapper, page, c: page.vm.controller, reference, call };
 }
 describe("native drafts and count records", () => {
+  it("uses the account's count period on entry and when clearing filters", async () => {
+    hydrateUiPreferences("volunteer", {
+      ...defaultDisplayPreferences,
+      default_periods: {
+        ...defaultDisplayPreferences.default_periods,
+        counts: "last_30_days",
+      },
+    });
+    const { c } = setup(undefined, "counts");
+    await flushPromises();
+    expect(c.query.value.scope.period.key).toBe("last_30_days");
+    c.clear();
+    expect(c.query.value.scope.period.key).toBe("last_30_days");
+    hydrateUiPreferences("volunteer", defaultDisplayPreferences);
+  });
   it("shows independent count browse columns and gain, loss, and net values", async () => {
     const count = {
       ...nativeRow,
