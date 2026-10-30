@@ -53,11 +53,20 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 | 图片 / 物品名称 / 物品编号 | ✅ | ✅ | 🔁 Thumbnails load on every 明细 row (were placeholders) |
 | 数量（未归还） | ✅ | ✅ | 🔁 筛选 → 范围: 记录范围 仅未归还借出 (default, the 借出清单) or 借出与归还全部记录 (every loan line plus its return / damage / loss lines); 包括已结清物品 adds fully returned loans. Both are in the URL and the export follows them. Quantity is signed: loan +, return − |
 | 来源位置 | ✅ | ✅ | 🔁 Neutral labels (日期 / 编号 / 来源位置) because 明细 may list returns; 完整位置 / ERPNext 库位 optional |
-| 借出人 | ✅ | ✅ | 借用方 |
+| 借用方 | ✅ | ✅ | 🔄 One term on forms, columns, filters and files |
 | 借出活动 | ✅ | ✅ | |
 | 借出时间 | ✅ | ✅ | |
 | 🆕 借出单号 / 编号 | ✅ | ✅ | Opens the record; returns start from the loan. 🔁 未归还数量 precedes 借出数量 in both loan views |
 | 汇总：物品数量 | ✅ | ✅ | "N 条明细 · M 种物品" + 未归还 per unit |
+
+### 🔄 借用记录（单据） — 借用 → 单据
+
+| 字段 | 页面 | 导出 | 说明 |
+|---|---|---|---|
+| 范围 | ✅ | ✅ | 仅未归还借出 (default) lists open loan documents; 借出与归还全部记录 adds 归还 / 损坏 / 遗失 documents. Non-default 范围 shows a chip |
+| 编号 / 类型 / 日期 | ✅ | ✅ | Neutral headers because returns are listed too |
+| 结算记录 / 原借出 | ✅ | ✅ | Loan rows link their settlements; settlement rows link their loans. Visible by default |
+| 登记归还 | ✅ | — | Only on open loan rows |
 
 ### 流动记录（物品） — 货物流动 → 明细 (default, ungrouped)
 
@@ -124,7 +133,7 @@ Submitted stock records follow ERPNext: drafts can be edited or deleted; submitt
 | 物品照片 | ✅ | ✅ | ✅ | ✅ | — | Crop / replace / remove |
 | 条码 | ✅ | ✅ | ✅ | ✅ | — | In the item editor; scan and search find the item |
 | 物品附件 | ✅ | ✅ | — | ✅ | — | |
-| 流动记录附件 | ✅ | ✅ | — | ✅ | — | Also on 盘点 records |
+| 流动记录附件 | ✅ | ✅ | — | ✅ | — | Also on 盘点 records. 🔄 Add/remove also on submitted records (cancelled stay read-only); in-app viewer for images, PDFs and text |
 | 入库记录 | ✅ | ✅ | ✅ draft | ✅ draft | ✅ 取消 / 修订 | |
 | 出库记录 | ✅ | ✅ | ✅ draft | ✅ draft | ✅ 取消 / 修订 | Expired goods leave stock through 出库 |
 | 调拨记录 | ✅ | ✅ | ✅ draft | ✅ draft | ✅ 取消 / 修订 | |
