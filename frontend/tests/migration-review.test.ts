@@ -54,7 +54,7 @@ function render(
   });
   const call = vi.fn(
     async (endpoint: string, args?: Record<string, unknown>) => {
-      if (endpoint === "activities.load_activity")
+      if (endpoint === "activities.activity_label")
         return activityCall?.(String(args?.name));
       return endpoint === "native_api.load_document"
         ? structuredClone(doc)
@@ -296,7 +296,7 @@ describe("migration follow-up", () => {
     ).toBe("counts");
   });
   it.each(["Active", "Archived"])(
-    "resolves permitted %s titles on fresh operation and count entry and reload",
+    "resolves permitted %s titles on entry and when the link changes",
     async (status) => {
       for (const doctype of ["Stock Entry", "Stock Reconciliation"] as const) {
         const doc = { ...record(doctype), ti_activity: "OPAQUE-ID" };
@@ -304,7 +304,7 @@ describe("migration follow-up", () => {
         const activityCall = vi.fn(async (name: string) => ({
           name,
           title,
-          status,
+          archived: status === "Archived",
         }));
         const { wrapper } = render(doc, activityCall);
         await flushPromises();
@@ -312,12 +312,16 @@ describe("migration follow-up", () => {
         expect(wrapper.text()).toContain(title);
         expect(wrapper.text()).not.toContain("OPAQUE-ID");
         title = "重命名后的活动";
-        const c =
-          doctype === "Stock Entry"
-            ? wrapper.getComponent(OperationEditorPage).vm.controller
-            : wrapper.getComponent(CountEditorPage).vm.controller;
-        await c.load();
+        if (doctype === "Stock Entry")
+          wrapper.getComponent(
+            OperationEditorPage,
+          ).vm.controller.draft.value.activity = "NEW-OPAQUE-ID";
+        else
+          wrapper.getComponent(
+            CountEditorPage,
+          ).vm.controller.values.value.ti_activity = "NEW-OPAQUE-ID";
         await flushPromises();
+        expect(activityCall).toHaveBeenCalledWith("NEW-OPAQUE-ID");
         expect(wrapper.text()).toContain(title);
       }
     },

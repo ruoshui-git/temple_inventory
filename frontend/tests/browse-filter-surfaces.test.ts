@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from "vitest";
-import { flushPromises, mount } from "@vue/test-utils";
+import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h, provide, reactive, ref } from "vue";
 import PeriodFilter from "../src/components/ui/PeriodFilter.vue";
 import FilterPanel from "../src/components/ui/FilterPanel.vue";
@@ -14,6 +14,7 @@ import {
 import GroupByFilter from "../src/components/filters/GroupByFilter.vue";
 import FilterDisclosure from "../src/components/ui/FilterDisclosure.vue";
 import RemoteSelect from "../src/components/ui/RemoteSelect.vue";
+import SearchSelect from "../src/components/ui/SearchSelect.vue";
 import { filterPanelSessionKey } from "../src/lib/filterPanelSession";
 import { emptyScope } from "../src/lib/browseQuery";
 import {
@@ -21,7 +22,9 @@ import {
   scopeFilterFieldChips,
 } from "../src/lib/filterPresentation";
 
+const filterWrappers: VueWrapper[] = [];
 afterEach(() => {
+  filterWrappers.splice(0).forEach((wrapper) => wrapper.unmount());
   localStorage.clear();
   vi.unstubAllGlobals();
 });
@@ -124,6 +127,83 @@ it("keeps disclosure headings single while remote controls retain accessible nam
   ).toBe("物品");
   itemPanel.unmount();
 });
+
+it.each([false, true])(
+  "keeps a searchable select inside the filter panel nested (%s phone mode)",
+  async (phone) => {
+    vi.stubGlobal("matchMedia", () => ({
+      matches: !phone,
+      addEventListener() {},
+      removeEventListener() {},
+    }));
+    const selected = ref("");
+    const wrapper = mount(FilterPanel, {
+      props: { label: "筛选", active: true },
+      slots: {
+        default: () =>
+          h(SearchSelect, {
+            label: "人员",
+            modelValue: selected.value,
+            options: ["甲", "乙"],
+            "onUpdate:modelValue": (value: string) => (selected.value = value),
+          }),
+      },
+      attachTo: document.body,
+    });
+    filterWrappers.push(wrapper);
+    await wrapper.get(".browse-filter-control button").trigger("click");
+    await flushPromises();
+    const input = document.querySelector<HTMLInputElement>(
+      'input[role="combobox"]',
+    );
+    expect(input).not.toBeNull();
+    input!.getBoundingClientRect = () =>
+      ({
+        x: 100,
+        y: 100,
+        left: 100,
+        top: 100,
+        right: 240,
+        bottom: 136,
+        width: 140,
+        height: 36,
+        toJSON() {},
+      }) as DOMRect;
+    await input!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flushPromises();
+    expect(document.body.textContent).toContain("甲");
+    expect(
+      wrapper.get(".browse-filter-control button").attributes("aria-expanded"),
+    ).toBe("true");
+    await document.querySelector<HTMLElement>('[role="option"]')!.click();
+    await flushPromises();
+    expect(
+      wrapper.getComponent(SearchSelect).emitted("update:modelValue")?.[0],
+    ).toEqual(["甲"]);
+    expect(selected.value).toBe("甲");
+    expect(
+      wrapper.get(".browse-filter-control button").attributes("aria-expanded"),
+    ).toBe("true");
+    await input!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flushPromises();
+    await input!.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+    );
+    await flushPromises();
+    expect(input!.getAttribute("aria-expanded")).toBe("false");
+    expect(
+      wrapper.get(".browse-filter-control button").attributes("aria-expanded"),
+    ).toBe("true");
+    document.body.dispatchEvent(
+      new PointerEvent("pointerdown", { bubbles: true }),
+    );
+    await flushPromises();
+    expect(
+      wrapper.get(".browse-filter-control button").attributes("aria-expanded"),
+    ).toBe("false");
+    wrapper.unmount();
+  },
+);
 
 it("supports custom inclusive bounds and inline validation", async () => {
   const wrapper = mount(PeriodFilter, {

@@ -318,6 +318,14 @@ watch(pickerOpen, (open, wasOpen) => {
 	if (wasOpen && !open) cancelPendingScans();
 });
 const stockItem = (code: string) => context.stock.find((item) => item.code === code);
+function existingQuantity(line: AllocationLine) {
+	if (line.loanName) return lineCapacity(props.draft, line);
+	const place = lineStock(line);
+	if (!place) return 0;
+	const field = ["Repair", "Disposal"].includes(props.draft.kind) ? "damaged" : "available";
+	const batch = line.batch ? place.batches?.find((row) => row.id === line.batch) : undefined;
+	return Number((batch || place)[field] || 0);
+}
 const eligible = computed(() => undefined);
 const canAddItem = computed(
 	() =>
@@ -1751,6 +1759,13 @@ function receiveBatchChanged(line: AllocationLine) {
 									)
 								"
 							/>
+							<span
+								v-if="!receive && !disabled"
+								class="operation-row-existing muted"
+							>
+								现有 {{ formatQuantity(existingQuantity(line)) }}
+								<UnitText :name="line.uom" />
+							</span>
 							<p
 								v-if="lineInvalid(line, 'qty')"
 								:id="lineIssueId(line, 'qty')"

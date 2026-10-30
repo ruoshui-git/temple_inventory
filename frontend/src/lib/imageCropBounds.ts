@@ -67,3 +67,19 @@ export function clampSquareSelection(
     height: size,
   };
 }
+
+export function clampSelectionToBounds(
+  selection: CropSelection,
+  bounds: CropBounds,
+): CropSelection {
+  const width = Math.max(0, bounds.right - bounds.left);
+  const height = Math.max(0, bounds.bottom - bounds.top);
+  const nextWidth = Math.min(Math.max(0, selection.width), width);
+  const nextHeight = Math.min(Math.max(0, selection.height), height);
+  return {
+    x: Math.min(Math.max(selection.x, bounds.left), bounds.right - nextWidth),
+    y: Math.min(Math.max(selection.y, bounds.top), bounds.bottom - nextHeight),
+    width: nextWidth,
+    height: nextHeight,
+  };
+}

@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
 import {
   clampSquareSelection,
+  clampSelectionToBounds,
   fitImageAspect,
   imageBoundsInCanvas,
   largestCenteredSquare,
@@ -54,4 +55,14 @@ it("shrinks a crop selection when the transformed source no longer fits its size
       { left: 30, top: 20, right: 180, bottom: 110 },
     ),
   ).toEqual({ x: 30, y: 20, width: 90, height: 90 });
+});
+
+it("clamps each free aspect drag proposal to the image edge", () => {
+  const bounds = { left: 20, top: 30, right: 220, bottom: 180 };
+  expect(
+    clampSelectionToBounds({ x: 190, y: 140, width: 80, height: 50 }, bounds),
+  ).toEqual({ x: 140, y: 130, width: 80, height: 50 });
+  expect(
+    clampSelectionToBounds({ x: 10, y: 20, width: 240, height: 190 }, bounds),
+  ).toEqual({ x: 20, y: 30, width: 200, height: 150 });
 });

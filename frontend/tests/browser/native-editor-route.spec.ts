@@ -1,5 +1,10 @@
 import { sampleWarehouses } from "./fixtures/nativeUi";
 import { expect, test } from "@playwright/test";
+import { mkdirSync } from "node:fs";
+import { resolve } from "node:path";
+
+const uiPolishShots = resolve(process.cwd(), "tests/browser/.ui-polish-shots");
+mkdirSync(uiPolishShots, { recursive: true });
 
 // Production routing/transport exercise with controlled native responses.
 // Real native interoperability is validated separately on development.localhost.
@@ -54,7 +59,7 @@ test("save, reload and amendment keep the current native identity in the URL", a
         capabilities: {
           "Stock Entry": { read: true, create: true, ...permissions },
         },
-        operations: { Receive: true },
+        operations: { Receive: true, Issue: true },
       };
     else if (method === "temple_inventory.catalog.operation_items")
       message = {
@@ -71,12 +76,56 @@ test("save, reload and amendment keep the current native identity in the URL", a
             can_edit: false,
             barcodes: [],
             uoms: [{ uom: "Nos", conversion_factor: 1 }],
-            stock: [],
+            stock: [
+              {
+                warehouse: "A02-DIRECT",
+                warehouse_label: "演示室甲",
+                available: 7,
+                loaned: 0,
+                damaged: 0,
+              },
+            ],
             attachments: [],
           },
         ],
         errors: [],
       };
+    else if (method === "temple_inventory.catalog.picker_rows")
+      message = {
+        results: [
+          {
+            item_code: "ITEM-A",
+            item_name: "测试物品",
+            item_group: "用品",
+            stock_uom: "Nos",
+            description: "",
+            version: "item-v1",
+            has_batch_no: false,
+            has_expiry_date: false,
+            can_edit: false,
+            barcodes: [],
+            uoms: [{ uom: "Nos", conversion_factor: 1 }],
+            stock: [
+              {
+                warehouse: "A02-DIRECT",
+                warehouse_label: "演示室甲",
+                available: 7,
+                loaned: 0,
+                damaged: 0,
+              },
+            ],
+            warehouse: "A02-DIRECT",
+            warehouse_label: "演示室甲",
+            picker_quantity: 7,
+          },
+        ],
+        matched_count: 1,
+        next_start: null,
+      };
+    else if (
+      method === "temple_inventory.table_preferences.get_column_preferences"
+    )
+      message = {};
     else if (method === "temple_inventory.catalog.item_lifecycle")
       message = {
         disabled: false,
@@ -160,6 +209,41 @@ test("save, reload and amendment keep the current native identity in the URL", a
   await page.goto(
     `/inventory/movements/new/Receive?warehouse=A02-DIRECT&items=${encodeURIComponent(JSON.stringify(["ITEM-A"]))}`,
   );
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByRole("button", { name: "添加物品", exact: true }).click();
+  const addPicker = page.getByRole("dialog", { name: "选择物品", exact: true });
+  await expect(addPicker).toBeVisible();
+  await expect(
+    addPicker.locator(".picker-data-table tbody tr"),
+  ).not.toHaveCount(0);
+  await addPicker
+    .locator(".picker-data-table tbody input[type=checkbox]")
+    .first()
+    .check();
+  await addPicker.getByRole("button", { name: /添加所选/ }).click();
+  await expect(
+    page.getByRole("button", { name: "更换物品", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "更换物品", exact: true }).click();
+  const picker = page.getByRole("dialog", { name: "选择物品", exact: true });
+  await expect(picker).toBeVisible();
+  const chooseButton = picker.getByRole("button", {
+    name: "选择",
+    exact: true,
+  });
+  await expect(chooseButton).toBeVisible();
+  const buttonBox = await chooseButton.boundingBox();
+  const actionCell = chooseButton.locator("xpath=ancestor::td[1]");
+  const cellBox = await actionCell.boundingBox();
+  expect(buttonBox).not.toBeNull();
+  expect(cellBox).not.toBeNull();
+  expect(buttonBox!.x + buttonBox!.width).toBeLessThanOrEqual(
+    cellBox!.x + cellBox!.width + 1,
+  );
+  await page.screenshot({
+    path: resolve(uiPolishShots, "item-picker-replace.png"),
+  });
+  await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "保存草稿", exact: true }),
   ).toBeVisible();
@@ -198,4 +282,20 @@ test("save, reload and amendment keep the current native identity in the URL", a
   expect(amendments).toBe(1);
   expect(errors).toEqual([]);
   expect(unexpected).toEqual([]);
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.goto(
+      `/inventory/movements/new/Issue?warehouse=A02-DIRECT&items=${encodeURIComponent(JSON.stringify(["ITEM-A"]))}`,
+    );
+    await expect(page.locator(".operation-row-existing")).toContainText(
+      "现有 7",
+    );
+    await page.screenshot({
+      path: resolve(
+        uiPolishShots,
+        `outbound-existing-${width < 1024 ? "phone" : "desktop"}.png`,
+      ),
+      fullPage: true,
+    });
+  }
 });

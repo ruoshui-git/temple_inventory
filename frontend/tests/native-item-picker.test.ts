@@ -200,6 +200,21 @@ it("keeps the picker image column and gives the item name the flexible track", (
   ).toEqual(["image", "name", "code", "category", "quantity"]);
 });
 
+it("reserves a fixed action track wide enough for the replace button", () => {
+  const action = itemPickerColumns("可用库存", "outbound", false).find(
+    (column) => column.id === "action",
+  );
+  expect(action).toMatchObject({
+    className: "picker-action-column",
+    kind: "actions",
+  });
+  expect(
+    itemPickerColumns("可用库存", "outbound", true).some(
+      (column) => column.id === "action",
+    ),
+  ).toBe(false);
+});
+
 it("shows the earliest tracked batch expiry and stock-only picker purposes", () => {
   const expiry = earliestBatchExpiry({
     code: "A",

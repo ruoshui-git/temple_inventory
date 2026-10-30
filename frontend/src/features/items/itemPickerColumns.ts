@@ -52,6 +52,7 @@ export function itemPickerColumns(
       id: "action",
       label: "操作",
       kind: "actions",
+      className: "picker-action-column",
       align: "end",
     });
   return columns;

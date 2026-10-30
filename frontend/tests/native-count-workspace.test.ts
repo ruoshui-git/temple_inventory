@@ -455,7 +455,7 @@ describe("compact count workspace", () => {
           quantity: -1,
           available_effect: -1,
           loan_balance_effect: 1,
-          borrower: "借用人",
+          borrower: "借用方",
         },
       ],
       total: 1,

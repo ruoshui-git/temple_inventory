@@ -199,6 +199,34 @@ async function openPicker(wrapper: VueWrapper) {
 }
 
 describe("rapid operation scan integration", () => {
+  it("shows location stock or selected-batch stock beside outbound quantity", async () => {
+    const tracked = stockItem({
+      tracksBatch: true,
+      locations: [
+        {
+          location: "ROOM-A",
+          available: 5,
+          loaned: 0,
+          damaged: 0,
+          batches: [
+            { id: "BATCH-A", available: 2, damaged: 0, expiry: "" },
+            { id: "BATCH-B", available: 3, damaged: 0, expiry: "" },
+          ],
+        },
+      ],
+    });
+    const { wrapper, draft } = setup(
+      "Issue",
+      [tracked],
+      [{ id: "line-a", batch: "BATCH-A" }],
+    );
+    expect(wrapper.find(".operation-row-existing").text()).toContain("现有 2");
+    expect(wrapper.find(".operation-row-existing input").exists()).toBe(false);
+    draft.items[0]!.batch = "";
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find(".operation-row-existing").text()).toContain("现有 5");
+  });
+
   it("renders each batch as a native row with its own unit and duplicates it blank", async () => {
     const tracked = stockItem({
       tracksBatch: true,

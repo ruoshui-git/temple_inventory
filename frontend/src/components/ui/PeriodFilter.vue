@@ -18,6 +18,7 @@ import Overlay from "./Overlay.vue";
 import PeriodEditor from "./PeriodEditor.vue";
 import UiButton from "./UiButton.vue";
 import { chooseFilterPopoverPlacement } from "../../lib/filterPopoverPlacement";
+import { useAnchoredPopup } from "../../composables/useAnchoredPopup";
 
 const props = withDefaults(
 	defineProps<{
@@ -34,28 +35,24 @@ const props = withDefaults(
 const emit = defineEmits<{ "update:modelValue": [value: DatePeriod] }>();
 const { isMobile } = useResponsiveLayout();
 const trigger = ref<HTMLElement>();
+const popover = ref<HTMLElement>();
 const open = ref(false);
 const draft = ref<DatePeriod>({ ...props.modelValue });
 const error = ref("");
 const owner = useId();
 const formId = `period-${useId()}`;
 const session = inject(filterPanelSessionKey, "");
-function otherPanel(event: Event) {
-	if ((event as CustomEvent).detail !== owner) open.value = false;
-}
 function filterPanelClosed(event: Event) {
 	if (!props.embedded || !session || (event as CustomEvent).detail !== session) return;
 	draft.value = { ...props.modelValue };
 	error.value = "";
 }
 onMounted(() => {
-	document.addEventListener("browse-filter-panel-open", otherPanel);
 	document.addEventListener("browse-filter-panel-close", filterPanelClosed);
 	window.addEventListener("resize", reposition);
 	window.addEventListener("scroll", reposition, true);
 });
 onBeforeUnmount(() => {
-	document.removeEventListener("browse-filter-panel-open", otherPanel);
 	document.removeEventListener("browse-filter-panel-close", filterPanelClosed);
 	window.removeEventListener("resize", reposition);
 	window.removeEventListener("scroll", reposition, true);
@@ -79,6 +76,14 @@ onDeactivated(() => {
 	open.value = false;
 });
 const position = ref<Record<string, string>>({});
+useAnchoredPopup({
+	anchor: trigger,
+	popup: popover,
+	open,
+	owner,
+	managePosition: false,
+	onClose: () => cancel(),
+});
 const summary = computed(() => sitePeriodSummary(props.modelValue, props.today));
 function reposition() {
 	if (!open.value || isMobile.value) return;
@@ -110,7 +115,6 @@ function reposition() {
 	};
 }
 function show() {
-	document.dispatchEvent(new CustomEvent("browse-filter-panel-open", { detail: owner }));
 	draft.value = { ...props.modelValue };
 	error.value = "";
 	open.value = true;
@@ -186,7 +190,7 @@ function cancel() {
 			"
 			@close="cancel"
 		>
-			<form :id="`${formId}-range`" @submit.prevent="apply">
+			<form ref="popover" :id="`${formId}-range`" @submit.prevent="apply">
 				<PeriodEditor v-model="draft" :label="label" :today="today" />
 				<p v-if="error" role="alert">{{ error }}</p>
 			</form>

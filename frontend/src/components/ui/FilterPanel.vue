@@ -15,6 +15,7 @@ import Overlay from "./Overlay.vue";
 import UiButton from "./UiButton.vue";
 import { chooseFilterPopoverPlacement } from "../../lib/filterPopoverPlacement";
 import { scrollBy, scrollOwner } from "../../composables/scrollSurface";
+import { useAnchoredPopup } from "../../composables/useAnchoredPopup";
 
 const props = withDefaults(
 	defineProps<{
@@ -36,6 +37,15 @@ const position = ref<Record<string, string>>({ visibility: "hidden" });
 const panelId = computed(() => `${id}-panel`);
 let observer: ResizeObserver | undefined;
 const triggerElement = () => trigger.value?.$el as HTMLButtonElement | undefined;
+const popupNesting = useAnchoredPopup({
+	anchor: computed(() => triggerElement()),
+	popup: panel,
+	open,
+	owner: id,
+	managePosition: false,
+	retainOnChildActivate: true,
+	onClose: () => close(),
+});
 
 function close(restore = false) {
 	if (!open.value) return;
@@ -82,6 +92,7 @@ function reposition() {
 		left: `${Math.max(margin, Math.min(anchor.left, window.innerWidth - width - margin))}px`,
 		top: `${placement.top}px`,
 		width: `${width}px`,
+		zIndex: "var(--p-z-menu)",
 		maxHeight: `${placement.maxHeight}px`,
 		minHeight: `${placement.minHeight}px`,
 	};
@@ -91,7 +102,6 @@ function reposition() {
 async function toggle() {
 	if (open.value) return close(true);
 	if (!props.active) return;
-	document.dispatchEvent(new CustomEvent("browse-filter-panel-open", { detail: id }));
 	position.value = { visibility: "hidden" };
 	open.value = true;
 	await nextTick();
@@ -109,17 +119,18 @@ async function toggle() {
 	}
 }
 function otherPanel(event: Event) {
-	if ((event as CustomEvent).detail !== id) close();
+	if ((event as CustomEvent).detail !== id && !popupNesting.hasOpenChild()) close();
 }
 function outside(event: Event) {
 	if (isMobile.value || !open.value) return;
 	const target = event.target as Node;
-	if (!panel.value?.contains(target) && !triggerElement()?.contains(target)) close();
+	if (!popupNesting.contains(target)) close();
 }
 function keydown(event: KeyboardEvent) {
 	// Search selectors and tree searches consume their first Escape themselves.
 	if (event.defaultPrevented) return;
 	if (event.key === "Escape") {
+		if (popupNesting.hasOpenChild()) return;
 		event.preventDefault();
 		event.stopPropagation();
 		close(true);
@@ -185,7 +196,7 @@ watch(isMobile, async () => {
 onDeactivated(() => close());
 onMounted(() => {
 	document.addEventListener("browse-filter-panel-open", otherPanel);
-	document.addEventListener("pointerdown", outside);
+	document.addEventListener("pointerdown", outside, true);
 	document.addEventListener("focusin", outside);
 	window.addEventListener("resize", reposition);
 	window.addEventListener("scroll", reposition, true);
@@ -194,7 +205,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
 	observer?.disconnect();
 	document.removeEventListener("browse-filter-panel-open", otherPanel);
-	document.removeEventListener("pointerdown", outside);
+	document.removeEventListener("pointerdown", outside, true);
 	document.removeEventListener("focusin", outside);
 	window.removeEventListener("resize", reposition);
 	window.removeEventListener("scroll", reposition, true);
@@ -251,7 +262,7 @@ defineExpose({
 			:panel-style="{ width: '100%', maxWidth: '100%' }"
 			@close="close()"
 		>
-			<div :id="panelId" class="compact-filter-content"><slot /></div>
+			<div ref="panel" :id="panelId" class="compact-filter-content"><slot /></div>
 			<template #footer
 				><slot name="footer" /><UiButton variant="primary" @click="close()"
 					>完成</UiButton

@@ -43,7 +43,7 @@ for (const width of [375, 1440]) {
       const args = route.request().postDataJSON() || {};
       let message: unknown = [];
       if (method === "native_api.load_document") message = doc;
-      else if (method === "activities.load_activity") {
+      else if (method === "activities.activity_label") {
         expect(args.name).toBe("ACT-OPAQUE");
         if (denied) {
           await route.fulfill({
@@ -52,7 +52,7 @@ for (const width of [375, 1440]) {
           });
           return;
         }
-        message = { name: "ACT-OPAQUE", title, status: "Archived" };
+        message = { name: "ACT-OPAQUE", title, archived: true };
       } else if (method === "projections.report_page") {
         queries.push(args.query);
         expect(args.query).toMatchObject({

@@ -7,6 +7,7 @@ type PopupRecord = {
   popup: Ref<HTMLElement | undefined>;
   parent?: PopupRecord;
   children: Set<PopupRecord>;
+  retainOnChildActivate?: boolean;
   close: (restoreFocus: boolean) => void;
 };
 
@@ -57,14 +58,21 @@ export function useAnchoredPopup(options: {
   /** Stay below the anchor when at least this much height fits there. */
   preferredMinHeight?: number;
   maxWidth?: number;
+  /** Register nesting and dismissal without changing the popup's own layout. */
+  managePosition?: boolean;
+  /** Stable owner used by a host Overlay that emits the same transient event. */
+  owner?: string;
+  /** Keep this surface open when a nested selector commits an option. */
+  retainOnChildActivate?: boolean;
   onClose: (restoreFocus: boolean) => void;
 }) {
-  const owner = `popup-${Math.random().toString(36).slice(2)}`;
+  const owner = options.owner ?? `popup-${Math.random().toString(36).slice(2)}`;
   const record: PopupRecord = {
     owner,
     anchor: options.anchor,
     popup: options.popup,
     children: new Set(),
+    retainOnChildActivate: options.retainOnChildActivate,
     close: (restoreFocus) => options.onClose(restoreFocus),
   };
   const style = ref<Record<string, string>>({ visibility: "hidden" });
@@ -77,6 +85,7 @@ export function useAnchoredPopup(options: {
     target.value = overlay || "body";
   }
   function reposition() {
+    if (options.managePosition === false) return;
     const anchor = options.anchor.value;
     const popup = options.popup.value;
     if (!options.open.value || !anchor || !popup || !anchor.isConnected) {
@@ -140,6 +149,7 @@ export function useAnchoredPopup(options: {
       width: `${width}px`,
       maxHeight: `${maxHeight}px`,
       "--popup-max-height": `${maxHeight}px`,
+      zIndex: `calc(var(--p-z-menu) + ${depth(record)})`,
       visibility: "visible",
     };
   }
@@ -179,8 +189,10 @@ export function useAnchoredPopup(options: {
     document.addEventListener("inventory-navigation", routeChanged);
     window.addEventListener("popstate", routeChanged);
     window.addEventListener("hashchange", routeChanged);
-    window.addEventListener("resize", reposition);
-    window.addEventListener("scroll", reposition, true);
+    if (options.managePosition !== false) {
+      window.addEventListener("resize", reposition);
+      window.addEventListener("scroll", reposition, true);
+    }
     if (typeof ResizeObserver !== "undefined") {
       resizeObserver ??= new ResizeObserver(reposition);
       if (options.popup.value) resizeObserver.observe(options.popup.value);
@@ -196,8 +208,10 @@ export function useAnchoredPopup(options: {
     document.removeEventListener("inventory-navigation", routeChanged);
     window.removeEventListener("popstate", routeChanged);
     window.removeEventListener("hashchange", routeChanged);
-    window.removeEventListener("resize", reposition);
-    window.removeEventListener("scroll", reposition, true);
+    if (options.managePosition !== false) {
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition, true);
+    }
   }
   function closeDescendants(parent: PopupRecord) {
     [...parent.children].forEach((child) => {
@@ -246,9 +260,16 @@ export function useAnchoredPopup(options: {
     style,
     target,
     reposition,
+    contains(target: Node) {
+      return containsPopup(record, target);
+    },
+    hasOpenChild() {
+      return hasOpenChild(record);
+    },
     activateParent() {
       let parent = record.parent;
       while (parent) {
+        if (parent.retainOnChildActivate) break;
         parent.close(false);
         parent = parent.parent;
       }

@@ -1077,6 +1077,10 @@ async function selectExisting(code: string, warehouse: string) {
 .picker-data-table :deep(.picker-code-column) {
 	word-break: keep-all;
 }
+.picker-data-table :deep(.picker-action-column) {
+	width: max(112px, calc(3 * var(--p-body) + 32px));
+	min-width: max(112px, calc(3 * var(--p-body) + 32px));
+}
 .picker-data-table :deep(td) {
 	padding-block: var(--p-space-1);
 }

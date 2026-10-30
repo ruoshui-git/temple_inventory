@@ -472,6 +472,12 @@ select {
 	font-size: 0.75rem;
 	white-space: nowrap;
 }
+.operation-row-existing {
+	min-width: 0;
+	font-size: 0.7rem;
+	line-height: 1.2;
+	white-space: normal;
+}
 .operation-stock-total-heading {
 	min-width: 0;
 }

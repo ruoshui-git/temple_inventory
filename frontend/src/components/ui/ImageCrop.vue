@@ -5,6 +5,7 @@ import Overlay from "./Overlay.vue";
 import UiButton from "./UiButton.vue";
 import {
 	clampSquareSelection,
+	clampSelectionToBounds,
 	fitImageAspect,
 	imageBoundsInCanvas,
 	largestCenteredSquare,
@@ -22,7 +23,9 @@ const retain = ref(false);
 const error = ref("");
 let cropper: Cropper | undefined;
 let cropImageElement: HTMLElement | undefined;
+let cropSelectionElement: HTMLElement | undefined;
 let transformListener: (() => void) | undefined;
+let selectionChangeListener: ((event: Event) => void) | undefined;
 let objectUrl = "";
 let disposed = false;
 let initialSelection = { x: 0, y: 0, width: 0, height: 0 };
@@ -50,8 +53,6 @@ onMounted(async () => {
 		selection.initialAspectRatio = props.freeAspect ? NaN : 1;
 		selection.initialCoverage = 1;
 		selection.keyboard = true;
-		selection.maxInset = "auto";
-		selection.minInset = "0px";
 		await cropImage.$ready();
 		if (!disposed) {
 			const canvas = cropper.getCropperCanvas();
@@ -102,18 +103,15 @@ onMounted(async () => {
 					initialSelectionSet = Boolean(initial.width && initial.height);
 				}
 				const bounded = props.freeAspect
-					? {
-							x: Math.max(
-								bounds.left,
-								Math.min(selection.x, bounds.right - selection.width),
-							),
-							y: Math.max(
-								bounds.top,
-								Math.min(selection.y, bounds.bottom - selection.height),
-							),
-							width: Math.min(selection.width, bounds.right - bounds.left),
-							height: Math.min(selection.height, bounds.bottom - bounds.top),
-						}
+					? clampSelectionToBounds(
+							{
+								x: selection.x,
+								y: selection.y,
+								width: selection.width,
+								height: selection.height,
+							},
+							bounds,
+						)
 					: clampSquareSelection(
 							{
 								x: selection.x,
@@ -139,13 +137,58 @@ onMounted(async () => {
 					);
 			};
 			const onActionEnd = () => updateBounds();
+			let correctingSelection = false;
+			selectionChangeListener = (event: Event) => {
+				if (correctingSelection) return;
+				const detail = (event as CustomEvent).detail;
+				if (
+					!detail ||
+					![detail.x, detail.y, detail.width, detail.height].every(Number.isFinite)
+				)
+					return;
+				const canvasRect = canvas.getBoundingClientRect();
+				const imageRect = cropImage.$image.getBoundingClientRect();
+				const bounds = imageBoundsInCanvas(imageRect, canvasRect);
+				const proposed = {
+					x: detail.x,
+					y: detail.y,
+					width: detail.width,
+					height: detail.height,
+				};
+				const bounded = props.freeAspect
+					? clampSelectionToBounds(proposed, bounds)
+					: clampSquareSelection(proposed, bounds);
+				if (
+					Object.keys(bounded).some(
+						(key) =>
+							Math.abs(
+								bounded[key as keyof typeof bounded] -
+									proposed[key as keyof typeof proposed],
+							) > 0.01,
+					)
+				) {
+					event.preventDefault();
+					correctingSelection = true;
+					selection.$change(
+						bounded.x,
+						bounded.y,
+						bounded.width,
+						bounded.height,
+						props.freeAspect ? NaN : 1,
+						true,
+					);
+					correctingSelection = false;
+				}
+			};
 			if (
 				typeof canvas.getBoundingClientRect === "function" &&
 				typeof cropImage.$image?.getBoundingClientRect === "function" &&
 				typeof cropImage.addEventListener === "function"
 			) {
 				cropImageElement = cropImage;
+				cropSelectionElement = selection;
 				transformListener = updateBounds;
+				selection.addEventListener("change", selectionChangeListener);
 				cropImage.addEventListener("transform", transformListener);
 				canvas.addEventListener("actionend", onActionEnd);
 				updateBounds();
@@ -266,6 +309,8 @@ onBeforeUnmount(() => {
 		typeof cropImageElement.removeEventListener === "function"
 	)
 		cropImageElement.removeEventListener("transform", transformListener);
+	if (cropSelectionElement && selectionChangeListener)
+		cropSelectionElement.removeEventListener("change", selectionChangeListener);
 	if (objectUrl) URL.revokeObjectURL(objectUrl);
 });
 </script>
