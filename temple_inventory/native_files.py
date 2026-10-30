@@ -21,8 +21,9 @@ def _parent(doctype, name, *, write=False):
 	if doctype in NATIVE_DOCTYPES:
 		if doc.get("ti_movement_kind") or doc.get("ti_count_scope"):
 			check_document_scope(doc)
-		if write and doc.docstatus != 0:
-			frappe.throw("已完成或取消的库存记录附件不能修改", frappe.PermissionError)
+		# Attachments are notes, not stock: drafts and submitted records accept changes.
+		if write and doc.docstatus == 2:
+			frappe.throw("已取消的库存记录附件不能修改", frappe.PermissionError)
 	return doc
 
 
@@ -40,6 +41,15 @@ def validate_file_write(doc, deleting=False):
 			["attached_to_doctype", "attached_to_name", "owner", "is_private", "file_url"],
 			as_dict=True,
 		)
+	if (
+		previous
+		and (previous.attached_to_doctype, previous.attached_to_name)
+		!= (doc.attached_to_doctype, doc.attached_to_name)
+		and previous.attached_to_doctype in NATIVE_DOCTYPES
+		and previous.attached_to_name
+		and frappe.db.get_value(previous.attached_to_doctype, previous.attached_to_name, "docstatus") == 1
+	):
+		frappe.throw("已完成的库存记录附件不能移至其他记录", frappe.PermissionError)
 	for value in (previous, doc):
 		if value and value.attached_to_doctype == "Inventory Export Request" and value.attached_to_name:
 			from temple_inventory.exports import _get, service_write

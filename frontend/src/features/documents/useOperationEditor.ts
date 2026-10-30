@@ -266,6 +266,14 @@ export function useOperationEditor(props: {
       !state.confirmationVersion &&
       (state.server ? state.server.editable === true : true),
   );
+  const attachmentsWritable = computed(
+    () =>
+      writable.value ||
+      (active() &&
+        !loading.value &&
+        !busy.value &&
+        state.server?.docstatus === 1),
+  );
   const canSubmit = computed(
     () => !state.server || state.server.docstatus === 0,
   );
@@ -278,7 +286,7 @@ export function useOperationEditor(props: {
     account,
     currentAccount: () => reference.user,
     parent: () => state.identity,
-    writable: () => writable.value && !busy.value,
+    writable: () => attachmentsWritable.value && !busy.value,
     changed() {
       if (!ready || !active()) return;
       state.values.attachments = recoveryValues({

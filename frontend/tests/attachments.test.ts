@@ -9,6 +9,7 @@ import {
   createReferenceData,
   provideInventoryServices,
 } from "../src/services/contracts";
+import { fileMime } from "../src/lib/catalogPresentation";
 
 const wrappers: VueWrapper[] = [];
 afterEach(() => {
@@ -79,6 +80,24 @@ function button(wrapper: VueWrapper, label: string) {
   return wrapper.findAll("button").find((value) => value.text() === label)!;
 }
 describe("native-parent attachments", () => {
+  it("opens PDFs inline and maps common file extensions", async () => {
+    const { wrapper, c } = setup();
+    c.load([
+      { ...ready, file_name: "report.pdf", file_type: "PDF", file_size: 2048 },
+    ]);
+    await flushPromises();
+    await button(wrapper, "查看附件").trigger("click");
+    await flushPromises();
+    expect(document.querySelector("iframe")?.getAttribute("src")).toBe(
+      ready.file_url,
+    );
+    expect(fileMime({ ...ready, file_name: "report.pdf", file_type: "" })).toBe(
+      "application/pdf",
+    );
+    expect(fileMime({ ...ready, file_name: "table.csv", file_type: "" })).toBe(
+      "text/csv",
+    );
+  });
   it("previews a primary image at its own aspect without a framed square", async () => {
     const { wrapper, c } = setup({ imageRole: "main" });
     c.load([ready], ready.file_url);

@@ -684,23 +684,47 @@ class NativeDocumentTests(unittest.TestCase):
 		self.assertFalse(desk.ti_baseline_fingerprint)
 
 	def test_display_preferences_validate_complete_values_and_defaults(self):
+		import json
+
 		from frappe.cache_manager import clear_defaults_cache
 
 		self.addCleanup(clear_defaults_cache, "Administrator")
+		frappe.defaults.set_user_default(
+			preferences.DISPLAY_KEY,
+			json.dumps({"theme": "jade", "density": "balanced", "textScale": 100}),
+		)
 		self.assertEqual(
-			preferences.save_display_preferences("blue", "compact", 175),
+			preferences.display_preferences()["default_periods"],
+			preferences.DEFAULT_PERIODS,
+		)
+		self.assertEqual(
+			preferences.save_display_preferences(
+				"blue",
+				"compact",
+				175,
+				{"dashboard": "today", "movements": "all", "loans": "last_30_days", "counts": "this_year"},
+			),
 			{
 				"theme": "blue",
 				"density": "compact",
 				"textScale": 175,
+				"default_periods": {
+					"dashboard": "today",
+					"movements": "all",
+					"loans": "last_30_days",
+					"counts": "this_year",
+				},
 			},
 		)
 		self.assertEqual(preferences.display_preferences()["textScale"], 175)
+		self.assertEqual(preferences.display_preferences()["default_periods"]["dashboard"], "today")
 		for values in [
-			("pink", "compact", 100),
-			("jade", "huge", 100),
-			("jade", "balanced", 110),
-			("jade", "balanced", True),
+			("pink", "compact", 100, preferences.DEFAULT_PERIODS),
+			("jade", "huge", 100, preferences.DEFAULT_PERIODS),
+			("jade", "balanced", 110, preferences.DEFAULT_PERIODS),
+			("jade", "balanced", True, preferences.DEFAULT_PERIODS),
+			("jade", "balanced", 100, {**preferences.DEFAULT_PERIODS, "counts": "custom"}),
+			("jade", "balanced", 100, {"dashboard": "today"}),
 		]:
 			with self.assertRaises(frappe.ValidationError):
 				preferences.save_display_preferences(*values)
@@ -726,12 +750,73 @@ class NativeDocumentTests(unittest.TestCase):
 
 		self.addCleanup(lambda: Path(file_doc.get_full_path()).unlink(missing_ok=True))
 		completed = self.submit(entry)
+		new_file = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": f"submitted-test-{self.token}.txt",
+				"content": self.token.encode(),
+				"is_private": 1,
+				"attached_to_doctype": "Stock Entry",
+				"attached_to_name": completed.name,
+			}
+		).insert()
+		self.addCleanup(lambda: Path(new_file.get_full_path()).unlink(missing_ok=True))
+		self.assertEqual(len(native_files.attachments("Stock Entry", completed.name)), 2)
+		self.assertTrue(
+			native_files.remove_attachment("Stock Entry", completed.name, new_file.name)["deleted"]
+		)
+		self.assertFalse(frappe.db.exists("File", new_file.name))
 		file_doc.attached_to_doctype = "Item"
 		file_doc.attached_to_name = self.item
 		with self.assertRaises(frappe.PermissionError):
 			file_doc.save()
-		with self.assertRaises(frappe.PermissionError):
-			native_files.remove_attachment("Stock Entry", completed.name, file_doc.name)
+		cancelled = native_api.cancel_document("Stock Entry", completed.name, completed.version)
+		with self.assertRaisesRegex(frappe.PermissionError, "已取消的库存记录附件不能修改"):
+			native_files.remove_attachment("Stock Entry", cancelled.name, file_doc.name)
+
+	def test_system_manager_can_attach_and_remove_a_submitted_stock_file(self):
+		entry = self.submit(self.create(self.movement()))
+		user = frappe.get_doc(
+			{
+				"doctype": "User",
+				"email": f"ti-file-manager-{self.token}@example.test",
+				"first_name": "Attachment Manager",
+				"user_type": "System User",
+				"send_welcome_email": 0,
+				"roles": [
+					{"role": "System Manager"},
+					{"role": "Stock Manager"},
+					{"role": "Stock User"},
+				],
+			}
+		).insert()
+		previous_request = getattr(frappe.local, "request", None)
+		frappe.set_user(user.name)
+		frappe.local.request = frappe._dict(headers={"X-Inventory-Account": user.name})
+		try:
+			file_doc = frappe.get_doc(
+				{
+					"doctype": "File",
+					"file_name": f"submitted-manager-{self.token}.txt",
+					"content": self.token.encode(),
+					"is_private": 1,
+					"attached_to_doctype": "Stock Entry",
+					"attached_to_name": entry.name,
+				}
+			).insert()
+			from pathlib import Path
+
+			self.addCleanup(lambda: Path(file_doc.get_full_path()).unlink(missing_ok=True))
+			self.assertEqual(len(native_files.attachments("Stock Entry", entry.name)), 1)
+			self.assertTrue(
+				native_files.remove_attachment("Stock Entry", entry.name, file_doc.name)["deleted"]
+			)
+		finally:
+			frappe.set_user("Administrator")
+			if previous_request is None:
+				del frappe.local.request
+			else:
+				frappe.local.request = previous_request
 
 	def test_item_delete_removes_attachments_after_parent_row_is_gone(self):
 		file_doc = frappe.get_doc(

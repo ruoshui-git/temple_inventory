@@ -1344,6 +1344,19 @@ strong {
 .ui-dialog--small {
 	width: min(440px, calc(100vw - 32px));
 }
+/* The attachment viewer is teleported, so its size lives here rather than in Attachments.vue. */
+.ui-dialog.attachment-viewer {
+	width: min(1100px, calc(100vw - 32px));
+	max-width: none;
+}
+@media (max-width: 1023px) {
+	.ui-dialog.attachment-viewer {
+		width: 100vw;
+		height: 100dvh;
+		max-height: 100dvh;
+		border-radius: 0;
+	}
+}
 @media (max-width: 1023px) {
 	.ui-overlay:has(.ui-dialog--small) {
 		align-items: flex-end;

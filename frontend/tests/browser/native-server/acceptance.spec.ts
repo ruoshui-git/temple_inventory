@@ -61,6 +61,28 @@ test.afterEach(async ({ page }, testInfo) => {
     );
 });
 
+// Frappe parses uploaded PDFs, so the fixture needs a real cross-reference table.
+function minimalPdf() {
+  const objects = [
+    "<</Type/Catalog/Pages 2 0 R>>",
+    "<</Type/Pages/Kids[3 0 R]/Count 1>>",
+    "<</Type/Page/MediaBox[0 0 72 72]/Parent 2 0 R>>",
+  ];
+  let body = "%PDF-1.4\n";
+  const offsets = objects.map((object, index) => {
+    const offset = body.length;
+    body += `${index + 1} 0 obj${object}endobj\n`;
+    return offset;
+  });
+  const xref = body.length;
+  body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  body += offsets
+    .map((offset) => `${String(offset).padStart(10, "0")} 00000 n \n`)
+    .join("");
+  body += `trailer<</Size ${objects.length + 1}/Root 1 0 R>>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(body);
+}
+
 test("submitted stock record attachments can be added, previewed inline and removed", async ({
   page,
 }) => {
@@ -86,11 +108,12 @@ test("submitted stock record attachments can be added, previewed inline and remo
   try {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto(`/inventory/movements/${parent}`);
+    await page.locator("summary").filter({ hasText: "补充记录" }).click();
     const picker = page.locator('.attachments input[type="file"]').last();
     await picker.setInputFiles({
       name: pdfName,
       mimeType: "application/pdf",
-      buffer: Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF"),
+      buffer: minimalPdf(),
     });
     const pdfRow = page
       .locator(".attachments article")
@@ -126,7 +149,11 @@ test("submitted stock record attachments can be added, previewed inline and remo
       officeRow.getByRole("button", { name: "查看附件" }),
     ).toBeVisible();
     await officeRow.getByRole("button", { name: "查看附件" }).click();
-    await expect(page.getByText(officeName, { exact: true })).toBeVisible();
+    await expect(
+      page
+        .locator(".attachment-file-card")
+        .getByText(officeName, { exact: true }),
+    ).toBeVisible();
     await expect(
       page.getByRole("link", { name: "在新标签打开" }),
     ).toBeVisible();

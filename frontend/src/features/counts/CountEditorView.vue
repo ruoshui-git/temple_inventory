@@ -734,8 +734,8 @@ async function back() {
 						@dirty-change="supportingDirty = $event"
 					/><Attachments
 						:controller="files"
-						:mode="writable ? 'edit' : 'display'"
-						:disabled="!writable || busy"
+						:mode="writable || state.server?.docstatus === 1 ? 'edit' : 'display'"
+						:disabled="(!writable && state.server?.docstatus !== 1) || busy"
 					/>
 					<div v-if="writable" class="form-fields">
 						<label class="form-field"

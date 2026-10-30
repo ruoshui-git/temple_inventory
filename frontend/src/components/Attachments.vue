@@ -57,6 +57,21 @@ const visibleFiles = computed(() =>
 			? props.controller.files.filter((file) => !file.primary)
 			: props.controller.files,
 );
+const selectedKind = computed(() => {
+	if (!selected.value) return "other";
+	if (selected.value.type.startsWith("image/")) return "image";
+	if (selected.value.type === "application/pdf") return "pdf";
+	// Browsers download CSV instead of rendering it, so only plain text is framed.
+	if (["text/plain", "application/json"].includes(selected.value.type)) return "text";
+	return "other";
+});
+const selectedSize = computed(() => {
+	const native = selected.value?.size;
+	if (!native) return "";
+	return native < 1024 * 1024
+		? `${Math.ceil(native / 1024)} KB`
+		: `${(native / 1024 / 1024).toFixed(1)} MB`;
+});
 </script>
 <template>
 	<div class="attachments">
@@ -238,21 +253,35 @@ const visibleFiles = computed(() =>
 			@choose="finishCrop"
 			@cancel="finishCrop()"
 		/>
-		<Overlay v-if="selected" :title="selected.name" @close="selected = undefined"
-			><img
-				v-if="selected.type.startsWith('image/') && selected.url"
+		<Overlay
+			v-if="selected"
+			:title="selected.name"
+			panel-class="attachment-viewer"
+			@close="selected = undefined"
+		>
+			<img
+				v-if="selectedKind === 'image' && selected.url"
+				class="attachment-image"
 				:src="selected.url"
 				:alt="selected.name"
-				style="max-width: 100%"
-			/><a v-else-if="selected.url" :href="selected.url" target="_blank" rel="noopener"
-				>打开文档</a
-			><a
-				v-if="selected.serverName && selected.url"
-				:href="selected.url"
-				:download="selected.name"
-				>下载附件</a
-			></Overlay
-		>
+			/>
+			<iframe
+				v-else-if="['pdf', 'text'].includes(selectedKind) && selected.url"
+				class="attachment-frame"
+				:src="selected.url"
+				:title="selected.name"
+			/>
+			<div v-else class="attachment-file-card">
+				<strong>{{ selected.name }}</strong>
+				<span>{{ selectedSize || "大小未知" }} · {{ selected.type }}</span>
+				<div class="attachment-file-actions">
+					<a v-if="selected.url" :href="selected.url" target="_blank" rel="noopener"
+						>在新标签打开</a
+					>
+					<a v-if="selected.url" :href="selected.url" :download="selected.name">下载</a>
+				</div>
+			</div>
+		</Overlay>
 	</div>
 </template>
 <style scoped>
@@ -262,6 +291,33 @@ article {
 	flex-wrap: wrap;
 	gap: 8px;
 	padding: 8px 0;
+}
+.attachment-image {
+	display: block;
+	max-width: 100%;
+	max-height: min(80vh, 900px);
+	margin: auto;
+	object-fit: contain;
+}
+.attachment-frame {
+	display: block;
+	width: 100%;
+	height: min(78vh, 900px);
+	border: 0;
+}
+.attachment-file-card {
+	display: grid;
+	gap: 12px;
+	padding: 24px;
+}
+.attachment-file-actions {
+	display: flex;
+	gap: 16px;
+}
+@media (max-width: 1023px) {
+	.attachment-frame {
+		height: calc(100dvh - 140px);
+	}
 }
 .main-image-picker-row {
 	display: flex;

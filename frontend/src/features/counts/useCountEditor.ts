@@ -195,6 +195,14 @@ export function useCountEditor(props: {
       ) &&
       (state.server ? state.server.editable === true : true),
   );
+  const attachmentsWritable = computed(
+    () =>
+      writable.value ||
+      (active() &&
+        !loading.value &&
+        !busy.value &&
+        state.server?.docstatus === 1),
+  );
   const rows = computed(() => values.value.ti_count_review || []);
   const historyTarget = ref<CountRow>();
   const historyQuery = computed(() => {
@@ -280,7 +288,7 @@ export function useCountEditor(props: {
     account,
     currentAccount: () => reference.user,
     parent: () => state.identity,
-    writable: () => writable.value && !busy.value,
+    writable: () => attachmentsWritable.value && !busy.value,
     changed() {
       if (!ready || suppressed || !active()) return;
       state.values.attachments = recoveryValues({

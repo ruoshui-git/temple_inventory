@@ -187,6 +187,7 @@ function upload(
   });
 }
 export const frappeServices: InventoryServices = {
+  fileDisplayUrl: (file) => file.file_url,
   call: (endpoint, args = {}, signal) =>
     shareableReads.has(endpoint) || shareableReads.has(methodPath(endpoint))
       ? sharedRead(

@@ -10,6 +10,7 @@ export interface AttachmentEntry {
   serverName?: string;
   primary?: boolean;
   state: "pending" | "uploading" | "ready" | "error" | "reselect";
+  size?: number;
   progress: number;
   error: string;
 }
@@ -65,6 +66,7 @@ export function useAttachments(options: {
         id: value.name,
         name: value.file_name,
         type: fileMime(value),
+        size: value.file_size,
         url: services.fileDisplayUrl?.(value) || value.file_url,
         serverName: value.name,
         primary: value.file_url === primary,
@@ -136,6 +138,7 @@ export function useAttachments(options: {
         id,
         name: file.name,
         type: file.type,
+        size: file.size,
         primary: file === firstPrimary,
         url,
         state: "pending",
@@ -190,6 +193,7 @@ export function useAttachments(options: {
       release(entry.id);
       bytes.delete(entry.id);
       entry.serverName = value.name;
+      entry.size = value.file_size;
       entry.url = services.fileDisplayUrl?.(value) || value.file_url;
       entry.state = "ready";
       entry.progress = 100;

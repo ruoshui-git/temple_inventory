@@ -87,12 +87,27 @@ export function presentCatalogItem(item: CatalogItem): StockItem {
   };
 }
 export function fileMime(file: NativeFile) {
-  const type =
-    file.file_type?.toLocaleLowerCase() ||
-    file.file_name.split(".").at(-1)?.toLocaleLowerCase();
-  return ["jpg", "jpeg", "png", "gif", "webp", "svg", "avif"].includes(
-    type || "",
-  )
-    ? `image/${type === "svg" ? "svg+xml" : type === "jpg" ? "jpeg" : type}`
-    : "application/octet-stream";
+  const extension = file.file_name.split(".").at(-1)?.toLocaleLowerCase() || "";
+  const type = file.file_type?.toLocaleLowerCase() || extension;
+  const mime: Record<string, string> = {
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    png: "image/png",
+    gif: "image/gif",
+    webp: "image/webp",
+    svg: "image/svg+xml",
+    avif: "image/avif",
+    pdf: "application/pdf",
+    txt: "text/plain",
+    csv: "text/csv",
+    xls: "application/vnd.ms-excel",
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    doc: "application/msword",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ppt: "application/vnd.ms-powerpoint",
+    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    json: "application/json",
+    xml: "application/xml",
+  };
+  return mime[type] || mime[extension] || "application/octet-stream";
 }
