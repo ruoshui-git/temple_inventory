@@ -2,9 +2,9 @@
 
 Launch acceptance for viewing, exporting and editing inventory data. Browse pages are the reports: each page shows one line table, grouping only changes presentation, and 导出 writes that table with the page's filters and visible columns (all matching rows, Chinese headers, display labels, per-unit 合计 rows, a 导出说明 sheet and a readable filename). Mobile viewing is required; mobile export and mobile editing are not.
 
-Legend: ✅ verified · ⚠️ works with a caveat (see 说明) · ❌ missing · 🆕 added after the first matrix · — not applicable.
+Legend: ✅ verified · ⚠️ works with a caveat (see 说明) · ❌ missing · 🆕 added after the first matrix · 🔁 changed in the 2026-10-29 feedback round · 🔄 changed in the 2026-10-30 feedback round · — not applicable.
 
-Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 390×844, from generated XLSX/CSV/ZIP files, and by the backend, unit, browser and live acceptance suites; re-verified the same day after the feedback round (rows marked 🔁). Column visibility follows each account's saved column choices; the statuses below describe the defaults, and the column menu’s 恢复默认 returns a table to them.
+Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 390×844, from generated XLSX/CSV/ZIP files, and by the backend, unit, browser and live acceptance suites; re-verified the same day after the feedback round (rows marked 🔁), and again on 2026-10-30 after the second feedback round (rows marked 🔄). Column visibility follows each account's saved column choices; the statuses below describe the defaults, and the column menu’s 恢复默认 returns a table to them.
 
 ## Reports
 
@@ -18,9 +18,10 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 | 类别 | ✅ | ✅ | |
 | 库存位置 | ✅ | ✅ | 位置与批次 column; when shown, the export has one row per item × 库位 × 批次 |
 | 🔁 完整位置 / ERPNext 库位 | ✅ | ✅ | Hidden by default. 完整位置 is the app path ("T2 / A02 / S1"); ERPNext 库位 is the native warehouse_name without the company suffix ("T2 / A02 · 直接存放") |
-| 数量 | ✅ | ✅ | 🆕 可用数量 (on hand); 借出 / 损坏 / 合计 hidden by default. 🔁 合计 now shows a value and exports as 合计 (was blank / 数量) |
+| 数量 | ✅ | ✅ | 🆕 可用数量 (on hand); 借出 / 损坏 / 合计 hidden by default. 🔁 合计 now shows a value and exports as 合计 (was blank / 数量). 🔄 Numeric cells, bold tabular digits; 物品名称 stays pinned while the table scrolls sideways |
+| 🔄 库存状态 | ✅ | ✅ | Per item across the selected locations: 有库存 (default, includes loaned/damaged-only), 有可用, 无可用, 无库存, 全部 |
 | 单位 | ✅ | ✅ | |
-| 可选：批次编号、过期日期、剩余时间 | ✅ | ✅ | 效期 column → 过期日期、剩余天数、到期状态 |
+| 🔄 可选：库位、批次编号、到期日期、剩余天数、到期状态 | ✅ | ✅ | Hidden columns beside the 位置与批次 and 效期 compound columns; the file headers are these column labels |
 | 汇总：物品数量 | ✅ | ✅ | 🆕 "N 种物品" + per-unit 可用 totals; export ends with 合计（单位） rows |
 
 ### 过期物品列表 — 效期批次
@@ -29,7 +30,7 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 |---|---|---|---|
 | 图片 | ✅ | ✅ | ZIP option |
 | 物品名称 / 物品编号 / 批次编号 | ✅ | ✅ | |
-| 过期日期 / 剩余时间 | ✅ | ✅ | |
+| 🔄 到期日期 / 剩余天数 | ✅ | ✅ | The date is 到期日期 on page and in files; 效期 names the compound column |
 | 🆕 到期状态 | ✅ | ✅ | Page: 已过期 / 未过期 / 无效期 tabs and colored dates; export: 已过期 / 未过期 (无效期 for undated). 🔁 The 未过期 filter chip reads 到期窗口：未过期 |
 | 数量 / 单位 | ✅ | ✅ | |
 | 位置 | ✅ | ✅ | Canonical label, not the ERPNext name; 🔁 完整位置 / ERPNext 库位 optional |
@@ -66,13 +67,14 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 | 🆕 流动编号 | ✅ | ✅ | 🔁 编号 column holds only the record; 物品名称 is its own column |
 | 日期 | ✅ | ✅ | |
 | 移动类型 | ✅ | ✅ | 入库 / 出库 / 调拨 / 借出 / 归还 … 🔁 盘点调整 and 期初库存 are always listed and selectable in 流动类型 (the 包括盘点调整 switch is gone) |
-| 来源位置 / 去向位置 | ✅ | ✅ | Empty endpoint = 外部; a 盘点调整 names the checked location and leaves the other end blank. 🔁 来源/去向 完整位置 and ERPNext 库位 optional |
-| 🔁 可用变化 | ✅ | ✅ | Default quantity column (signed, per unit); 数量（按单位） is optional |
+| 来源位置 / 去向位置 | ✅ | ✅ | Empty endpoint = 外部; a 盘点调整 names the checked location and leaves the other end blank. 🔁 来源/去向 完整位置 and ERPNext 库位 optional. 🔄 Fixed: they showed — on movement and loan pages |
+| 🔁 可用变化 | ✅ | ✅ | Default quantity column (signed, per unit); 数量 is optional. 🔄 Files: numeric with a 单位 column |
+| 🔄 原借出 / 时间 / 单位 | ✅ | ✅ | Hidden by default; exported when shown |
 | 数量 | ✅ | ✅ | Optional |
 | 🆕 单位 | ✅ | ✅ | |
 | 可选：状态 | ✅ | ✅ | |
 | 🆕 次数 | ✅ | ✅ | 按物品汇总 grouping shows record counts per item; grouped XLSX keeps "物品 (N)" |
-| 汇总 | ✅ | ⚠️ | 🆕 Page: per-type totals + 可用净变化 per unit. 🔁 Group rows and export 合计 rows sum 可用变化 (合计可用变化（单位）). Per-type subtotals in a file need 单据 grouped by 类型 (明细 groups only by 物品 / 类别) |
+| 汇总 | ✅ | ⚠️ | 🆕 Page: per-type totals + 可用净变化 per unit. 🔁 Group rows and export 合计 rows sum 可用变化 (合计可用变化（单位）). 🔄 Mixed-unit groups write one numeric "小计 · 单位" row per unit. Per-type subtotals in a file need 单据 grouped by 类型 (明细 groups only by 物品 / 类别) |
 
 ### 流动记录（记录） — 货物流动 → 单据
 
@@ -81,7 +83,7 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 | 流动编号 | ✅ | ✅ | |
 | 类型 | ✅ | ✅ | |
 | 物品类数 | ✅ | ✅ | 物品种数 (🔁 fixed: a mixed-unit record exported the first unit's count) |
-| 具体数量 | ✅ | ✅ | 🔁 可用变化 by default (盘点调整 included); 数量（按单位） optional. Cells show two units plus "+N 单位"; files read "12 个；3 箱" |
+| 具体数量 | ✅ | ✅ | 🔁 可用变化 by default (盘点调整 included); 库存数量 optional. Cells show two units plus "+N 单位". 🔄 Files write one numeric row per unit with a 单位 column instead of "12 个；3 箱" |
 | 日期 | ✅ | ✅ | |
 | 来源位置 / 去向位置 | ✅ | ✅ | A 盘点调整 names the checked locations only. 🔁 Many locations show the first plus "等 N 处" with a list (e.g. MAT-STE-2026-00056: 25 destinations); files join all with "；" |
 | 状态 | ✅ | ✅ | 草稿 / 已提交 / 已取消 |
@@ -92,14 +94,14 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 | 字段 | 页面 | 导出 | 说明 |
 |---|---|---|---|
 | 盘点编号 / 日期 / 状态 / 盘点范围 | ✅ | ✅ | 🔁 One value per column (编号, 类型, 状态, 盘点范围, 行数, 物品种数, 日期, 活动); 期初库存 records listed; no 借用人 |
-| 🔁 增加 / 减少 / 净差异 | ✅ | ✅ | Per unit; 净差异 is the offset net (MAT-RECO-2026-00021: +1 / −1 / 0) |
+| 🔁 增加 / 减少 / 净差异 | ✅ | ✅ | Per unit; 净差异 is the offset net (MAT-RECO-2026-00021: +1 / −1 / 0). 🔄 Files keep them numeric, one row per unit |
 | 账面 / 实点 / 差异 | ✅ | ✅ | 🔁 Submitted counts show changed lines only, with "另有 N 个物品核对无变化"; no filters or baseline controls |
 
 ### 🆕 Export behavior (all pages)
 
 | 要求 | 结果 | 说明 |
 |---|---|---|
-| Columns follow the page's visible columns, in screen order | ✅ | |
+| Columns follow the page's visible columns, in screen order | ✅ | 🔄 Every exported field is a browse column (export-only data hidden by default); pending, activities, counts, reports and item detail follow the same rule. 🔄 Fixed: 借用 明细 export always failed with 请选择有效的导出列 |
 | All matching rows, not only loaded rows | ✅ | e.g. 2,651 movement lines from a page showing 30 |
 | Chinese headers and display labels (no ERPNext names, `Receive`, `1`) | ✅ | 🔁 Headers equal the page's column labels (checked per page by a parity test) |
 | Per-unit 合计 rows | ✅ | |
@@ -116,7 +118,7 @@ Submitted stock records follow ERPNext: drafts can be edited or deleted; submitt
 | 对象 | 添加 | 查看详情 | 修改 | 删除 | 停用 / 取消 | 说明 |
 |---|---|---|---|---|---|---|
 | 物品 | ✅ | ✅ | ✅ | ✅ | ✅ 停用 | Delete only when nothing links to it; disable only at zero stock |
-| 单位 (UOM) | ✅ | ✅ | ✅ | ✅ | ✅ 停用 | Native name fixed; label and whole-number rule editable; delete only if unused |
+| 单位 (UOM) | ✅ | ✅ | ✅ | ✅ | ✅ 停用 | Native name fixed; label, 🔄 单位类别 (ERPNext UOM Category) and whole-number rule editable; delete only if unused. 🔄 停用 is refused while any Item uses the unit |
 | 物品类别 | ✅ | ✅ | ✅ | ✅ | — | Delete only if unused |
 | 库房 | ✅ | ✅ | ✅ | ✅ 🆕 | ✅ 停用 | Delete only when unused (no stock, records, User Permissions or sub-locations) |
 | 物品照片 | ✅ | ✅ | ✅ | ✅ | — | Crop / replace / remove |
