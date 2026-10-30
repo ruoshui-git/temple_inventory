@@ -7,7 +7,7 @@ from frappe.utils import cint
 
 from temple_inventory.catalog import create_uom
 from temple_inventory.native_access import require_app
-from temple_inventory.uom_labels import clear_uom_label_cache
+from temple_inventory.uom_labels import clear_uom_label_cache, matching_uom
 
 
 def _transaction_units(names):
@@ -136,6 +136,14 @@ def save_unit(name=None, uom_name=None, label="", must_be_whole_number=False, en
 		uom_name = str(uom_name or "").strip()
 		if not uom_name:
 			frappe.throw("请填写单位名称")
+		clash = matching_uom((uom_name, label))
+		if clash:
+			value = (
+				uom_name
+				if uom_name.casefold() in {clash.name.casefold(), str(clash.ti_label or "").casefold()}
+				else label
+			)
+			frappe.throw(f"「{value}」已被单位 {clash.name} 使用", title=f"UOM_CLASH:{clash.name}")
 		created = create_uom(uom_name, must_be_whole_number, label)
 		doc = frappe.get_doc("UOM", created["name"], for_update=True)
 		doc.category = str(category or "").strip() or None

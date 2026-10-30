@@ -1,6 +1,7 @@
 """Native sample installation under rollback and bounded media cleanup scenarios."""
 
 import hashlib
+import json
 import tempfile
 import unittest
 from io import BytesIO
@@ -266,6 +267,36 @@ class SampleGeneratorUnitTests(unittest.TestCase):
 
 
 class NativeSampleTests(NativeDocumentTests):
+	def test_generated_uoms_keep_chinese_units_and_never_use_labels_as_native_names(self):
+		generated = {
+			"Nos": True,
+			"Pair": True,
+			"Set": True,
+			"Box": True,
+			"包": True,
+			"瓶": True,
+			"张": True,
+			"Kg": False,
+			"Litre": False,
+			"Meter": False,
+		}
+		native_samples._ensure_sample_uoms(generated)
+		duplicate_labels = ("箱", "双", "套", "个", "件")
+		native_samples._ensure_sample_uoms({name: True for name in duplicate_labels})
+		self.assertTrue(all(frappe.db.exists("UOM", name) for name in ("包", "瓶", "张")))
+		self.assertFalse(any(frappe.db.exists("UOM", name) for name in duplicate_labels))
+		labels = {label.casefold() for label in native_samples.uom_labels.DEFAULT_LABELS.values()}
+		data_path = Path(frappe.get_app_path("erpnext")) / "setup/setup_wizard/data/uom_data.json"
+		with data_path.open(encoding="utf-8") as source:
+			builtin_names = [row["uom_name"] for row in json.load(source)]
+		builtin_labels = {
+			str(row.ti_label or "").strip().casefold()
+			for row in frappe.get_all(
+				"UOM", filters={"name": ["in", builtin_names]}, fields=["ti_label"], limit_page_length=0
+			)
+		}
+		self.assertFalse(set(generated).intersection(labels | builtin_labels))
+
 	def test_native_seed_covers_catalog_all_movements_loans_and_real_count_without_legacy_records(self):
 		company = frappe.get_doc(
 			{

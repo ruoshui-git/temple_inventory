@@ -17,7 +17,16 @@ import frappe
 from erpnext.stock.utils import get_stock_balance
 from frappe.utils import getdate, nowdate
 
-from temple_inventory import activities, catalog, configuration, conversions, counts, native_api, warehouses
+from temple_inventory import (
+	activities,
+	catalog,
+	configuration,
+	conversions,
+	counts,
+	native_api,
+	uom_labels,
+	warehouses,
+)
 from temple_inventory.item_code import allocate_item_code
 from temple_inventory.native_stock import loan_balances
 from temple_inventory.sample_media import ASSETS, ATTACHMENT_CONTENT, costume_catalog, generated_images
@@ -638,10 +647,16 @@ def _references(data, *, include_generated=True):
 			catalog.create_category(label, "演出用品")
 	# Real data stocks every costume in Nos, so it creates no units.
 	units = {row["stock_uom"] for row in data["items"]} | {"Kg", "Box"} if include_generated else set()
-	for unit in sorted(units):
-		if not frappe.db.exists("UOM", unit):
-			catalog.create_uom(unit, must_be_whole_number=unit != "Kg")
+	_ensure_sample_uoms({unit: unit != "Kg" for unit in units})
 	activities.seed_activity_types()
+
+
+def _ensure_sample_uoms(units):
+	for unit, whole in sorted(units.items()):
+		if not frappe.db.exists("UOM", unit):
+			catalog.create_uom(
+				unit, must_be_whole_number=whole, display_label=uom_labels.DEFAULT_LABELS.get(unit, "")
+			)
 
 
 def _attach_file(filename, content, doctype, name, field=None):
@@ -1694,9 +1709,7 @@ def _generated_volume(company, rooms, catalog_data, costumes, *, movement_count=
 		"张": True,
 		"Kg": False,
 	}
-	for unit, whole in unit_whole.items():
-		if not frappe.db.exists("UOM", unit):
-			catalog.create_uom(unit, must_be_whole_number=whole)
+	_ensure_sample_uoms(unit_whole)
 	category_names = ("日常用品", "厨房物资", "法会用品", "办公物资")
 	for label in category_names:
 		if not frappe.db.exists("Item Group", label):

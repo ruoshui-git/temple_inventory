@@ -8,6 +8,7 @@ import frappe
 from frappe.model.naming import make_autoname
 from frappe.utils import cint, getdate
 
+from temple_inventory import uom_labels
 from temple_inventory.item_code import allocate_item_code
 from temple_inventory.item_code import suggest_item_code as next_item_code
 from temple_inventory.native_access import check_item, load_locked, require_app
@@ -995,13 +996,21 @@ def create_uom(label, must_be_whole_number=False, display_label=""):
 	require_app()
 	frappe.has_permission("UOM", "create", throw=True)
 	label = str(label or "").strip()
+	display_label = str(display_label or "").strip()
 	if not label:
 		frappe.throw("请填写计量单位名称")
+	existing = uom_labels.matching_uom((label, display_label))
+	if existing:
+		return {
+			"name": existing.name,
+			"label": existing.ti_label or existing.name,
+			"must_be_whole_number": bool(existing.must_be_whole_number),
+		}
 	doc = frappe.get_doc(
 		{
 			"doctype": "UOM",
 			"uom_name": label,
-			"ti_label": str(display_label or "").strip(),
+			"ti_label": display_label,
 			"must_be_whole_number": cint(must_be_whole_number),
 		}
 	).insert()

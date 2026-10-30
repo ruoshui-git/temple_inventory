@@ -66,8 +66,8 @@ class CatalogLifecycleTests(NativeDocumentTests):
 		self.assertEqual(root_child["parent"], "")
 		unit = catalog.create_uom("Unit " + self.token, True)
 		self.assertTrue(unit["must_be_whole_number"])
-		with self.assertRaises(frappe.DuplicateEntryError):
-			catalog.create_uom(unit["name"], False)
+		# A repeated name resolves to the existing unit instead of creating a twin.
+		self.assertEqual(catalog.create_uom(unit["name"], False), unit)
 
 	def test_item_category_can_be_blank_on_create_and_clear_to_the_native_root(self):
 		root = catalog.item_group_root()

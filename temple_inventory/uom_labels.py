@@ -8,26 +8,49 @@ DEFAULT_LABELS = {
 	"Pair": "双",
 	"Set": "套",
 	"Unit": "件",
-	"Dozen": "打",
 	"Kg": "kg",
 	"Gram": "g",
 	"Milligram": "mg",
 	"Tonne": "t",
+	"Carat": "ct",
 	"Litre": "L",
 	"Millilitre": "mL",
+	"Centilitre": "cL",
+	"Decilitre": "dL",
+	"Fluid Ounce (US)": "fl oz",
+	"Fluid Ounce (UK)": "fl oz (UK)",
+	"Gallon (UK)": "gal (UK)",
+	"Pint (UK)": "pt (UK)",
+	"Pint, Liquid (US)": "pt (US)",
+	"Quart (UK)": "qt (UK)",
+	"Quart Liquid (US)": "qt (US)",
+	"Cup": "cup",
+	"Tablespoon (US)": "tbsp",
+	"Teaspoon": "tsp",
 	"Meter": "m",
 	"Centimeter": "cm",
 	"Millimeter": "mm",
 	"Kilometer": "km",
+	"Micrometer": "µm",
+	"Nanometer": "nm",
 	"Inch": "in",
 	"Foot": "ft",
 	"Yard": "yd",
+	"Mile": "mi",
+	"Hectare": "ha",
 	"Pound": "lb",
 	"Ounce": "oz",
 	"Square Meter": "m²",
+	"Square Centimeter": "cm²",
 	"Square Foot": "ft²",
 	"Cubic Meter": "m³",
+	"Cubic Centimeter": "cm³",
+	"Cubic Foot": "ft³",
 	"Gallon Liquid (US)": "gal",
+	"Hour": "小时",
+	"Minute": "分钟",
+	"Day": "天",
+	"Week": "周",
 }
 COMMON_MEASURES = {
 	"Kg": 0,
@@ -44,6 +67,19 @@ COMMON_MEASURES = {
 
 def _normalized(value):
 	return str(value or "").strip().casefold()
+
+
+def matching_uom(values):
+	"""Find a UOM whose native name or display label matches any supplied value."""
+	keys = {_normalized(value) for value in values if _normalized(value)}
+	if not keys:
+		return None
+	for row in frappe.get_all(
+		"UOM", fields=["name", "ti_label", "must_be_whole_number"], limit_page_length=0
+	):
+		if keys.intersection({_normalized(row.name), _normalized(row.ti_label)}):
+			return row
+	return None
 
 
 def clear_uom_label_cache():

@@ -64,6 +64,14 @@ class UnitTests(NativeDocumentTests):
 			units.save_unit(uom_name=other, label=" 冲突标签 ")
 		self.assertIn(name, str(error.exception))
 
+	def test_unit_create_clash_reports_existing_unit_in_frontend_shape(self):
+		name = f"TI-TEST-Unit-{self.token}"
+		units.save_unit(uom_name=name, label="现有显示")
+		with self.assertRaises(frappe.ValidationError) as error:
+			units.save_unit(uom_name=" 新名称 ", label="现有显示")
+		self.assertIn(name, str(error.exception))
+		self.assertEqual(frappe.get_message_log()[-1].title, f"UOM_CLASH:{name}")
+
 	def test_unit_delete_blocked_when_referenced_and_allowed_when_unused(self):
 		used = f"TI-TEST-Used-{self.token}"
 		unused = f"TI-TEST-Unused-{self.token}"

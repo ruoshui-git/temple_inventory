@@ -1,5 +1,7 @@
 """Native supporting records, full-dataset search and dashboard integration."""
 
+import json
+from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -17,6 +19,22 @@ from temple_inventory.tests.test_native_documents import NativeDocumentTests
 
 
 class CatalogUnitsTests(NativeDocumentTests):
+	def test_curated_uom_labels_are_unique_and_match_erpnext_builtins(self):
+		data_path = Path(frappe.get_app_path("erpnext")) / "setup/setup_wizard/data/uom_data.json"
+		with data_path.open(encoding="utf-8") as source:
+			builtins = {row["uom_name"] for row in json.load(source)}
+		labels = list(uom_labels.DEFAULT_LABELS.values())
+		self.assertEqual(len(labels), len({label.casefold() for label in labels}))
+		self.assertEqual(set(uom_labels.DEFAULT_LABELS) - builtins, set())
+
+	def test_create_uom_resolves_existing_native_name_or_display_label(self):
+		name = f"TI-UOM-RESOLVE-{self.token}"
+		frappe.get_doc({"doctype": "UOM", "uom_name": name, "ti_label": "Curated Label"}).insert()
+		for requested_name, display_label in ((" curated label ", "Other"), ("New Native", name.lower())):
+			result = catalog.create_uom(requested_name, True, display_label)
+			self.assertEqual(result, {"name": name, "label": "Curated Label", "must_be_whole_number": False})
+		self.assertFalse(frappe.db.exists("UOM", "New Native"))
+
 	def test_uom_bootstrap_includes_disabled_units_and_returns_category(self):
 		unit_name = f"TI-Count-{self.token}"
 		catalog.create_uom(unit_name, must_be_whole_number=True)
