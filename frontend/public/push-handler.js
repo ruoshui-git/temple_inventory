@@ -25,6 +25,24 @@ self.addEventListener("push", (event) => {
 	);
 });
 
+self.addEventListener("pushsubscriptionchange", (event) => {
+	event.waitUntil(
+		(async () => {
+			const applicationServerKey = event.oldSubscription?.options?.applicationServerKey;
+			if (!applicationServerKey) return;
+			try {
+				// The app re-saves a subscription the server doesn't know when it next opens.
+				await self.registration.pushManager.subscribe({
+					userVisibleOnly: true,
+					applicationServerKey,
+				});
+			} catch {
+				// The app subscribes again from its prompt or settings page.
+			}
+		})(),
+	);
+});
+
 self.addEventListener("notificationclick", (event) => {
 	event.notification.close();
 	const path = event.notification.data?.url || "/inventory/notifications";

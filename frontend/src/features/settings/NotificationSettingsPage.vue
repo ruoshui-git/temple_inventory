@@ -157,10 +157,10 @@ function permissionGranted() {
 						<span
 							><strong>{{ device.user_agent_label || "浏览器设备" }}</strong
 							><small>{{
-								device.last_success
-									? `最近成功：${device.last_success}`
-									: device.last_error
-										? `最近失败：${device.last_error}`
+								device.last_error
+									? `最近失败：${device.last_error}`
+									: device.last_success
+										? `最近成功：${device.last_success}`
 										: "尚未发送成功"
 							}}</small></span
 						><UiButton size="compact" @click="c.removeDevice(device)">移除</UiButton>

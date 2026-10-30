@@ -1,6 +1,9 @@
 """Web Push subscription lifecycle and Notification Log delivery."""
 
+import hashlib
+import ipaddress
 import json
+import re
 from urllib.parse import urlparse
 
 import frappe
@@ -23,6 +26,7 @@ def subscription_query(user=None):
 
 def _settings():
 	settings = frappe.get_single("Temple Inventory Settings")
+	changed = False
 	if not settings.ti_vapid_public_key or not get_decrypted_password(
 		"Temple Inventory Settings", settings.name, "ti_vapid_private_key", raise_exception=False
 	):
@@ -36,11 +40,43 @@ def _settings():
 		)
 		settings.ti_vapid_private_key = _b64(private_bytes)
 		settings.ti_vapid_public_key = _b64(public_bytes)
-		settings.ti_vapid_subject = (
-			f"mailto:notifications@{frappe.utils.get_url().split('//')[-1].split('/')[0]}"
-		)
+		changed = True
+	if not _valid_vapid_subject(settings.ti_vapid_subject):
+		settings.ti_vapid_subject = _default_vapid_subject()
+		changed = True
+	if changed:
 		settings.save(ignore_permissions=True)
 	return settings
+
+
+def _valid_vapid_subject(subject):
+	if not isinstance(subject, str):
+		return False
+	if subject.startswith("mailto:"):
+		match = re.fullmatch(r"mailto:[^@\s]+@([^@\s]+)", subject)
+		return bool(match and _valid_email_domain(match.group(1)))
+	parsed = urlparse(subject)
+	return parsed.scheme == "https" and bool(parsed.hostname)
+
+
+def _valid_email_domain(host):
+	try:
+		ipaddress.ip_address(host)
+		return False
+	except ValueError:
+		labels = host.rstrip(".").split(".")
+		return len(labels) >= 2 and all(
+			re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?", part) for part in labels
+		)
+
+
+def _default_vapid_subject():
+	parsed = urlparse(frappe.utils.get_url())
+	host = parsed.hostname or ""
+	if _valid_email_domain(host):
+		return f"mailto:notifications@{host}"
+	fallback_host = f"[{host}]" if ":" in host else host
+	return f"https://{fallback_host or 'localhost'}{f':{parsed.port}' if parsed.port else ''}"
 
 
 def _b64(value):
@@ -61,7 +97,8 @@ def subscribe(endpoint, p256dh, auth, user_agent=""):
 	parsed = urlparse(endpoint)
 	if parsed.scheme != "https" or not parsed.hostname or len(endpoint) > 2048:
 		frappe.throw("推送地址无效")
-	docname = frappe.db.get_value(DOCTYPE, {"endpoint": endpoint}, "name")
+	endpoint_hash = hashlib.sha256(endpoint.encode()).hexdigest()
+	docname = frappe.db.get_value(DOCTYPE, {"endpoint_hash": endpoint_hash}, "name")
 	doc = frappe.get_doc(DOCTYPE, docname) if docname else frappe.new_doc(DOCTYPE)
 	doc.user, doc.endpoint, doc.p256dh, doc.auth, doc.user_agent_label = (
 		frappe.session.user,
@@ -92,7 +129,7 @@ def my_devices():
 	return frappe.get_all(
 		DOCTYPE,
 		filters={"user": frappe.session.user},
-		fields=["name", "user_agent_label", "created", "last_success", "last_error"],
+		fields=["name", "endpoint_hash", "user_agent_label", "created", "last_success", "last_error"],
 		order_by="created desc",
 	)
 
@@ -100,8 +137,8 @@ def my_devices():
 def _send(subscription, payload):
 	from pywebpush import WebPushException, webpush
 
-	settings = _settings()
 	try:
+		settings = _settings()
 		webpush(
 			{
 				"endpoint": subscription.endpoint,
@@ -112,6 +149,8 @@ def _send(subscription, payload):
 				"Temple Inventory Settings", settings.name, "ti_vapid_private_key"
 			),
 			vapid_claims={"sub": settings.ti_vapid_subject},
+			ttl=86400,
+			headers={"Urgency": "normal"},
 		)
 		frappe.db.set_value(
 			DOCTYPE, subscription.name, {"last_success": frappe.utils.now_datetime(), "last_error": ""}
@@ -121,8 +160,16 @@ def _send(subscription, payload):
 		status = getattr(getattr(error, "response", None), "status_code", None)
 		if status in (404, 410):
 			frappe.delete_doc(DOCTYPE, subscription.name, ignore_permissions=True)
-		else:
-			frappe.db.set_value(DOCTYPE, subscription.name, "last_error", str(error)[:500])
+			return False
+		message = f"推送服务返回 HTTP {status}" if status else "推送服务发送失败"
+		frappe.db.set_value(DOCTYPE, subscription.name, "last_error", message)
+		return False
+	except Exception as error:
+		# Exception text can contain the device endpoint, including provider tokens, so it
+		# goes to the administrator-only Error Log rather than the user-visible device row.
+		frappe.log_error(title="Inventory push send failed")
+		message = f"推送发送失败 ({type(error).__name__})"
+		frappe.db.set_value(DOCTYPE, subscription.name, "last_error", message[:500])
 		return False
 
 
@@ -131,9 +178,11 @@ def _send(subscription, payload):
 def send_test():
 	require_app()
 	sent = failed = 0
+	results = []
 	for row in frappe.get_all(DOCTYPE, filters={"user": frappe.session.user}, pluck="name"):
-		if _send(
-			frappe.get_doc(DOCTYPE, row),
+		subscription = frappe.get_doc(DOCTYPE, row)
+		ok = _send(
+			subscription,
 			{
 				"title": "物资管理",
 				"body": "通知测试成功",
@@ -141,11 +190,19 @@ def send_test():
 				"tag": "ti-test",
 				"badge_count": 0,
 			},
-		):
+		)
+		if ok:
 			sent += 1
 		else:
 			failed += 1
-	return {"sent": sent, "failed": failed}
+		results.append(
+			{
+				"name": row,
+				"sent": ok,
+				"error": "" if ok else frappe.db.get_value(DOCTYPE, row, "last_error") or "设备已失效并移除",
+			}
+		)
+	return {"sent": sent, "failed": failed, "results": results}
 
 
 def notification_after_insert(doc, method=None):
@@ -158,9 +215,23 @@ def notification_after_insert(doc, method=None):
 
 def send_notification(name):
 	doc = frappe.get_doc("Notification Log", name)
-	from temple_inventory.notifications import TYPES, _prefs
+	from temple_inventory.notifications import EVENTS, TYPES, _user_allowed
 
-	if doc.read or not _prefs(doc.for_user)["enabled"]:
+	event = dict(zip(TYPES, EVENTS, strict=True)).get(doc.type)
+	if doc.read or not event:
+		return
+	try:
+		structured = json.loads(doc.email_content or "{}")
+	except (TypeError, ValueError):
+		structured = {}
+	kind = structured.get("kind") if event == "movement_submitted" else None
+	if not _user_allowed(doc.for_user, event, kind):
+		return
+	if (
+		doc.document_type
+		and doc.document_name
+		and not frappe.has_permission(doc.document_type, "read", doc=doc.document_name, user=doc.for_user)
+	):
 		return
 	count = frappe.db.count(
 		"Notification Log", {"for_user": doc.for_user, "type": ["in", list(TYPES)], "read": 0}

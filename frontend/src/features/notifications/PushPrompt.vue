@@ -5,7 +5,7 @@ import { useInventoryServices, useReferenceData } from "../../services/contracts
 import UiButton from "../../components/ui/UiButton.vue";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import { detectInstallPlatform } from "../../lib/installGuidance";
-import { subscribePushDevice } from "../settings/useNotificationSettings";
+import { resyncPushDevice, subscribePushDevice } from "../settings/useNotificationSettings";
 
 const services = useInventoryServices();
 const reference = useReferenceData();
@@ -16,18 +16,19 @@ const ready = ref(false);
 const dismissed = ref(true);
 const busy = ref(false);
 const error = ref("");
-const pushAvailable = () =>
+const showFailure = ref(false);
+const pushSupported = () =>
 	!import.meta.env.DEV &&
 	window.isSecureContext &&
 	"Notification" in window &&
 	"serviceWorker" in navigator &&
-	"PushManager" in window &&
-	Notification.permission === "default";
+	"PushManager" in window;
+const pushAvailable = () => pushSupported() && Notification.permission === "default";
 const visible = computed(
 	() =>
 		ready.value &&
-		!dismissed.value &&
-		pushAvailable() &&
+		(!dismissed.value || showFailure.value) &&
+		(pushAvailable() || showFailure.value) &&
 		!(
 			detectInstallPlatform(
 				navigator.userAgent,
@@ -40,6 +41,15 @@ const visible = computed(
 		!(isMobile.value && route.meta.taskEditor),
 );
 onMounted(async () => {
+	if (!pushSupported()) return;
+	if (Notification.permission === "granted") {
+		try {
+			await resyncPushDevice(services);
+		} catch {
+			// App startup retries sync quietly; the settings page can show an explicit error.
+		}
+		return;
+	}
 	if (!pushAvailable()) return;
 	try {
 		const [wasDismissed, subscription] = await Promise.all([
@@ -71,13 +81,18 @@ async function enable() {
 	try {
 		await subscribePushDevice(services, true);
 		dismissed.value = true;
+		showFailure.value = false;
 	} catch (reason) {
-		// A denial is answered in 通知设置, which explains how to re-allow it.
-		if (Notification.permission === "denied") dismissed.value = true;
-		else error.value = reason instanceof Error ? reason.message : "开启系统通知失败";
+		dismissed.value = true;
+		showFailure.value = true;
+		error.value = reason instanceof Error ? reason.message : "开启系统通知失败";
 	} finally {
 		busy.value = false;
 	}
+}
+function closeFailure() {
+	showFailure.value = false;
+	error.value = "";
 }
 </script>
 
@@ -86,6 +101,7 @@ async function enable() {
 		<span>开启系统通知，及时收到导出完成、过期提醒等消息</span>
 		<UiButton variant="primary" :loading="busy" @click="enable">开启</UiButton>
 		<UiButton :disabled="busy" @click="dismiss">不再提示</UiButton>
+		<UiButton v-if="showFailure" :disabled="busy" @click="closeFailure">关闭</UiButton>
 		<p v-if="error" role="alert">{{ error }}</p>
 	</aside>
 </template>

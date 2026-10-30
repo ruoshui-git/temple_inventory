@@ -1,9 +1,10 @@
 """Focused notification preference and access boundary tests."""
 
+import hashlib
 import re
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import frappe
 from cryptography.hazmat.primitives import serialization
@@ -11,7 +12,15 @@ from cryptography.hazmat.primitives.asymmetric import ec
 
 from temple_inventory import notifications, push
 from temple_inventory.native_stock import MOVEMENT_LABELS, MOVEMENT_PURPOSES
-from temple_inventory.patches import align_user_time_zones, fix_expiry_notification_links, set_site_timezone
+from temple_inventory.patches import (
+	align_user_time_zones,
+	backfill_push_endpoint_hashes,
+	fix_expiry_notification_links,
+	set_site_timezone,
+)
+from temple_inventory.temple_inventory.doctype.inventory_push_subscription.inventory_push_subscription import (
+	InventoryPushSubscription,
+)
 from temple_inventory.tests.test_native_documents import NativeDocumentTests
 
 
@@ -68,6 +77,23 @@ class NotificationTests(NativeDocumentTests):
 			("/inventory/stock/expiry", "/inventory/expiry"),
 		)
 
+	def test_push_endpoint_patch_backfills_hashes_and_clears_legacy_error_text(self):
+		row = frappe._dict(name="SUB-old", endpoint="https://push.example.test/" + "x" * 600)
+		with (
+			patch.object(frappe, "get_all", return_value=[row]),
+			patch.object(frappe.db, "set_value") as set_value,
+			patch.object(frappe.db, "sql") as sql,
+		):
+			backfill_push_endpoint_hashes.execute()
+		set_value.assert_called_once_with(
+			push.DOCTYPE,
+			row.name,
+			"endpoint_hash",
+			hashlib.sha256(row.endpoint.encode()).hexdigest(),
+			update_modified=False,
+		)
+		sql.assert_called_once()
+
 	def test_expiry_digest_defaults_off_and_other_events_on(self):
 		with patch.object(frappe.defaults, "get_user_default", return_value=None):
 			preferences = notifications._prefs()
@@ -94,10 +120,21 @@ class NotificationTests(NativeDocumentTests):
 			patch.object(push, "require_app"),
 			patch.object(frappe, "get_all", return_value=rows) as get_all,
 			patch.object(frappe, "get_doc", side_effect=lambda _doctype, name: frappe._dict(name=name)),
+			patch.object(frappe.db, "get_value", side_effect=["HTTP 503", None]),
 			patch.object(push, "_send", side_effect=[True, False]) as send,
 		):
 			result = push.send_test.__wrapped__()
-		self.assertEqual(result, {"sent": 1, "failed": 1})
+		self.assertEqual(
+			result,
+			{
+				"sent": 1,
+				"failed": 1,
+				"results": [
+					{"name": rows[0], "sent": True, "error": ""},
+					{"name": rows[1], "sent": False, "error": "HTTP 503"},
+				],
+			},
+		)
 		get_all.assert_called_once_with(push.DOCTYPE, filters={"user": caller}, pluck="name")
 		self.assertEqual([call.args[0].name for call in send.call_args_list], rows)
 		self.assertTrue(all(call.args[1]["tag"] == "ti-test" for call in send.call_args_list))
@@ -156,7 +193,8 @@ class NotificationTests(NativeDocumentTests):
 			patch.object(frappe, "get_doc", side_effect=[log, subscription]),
 			patch.object(frappe, "get_all", return_value=["SUB-test"]),
 			patch.object(frappe.db, "count", return_value=3) as count,
-			patch.object(notifications, "_prefs", return_value={"enabled": True}),
+			patch.object(notifications, "_user_allowed", return_value=True),
+			patch.object(frappe, "has_permission", return_value=True),
 			patch.object(push, "_send") as send,
 		):
 			push.send_notification("NL-test")
@@ -196,6 +234,82 @@ class NotificationTests(NativeDocumentTests):
 		delete_doc.assert_called_once_with(push.DOCTYPE, "SUB-test", ignore_permissions=True)
 		set_value.assert_not_called()
 
+	def test_long_endpoint_subscription_uses_hash_and_updates_existing_device_owner(self):
+		endpoint = "https://push.example.test/" + "x" * 600
+		device = frappe._dict(name="SUB-existing", user="other@example.com", save=Mock())
+		caller = frappe.session.user
+		with (
+			patch.object(push, "require_app"),
+			patch.object(frappe.db, "get_value", return_value=device.name) as get_value,
+			patch.object(frappe, "get_doc", return_value=device),
+			patch.object(frappe, "new_doc") as new_doc,
+		):
+			result = push.subscribe.__wrapped__(endpoint, "p256dh", "auth", "device")
+			resubscribed = push.subscribe.__wrapped__(endpoint, "new-p256dh", "new-auth", "device")
+		self.assertEqual(result, {"name": device.name})
+		self.assertEqual(resubscribed, {"name": device.name})
+		self.assertEqual(
+			get_value.call_args.args[1], {"endpoint_hash": hashlib.sha256(endpoint.encode()).hexdigest()}
+		)
+		self.assertEqual(device.endpoint, endpoint)
+		self.assertEqual(device.user, caller)
+		self.assertEqual(device.p256dh, "new-p256dh")
+		self.assertEqual(device.auth, "new-auth")
+		self.assertEqual(device.save.call_count, 2)
+		new_doc.assert_not_called()
+		controller_doc = frappe._dict(endpoint=endpoint)
+		InventoryPushSubscription.validate(controller_doc)
+		self.assertEqual(controller_doc.endpoint_hash, hashlib.sha256(endpoint.encode()).hexdigest())
+
+	def test_push_send_uses_24_hour_normal_delivery_and_safe_device_error(self):
+		subscription = frappe._dict(
+			name="SUB-test", endpoint="https://push.example.test/?token=private", p256dh="key", auth="auth"
+		)
+		with (
+			patch.object(
+				push,
+				"_settings",
+				return_value=frappe._dict(
+					name="Temple Inventory Settings", ti_vapid_subject="mailto:test@example.com"
+				),
+			),
+			patch.object(push, "get_decrypted_password", return_value="private"),
+			patch(
+				"pywebpush.webpush", side_effect=RuntimeError(f"failed {subscription.endpoint}")
+			) as webpush,
+			patch.object(frappe.db, "set_value") as set_value,
+		):
+			self.assertFalse(push._send(subscription, {"title": "test"}))
+		self.assertEqual(webpush.call_args.kwargs["ttl"], 86400)
+		self.assertEqual(webpush.call_args.kwargs["urgency"], "normal")
+		self.assertNotIn("private", set_value.call_args.args[3])
+		self.assertIn("RuntimeError", set_value.call_args.args[3])
+
+	def test_vapid_subject_strips_ports_and_falls_back_for_non_domain_hosts(self):
+		with patch.object(frappe.utils, "get_url", return_value="http://inventory.example.test:8080/path"):
+			self.assertEqual(push._default_vapid_subject(), "mailto:notifications@inventory.example.test")
+		with patch.object(frappe.utils, "get_url", return_value="http://localhost:8000/path"):
+			self.assertEqual(push._default_vapid_subject(), "https://localhost:8000")
+		self.assertFalse(push._valid_vapid_subject("mailto:notifications@localhost:8000"))
+		self.assertTrue(push._valid_vapid_subject("https://inventory.example.test/site"))
+
+	def test_push_delivery_rechecks_recipient_access_before_sending(self):
+		log = frappe._dict(
+			name="NL-test",
+			type="库存流动",
+			for_user="manager@example.com",
+			read=0,
+			email_content='{"kind":"Receive"}',
+		)
+		with (
+			patch.object(frappe, "get_doc", return_value=log),
+			patch.object(notifications, "_user_allowed", return_value=False) as allowed,
+			patch.object(frappe, "get_all") as get_all,
+		):
+			push.send_notification("NL-test")
+		allowed.assert_called_once_with(log.for_user, "movement_submitted", "Receive")
+		get_all.assert_not_called()
+
 	def test_webpush_real_encryption_accepts_stored_base64url_private_key(self):
 		private = ec.generate_private_key(ec.SECP256R1())
 		private_raw = private.private_numbers().private_value.to_bytes(32, "big")
@@ -228,7 +342,10 @@ class NotificationTests(NativeDocumentTests):
 				{"title": "物资管理", "body": "测试", "url": "/inventory", "tag": "test", "badge_count": 1},
 			)
 		self.assertTrue(post.called)
-		self.assertIn("aes128gcm", post.call_args.kwargs["headers"]["Content-Encoding"])
+		headers = post.call_args.kwargs["headers"]
+		self.assertIn("aes128gcm", headers["Content-Encoding"])
+		self.assertEqual(headers["Urgency"], "normal")
+		self.assertEqual(str(headers["TTL"]), "86400")
 		self.assertNotIn("测试", post.call_args.kwargs["data"].decode(errors="ignore"))
 
 	def test_subjects_use_presenter_locations_amendment_wording_and_difference_rows(self):

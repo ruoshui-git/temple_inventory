@@ -24,6 +24,7 @@ export interface NotificationPreferences {
 }
 interface Device {
   name: string;
+  endpoint_hash: string;
   user_agent_label: string;
   last_success?: string;
   last_error?: string;
@@ -62,20 +63,57 @@ export async function subscribePushDevice(
     );
   const publicKey = await services.call<string>("push.public_key");
   const registration = await navigator.serviceWorker.ready;
-  const subscription = await registration.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: decodeKey(publicKey),
-  });
+  let subscription = await registration.pushManager.getSubscription();
+  let created = false;
+  if (!subscription) {
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: decodeKey(publicKey),
+    });
+    created = true;
+  }
   const json = subscription.toJSON();
-  if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth)
+  if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) {
+    if (created) await subscription.unsubscribe().catch(() => undefined);
     throw new Error("浏览器未返回完整的推送信息");
-  const saved = await services.call<{ name: string }>("push.subscribe", {
-    endpoint: json.endpoint,
-    p256dh: json.keys.p256dh,
-    auth: json.keys.auth,
-    user_agent: navigator.userAgent,
-  });
+  }
+  let saved: { name: string };
+  try {
+    saved = await services.call<{ name: string }>("push.subscribe", {
+      endpoint: json.endpoint,
+      p256dh: json.keys.p256dh,
+      auth: json.keys.auth,
+      user_agent: navigator.userAgent,
+    });
+  } catch (error) {
+    if (created) await subscription.unsubscribe().catch(() => undefined);
+    throw error;
+  }
   return { subscription, publicKey, name: saved.name };
+}
+export async function resyncPushDevice(
+  services: ReturnType<typeof useInventoryServices>,
+) {
+  if (
+    Notification.permission !== "granted" ||
+    !("serviceWorker" in navigator) ||
+    !("PushManager" in window)
+  )
+    return;
+  const registration = await navigator.serviceWorker.ready;
+  const subscription = await registration.pushManager.getSubscription();
+  if (!subscription) return;
+  const endpoint = subscription.toJSON().endpoint;
+  if (!endpoint) return;
+  const [devices, digest] = await Promise.all([
+    services.call<Device[]>("push.my_devices"),
+    crypto.subtle.digest("SHA-256", new TextEncoder().encode(endpoint)),
+  ]);
+  const endpointHash = Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+  if (devices.some((device) => device.endpoint_hash === endpointHash)) return;
+  await subscribePushDevice(services, false);
 }
 export function resolvePushState(state: {
   supported: boolean;
@@ -217,6 +255,7 @@ export function useNotificationSettings() {
       pushError.value =
         reason instanceof Error ? reason.message : "开启推送失败";
     } finally {
+      await readLocalSubscription();
       pushBusy.value = false;
     }
   }
@@ -236,6 +275,7 @@ export function useNotificationSettings() {
         "push.send_test",
       );
       pushMessage.value = `已发送 ${result.sent} 台，失败 ${result.failed} 台`;
+      await loadDevices();
     } catch (reason) {
       pushError.value =
         reason instanceof Error ? reason.message : "测试通知发送失败";
