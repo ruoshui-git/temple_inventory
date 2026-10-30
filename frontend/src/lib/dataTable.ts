@@ -138,6 +138,7 @@ export function dataColumnPreset(
 export interface DataColumn<Row = Record<string, unknown>> {
   id: (keyof Row & string) | string;
   label: string;
+  export?: string[];
   defaultVisible?: boolean;
   required?: boolean;
   sortable?: boolean;

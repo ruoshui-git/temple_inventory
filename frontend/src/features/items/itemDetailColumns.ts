@@ -1,0 +1,111 @@
+import type { DataColumn } from "../../lib/dataTable";
+
+export const productBatchColumns: DataColumn[] = [
+  {
+    id: "batch_no",
+    label: "批次编号",
+    required: true,
+    defaultVisible: true,
+    sortable: true,
+    export: ["batch_no"],
+  },
+  {
+    id: "expiry",
+    label: "效期",
+    defaultVisible: true,
+    sortable: true,
+    export: ["expiry_date", "remaining_days", "expiry_state"],
+  },
+  {
+    id: "location",
+    label: "库位",
+    defaultVisible: true,
+    sortable: true,
+    export: ["warehouse"],
+  },
+  {
+    id: "available",
+    label: "可用数量",
+    defaultVisible: true,
+    sortable: true,
+    export: ["available", "stock_uom"],
+  },
+  {
+    id: "loaned",
+    label: "借出",
+    defaultVisible: true,
+    sortable: true,
+    export: ["loaned", "stock_uom"],
+  },
+  {
+    id: "damaged",
+    label: "损坏",
+    defaultVisible: true,
+    sortable: true,
+    export: ["damaged", "stock_uom"],
+  },
+  {
+    id: "uom",
+    label: "库存单位",
+    defaultVisible: true,
+    sortable: true,
+    export: ["stock_uom"],
+  },
+  {
+    id: "expiry_date",
+    label: "到期日期",
+    defaultVisible: false,
+    export: ["expiry_date"],
+  },
+  {
+    id: "remaining_days",
+    label: "剩余天数",
+    defaultVisible: false,
+    export: ["remaining_days"],
+  },
+  {
+    id: "expiry_state",
+    label: "到期状态",
+    defaultVisible: false,
+    export: ["expiry_state"],
+  },
+];
+
+export const productLocationColumns: DataColumn[] = [
+  {
+    id: "location",
+    label: "库位",
+    required: true,
+    defaultVisible: true,
+    sortable: true,
+    export: ["warehouse"],
+  },
+  {
+    id: "available",
+    label: "可用数量",
+    defaultVisible: true,
+    sortable: true,
+    export: ["available", "stock_uom"],
+  },
+  {
+    id: "loaned",
+    label: "借出",
+    defaultVisible: true,
+    sortable: true,
+    export: ["loaned", "stock_uom"],
+  },
+  {
+    id: "damaged",
+    label: "损坏",
+    defaultVisible: true,
+    sortable: true,
+    export: ["damaged", "stock_uom"],
+  },
+  {
+    id: "uom",
+    label: "库存单位",
+    defaultVisible: true,
+    sortable: true,
+    export: ["stock_uom"],
+  },
+];

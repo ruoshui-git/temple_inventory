@@ -11,11 +11,10 @@ LABELS = {
 	"damaged": "损坏",
 	"stock_qty": "库存数量",
 	"quantity": "数量",
-	"quantities": "数量（按单位）",
 	"stock_uom": "库存单位",
 	"uom": "单位",
-	"entered_uom": "录入单位",
-	"entered_qty": "录入数量",
+	"entered_uom": "填写单位",
+	"entered_qty": "填写数量",
 	"purpose": "用途",
 	"activity": "活动编号",
 	"warehouse": "库位",
@@ -32,7 +31,7 @@ LABELS = {
 	"destination_warehouse_native_name": "去向 ERPNext 库位",
 	"origin_warehouse": "原位置",
 	"batch_no": "批次编号",
-	"expiry_date": "过期日期",
+	"expiry_date": "到期日期",
 	"remaining_days": "剩余天数",
 	"expiry_state": "到期状态",
 	"document": "编号",
@@ -48,9 +47,10 @@ LABELS = {
 	"losses": "减少",
 	"net": "净差异",
 	"available_effect": "可用变化",
+	"original_loan": "原借出",
 	"outstanding": "未归还数量",
-	"borrowed": "借出数量",
-	"returned": "已归还",
+	"borrowed": "借出量",
+	"returned": "正常归还量",
 	"lost": "遗失",
 	"handler": "经手人",
 	"recorder": "记录人",
@@ -60,12 +60,12 @@ LABELS = {
 	"source": "来源位置",
 	"destination": "去向位置",
 	"opening": "期初",
-	"incoming": "入库",
-	"outgoing": "出库",
+	"incoming": "流入",
+	"outgoing": "流出",
 	"adjustment": "调整",
 	"closing": "期末",
-	"baseline_qty": "基准数量",
-	"actual_qty": "实盘数量",
+	"baseline_qty": "账面数量",
+	"actual_qty": "已核对实点",
 	"difference": "差异量",
 	"document_count": "单据数",
 	"allocation_count": "明细数",
@@ -94,6 +94,14 @@ DATASET_LABELS = {
 }
 
 TABLE_LABELS = {
+	("movements", "lines"): {
+		"kind": "流动类型",
+		"notes": "详细备注",
+		"original_loan": "原借出",
+		"warehouse": "位置",
+	},
+	("counts", "records"): {"stock_uom": "单位"},
+	("counts", "lines"): {"stock_uom": "单位"},
 	("loans", "loan_history"): {
 		"date": "日期",
 		"document": "编号",
@@ -103,7 +111,13 @@ TABLE_LABELS = {
 		"stock_uom": "单位",
 		"kind": "类型",
 	},
-	("movements", "history"): {"stock_qty": "数量", "stock_uom": "单位"},
+	("movements", "history"): {
+		"document": "编号",
+		"notes": "详细备注",
+		"warehouse": "位置",
+		"stock_qty": "数量",
+		"stock_uom": "单位",
+	},
 	("loans", "outcomes"): {
 		"outstanding": "未归还数量",
 		"borrowed": "借出数量",
@@ -118,7 +132,7 @@ TABLE_LABELS = {
 		"outstanding": "未归还数量",
 		"borrowed": "借出数量",
 		"loan_status": "借用状态",
-		"quantities": "借出数量（按单位）",
+		"returned": "已归还",
 	},
 	("loans", "lines"): {
 		"document": "借出单号",
@@ -129,6 +143,8 @@ TABLE_LABELS = {
 	},
 	("expiry", "batches"): {"stock_qty": "库存数量", "warehouse": "位置", "stock_uom": "库存单位"},
 }
+
+REPORT_DATASETS = ("activities", "counts", "expiry", "inventory", "loans", "movements")
 
 DEFAULT_COLUMNS = {
 	"summary": [
@@ -178,7 +194,6 @@ DEFAULT_COLUMNS = {
 		"available_effect",
 		"stock_qty",
 		"stock_uom",
-		"quantities",
 		"source",
 		"destination",
 		"activity_title",
@@ -322,7 +337,6 @@ DATASET_DEFAULT_COLUMNS = {
 		"lost",
 		"outstanding",
 		"stock_uom",
-		"quantities",
 		"source",
 		"destination",
 	],
@@ -340,7 +354,6 @@ DATASET_DEFAULT_COLUMNS = {
 		"actual_qty",
 		"difference",
 		"stock_uom",
-		"quantities",
 	],
 	("counts", "lines"): [
 		"item_name",
@@ -418,6 +431,7 @@ EXTRA_COLUMNS = {
 		"source_warehouse_native_name",
 		"destination_warehouse_path",
 		"destination_warehouse_native_name",
+		"original_loan",
 	},
 	"history": {
 		"category",
@@ -431,6 +445,7 @@ EXTRA_COLUMNS = {
 		"source_warehouse_native_name",
 		"destination_warehouse_path",
 		"destination_warehouse_native_name",
+		"original_loan",
 	},
 	"loan_history": {
 		"category",
@@ -441,6 +456,8 @@ EXTRA_COLUMNS = {
 		"source_warehouse_native_name",
 		"destination_warehouse_path",
 		"destination_warehouse_native_name",
+		"original_loan",
+		"outstanding",
 		"origin_warehouse_path",
 		"origin_warehouse_native_name",
 	},
@@ -483,6 +500,35 @@ def allowed_columns(dataset, table):
 	if dataset == "counts" and table == "records":
 		columns.update({"gains", "losses", "net"})
 	return columns
+
+
+def contract():
+	def contract_fields(dataset, table):
+		fields = set(allowed_columns(dataset, table))
+		fields.add("expiry_state")
+		if table == "locations":
+			fields.update({"expiry_date", "remaining_days"})
+		if table in ("records", "history", "loan_history"):
+			fields.add("original_loan")
+		if table == "records":
+			fields.update({"source", "destination"})
+		if dataset == "counts" and table == "records":
+			fields.update({"gains", "losses", "net"})
+		return sorted(fields)
+
+	return {
+		"allowed_columns": {
+			dataset: {table: contract_fields(dataset, table) for table in sorted(DEFAULT_COLUMNS)}
+			for dataset in REPORT_DATASETS
+		},
+		"labels": {
+			dataset: {
+				table: {field: label(dataset, field, table) for field in contract_fields(dataset, table)}
+				for table in sorted(DEFAULT_COLUMNS)
+			}
+			for dataset in REPORT_DATASETS
+		},
+	}
 
 
 def label(dataset, field, table=None):

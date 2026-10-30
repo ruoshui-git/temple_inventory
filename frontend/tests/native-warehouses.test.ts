@@ -212,7 +212,6 @@ describe("native location workspace", () => {
     expect(quickExport.props()).toMatchObject({ table: "locations" });
     expect(quickExport.props("title")).toContain("库房清单 ·");
     expect(quickExport.props("columns")).toEqual([
-      "image_file",
       "item_name",
       "item_code",
       "warehouse_label",
@@ -220,6 +219,10 @@ describe("native location workspace", () => {
       "stock_qty",
       "stock_uom",
     ]);
+    expect(quickExport.props("columns")).not.toContain("image_file");
+    await quickExport.get("button.quick-report").trigger("click");
+    await flushPromises();
+    expect(document.body.textContent).toContain("物品图片");
   });
   it("reads the presenter labels and hides direct-storage leaves from the selectable tree", async () => {
     const { c } = setup();
@@ -537,7 +540,9 @@ describe("native location workspace", () => {
     const table = wrapper.get(".warehouse-stock-table");
     expect(table.get("th.align-center").exists()).toBe(true);
     expect(table.get("th.align-end").exists()).toBe(true);
-    expect(table.get('th button[aria-label^="物品排序"]').exists()).toBe(true);
+    expect(table.get('th button[aria-label^="物品名称排序"]').exists()).toBe(
+      true,
+    );
     expect(table.get('button[aria-label="设置列"]').exists()).toBe(true);
     expect(table.get("td.warehouse-code").classes()).toContain("align-start");
     expect(table.text()).toContain("ITM-000123");

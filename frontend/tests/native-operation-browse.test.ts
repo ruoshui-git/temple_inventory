@@ -244,6 +244,72 @@ function service(operationPage = page()) {
   });
 }
 describe("native operation browsing", () => {
+  it("keeps detailed branch locations in operation record rows", async () => {
+    const operationQuery = newReportQuery("movements");
+    operationQuery.view = "records";
+    operationQuery.groupBy = [];
+    localStorage.setItem(
+      "temple-inventory:table-columns:v1:unit-site:volunteer:operations.movements.records",
+      JSON.stringify({
+        version: 1,
+        values: {
+          order: [
+            "source_warehouse_path",
+            "source_warehouse_native_name",
+            "destination_warehouse_path",
+            "destination_warehouse_native_name",
+          ],
+          hidden: [],
+        },
+      }),
+    );
+    const operationPage = {
+      ...page(),
+      rows: [
+        {
+          id: "STE-BRANCH-1",
+          row_grain: "record",
+          document: "STE-BRANCH-1",
+          kind: "Transfer",
+          item_count: 1,
+          document_count: 1,
+          whole: {
+            quantities: [],
+            available_effects: [],
+            branches: [
+              {
+                source: "来源库位",
+                destination: "去向库位",
+                source_path: "仓库 / 来源区",
+                source_native_name: "Source Warehouse",
+                destination_path: "仓库 / 去向区",
+                destination_native_name: "Destination Warehouse",
+              },
+            ],
+            original_loans: [],
+          },
+        },
+      ],
+    };
+    const mounted = setup(
+      service(operationPage as unknown as OperationBrowsePage),
+      reactive({
+        family: "movements" as const,
+        records: true,
+        initialQuery: operationQuery,
+      }),
+      true,
+    );
+    await flushPromises();
+    for (const value of [
+      "仓库 / 来源区",
+      "Source Warehouse",
+      "仓库 / 去向区",
+      "Destination Warehouse",
+    ])
+      expect(mounted.wrapper.text()).toContain(value);
+  });
+
   it("wires flat movement and loan exports to visible screen columns", async () => {
     const movementQuery = newReportQuery("movements");
     movementQuery.view = "lines";
@@ -265,7 +331,7 @@ describe("native operation browsing", () => {
       sort: "desc",
     });
     expect(movementExport.props("columns")).toContain("item_code");
-    expect(movementExport.props("columns")).toContain("image_file");
+    expect(movementExport.props("columns")).not.toContain("image_file");
     expect(movementExport.props("columns")).toContain("available_effect");
     // Locations are matrix fields, visible by default at every desktop width.
     expect(movementExport.props("columns")).toContain("source_warehouse");

@@ -41,6 +41,7 @@ import { unitLabel } from "../../lib/units";
 import UnitText from "../../components/ui/UnitText.vue";
 import DetailPopover from "../../components/ui/DetailPopover.vue";
 import { formatQuantity } from "../../lib/formatQuantity";
+import { expiryColumnDefinitions } from "./expiryColumns";
 const props = withDefaults(defineProps<{ controller: ExpiryBrowse; active?: boolean }>(), {
 	active: true,
 });
@@ -132,48 +133,7 @@ const analysisTable = computed(() => ({
 	],
 	rows: analysis.value?.rows || [],
 }));
-const expiryColumns: DataColumn[] = [
-	{ id: "image", label: "图片", defaultVisible: true },
-	{
-		id: "item_name",
-		label: "物品名称",
-		required: true,
-		defaultVisible: true,
-		sortable: true,
-	},
-	{
-		id: "item_code",
-		label: "物品编号",
-		defaultVisible: true,
-		sortable: true,
-	},
-	{ id: "category", label: "类别", defaultVisible: true, sortable: true },
-	{
-		id: "batch_no",
-		label: "批次编号",
-		required: true,
-		defaultVisible: true,
-		sortable: true,
-	},
-	{ id: "expiry_date", label: "效期", defaultVisible: true, sortable: true },
-	{
-		id: "remaining_days",
-		label: "剩余时间",
-		defaultVisible: true,
-		sortable: true,
-	},
-	{
-		id: "stock_qty",
-		label: "库存数量",
-		defaultVisible: true,
-		sortable: true,
-		align: "end",
-	},
-	{ id: "stock_uom", label: "库存单位", defaultVisible: true, sortable: true },
-	{ id: "warehouse", label: "位置", defaultVisible: true, sortable: true },
-	{ id: "warehouse_path", label: "完整位置", defaultVisible: false },
-	{ id: "warehouse_native_name", label: "ERPNext 库位", defaultVisible: false },
-];
+const expiryColumns = expiryColumnDefinitions;
 const expiryRows = computed<DataTableRecord[]>(() =>
 	result.rows.map((row) => ({ kind: "record", id: String(row.id), value: row })),
 );
@@ -226,20 +186,6 @@ const tablePreferences =
 				services,
 			)
 		: undefined;
-const expiryExportMap: Record<string, string[]> = {
-	image: ["image_file"],
-	item_name: ["item_name"],
-	item_code: ["item_code"],
-	category: ["category"],
-	batch_no: ["batch_no"],
-	expiry_date: ["expiry_date", "expiry_state"],
-	remaining_days: ["remaining_days"],
-	stock_qty: ["stock_qty"],
-	stock_uom: ["stock_uom"],
-	warehouse: ["warehouse"],
-	warehouse_path: ["warehouse_path"],
-	warehouse_native_name: ["warehouse_native_name"],
-};
 const expiryExportVisible = computed(() =>
 	tablePreferences?.visible.value.length
 		? tablePreferences.visible.value
@@ -253,7 +199,7 @@ const expiryExportOrder = computed(() =>
 		: expiryColumns.map((column) => String(column.id)),
 );
 const expiryExportColumns = computed(() =>
-	exportFields(expiryExportMap, expiryExportOrder.value, expiryExportVisible.value),
+	exportFields(expiryColumns, expiryExportOrder.value, expiryExportVisible.value),
 );
 const tableSortBy = computed(() => query.value.sortBy);
 function openItem(row: ReportRow) {
@@ -292,7 +238,7 @@ function sortState(field: string) {
 		: "none";
 }
 const sortFields = [
-	{ value: "expiry_date", label: "到期日", kind: "expiry" },
+	{ value: "expiry_date", label: "到期日期", kind: "expiry" },
 	{ value: "item_name", label: "物品名称", kind: "text" },
 	{ value: "batch_no", label: "批次编号", kind: "text" },
 	{ value: "stock_qty", label: "库存数量", kind: "number" },
@@ -300,7 +246,7 @@ const sortFields = [
 	{ value: "category", label: "类别", kind: "text" },
 	{ value: "stock_uom", label: "库存单位", kind: "text" },
 	{ value: "warehouse", label: "位置", kind: "text" },
-	{ value: "remaining_days", label: "剩余时间", kind: "expiry" },
+	{ value: "remaining_days", label: "剩余天数", kind: "expiry" },
 ] as const;
 function sortGlyph(field: ReportQuery["sortBy"]) {
 	return query.value.sortBy === field ? (query.value.sort === "asc" ? "↑" : "↓") : "↕";
@@ -661,6 +607,9 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 								>{{ expiryRemaining(row.remaining_days) }}</span
 							>
 						</template>
+						<template v-else-if="column.id === 'expiry_state'">{{
+							expiryStatus(row as unknown as ReportRow).label
+						}}</template>
 						<template v-else-if="column.id === 'stock_qty'"
 							>{{ row.stock_qty
 							}}<span v-if="Number(row.loaned) > 0" class="browse-badge is-warning"

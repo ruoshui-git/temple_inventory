@@ -34,6 +34,11 @@ import type { useExportWorkspaceController } from "./useReportController";
 import { operationLabels } from "../../lib/presentationLabels";
 import { kindIcons } from "../../lib/kindIcons";
 import { useFilterChoices } from "../references/useFilterChoices";
+import { reportExportColumns } from "../../lib/reportExportColumns";
+import { useOptionalInventoryServices } from "../../services/contracts";
+import { useColumnPreferences } from "../../composables/useColumnPreferences";
+import { exportFields } from "../../lib/exportColumns";
+import type { DataColumn } from "../../lib/dataTable";
 const props = withDefaults(
 	defineProps<{
 		controller: ReturnType<typeof useExportWorkspaceController>;
@@ -123,6 +128,32 @@ const relatedPeriodChip = computed(() => {
 const availableSortColumns = computed(() =>
 	sortableColumnsForView(dataset.value, query.value.view),
 );
+const reportColumns = computed<DataColumn[]>(() => {
+	const table = result.tables.find((candidate) => candidate.id === result.main);
+	return table ? reportExportColumns(table, dataset.value) : [];
+});
+const exportServices = useOptionalInventoryServices();
+const reportPrefs = exportServices
+	? useColumnPreferences(
+			computed(() => `report.${result.main}`),
+			reportColumns,
+			reference,
+			exportServices,
+		)
+	: undefined;
+const exportColumns = computed(() => {
+	if (!reportColumns.value.length) return undefined;
+	const columns = reportColumns.value;
+	const visible = reportPrefs?.visible.value.length
+		? reportPrefs.visible.value
+		: columns
+				.filter((column) => column.defaultVisible !== false || column.required)
+				.map((column) => String(column.id));
+	const order = reportPrefs?.order.value.length
+		? reportPrefs.order.value
+		: columns.map((column) => String(column.id));
+	return exportFields(columns, order, visible);
+});
 function sortReport(field: string) {
 	if (!availableSortColumns.value.includes(field)) return;
 	if (query.value.sortBy === field)
@@ -181,6 +212,7 @@ function setGroup(index: number, value: string) {
 					:query="query"
 					:title="`${definition.label} · ${viewName}`"
 					:table="result.main"
+					:columns="exportColumns"
 					:active="active"
 					:show-trigger="false"
 				/>

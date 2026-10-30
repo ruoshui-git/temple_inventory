@@ -594,6 +594,7 @@ class NativeReportsProjectionsTests(NativeReportTestCase):
 		rows = report_page(self.query("counts", "lines"))["rows"]
 		self.assertEqual(rows[0]["difference"], -1)
 		self.assertEqual(rows[0]["review_state"], "Reviewed")
+		self.assertTrue({"baseline_qty", "actual_qty", "difference", "reason", "stock_uom"}.issubset(rows[0]))
 		movement = browse.operation_page(
 			self.query(
 				"movements",

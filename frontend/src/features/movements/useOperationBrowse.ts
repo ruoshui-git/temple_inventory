@@ -49,7 +49,14 @@ export interface OperationGroup {
     outstanding?: { uom: string; qty: number }[];
     item_count: number;
     line_count: number;
-    branches: { source: string; destination: string }[];
+    branches: {
+      source: string;
+      destination: string;
+      source_path?: string;
+      source_native_name?: string;
+      destination_path?: string;
+      destination_native_name?: string;
+    }[];
     original_loans: string[];
     original_loan_details?: { name: string; borrower: string; date: string }[];
     loan_status?: string;

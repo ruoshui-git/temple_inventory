@@ -101,18 +101,20 @@ describe("native expiry browser", () => {
       table: "batches",
     });
     expect(quickExport.props("columns")).toEqual([
-      "image_file",
       "item_name",
       "item_code",
       "category",
       "batch_no",
       "expiry_date",
-      "expiry_state",
       "remaining_days",
       "stock_qty",
       "stock_uom",
       "warehouse",
     ]);
+    expect(quickExport.props("columns")).not.toContain("image_file");
+    await quickExport.get("button.quick-report").trigger("click");
+    await flushPromises();
+    expect(document.body.textContent).toContain("物品图片");
   });
   it("renders all expiry windows as one in-page segmented switch with counts", async () => {
     const { wrapper } = setup(

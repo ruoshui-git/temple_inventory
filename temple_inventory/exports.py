@@ -152,9 +152,10 @@ def request_export(
 			frappe.throw("请选择有效的数据表")
 		allowed = set(projection.column_names[table]) & allowed_columns(validated["dataset"], table)
 		allowed.update(
-			{"expiry_state", "quantities"}
+			{"expiry_state"}
 			| ({"expiry_date", "remaining_days"} if table == "locations" else set())
 			| ({"source", "destination"} if table == "records" else set())
+			| ({"original_loan"} if table in ("records", "history", "loan_history") else set())
 			| (
 				{"gains", "losses", "net"}
 				if validated["dataset"] == "counts" and table == "records"
@@ -196,6 +197,10 @@ def request_export(
 		selected = columns or [
 			field for field in default_columns(validated["dataset"], table) if field in allowed
 		]
+		if include_files in ("images", "all") and "image_file" in allowed:
+			selected = list(dict.fromkeys([*selected, "image_file"]))
+		if include_files == "all" and "attachments" in allowed:
+			selected = list(dict.fromkeys([*selected, "attachments"]))
 		if include_files == "none":
 			selected = [field for field in selected if field not in ("image_file", "attachments")]
 			if not selected:
@@ -713,41 +718,33 @@ def _write_grouped_rows(writer, rows, columns, table, projection, row_files=None
 						amount = unit_row.get(sum_field)
 						if isinstance(amount, (int, float)):
 							unit_values[unit][sum_field] = unit_values[unit].get(sum_field, 0) + amount
-			if projection.query["dataset"] == "counts" and table == "records":
-				for index, column in enumerate(columns):
-					if column in ("gains", "losses", "net"):
-						values[index] = _format_count_quantities(
-							{unit: sums.get(column, 0) for unit, sums in unit_values.items()},
-							signed=True,
-							omit_zero=column != "net",
-						)
-					elif column == "stock_uom":
-						values[index] = "；".join(uom_label(unit) for unit in sorted(unit_values) if unit)
-			elif len(unit_values) == 1:
+			if len(unit_values) == 1:
 				unit, unit_sums = next(iter(unit_values.items()))
 				for index, column in enumerate(columns):
 					if column in unit_sums:
 						values[index] = unit_sums[column]
 					elif column == "stock_uom":
 						values[index] = uom_label(unit)
+				writer.writerow(values, fmt=styles[depth], outline_level=depth)
 			else:
-				quantity_field = (
-					"available_effect"
-					if projection.query["dataset"] == "movements"
-					else next(
-						(field for field in ("stock_qty", "borrowed", "outstanding") if field in columns),
-						"stock_qty",
+				writer.writerow(
+					[values[0], *("" for _ in range(len(values) - 1))],
+					fmt=styles[depth],
+					outline_level=depth,
+				)
+				for unit, unit_sums in sorted(unit_values.items()):
+					subtotal = [""] * len(columns)
+					subtotal[0] = f"小计 · {uom_label(unit)}" if unit else "小计 · 未知单位"
+					for index, column in enumerate(columns):
+						if column in unit_sums:
+							subtotal[index] = unit_sums[column]
+						elif column == "stock_uom":
+							subtotal[index] = uom_label(unit)
+					writer.writerow(
+						subtotal,
+						fmt=styles[min(depth + 1, len(styles) - 1)],
+						outline_level=depth + 1,
 					)
-				)
-				unit_text = "；".join(
-					f"{unit_sums.get(quantity_field, 0):+g} {uom_label(unit)}"
-					for unit, unit_sums in unit_values.items()
-				)
-				unit_text = unit_text.replace("+0 ", "0 ").replace("-", "−")
-				for index, column in enumerate(columns):
-					if column == "stock_uom":
-						values[index] = unit_text
-			writer.writerow(values, fmt=styles[depth], outline_level=depth)
 			emit(children, depth + 1)
 
 	emit(rows, 0)
@@ -761,17 +758,9 @@ def _write_grouped_rows(writer, rows, columns, table, projection, row_files=None
 		)
 		for index, field in enumerate(columns):
 			if field in sums:
-				line[index] = (
-					_format_count_quantities(
-						{unit: sums[field]},
-						signed=True,
-						omit_zero=field != "net",
-					)
-					if projection.query["dataset"] == "counts"
-					and table == "records"
-					and field in ("gains", "losses", "net")
-					else sums[field]
-				)
+				line[index] = sums[field]
+			elif field == "stock_uom":
+				line[index] = uom_label(unit) if unit else ""
 		writer.writerow(line)
 	writer.worksheet.outline_settings(True, False, True, False)
 	return count
@@ -800,8 +789,58 @@ def _export_rows(projection, table):
 				):
 					if isinstance(row.get(field), (int, float)):
 						unit_values[field] = float(unit_values.get(field, 0)) + float(row[field])
-			for group in groups.values():
-				yield _export_record_row(projection, whole_operation, operation_cache, group)
+			for key, group in groups.items():
+				units = group["_units"]
+				if projection.query["dataset"] == "counts":
+					# Record rows are already netted per unit; 增加/减少 must sum each line's sign.
+					operation = {}
+					if key[0] == "Stock Reconciliation" and key[1]:
+						if key not in operation_cache:
+							operation_cache[key] = whole_operation(projection.context, *key)
+						operation = operation_cache[key]
+					by_field = {
+						field: {str(value["uom"]): float(value["qty"]) for value in operation.get(field, [])}
+						for field in ("gains", "losses")
+					}
+					for unit, values in units.items():
+						difference = values.get("difference", 0)
+						values.update(
+							{
+								"gains": by_field["gains"].get(unit, max(difference, 0)),
+								"losses": by_field["losses"].get(unit, min(difference, 0)),
+								"net": difference,
+							}
+						)
+				if len(units) <= 1:
+					yield _export_record_row(projection, whole_operation, operation_cache, group)
+					continue
+				for index, (unit, unit_values) in enumerate(sorted(units.items())):
+					unit_row = {
+						**group,
+						**unit_values,
+						"stock_uom": unit,
+						"_units": {unit: unit_values},
+					}
+					if index:
+						unit_row["item_count"] = 0
+					yield _export_record_row(projection, whole_operation, operation_cache, unit_row)
+
+		return rows()
+	if table == "history":
+		from temple_inventory.report_sources import whole_operation
+
+		def rows():
+			operation_cache = {}
+			for row in projection.rows(table):
+				key = (row.get("doctype"), row.get("document"))
+				if key[0] in ("Stock Entry", "Stock Reconciliation") and key[1]:
+					if key not in operation_cache:
+						operation_cache[key] = whole_operation(projection.context, *key)
+					row = {
+						**row,
+						"original_loan": "；".join(operation_cache[key].get("original_loans", [])),
+					}
+				yield row
 
 		return rows()
 	return projection.rows(table)
@@ -818,19 +857,15 @@ def _export_record_row(projection, whole_operation, operation_cache, row):
 		if len(units) > 1
 		else ""
 	)
-	available_effect_text = "；".join(
-		f"{float(values.get('available_effect') or 0):+g} {uom_label(unit)}".replace("-", "−")
-		for unit, values in units.items()
-		if "available_effect" in values
-	)
+	available_effect = single_unit.get("available_effect") if len(units) == 1 else None
 	if key[0] not in ("Stock Entry", "Stock Reconciliation") or not key[1]:
 		return {
 			**row,
 			**aggregates,
 			"stock_qty": single_unit.get("stock_qty") if len(units) == 1 else None,
-			"stock_uom": next(iter(units)) if len(units) == 1 else quantities,
+			"stock_uom": next(iter(units)) if len(units) == 1 else "",
 			"quantities": quantities,
-			"available_effect": available_effect_text or row.get("available_effect"),
+			"available_effect": available_effect if len(units) == 1 else None,
 			"source": "",
 			"destination": "",
 		}
@@ -841,20 +876,6 @@ def _export_record_row(projection, whole_operation, operation_cache, row):
 		quantities = "；".join(
 			f"{float(value['qty']):g} {uom_label(value['uom'])}" for value in operation.get("quantities", [])
 		)
-	if projection.query["dataset"] == "counts":
-		by_unit = {
-			field: {str(value["uom"]): float(value["qty"]) for value in operation.get(field, [])}
-			for field in ("quantities", "gains", "losses")
-		}
-		for unit in set().union(*(set(values) for values in by_unit.values())):
-			values = units.setdefault(unit, {})
-			values["net"] = by_unit["quantities"].get(unit, 0)
-			values["gains"] = by_unit["gains"].get(unit, 0)
-			values["losses"] = by_unit["losses"].get(unit, 0)
-		row["gains"] = _format_count_quantities(by_unit["gains"], signed=True)
-		row["losses"] = _format_count_quantities(by_unit["losses"], signed=True)
-		row["net"] = _format_count_quantities(by_unit["quantities"], signed=True)
-		aggregates.update(gains=row["gains"], losses=row["losses"], net=row["net"])
 	sources, destinations = set(), set()
 	# A count adjustment names the checked locations; it is not a move to or from outside.
 	reconcile = row.get("kind") == "Reconcile"
@@ -881,9 +902,9 @@ def _export_record_row(projection, whole_operation, operation_cache, row):
 		**row,
 		**aggregates,
 		"stock_qty": single_unit.get("stock_qty") if len(units) == 1 else None,
-		"stock_uom": next(iter(units)) if len(units) == 1 else quantities,
+		"stock_uom": next(iter(units)) if len(units) == 1 else "",
 		"quantities": quantities,
-		"available_effect": available_effect_text or row.get("available_effect"),
+		"available_effect": available_effect,
 		"source": "；".join(sorted(value for value in sources if value)),
 		"destination": "；".join(sorted(value for value in destinations if value)),
 		"loan_status": operation.get("loan_status") or row.get("loan_status"),
@@ -891,6 +912,7 @@ def _export_record_row(projection, whole_operation, operation_cache, row):
 		"source_warehouse_native_name": endpoint_values("source", "warehouse_native_name"),
 		"destination_warehouse_path": endpoint_values("destination", "warehouse_path"),
 		"destination_warehouse_native_name": endpoint_values("destination", "warehouse_native_name"),
+		"original_loan": "；".join(operation.get("original_loans", [])),
 	}
 
 
@@ -946,17 +968,9 @@ def _write_rows(writer, rows, columns, table, projection, row_files=None, progre
 		)
 		for index, field in enumerate(columns):
 			if field in sums:
-				line[index] = (
-					_format_count_quantities(
-						{unit: sums[field]},
-						signed=True,
-						omit_zero=field != "net",
-					)
-					if projection.query["dataset"] == "counts"
-					and table == "records"
-					and field in ("gains", "losses", "net")
-					else sums[field]
-				)
+				line[index] = sums[field]
+			elif field == "stock_uom":
+				line[index] = uom_label(unit) if unit else ""
 		writer.writerow(line if isinstance(writer, _XlsxRows) else [_csv_value(value) for value in line])
 	return count
 
@@ -982,7 +996,7 @@ def _sum_fields(table, query):
 		)
 	if table in ("records", "lines"):
 		return (
-			("available_effect",)
+			("available_effect", "stock_qty")
 			if dataset == "movements"
 			else LOAN_SUMS
 			if dataset == "loans"
@@ -1001,18 +1015,6 @@ def _sum_fields(table, query):
 	if table == "settlements":
 		return ("stock_qty",)
 	return ()
-
-
-def _format_count_quantities(values, *, signed, omit_zero=False):
-	formatted = []
-	for unit, value in sorted(values.items()):
-		quantity = float(value or 0)
-		if omit_zero and not quantity:
-			continue
-		sign = "+" if signed and quantity > 0 else "−" if quantity < 0 else ""
-		amount = f"{abs(quantity):,.6f}".rstrip("0").rstrip(".")
-		formatted.append(f"{sign}{amount} {uom_label(unit)}".strip())
-	return "；".join(formatted) or "—"
 
 
 def _display_cell(row, field, projection=None):

@@ -1,0 +1,132 @@
+import type { DataColumn } from "../../lib/dataTable";
+
+export function inventoryColumnsForPage(
+  desktopColumnsVisible: boolean,
+): DataColumn[] {
+  return [
+    {
+      id: "image",
+      label: "图片",
+      defaultVisible: true,
+      export: [],
+    },
+    {
+      id: "item_name",
+      label: "物品名称",
+      defaultVisible: true,
+      export: ["item_name"],
+      required: true,
+      sortable: true,
+    },
+    {
+      id: "item_code",
+      label: "物品编号",
+      defaultVisible: true,
+      export: ["item_code"],
+      sortable: true,
+    },
+    {
+      id: "available",
+      label: "可用数量",
+      defaultVisible: true,
+      sortable: true,
+      align: "end",
+      export: ["available", "stock_uom"],
+    },
+    {
+      id: "stock_uom",
+      label: "库存单位",
+      defaultVisible: true,
+      sortable: true,
+      export: ["stock_uom"],
+    },
+    {
+      id: "category",
+      label: "类别",
+      defaultVisible: desktopColumnsVisible,
+      sortable: true,
+      export: ["category"],
+    },
+    {
+      id: "locations",
+      label: "位置与批次",
+      defaultVisible: desktopColumnsVisible,
+      kind: "chip",
+      export: ["warehouse_label", "batch_no"],
+    },
+    {
+      id: "warehouse_label",
+      label: "库位",
+      defaultVisible: false,
+      export: ["warehouse_label"],
+    },
+    {
+      id: "batch_no",
+      label: "批次编号",
+      defaultVisible: false,
+      export: ["batch_no"],
+    },
+    {
+      id: "warehouse_path",
+      label: "完整位置",
+      defaultVisible: false,
+      export: ["warehouse_path"],
+    },
+    {
+      id: "warehouse_native_name",
+      label: "ERPNext 库位",
+      defaultVisible: false,
+      export: ["warehouse_native_name"],
+    },
+    {
+      id: "loaned",
+      label: "借出",
+      defaultVisible: false,
+      sortable: true,
+      align: "end",
+      export: ["loaned", "stock_uom"],
+    },
+    {
+      id: "damaged",
+      label: "损坏",
+      defaultVisible: false,
+      sortable: true,
+      align: "end",
+      export: ["damaged", "stock_uom"],
+    },
+    {
+      id: "total",
+      label: "合计",
+      defaultVisible: false,
+      sortable: true,
+      sortField: "stock_qty",
+      align: "end",
+      export: ["stock_qty", "stock_uom"],
+    },
+    {
+      id: "expiry",
+      label: "效期",
+      defaultVisible: true,
+      export: ["expiry_date", "remaining_days", "expiry_state"],
+    },
+    {
+      id: "expiry_date",
+      label: "到期日期",
+      defaultVisible: false,
+      export: ["expiry_date"],
+    },
+    {
+      id: "remaining_days",
+      label: "剩余天数",
+      defaultVisible: false,
+      export: ["remaining_days"],
+    },
+    {
+      id: "expiry_state",
+      label: "到期状态",
+      defaultVisible: false,
+      export: ["expiry_state"],
+    },
+    { id: "actions", label: "操作", defaultVisible: true, export: [] },
+  ];
+}

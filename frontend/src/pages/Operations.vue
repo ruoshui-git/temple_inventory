@@ -24,8 +24,7 @@ function changed(query: ReportQuery) {
 		records.value ? "records" : "items",
 		query,
 	);
-	if (route.query.query !== target.query?.query)
-		void router.replace({ ...target, query: { ...route.query, ...target.query } });
+	if (route.query.query !== target.query?.query) void router.replace(target);
 }
 function switchView(records: boolean, query: ReportQuery) {
 	void router.push(browseStateDestination(props.family, records ? "records" : "items", query));

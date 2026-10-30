@@ -17,6 +17,7 @@ from frappe.utils import nowdate
 from openpyxl import load_workbook
 
 from temple_inventory import browse, counts, exports, native_api, native_files
+from temple_inventory.export_columns import contract as export_contract
 from temple_inventory.export_columns import label as export_label
 from temple_inventory.projections import Projection, report_page
 from temple_inventory.tests.helpers import NativeReportTestCase
@@ -24,6 +25,207 @@ from temple_inventory.uom_labels import uom_label
 
 
 class NativeReportsExportsTests(NativeReportTestCase):
+	def test_checked_in_export_column_contract_is_current(self):
+		path = Path(__file__).resolve().parents[2] / "frontend/tests/fixtures/export-columns.json"
+		self.assertEqual(
+			json.loads(path.read_text(encoding="utf-8")),
+			export_contract(),
+			(
+				"Export contract is stale; regenerate with scripts/dx python -c '"
+				"import json; from temple_inventory.export_columns import contract; print(json.dumps(contract(), "
+				"ensure_ascii=False, indent=2, sort_keys=True))' > frontend/tests/fixtures/export-columns.json"
+			),
+		)
+
+	def test_loan_history_accepts_outstanding_export_column(self):
+		self.receipt(12)
+		self.loan(5)
+		query = self.query("loans", "items")
+		columns = [
+			"item_code",
+			"item_name",
+			"document",
+			"kind",
+			"date",
+			"activity_title",
+			"borrower",
+			"docstatus",
+			"source_warehouse",
+			"destination_warehouse",
+			"quantity",
+			"stock_uom",
+			"outstanding",
+		]
+		with patch("temple_inventory.exports._enqueue"):
+			result = exports.request_export(
+				query,
+				"loan_history",
+				columns=columns,
+			)
+		request = frappe.get_doc("Inventory Export Request", result["name"])
+		self.assertEqual(json.loads(request.columns_json), columns)
+
+	def test_default_browse_export_columns_are_accepted(self):
+		cases = [
+			(
+				self.query("inventory"),
+				"summary",
+				["item_name", "item_code", "available", "stock_uom"],
+			),
+			(
+				self.query("inventory"),
+				"locations",
+				[
+					"item_name",
+					"item_code",
+					"available",
+					"stock_uom",
+					"category",
+					"warehouse_label",
+					"batch_no",
+					"expiry_date",
+					"remaining_days",
+					"expiry_state",
+				],
+			),
+			(
+				self.query("expiry", "batches"),
+				"batches",
+				[
+					"item_name",
+					"item_code",
+					"category",
+					"batch_no",
+					"expiry_date",
+					"remaining_days",
+					"stock_qty",
+					"stock_uom",
+					"warehouse",
+				],
+			),
+			(
+				self.query("movements", "records"),
+				"records",
+				[
+					"document",
+					"kind",
+					"date",
+					"available_effect",
+					"stock_uom",
+					"item_count",
+					"source",
+					"destination",
+					"docstatus",
+				],
+			),
+			(
+				self.query("movements", "lines"),
+				"history",
+				[
+					"item_code",
+					"item_name",
+					"document",
+					"kind",
+					"date",
+					"docstatus",
+					"source_warehouse",
+					"destination_warehouse",
+					"available_effect",
+					"stock_uom",
+				],
+			),
+			(
+				self.query("loans", "records"),
+				"records",
+				[
+					"document",
+					"borrower",
+					"activity_title",
+					"date",
+					"outstanding",
+					"borrowed",
+					"stock_uom",
+					"item_count",
+					"source",
+					"destination",
+					"loan_status",
+				],
+			),
+			(
+				self.query("loans", "items"),
+				"loan_history",
+				[
+					"item_code",
+					"item_name",
+					"document",
+					"kind",
+					"date",
+					"activity_title",
+					"borrower",
+					"docstatus",
+					"source_warehouse",
+					"destination_warehouse",
+					"outstanding",
+					"quantity",
+					"stock_uom",
+				],
+			),
+			(
+				self.query("counts", "records"),
+				"records",
+				[
+					"document",
+					"date",
+					"time",
+					"docstatus",
+					"count_scope",
+					"item_count",
+					"gains",
+					"losses",
+					"net",
+					"baseline_qty",
+					"actual_qty",
+					"difference",
+					"stock_uom",
+				],
+			),
+			(
+				self.query("counts", "lines"),
+				"lines",
+				[
+					"item_name",
+					"item_code",
+					"warehouse",
+					"batch_no",
+					"baseline_qty",
+					"actual_qty",
+					"difference",
+					"stock_uom",
+					"reason",
+				],
+			),
+			(
+				self.query("activities", "metadata"),
+				"metadata",
+				[
+					"title",
+					"activity_type_label",
+					"status",
+					"start_date",
+					"end_date",
+					"document_count",
+					"description",
+					"notes",
+				],
+			),
+		]
+		with patch("temple_inventory.exports._enqueue"):
+			for query, table, columns in cases:
+				with self.subTest(dataset=query["dataset"], table=table):
+					result = exports.request_export(query, table, columns=columns)
+					request = frappe.get_doc("Inventory Export Request", result["name"])
+					self.assertEqual(json.loads(request.columns_json), columns)
+
 	def test_browse_export_headers_match_page_column_labels(self):
 		contracts = {
 			("inventory", "summary"): {"stock_qty": "合计", "stock_uom": "库存单位"},
@@ -32,9 +234,16 @@ class NativeReportsExportsTests(NativeReportTestCase):
 				"warehouse": "位置",
 				"warehouse_path": "完整位置",
 				"warehouse_native_name": "ERPNext 库位",
+				"expiry_date": "到期日期",
+				"remaining_days": "剩余天数",
+				"expiry_state": "到期状态",
 			},
 			("inventory", "locations"): {
 				"warehouse_label": "库位",
+				"batch_no": "批次编号",
+				"expiry_date": "到期日期",
+				"remaining_days": "剩余天数",
+				"expiry_state": "到期状态",
 				"warehouse_path": "完整位置",
 				"warehouse_native_name": "ERPNext 库位",
 			},
@@ -44,6 +253,9 @@ class NativeReportsExportsTests(NativeReportTestCase):
 				"destination": "去向位置",
 				"source_warehouse_path": "来源完整位置",
 				"destination_warehouse_native_name": "去向 ERPNext 库位",
+				"time": "时间",
+				"available_effect": "可用变化",
+				"original_loan": "原借出",
 			},
 			("loans", "records"): {
 				"document": "借出单号",
@@ -51,6 +263,11 @@ class NativeReportsExportsTests(NativeReportTestCase):
 				"borrowed": "借出数量",
 				"outstanding": "未归还数量",
 				"loan_status": "借用状态",
+				"time": "时间",
+				"docstatus": "状态",
+				"returned": "已归还",
+				"damaged": "损坏",
+				"lost": "遗失",
 			},
 			("loans", "loan_history"): {
 				"document": "编号",
@@ -59,6 +276,10 @@ class NativeReportsExportsTests(NativeReportTestCase):
 				"source_warehouse": "来源位置",
 				"destination_warehouse": "去向位置",
 				"quantity": "数量（借出为正，归还为负）",
+				"outstanding": "未归还数量",
+				"stock_uom": "单位",
+				"time": "时间",
+				"original_loan": "原借出",
 			},
 			("counts", "lines"): {"difference": "差异量", "warehouse_path": "完整位置"},
 		}
@@ -92,14 +313,14 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			workbook = load_workbook(path, data_only=True)
 			worksheet = workbook["库存明细"]
 			self.assertEqual(worksheet.cell(2, 1).value, "Native test item (1)")
-			self.assertIsNone(worksheet.cell(2, 2).value)
+			self.assertEqual(worksheet.cell(2, 2).value, 12)
 			self.assertEqual(worksheet.cell(2, 3).value, uom_label("Nos"))
 			self.assertEqual(worksheet.cell(2, 4).value, 12)
 			self.assertEqual(worksheet.row_dimensions[2].outline_level, 0)
 			self.assertEqual(worksheet.row_dimensions[3].outline_level, 1)
 			self.assertFalse(worksheet.row_dimensions[3].hidden)
 			self.assertEqual(worksheet.cell(4, 1).value, f"合计可用变化（{uom_label('Nos')}） · 1 行")
-			self.assertIsNone(worksheet.cell(4, 2).value)
+			self.assertEqual(worksheet.cell(4, 2).value, 12)
 			self.assertEqual(worksheet.cell(4, 4).value, 12)
 			self.assertEqual(worksheet.cell(2, 1).fill.fgColor.rgb[-6:], "D9D9D9")
 			workbook.close()
@@ -138,9 +359,14 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			workbook = load_workbook(path, data_only=True)
 			worksheet = workbook.worksheets[0]
 			self.assertEqual(worksheet.cell(2, 1).value, "无分类 (2)")
-			self.assertIsNone(worksheet.cell(2, 2).value)
-			self.assertIn("3 箱", worksheet.cell(2, 3).value)
-			self.assertIn("12 个", worksheet.cell(2, 3).value)
+			self.assertEqual(worksheet.cell(3, 1).value, f"小计 · {uom_label('Box')}")
+			self.assertEqual(worksheet.cell(3, 2).value, 3)
+			self.assertEqual(worksheet.cell(3, 3).value, uom_label("Box"))
+			self.assertEqual(worksheet.cell(3, 4).value, 3)
+			self.assertEqual(worksheet.cell(4, 1).value, f"小计 · {uom_label('Nos')}")
+			self.assertEqual(worksheet.cell(4, 2).value, 12)
+			self.assertEqual(worksheet.cell(4, 3).value, uom_label("Nos"))
+			self.assertEqual(worksheet.cell(4, 4).value, 12)
 			self.assertEqual(worksheet.row_dimensions[2].outline_level, 0)
 			workbook.close()
 
@@ -510,12 +736,12 @@ class NativeReportsExportsTests(NativeReportTestCase):
 		self.assertTrue(rows[1][1])
 		self.assertEqual(rows[1][2], "")
 
-	def test_count_record_export_shows_gains_losses_net_and_per_unit_totals(self):
+	def test_count_record_export_keeps_quantity_cells_numeric_with_unit(self):
 		self.receipt(10)
 		draft = counts.save_count(str(uuid4()), self.count_data(8, "Reviewed"))
 		completed = native_api.submit_document("Stock Reconciliation", draft.name, draft.version)
 		query = self.query("counts", "records", record=completed.name, statuses=[1])
-		columns = ["document", "gains", "losses", "net"]
+		columns = ["document", "gains", "losses", "net", "stock_uom"]
 		with patch("temple_inventory.exports._enqueue"):
 			result = exports.request_export(query, "records", columns=columns, export_format="csv")
 		request = frappe.get_doc("Inventory Export Request", result["name"])
@@ -525,13 +751,9 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			exports._write(projection, request, path)
 			with path.open(encoding="utf-8-sig", newline="") as stream:
 				rows = list(csv.reader(stream))
-		self.assertEqual(rows[0], ["盘点编号", "增加", "减少", "净差异"])
-		self.assertEqual(rows[1], [completed.name, "—", "−2 个", "−2 个"])
-		self.assertEqual(rows[2][1:], ["—", "−2 个", "−2 个"])
-		self.assertEqual(
-			exports._format_count_quantities({"Nos": 3, "Box": 1}, signed=True),
-			"+1 箱；+3 个",
-		)
+		self.assertEqual(rows[0], ["盘点编号", "增加", "减少", "净差异", "单位"])
+		self.assertEqual(rows[1], [completed.name, "0", "-2", "-2", "个"])
+		self.assertEqual(rows[2][1:], ["0", "-2", "-2", "个"])
 
 	def test_records_export_collapses_units_to_one_native_document_row_with_locations(self):
 		doc = self.submit(self.create(self.movement(quantity=2)))
@@ -569,8 +791,25 @@ class NativeReportsExportsTests(NativeReportTestCase):
 		]
 		projection = frappe._dict(query={"dataset": "movements"}, rows=lambda _table: iter(unit_rows))
 		rows = list(exports._export_rows(projection, "records"))
-		self.assertEqual(len(rows), 1)
-		self.assertEqual(rows[0]["item_count"], 66)
+		self.assertEqual(len(rows), 2)
+		self.assertEqual(sum(row["item_count"] for row in rows), 66)
+
+	def test_count_record_export_sums_gains_and_losses_by_line_not_net(self):
+		unit_rows = [
+			{"doctype": "Stock Reconciliation", "document": "SR-1", "stock_uom": "Nos", "difference": 2},
+		]
+		projection = frappe._dict(
+			query={"dataset": "counts"}, context=None, rows=lambda _table: iter(unit_rows)
+		)
+		operation = {"gains": [{"uom": "Nos", "qty": 5}], "losses": [{"uom": "Nos", "qty": -3}]}
+		with (
+			patch("temple_inventory.report_sources.whole_operation", return_value=operation),
+			patch.object(exports, "_export_record_row", side_effect=lambda *args: args[3]),
+		):
+			rows = list(exports._export_rows(projection, "records"))
+		self.assertEqual(
+			rows[0]["_units"]["Nos"], {"difference": 2.0, "gains": 5.0, "losses": -3.0, "net": 2.0}
+		)
 
 	def test_line_export_leaves_a_count_adjustments_unnamed_end_blank(self):
 		count_line = {"kind": "Reconcile", "source_warehouse": self.a, "destination_warehouse": ""}
@@ -578,7 +817,7 @@ class NativeReportsExportsTests(NativeReportTestCase):
 		self.assertEqual(exports._display_cell(count_line, "destination_warehouse"), "")
 		self.assertEqual(exports._display_cell(receipt_line, "source_warehouse"), "外部")
 
-	def test_mixed_unit_record_keeps_text_quantities_and_mapped_endpoints(self):
+	def test_mixed_unit_record_exports_numeric_quantities_with_units(self):
 		class Context:
 			@staticmethod
 			def label(name):
@@ -614,14 +853,54 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			},
 		)
 		self.assertIsNone(row["stock_qty"])
-		self.assertEqual(row["stock_uom"], f"12 {uom_label('Nos')}；3 {uom_label('Box')}")
-		self.assertEqual(row["quantities"], f"12 {uom_label('Nos')}；3 {uom_label('Box')}")
-		self.assertEqual(
-			row["available_effect"],
-			f"−12 {uom_label('Nos')}；+3 {uom_label('Box')}",
-		)
+		self.assertEqual(row["stock_uom"], "")
+		self.assertIsNone(row["available_effect"])
 		self.assertEqual(row["source"], "来源库位")
 		self.assertEqual(row["destination"], "去向库位")
+
+	def test_mixed_unit_record_rows_split_into_numeric_unit_rows(self):
+		unit_rows = [
+			{
+				"doctype": "Draft",
+				"document": "STE-1",
+				"stock_uom": "Nos",
+				"item_count": 1,
+				"available_effect": -12,
+				"stock_qty": 12,
+			},
+			{
+				"doctype": "Draft",
+				"document": "STE-1",
+				"stock_uom": "Box",
+				"item_count": 1,
+				"available_effect": 3,
+				"stock_qty": 3,
+			},
+		]
+		projection = frappe._dict(
+			query={"dataset": "movements"},
+			rows=lambda _table: iter(unit_rows),
+		)
+		rows = list(exports._export_rows(projection, "records"))
+		self.assertEqual(len(rows), 2)
+		self.assertEqual(
+			{(row["stock_uom"], row["stock_qty"], row["available_effect"]) for row in rows},
+			{("Nos", 12.0, -12.0), ("Box", 3.0, 3.0)},
+		)
+
+	def test_movement_history_export_includes_original_loan_references(self):
+		row = {"doctype": "Stock Entry", "document": "STE-1", "item_code": self.item}
+		projection = frappe._dict(
+			query={"dataset": "movements"},
+			context=object(),
+			rows=lambda _table: iter([row]),
+		)
+		with patch(
+			"temple_inventory.report_sources.whole_operation",
+			return_value={"original_loans": ["LOAN-1", "LOAN-2"]},
+		):
+			exported = list(exports._export_rows(projection, "history"))
+		self.assertEqual(exported[0]["original_loan"], "LOAN-1；LOAN-2")
 
 	def test_refinement_display_labels_preserve_native_identity_and_export_audit_values(self):
 		room = frappe.get_doc("Warehouse", self.room_a)

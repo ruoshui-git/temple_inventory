@@ -24,6 +24,11 @@ import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import BrowseRefreshNotice from "../../components/ui/BrowseRefreshNotice.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import { kindIcons } from "../../lib/kindIcons";
+import { reportExportColumns } from "../../lib/reportExportColumns";
+import { useOptionalInventoryServices } from "../../services/contracts";
+import { useColumnPreferences } from "../../composables/useColumnPreferences";
+import { exportFields } from "../../lib/exportColumns";
+import type { DataColumn } from "../../lib/dataTable";
 const props = withDefaults(defineProps<{ controller: PendingController; active?: boolean }>(), {
 	active: true,
 });
@@ -36,6 +41,36 @@ const c = props.controller,
 	{ query, scope, scopeChips, chips, routeError, metrics, analysisOpen, dimension } = c;
 const table = c.report.mainTable,
 	analysisTable = c.analysis.mainTable;
+const reportColumns = computed<DataColumn[]>(() =>
+	table.value
+		? reportExportColumns(table.value, query.value.dataset, ["warehouse_label", "warehouse"])
+		: [],
+);
+const exportServices = useOptionalInventoryServices();
+const reportPrefs = exportServices
+	? useColumnPreferences(
+			computed(
+				() =>
+					`pending.${query.value.dataset}.${query.value.view}.${table.value?.id || ""}`,
+			),
+			reportColumns,
+			c.reference,
+			exportServices,
+		)
+	: undefined;
+const exportColumns = computed(() => {
+	if (!table.value) return undefined;
+	const columns = reportColumns.value;
+	const visible = reportPrefs?.visible.value.length
+		? reportPrefs.visible.value
+		: columns
+				.filter((column) => column.defaultVisible !== false || column.required)
+				.map((column) => String(column.id));
+	const order = reportPrefs?.order.value.length
+		? reportPrefs.order.value
+		: columns.map((column) => String(column.id));
+	return exportFields(columns, order, visible);
+});
 const {
 	open: filterOpen,
 	toggle: toggleFilter,
@@ -75,7 +110,13 @@ watch([() => props.active, isMobile], () => {
 			sidebar-available
 			:filter-count="scopeChips.length + chips.filter((chip) => !chip.fixed).length"
 			><template #actions
-				><QuickExport v-if="!routeError" :query="query" title="待处理" :active="active"
+				><QuickExport
+					v-if="!routeError"
+					:query="query"
+					:table="table?.id"
+					:columns="exportColumns"
+					title="待处理"
+					:active="active"
 			/></template>
 			<template #filters>
 				<BrowseFilters

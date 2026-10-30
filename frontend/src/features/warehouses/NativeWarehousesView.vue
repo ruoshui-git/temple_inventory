@@ -31,6 +31,7 @@ import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
 import { unitLabel } from "../../lib/units";
 import { computed, ref } from "vue";
 import { compareTableValues, nextTableSort } from "../../composables/useArrayTableSort";
+import { warehouseColumnDefinitions } from "./warehouseColumns";
 const props = withDefaults(
 	defineProps<{ controller: NativeWarehouses; detail?: boolean; active?: boolean }>(),
 	{ active: true },
@@ -67,27 +68,7 @@ const {
 const stockTable = c.stock.mainTable;
 const services = useOptionalInventoryServices();
 const stockSort = ref({ field: "item_name", direction: "asc" as "asc" | "desc" });
-const stockColumns: DataColumn[] = [
-	{ id: "image", label: "图片", align: "center" },
-	{ id: "item_name", label: "物品", sortable: true },
-	{
-		id: "item_code",
-		label: "编号",
-		sortable: true,
-		className: "warehouse-code",
-	},
-	{ id: "warehouse_label", label: "库位", sortable: true },
-	{ id: "batch_no", label: "批次", sortable: true },
-	{
-		id: "stock_qty",
-		label: "合计",
-		sortable: true,
-		align: "end",
-		className: "tabular-nums",
-	},
-	{ id: "warehouse_path", label: "完整位置", defaultVisible: false },
-	{ id: "warehouse_native_name", label: "ERPNext 库位", defaultVisible: false },
-];
+const stockColumns = warehouseColumnDefinitions;
 const stockPreferences = services
 	? useColumnPreferences(
 			"warehouse.detail.stock",
@@ -96,17 +77,6 @@ const stockPreferences = services
 			services,
 		)
 	: undefined;
-const warehouseExportMap: Record<string, string[]> = {
-	image: ["image_file"],
-	item_name: ["item_name"],
-	item_code: ["item_code"],
-	warehouse_label: ["warehouse_label"],
-	warehouse_path: ["warehouse_path"],
-	warehouse_native_name: ["warehouse_native_name"],
-	batch_no: ["batch_no"],
-	stock_qty: ["stock_qty", "stock_uom"],
-	stock_uom: ["stock_uom"],
-};
 const warehouseExportVisible = computed(() =>
 	stockPreferences?.visible.value.length
 		? stockPreferences.visible.value
@@ -120,7 +90,7 @@ const warehouseExportOrder = computed(() =>
 		: stockColumns.map((column) => String(column.id)),
 );
 const warehouseExportColumns = computed(() =>
-	exportFields(warehouseExportMap, warehouseExportOrder.value, warehouseExportVisible.value),
+	exportFields(stockColumns, warehouseExportOrder.value, warehouseExportVisible.value),
 );
 const warehouseExportTitle = computed(
 	() => `库房清单 · ${selected.value?.full_label || selected.value?.label || "实体仓库"}`,
@@ -558,6 +528,9 @@ function parentLabel(name?: string) {
 										`${row.stock_qty} ${unitLabel(String(row.stock_uom || ""))}`
 									}}</span
 								>
+								<span v-else-if="column.id === 'stock_uom'">{{
+									unitLabel(String(row.stock_uom || ""))
+								}}</span>
 							</template>
 						</DataTable>
 						<p

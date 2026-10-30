@@ -38,6 +38,8 @@ import { RouterLink } from "vue-router";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import DetailPopover from "../../components/ui/DetailPopover.vue";
 import { activityLoansTarget, activityMovementTarget } from "./activityRoutes";
+import { activityColumns as activityColumnDefinitions } from "./activityColumns";
+import { exportFields } from "../../lib/exportColumns";
 import { sortByUnit, unitLabel } from "../../lib/units";
 import { formatQuantity, formatQuantityWithUnit } from "../../lib/formatQuantity";
 const { isMobile } = useResponsiveLayout();
@@ -119,33 +121,7 @@ function resetActivityFilters() {
 const page = computed(() => `activity-${props.mode}`);
 const variant = computed(() => props.name || "new");
 const isEditing = computed(() => !!props.name);
-const activityColumns = computed<DataColumn[]>(() => [
-	{
-		id: "title",
-		label: "活动",
-		required: true,
-		defaultVisible: true,
-		sortable: true,
-		sortField: "title",
-	},
-	{ id: "typeId", label: "类型", defaultVisible: true },
-	{
-		id: "period",
-		label: "日期",
-		defaultVisible: true,
-		sortable: true,
-		sortField: "start_date",
-	},
-	{ id: "status", label: "状态", defaultVisible: true },
-	{
-		id: "modified",
-		label: "更新（站点时间）",
-		defaultVisible: true,
-		sortable: true,
-		sortField: "modified",
-	},
-	{ id: "actions", label: "关联流动", required: true, defaultVisible: true },
-]);
+const activityColumns = activityColumnDefinitions;
 const activityRows = computed<DataTableRecord[]>(() =>
 	filtered.value.map((activity) => ({
 		kind: "record",
@@ -206,8 +182,24 @@ function activityGroupSummary(group: DataTableGroup) {
 }
 const services = useOptionalInventoryServices();
 const activityPrefs = services
-	? useColumnPreferences("activities.list", activityColumns, reference, services)
+	? useColumnPreferences(
+			"activities.list",
+			computed(() => activityColumns),
+			reference,
+			services,
+		)
 	: undefined;
+const activityExportColumns = computed(() => {
+	const visible = activityPrefs?.visible.value.length
+		? activityPrefs.visible.value
+		: activityColumns
+				.filter((column) => column.defaultVisible !== false)
+				.map((column) => String(column.id));
+	const order = activityPrefs?.order.value.length
+		? activityPrefs.order.value
+		: activityColumns.map((column) => String(column.id));
+	return exportFields(activityColumns, order, visible);
+});
 </script>
 <template>
 	<ReturnToTop :active="props.active" :hidden="isMobile && filterSheetOpen" />
@@ -255,7 +247,13 @@ const activityPrefs = services
 		>
 			<template #actions>
 				<BrowseOverflowMenu>
-					<QuickExport :query="report" title="活动" :active="active" />
+					<QuickExport
+						:query="report"
+						table="metadata"
+						:columns="activityExportColumns"
+						title="活动"
+						:active="active"
+					/>
 				</BrowseOverflowMenu>
 				<UiButton variant="primary" @click="newActivity">新建活动</UiButton>
 			</template>

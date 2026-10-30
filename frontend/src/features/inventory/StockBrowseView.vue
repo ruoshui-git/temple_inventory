@@ -49,6 +49,7 @@ import { formatQuantity } from "../../lib/formatQuantity";
 
 import type { StockItem } from "../../lib/stockPresentation";
 import type { useStockBrowseController } from "./useStockBrowseController";
+import { inventoryColumnsForPage } from "./stockColumns";
 const props = withDefaults(
 	defineProps<{
 		controller: ReturnType<typeof useStockBrowseController>;
@@ -113,77 +114,9 @@ function updateWideScreen() {
 }
 onMounted(() => window.addEventListener("resize", updateWideScreen));
 onBeforeUnmount(() => window.removeEventListener("resize", updateWideScreen));
-const inventoryColumns = computed<DataColumn[]>(() => [
-	{
-		id: "image",
-		label: "图片",
-		defaultVisible: true,
-	},
-	{
-		id: "item_name",
-		label: "物品名称",
-		defaultVisible: true,
-		required: true,
-		sortable: true,
-	},
-	{
-		id: "item_code",
-		label: "物品编号",
-		defaultVisible: true,
-		sortable: true,
-	},
-	{
-		id: "available",
-		label: "可用数量",
-		defaultVisible: true,
-		sortable: true,
-		align: "end",
-	},
-	{
-		id: "stock_uom",
-		label: "库存单位",
-		defaultVisible: true,
-		sortable: true,
-	},
-	{
-		id: "category",
-		label: "类别",
-		defaultVisible: desktopColumnsVisible.value,
-		sortable: true,
-	},
-	{
-		id: "locations",
-		label: "位置与批次",
-		defaultVisible: desktopColumnsVisible.value,
-		kind: "chip",
-	},
-	{ id: "warehouse_path", label: "完整位置", defaultVisible: false },
-	{ id: "warehouse_native_name", label: "ERPNext 库位", defaultVisible: false },
-	{
-		id: "loaned",
-		label: "借出",
-		defaultVisible: false,
-		sortable: true,
-		align: "end",
-	},
-	{
-		id: "damaged",
-		label: "损坏",
-		defaultVisible: false,
-		sortable: true,
-		align: "end",
-	},
-	{
-		id: "total",
-		label: "合计",
-		defaultVisible: false,
-		sortable: true,
-		sortField: "stock_qty",
-		align: "end",
-	},
-	{ id: "expiry", label: "效期", defaultVisible: true },
-	{ id: "actions", label: "操作", defaultVisible: true },
-]);
+const inventoryColumns = computed<DataColumn[]>(() =>
+	inventoryColumnsForPage(desktopColumnsVisible.value),
+);
 const tableRows = computed<DataTableRecord[]>(() =>
 	rows.value.map((item) => ({
 		kind: "record",
@@ -259,6 +192,31 @@ function stockLocationDetail(row: StockTableRow, field: "path" | "nativeName") {
 		.filter(Boolean)
 		.join("；");
 }
+function stockComponentDetail(
+	row: StockTableRow,
+	field: "warehouse_label" | "batch_no" | "expiry_date" | "remaining_days" | "expiry_state",
+) {
+	const values = isStockItemRow(row)
+		? row.locations.flatMap((location) => {
+				if (field === "warehouse_label") return [location.label];
+				return (location.batches || []).map((batch) => {
+					if (field === "batch_no") return batch.id;
+					if (field === "expiry_date") return batch.expiry;
+					if (!batch.expiry) return "";
+					if (field === "expiry_state")
+						return batch.expiry < reference.siteDate ? "已过期" : "未过期";
+					return String(
+						Math.ceil(
+							(Date.parse(`${batch.expiry}T00:00:00Z`) -
+								Date.parse(`${reference.siteDate}T00:00:00Z`)) /
+								86_400_000,
+						),
+					);
+				});
+			})
+		: [row[field]];
+	return [...new Set(values.map((value) => String(value || "")).filter(Boolean))].join("；");
+}
 function stockExpiryLabel(row: StockTableRow) {
 	if (isStockItemRow(row)) return expiryStatus(row);
 	const date = String(row.expiry_date || "");
@@ -268,22 +226,6 @@ const services = useOptionalInventoryServices();
 const tablePreferences = services
 	? useColumnPreferences("stock.summary", inventoryColumns, reference, services)
 	: undefined;
-const stockExportMap: Record<string, string[]> = {
-	image: ["image_file"],
-	item_name: ["item_name"],
-	item_code: ["item_code"],
-	available: ["available"],
-	stock_uom: ["stock_uom"],
-	category: ["category"],
-	locations: ["warehouse_label", "batch_no"],
-	warehouse_path: ["warehouse_path"],
-	warehouse_native_name: ["warehouse_native_name"],
-	loaned: ["loaned"],
-	damaged: ["damaged"],
-	total: ["stock_qty"],
-	expiry: ["expiry_date", "remaining_days", "expiry_state"],
-	actions: [],
-};
 const stockExportVisible = computed(() => {
 	const columns = inventoryColumns.value;
 	return tablePreferences?.visible.value.length
@@ -299,13 +241,23 @@ const stockExportOrder = computed(() =>
 );
 const stockExportTable = computed(() =>
 	stockExportVisible.value.some((id) =>
-		["locations", "expiry", "warehouse_path", "warehouse_native_name"].includes(id),
+		[
+			"locations",
+			"warehouse_label",
+			"batch_no",
+			"expiry",
+			"expiry_date",
+			"remaining_days",
+			"expiry_state",
+			"warehouse_path",
+			"warehouse_native_name",
+		].includes(id),
 	)
 		? "locations"
 		: "summary",
 );
 const stockExportColumns = computed(() =>
-	exportFields(stockExportMap, stockExportOrder.value, stockExportVisible.value),
+	exportFields(inventoryColumns.value, stockExportOrder.value, stockExportVisible.value),
 );
 function setSelected(code: string, checked: boolean) {
 	const isSelected = selected.value.includes(code);
@@ -852,6 +804,12 @@ watch([() => props.active, isMobile], () => {
 								<template v-else-if="column.id === 'category'">{{
 									row.category || "未分类"
 								}}</template>
+								<template v-else-if="column.id === 'warehouse_label'">{{
+									stockComponentDetail(row, "warehouse_label") || "—"
+								}}</template>
+								<template v-else-if="column.id === 'batch_no'">{{
+									stockComponentDetail(row, "batch_no") || "—"
+								}}</template>
 								<StockDetails
 									v-else-if="column.id === 'locations' && isStockItemRow(row)"
 									:item="row"
@@ -888,6 +846,15 @@ watch([() => props.active, isMobile], () => {
 								}}</template>
 								<template v-else-if="column.id === 'total'">{{
 									row.stock_qty
+								}}</template>
+								<template v-else-if="column.id === 'expiry_date'">{{
+									stockComponentDetail(row, "expiry_date") || "—"
+								}}</template>
+								<template v-else-if="column.id === 'remaining_days'">{{
+									stockComponentDetail(row, "remaining_days") || "—"
+								}}</template>
+								<template v-else-if="column.id === 'expiry_state'">{{
+									stockComponentDetail(row, "expiry_state") || "—"
 								}}</template>
 								<span
 									v-else-if="column.id === 'expiry' && stockExpiryLabel(row)"

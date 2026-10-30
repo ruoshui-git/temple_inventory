@@ -35,6 +35,8 @@ import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import { useConfirm } from "../../services/confirm";
 import { RouterLink } from "vue-router";
 import { personDestination } from "../../lib/nativeNavigation";
+import { exportFields } from "../../lib/exportColumns";
+import { countEditorColumns } from "./countEditorColumns";
 const props = withDefaults(defineProps<{ controller: CountEditor; active?: boolean }>(), {
 	active: true,
 });
@@ -261,42 +263,7 @@ function deskItem(row: Record<string, unknown>) {
 		damaged: 0,
 	};
 }
-const countColumns = computed<DataColumn[]>(() => [
-	{
-		id: "warehouse",
-		label: "位置",
-		required: true,
-		defaultVisible: true,
-		className: "count-required-heading",
-	},
-	{ id: "image", label: "图片", defaultVisible: true },
-	{
-		id: "item_name",
-		label: "物品名称",
-		required: true,
-		defaultVisible: true,
-		className: "count-required-heading",
-	},
-	{
-		id: "item_code",
-		label: "物品编码",
-		required: true,
-		defaultVisible: true,
-		className: "count-required-heading",
-	},
-	{ id: "batch", label: "批次 / 组合", defaultVisible: true },
-	{ id: "stock_uom", label: "库存单位", defaultVisible: true },
-	{ id: "current_qty", label: "账面数量", defaultVisible: true, align: "end" },
-	{
-		id: "qty",
-		label: "实点数量",
-		required: true,
-		defaultVisible: true,
-		align: "end",
-		className: "count-required-heading",
-	},
-	{ id: "allocations", label: "批次分配", defaultVisible: true },
-]);
+const countColumns = computed<DataColumn[]>(() => countEditorColumns);
 const countTableRows = computed<DataTableRecord[]>(() =>
 	values.value.items.map((row, index) => ({
 		kind: "record",
@@ -327,6 +294,22 @@ const countPrefs = services
 			services,
 		)
 	: undefined;
+const countExportColumns = computed(() => {
+	const columns = countColumns.value;
+	const visible = countPrefs?.visible.value.length
+		? countPrefs.visible.value
+		: columns
+				.filter((column) => column.defaultVisible !== false || column.required)
+				.map((column) => String(column.id));
+	const order = countPrefs?.order.value.length
+		? countPrefs.order.value
+		: columns.map((column) => String(column.id));
+	return exportFields(columns, order, visible);
+});
+const countExportQuery = computed(() => {
+	const saved = c.savedExportQuery.value;
+	return saved && saved.dataset === "counts" ? { ...saved, view: "lines" as const } : saved;
+});
 function countRow(row: Record<string, unknown>) {
 	return row as unknown as (typeof values.value.items)[number];
 }
@@ -386,8 +369,12 @@ async function back() {
 			<template #back><BackButton @click="back" /></template>
 			<template #actions>
 				<QuickExport
-					v-if="!loading && c.savedExportQuery.value"
-					:query="c.savedExportQuery.value"
+					v-if="!loading && countExportQuery"
+					:query="countExportQuery"
+					:table="countExportQuery.dataset === 'counts' ? 'lines' : undefined"
+					:columns="
+						countExportQuery.dataset === 'counts' ? countExportColumns : undefined
+					"
 					title="盘点记录"
 					:active="active"
 				/>

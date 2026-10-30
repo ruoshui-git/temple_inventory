@@ -26,6 +26,8 @@ import { useConfirm } from "../../services/confirm";
 import { showToast } from "../../services/toast";
 import { unitLabel } from "../../lib/units";
 import UnitText from "../../components/ui/UnitText.vue";
+import { productBatchColumns, productLocationColumns } from "./itemDetailColumns";
+import { exportFields } from "../../lib/exportColumns";
 const props = withDefaults(defineProps<{ controller: ProductDetail; active?: boolean }>(), {
 	active: true,
 });
@@ -108,34 +110,8 @@ async function removeItem() {
 		showToast(reason instanceof Error ? reason.message : "物品删除失败", "danger");
 	}
 }
-const batchColumns = computed<DataColumn[]>(() => [
-	{
-		id: "batch_no",
-		label: "批次",
-		required: true,
-		defaultVisible: true,
-		sortable: true,
-	},
-	{ id: "expiry", label: "效期", defaultVisible: true, sortable: true },
-	{ id: "location", label: "位置", defaultVisible: true, sortable: true },
-	{ id: "available", label: "可用量", defaultVisible: true, sortable: true },
-	{ id: "loaned", label: "借出", defaultVisible: true, sortable: true },
-	{ id: "damaged", label: "损坏", defaultVisible: true, sortable: true },
-	{ id: "uom", label: "单位", defaultVisible: true, sortable: true },
-]);
-const locationColumns = computed<DataColumn[]>(() => [
-	{
-		id: "location",
-		label: "存放位置",
-		required: true,
-		defaultVisible: true,
-		sortable: true,
-	},
-	{ id: "available", label: "可用", defaultVisible: true, sortable: true },
-	{ id: "loaned", label: "借出", defaultVisible: true, sortable: true },
-	{ id: "damaged", label: "损坏", defaultVisible: true, sortable: true },
-	{ id: "uom", label: "单位", defaultVisible: true, sortable: true },
-]);
+const batchColumns = computed<DataColumn[]>(() => productBatchColumns);
+const locationColumns = computed<DataColumn[]>(() => productLocationColumns);
 const batchRows = computed<DataTableRecord[]>(() =>
 	batches.value.map((batch, index) => ({
 		kind: "record",
@@ -179,6 +155,17 @@ const locationPrefs =
 				services,
 			)
 		: undefined;
+const productExportColumns = computed(() => {
+	const visible = batchPrefs?.visible.value.length
+		? batchPrefs.visible.value
+		: productBatchColumns
+				.filter((column) => column.defaultVisible !== false || column.required)
+				.map((column) => String(column.id));
+	const order = batchPrefs?.order.value.length
+		? batchPrefs.order.value
+		: productBatchColumns.map((column) => String(column.id));
+	return exportFields(productBatchColumns, order, visible);
+});
 </script>
 <template>
 	<section class="browse-page">
@@ -191,6 +178,8 @@ const locationPrefs =
 				><QuickExport
 					v-if="item"
 					:query="c.exportQuery.value"
+					table="locations"
+					:columns="productExportColumns"
 					title="物品详情"
 					:active="active" /></template
 		></PageHeader>

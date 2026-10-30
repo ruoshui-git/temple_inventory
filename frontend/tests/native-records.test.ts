@@ -126,7 +126,7 @@ describe("native drafts and count records", () => {
     const headers = wrapper.findAll("thead th").map((header) => header.text());
     expect(headers.map((header) => header.replace(/[↓↑↕]/g, ""))).toEqual(
       expect.arrayContaining([
-        "编号",
+        "盘点编号",
         "类型",
         "状态",
         "盘点范围",

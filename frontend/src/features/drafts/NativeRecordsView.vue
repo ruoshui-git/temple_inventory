@@ -20,6 +20,8 @@ import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
 import { operationLabels } from "../../lib/presentationLabels";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import { kindIcons } from "../../lib/kindIcons";
+import { nativeRecordColumns } from "./nativeRecordColumns";
+import { exportFields } from "../../lib/exportColumns";
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import FilterDisclosure from "../../components/ui/FilterDisclosure.vue";
 import RecoverySummary from "../../components/ui/RecoverySummary.vue";
@@ -289,42 +291,7 @@ const countScope = (row: NativeRecord) => {
 	}
 };
 const services = useOptionalInventoryServices();
-const tableColumns = computed<DataColumn[]>(() =>
-	props.mode === "counts"
-		? [
-				{
-					id: "document",
-					label: "编号",
-					required: true,
-					defaultVisible: true,
-					kind: "primary",
-					className: "count-record-id-column",
-				},
-				{ id: "count_kind", label: "类型", defaultVisible: true },
-				{ id: "status", label: "状态", defaultVisible: true, kind: "status" },
-				{ id: "count_scope", label: "盘点范围", defaultVisible: true },
-				{ id: "line_count", label: "行数", defaultVisible: false, align: "end" },
-				{ id: "item_count", label: "物品种数", defaultVisible: true, align: "end" },
-				{ id: "gains", label: "增加", defaultVisible: true },
-				{ id: "losses", label: "减少", defaultVisible: true },
-				{ id: "net", label: "净差异", defaultVisible: true },
-				{ id: "date", label: "日期", defaultVisible: true, sortable: true, kind: "date" },
-				{ id: "activity_title", label: "活动", defaultVisible: true },
-			]
-		: [
-				{ id: "document", label: "编号", required: true, defaultVisible: true },
-				{
-					id: "kind",
-					label: "类型 / 状态",
-					defaultVisible: true,
-					className: "native-record-kind-status",
-				},
-				{ id: "activity_title", label: "活动 / 借用人", defaultVisible: true },
-				{ id: "summary", label: "整份记录", defaultVisible: true },
-				{ id: "date", label: "记账日期", defaultVisible: true, sortable: true },
-				{ id: "actions", label: "操作", required: true, defaultVisible: true },
-			],
-);
+const tableColumns = computed<DataColumn[]>(() => nativeRecordColumns(props.mode));
 const tableRows = computed<DataTableRecord[]>(() =>
 	rows.value.map((row) => ({
 		kind: "record",
@@ -347,6 +314,18 @@ const tablePrefs =
 	services && !routeError.value
 		? useColumnPreferences(`native-records.${props.mode}`, tableColumns, c.reference, services)
 		: undefined;
+const exportColumns = computed(() => {
+	const columns = tableColumns.value;
+	const visible = tablePrefs?.visible.value.length
+		? tablePrefs.visible.value
+		: columns
+				.filter((column) => column.defaultVisible !== false || column.required)
+				.map((column) => String(column.id));
+	const order = tablePrefs?.order.value.length
+		? tablePrefs.order.value
+		: columns.map((column) => String(column.id));
+	return exportFields(columns, order, visible);
+});
 function nativeRow(row: Record<string, unknown>): NativeRecord {
 	return row as unknown as NativeRecord;
 }
@@ -497,7 +476,13 @@ function activityLabel(row: Record<string, unknown>) {
 						icon="refresh"
 						>刷新</UiButton
 					>
-					<QuickExport :query="query" title="单据" :active="active" />
+					<QuickExport
+						:query="query"
+						table="records"
+						:columns="exportColumns"
+						title="单据"
+						:active="active"
+					/>
 				</BrowseOverflowMenu>
 				<UiButton variant="primary" icon="count" @click="emit('newCount')"
 					>新建盘点</UiButton

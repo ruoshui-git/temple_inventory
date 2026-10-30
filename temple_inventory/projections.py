@@ -1253,6 +1253,17 @@ class Projection(AbstractContextManager):
 			)
 		elif not restored:
 			self.add("lines", count_rows(context))
+			self.column_names["lines"] = list(
+				dict.fromkeys(
+					(
+						*self.column_names["lines"],
+						"baseline_qty",
+						"actual_qty",
+						"difference",
+						"reason",
+					)
+				)
+			)
 			self.group(
 				"lines",
 				"records",

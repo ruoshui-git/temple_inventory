@@ -58,7 +58,9 @@ describe("shared native report table", () => {
       },
     });
     const availableHeader = wrapper.findAll("thead th")[1]!;
-    expect(availableHeader.find(".data-table-sort-label").text()).toBe("可用");
+    expect(availableHeader.find(".data-table-sort-label").text()).toBe(
+      "可用数量",
+    );
     expect(availableHeader.classes()).toContain("data-column-number");
     wrapper.unmount();
   });
@@ -532,7 +534,7 @@ describe("shared native report table", () => {
     expect(text).toContain("出库（已提交） 3 kg");
     expect(text).toContain("借出量 8 kg");
     expect(text).toContain("正常归还量 3 kg");
-    expect(text).toContain("未归还量 5 kg");
+    expect(text).toContain("未归还数量 5 kg");
     expect(text).not.toContain("库存数量 0");
     wrapper.unmount();
   });
