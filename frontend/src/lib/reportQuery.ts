@@ -1,3 +1,4 @@
+import { stockStateLabels } from "./presentationLabels";
 import { emptyScope, periodLabels, type DatePeriod } from "./browseQuery";
 import {
   newReportQuery,
@@ -46,6 +47,17 @@ function period(value: unknown): DatePeriod {
   )
     throw new Error("请填写有效的完整日期范围");
   return result;
+}
+
+export function supportsCategoryScope(dataset: ReportDataset, view: string) {
+  return (
+    (dataset === "inventory" &&
+      ["summary", "locations", "historical"].includes(view)) ||
+    (dataset === "expiry" && view === "batches") ||
+    (dataset === "movements" && ["summary", "lines"].includes(view)) ||
+    (dataset === "loans" && view === "items") ||
+    (dataset === "counts" && view === "lines")
+  );
 }
 
 /** Mirrors the server's canonical scope without widening malformed URL restrictions. */
@@ -149,6 +161,7 @@ export function decodeReportQuery(
       throw new Error("此视图不支持此排序字段");
     const enums: Partial<Record<keyof ReportQuery, readonly string[]>> = {
       sort: ["asc", "desc"],
+      stockState: Object.keys(stockStateLabels),
       activityStatus: ["all", "active", "archived"],
       loanStatus: ["all", "outstanding", "open", "settled"],
       loanOutcome: ["all", "outstanding", "returned", "damaged", "lost"],
@@ -189,6 +202,11 @@ export function decodeReportQuery(
                 : text(candidate.scope[field]);
       }
     }
+    if (!supportsCategoryScope(query.dataset, query.view)) {
+      query.scope.categories = [];
+      query.scope.uncategorized = false;
+    }
+    if (query.dataset === "inventory") query.includeZero = false;
     if (
       !(["all", "batch", "expiry", "none", "batch_only"] as string[]).includes(
         query.scope.tracking,
@@ -245,6 +263,12 @@ export function normalizeBrowseQueryPayload(
         : record(filters.scope)
           ? { ...defaults.scope, ...filters.scope }
           : filters.scope;
+    if (!supportsCategoryScope(dataset, view) && record(scope)) {
+      scope.categories = [];
+      scope.uncategorized = false;
+    }
+    if (dataset === "inventory" && view !== "historical")
+      filters.includeZero = false;
     return JSON.stringify({ ...defaults, ...filters, scope, dataset, view });
   } catch {
     return source;
@@ -281,6 +305,12 @@ export function normalizeReportQuery(source: ReportQuery): ReportQuery {
   }
   if (dataset !== "expiry" && target.scope.tracking === "batch_only")
     target.scope.tracking = "all";
+  if (!supportsCategoryScope(dataset, view)) {
+    target.scope.categories = [];
+    target.scope.uncategorized = false;
+  }
+  if (dataset === "inventory") target.includeZero = false;
+  if (dataset !== "inventory") target.stockState = "in_stock";
   const sourceFields = source as unknown as Record<string, unknown>;
   const targetFields = target as unknown as Record<string, unknown>;
   const excludedFields: Partial<Record<ReportDataset, readonly string[]>> = {

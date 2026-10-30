@@ -18,6 +18,15 @@ export const operationLabels = Object.fromEntries(
   ),
 ) as Record<string, string>;
 
+/** Inventory 库存状态 filter, evaluated per Item across the selected locations. */
+export const stockStateLabels = {
+  in_stock: "有库存",
+  available: "有可用",
+  no_available: "无可用",
+  no_stock: "无库存",
+  all: "全部",
+} as const;
+
 export const recoveryLabels: Record<string, Record<string, string>> = {
   docstatus: { "0": "草稿", "1": "已提交", "2": "已取消" },
   kind: movementLabels,

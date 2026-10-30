@@ -94,6 +94,7 @@ function selectedSummary(values: string[], options: HierarchyFilterNode[]) {
 				data-filter-field="item-editor"
 				tabindex="-1"
 				label="物品"
+				external-label
 				:model-value="scope.item"
 				:load="loadItems"
 				:selected-label="reference.items.find((row) => row.value === scope.item)?.label"
@@ -115,6 +116,7 @@ function selectedSummary(values: string[], options: HierarchyFilterNode[]) {
 				data-filter-field="activity-editor"
 				tabindex="-1"
 				label="活动"
+				external-label
 				:model-value="scope.activity"
 				:load="loadActivities"
 				:selected-label="
@@ -124,7 +126,7 @@ function selectedSummary(values: string[], options: HierarchyFilterNode[]) {
 			/>
 		</FilterDisclosure>
 		<FilterDisclosure
-			v-if="shows('categories')"
+			v-if="shows('categories') && !records"
 			label="物品类别"
 			field="categories"
 			:disclosure="disclosureMode"

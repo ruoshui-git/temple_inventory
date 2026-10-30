@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import UiButton from "./UiButton.vue";
 import InventoryIcon from "../InventoryIcon.vue";
-import { computed, nextTick, onMounted, onScopeDispose, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onScopeDispose, ref, useId, watch } from "vue";
 import type {
 	DataColumn,
 	DataTableEntry,
@@ -15,6 +15,7 @@ import DisclosureIcon from "./DisclosureIcon.vue";
 import { useOverflowEdges } from "../../composables/useOverflowEdges";
 import FloatingTableScrollbar from "./FloatingTableScrollbar.vue";
 import UnitText from "./UnitText.vue";
+import DetailPopover from "./DetailPopover.vue";
 
 const props = withDefaults(
 	defineProps<{
@@ -82,6 +83,7 @@ const emit = defineEmits<{
 const preferences = computed(() => props.columnPreferences);
 const tableScroll = ref<HTMLElement>();
 const tableFrame = ref<HTMLElement>();
+const tableId = useId();
 const headerHeight = ref(56);
 let headerObserver: ResizeObserver | undefined;
 const {
@@ -89,12 +91,12 @@ const {
 	overflowEnd,
 	pinnedStartInset,
 	pinnedEndInset,
-	mobileUnpinStart,
 	mobileUnpinEnd,
 	hintTop,
 	hintLeft,
 	hintRight,
 	hintVisible,
+	measure,
 	scrollMore,
 } = useOverflowEdges(tableScroll, tableFrame);
 const stale = computed(() => props.stale ?? props.retained);
@@ -121,7 +123,20 @@ function groupLabelSpan(group: DataTableGroup) {
 	const firstSummary = orderedColumns.value.findIndex((column) =>
 		summaries.has(String(column.id)),
 	);
+	const labelColumn = orderedColumns.value.findIndex(
+		(column) => String(column.id) === group.labelColumn,
+	);
+	if (labelColumn >= 0) return labelColumn + 1;
 	return firstSummary < 0 ? orderedColumns.value.length : Math.max(1, firstSummary);
+}
+
+function pinStyle(column: DataColumn) {
+	if (column.pinned !== "start") return undefined;
+	const selectionWidth = props.selectionEnabled
+		? (tableScroll.value?.querySelector<HTMLElement>("thead th.data-table-selection-column")
+				?.offsetWidth ?? 0)
+		: 0;
+	return { "--data-table-pinned-offset": `${selectionWidth}px` };
 }
 
 watch(
@@ -146,6 +161,10 @@ watch(
 	},
 	{ flush: "post" },
 );
+
+watch([overflowStart, overflowEnd], () => {
+	void nextTick(measure);
+});
 
 function rowElements() {
 	return Array.from(
@@ -589,7 +608,8 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 				'--data-table-pinned-start': `${pinnedStartInset}px`,
 				'--data-table-pinned-end': `${pinnedEndInset}px`,
 				'--data-table-header-height': `${headerHeight}px`,
-				'--data-table-settings-column-width': settingsOutlet ? '0px' : undefined,
+				'--data-table-settings-column-width':
+					settingsOutlet || !preferences || compact ? '0px' : undefined,
 			}"
 		>
 			<div
@@ -599,7 +619,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 					'is-refreshing': refreshing,
 					'is-overflow-start': overflowStart,
 					'is-overflow-end': overflowEnd,
-					'is-mobile-unpin-start': mobileUnpinStart,
+					'is-overflowing': overflowStart || overflowEnd,
 					'is-mobile-unpin-end': mobileUnpinEnd,
 				}"
 				role="region"
@@ -623,7 +643,15 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 					</caption>
 					<thead>
 						<tr>
-							<th v-if="selectionEnabled" class="data-table-selection-column">
+							<th
+								v-if="selectionEnabled"
+								class="data-table-selection-column"
+								:class="{
+									'data-table-selection-pinned': orderedColumns.some(
+										(column) => column.pinned === 'start',
+									),
+								}"
+							>
 								<input
 									type="checkbox"
 									aria-label="选择当前已加载记录"
@@ -644,11 +672,22 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 											: 'none'
 										: undefined
 								"
+								:aria-describedby="
+									column.hint
+										? `${tableId}-hint-desc-${String(column.id)}`
+										: undefined
+								"
 								:class="[
 									`align-${dataColumnAlignment(column)}`,
 									`data-column-${columnKind(column)}`,
 									column.className,
+									column.pinned === 'start'
+										? 'data-table-pinned-start'
+										: undefined,
+									column.pinned === 'end' ? 'data-table-pinned-end' : undefined,
+									column.quantity ? 'quantity-column' : undefined,
 								]"
+								:style="pinStyle(column)"
 							>
 								<button
 									v-if="column.sortable"
@@ -670,6 +709,20 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 									}}</span>
 								</button>
 								<template v-else>{{ column.label }}</template>
+								<DetailPopover
+									v-if="column.hint"
+									:label="`${column.label}说明：${column.hint}`"
+									trigger-class="data-table-header-hint"
+								>
+									<template #trigger><span aria-hidden="true">i</span></template>
+									{{ column.hint }}
+								</DetailPopover>
+								<span
+									v-if="column.hint"
+									:id="`${tableId}-hint-desc-${String(column.id)}`"
+									class="sr-only"
+									>{{ column.hint }}</span
+								>
 							</th>
 							<th
 								v-if="preferences && !compact && !settingsOutlet"
@@ -755,6 +808,11 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 								<td
 									v-if="selectionEnabled && !group(entry)"
 									class="data-table-selection-column"
+									:class="{
+										'data-table-selection-pinned': orderedColumns.some(
+											(column) => column.pinned === 'start',
+										),
+									}"
 								>
 									<label class="data-table-row-checkbox">
 										<input
@@ -779,6 +837,11 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 								<td
 									v-else-if="selectionEnabled"
 									class="data-table-selection-column"
+									:class="{
+										'data-table-selection-pinned': orderedColumns.some(
+											(column) => column.pinned === 'start',
+										),
+									}"
 								></td>
 								<template v-if="group(entry)">
 									<td
@@ -834,6 +897,13 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 												`align-${dataColumnAlignment(column)}`,
 												`data-column-${columnKind(column)}`,
 												column.className,
+												column.pinned === 'start'
+													? 'data-table-pinned-start'
+													: undefined,
+												column.pinned === 'end'
+													? 'data-table-pinned-end'
+													: undefined,
+												column.quantity ? 'quantity-column' : undefined,
 												'data-table-group-cell',
 												groupColumnIndex === 0
 													? 'data-table-group-identity-cell'
@@ -841,8 +911,11 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 											]"
 											:style="
 												groupColumnIndex === 0
-													? { '--group-depth': entry.depth }
-													: undefined
+													? {
+															'--group-depth': entry.depth,
+															...pinStyle(column),
+														}
+													: pinStyle(column)
 											"
 										>
 											<div
@@ -871,7 +944,12 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 															(item) =>
 																String(item.id) ===
 																entry.countColumn,
-														)
+														) ||
+														orderedColumns.findIndex(
+															(item) =>
+																String(item.id) ===
+																entry.countColumn,
+														) < groupLabelSpan(entry)
 													"
 													class="data-table-group-count"
 													>{{ entry.countLabel || "记录数" }}
@@ -926,8 +1004,16 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 											`align-${dataColumnAlignment(column)}`,
 											`data-column-${columnKind(column)}`,
 											column.className,
+											column.pinned === 'start'
+												? 'data-table-pinned-start'
+												: undefined,
+											column.pinned === 'end'
+												? 'data-table-pinned-end'
+												: undefined,
+											column.quantity ? 'quantity-column' : undefined,
 											cellClass?.(String(column.id), recordValue(entry)),
 										]"
+										:style="pinStyle(column)"
 										:title="
 											['primary', 'code', 'chip'].includes(
 												columnKind(column),

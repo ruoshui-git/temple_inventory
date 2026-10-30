@@ -634,7 +634,7 @@ test("queued native CSV/XLSX jobs export the complete catalog into private downl
   browser,
 }) => {
   const { newReportQuery } = await import("../../../src/lib/reportContract");
-  const query = { ...newReportQuery("inventory"), includeZero: true };
+  const query = { ...newReportQuery("inventory"), stockState: "all" as const };
   const preview = await call(page.request, "projections.report_page", {
     query,
     page_length: 1,

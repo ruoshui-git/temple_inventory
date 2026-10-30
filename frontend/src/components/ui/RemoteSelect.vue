@@ -7,6 +7,7 @@ const props = defineProps<{
 	disabled?: boolean;
 	context?: string;
 	selectedLabel?: string;
+	externalLabel?: boolean;
 	load: (
 		query: string,
 		start: number,
@@ -79,6 +80,8 @@ onBeforeUnmount(() => {
 		:total="total"
 		:has-more="next !== null"
 		:selected-label="selectedLabel || labels.get(modelValue || '')"
+		:external-label="externalLabel"
+		:aria-label="externalLabel ? label : undefined"
 		@update:model-value="emit('update:modelValue', $event)"
 		@search="search($event)"
 		@load-more="next !== null && search(query, next)"

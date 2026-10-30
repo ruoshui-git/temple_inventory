@@ -508,6 +508,7 @@ function activityLabel(row: Record<string, unknown>) {
 				>
 					<RemoteSelect
 						label="人员"
+						external-label
 						:model-value="query.person.name"
 						:context="query.person.role"
 						:load="loadPeople"
@@ -724,7 +725,7 @@ function activityLabel(row: Record<string, unknown>) {
 					class="browse-filter-rail browse-filter-rail"
 				>
 					<div class="filter-rail-heading">
-						<h3>类别与仓库</h3>
+						<h3>仓库</h3>
 						<FilterRailEdge
 							:open="true"
 							:active="scope.categories.length + scope.warehouses.length > 0"
@@ -733,8 +734,9 @@ function activityLabel(row: Record<string, unknown>) {
 					</div>
 					<BrowseFilters
 						v-model="scope"
-						:fields="['categories', 'warehouses']"
+						:fields="['warehouses']"
 						hide-activity
+						records
 					/>
 				</aside>
 				<FilterRailEdge

@@ -2991,7 +2991,7 @@
         "origin_warehouse_path": "原位置完整位置",
         "original_loan": "原借出",
         "outstanding": "未归还数量",
-        "quantity": "数量（借出为正，归还为负）",
+        "quantity": "数量",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
         "source_warehouse_path": "来源完整位置",

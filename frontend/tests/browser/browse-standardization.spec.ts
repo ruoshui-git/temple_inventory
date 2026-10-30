@@ -405,7 +405,14 @@ for (const surface of [
         exact: true,
       });
       await expect(filterPanel).toBeVisible();
-      if (scenario.width < 1024) {
+      const isRecordView =
+        surface === "movements/records" || surface === "loans/records";
+      const categoryDisclosure = filterPanel.locator(
+        'details[data-filter-field="categories"] > summary',
+      );
+      if (isRecordView) {
+        await expect(categoryDisclosure).toHaveCount(0);
+      } else if (scenario.width < 1024) {
         await filterPanel
           .locator('details[data-filter-field="categories"] > summary')
           .click();
@@ -416,11 +423,7 @@ for (const surface of [
           }),
         ).toBeVisible();
       } else {
-        await expect(
-          filterPanel.locator(
-            'details[data-filter-field="categories"] > summary',
-          ),
-        ).toBeVisible();
+        await expect(categoryDisclosure).toBeVisible();
       }
       if (surface !== "stock") {
         const periodLabel =
@@ -435,21 +438,26 @@ for (const surface of [
           );
           await expect(period).toBeVisible();
           await period.click();
+          await expect(period).toContainText(periodLabel);
           await expect(
-            filterPanel.getByRole("heading", {
-              name: periodLabel,
-              exact: true,
-            }),
-          ).toBeVisible();
+            filterPanel.locator(".period-filter-heading"),
+          ).toHaveCount(1);
+          await expect(
+            filterPanel.locator(".period-filter-heading"),
+          ).toBeHidden();
         } else {
           const periodDisclosure = filterPanel.locator(
             'details[data-filter-field="period"] > summary',
           );
           await expect(periodDisclosure).toBeVisible();
           await periodDisclosure.click();
+          await expect(periodDisclosure).toContainText(periodLabel);
           await expect(
-            page.getByRole("heading", { name: periodLabel, exact: true }),
-          ).toBeVisible();
+            filterPanel.locator(".period-filter-heading"),
+          ).toHaveCount(1);
+          await expect(
+            filterPanel.locator(".period-filter-heading"),
+          ).toBeHidden();
         }
       }
       expect(
@@ -462,6 +470,53 @@ for (const surface of [
     });
   }
 }
+
+test("an overflowing stock table pins item identity and bolds quantities", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1024, height: 800 });
+  const release = await prepare(page, 100);
+  await page.goto("/inventory/stock");
+  release();
+  await page.getByRole("button", { name: "列表视图", exact: true }).click();
+  await page.getByRole("button", { name: "设置列" }).first().click();
+  const columnMenu = page.getByRole("group", { name: "设置表格列" });
+  for (const checkbox of await columnMenu.getByRole("checkbox").all())
+    if (!(await checkbox.isChecked()) && (await checkbox.isEnabled()))
+      await checkbox.check();
+  await page.keyboard.press("Escape");
+  const tableScroll = page.locator(".data-table-scroll").first();
+  await expect(tableScroll.locator("table")).toBeVisible();
+  await expect(tableScroll).toHaveClass(/is-overflowing/);
+  const identity = page.getByRole("columnheader", { name: "物品名称" });
+  await expect(identity).toHaveClass(/data-table-pinned-start/);
+  await expect(page.locator("td.quantity-column").first()).toHaveCSS(
+    "font-weight",
+    "600",
+  );
+  await tableScroll.evaluate((element) => {
+    element.scrollLeft = element.scrollWidth;
+    element.dispatchEvent(new Event("scroll"));
+  });
+  const pin = await identity.evaluate((header) => {
+    const selection = header
+      .closest("table")
+      ?.querySelector<HTMLElement>("thead th.data-table-selection-column");
+    const scroll = header.closest<HTMLElement>(".data-table-scroll");
+    return {
+      position: getComputedStyle(header).position,
+      left: Number.parseFloat(getComputedStyle(header).left),
+      selectionWidth: selection?.offsetWidth,
+      headerX: header.getBoundingClientRect().x,
+      scrollX: scroll?.getBoundingClientRect().x,
+    };
+  });
+  expect(pin.position).toBe("sticky");
+  expect(pin.left).toBe(pin.selectionWidth);
+  expect(
+    Math.abs(pin.headerX - (pin.scrollX! + pin.selectionWidth!)),
+  ).toBeLessThanOrEqual(1);
+});
 
 for (const scenario of [
   {

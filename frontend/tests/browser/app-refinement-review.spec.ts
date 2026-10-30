@@ -417,6 +417,20 @@ for (const width of [1440, 390]) {
         fullPage: true,
       });
       await page.getByRole("button", { name: "明细", exact: true }).click();
+      await page.setViewportSize({ width: 1280, height: 900 });
+      const quantityHint = page.getByRole("button", {
+        name: "数量说明：借出为正，归还为负",
+      });
+      await expect(quantityHint).toBeVisible();
+      await quantityHint.click();
+      await expect(
+        page.getByRole("dialog", { name: "数量说明：借出为正，归还为负" }),
+      ).toBeVisible();
+      await reviewScreenshot(page, {
+        path: info.outputPath("loan-quantity-hint-open.png"),
+        fullPage: true,
+      });
+      await page.getByRole("dialog", { name: /数量说明/ }).press("Escape");
       const summary = page.locator(".browse-result-summary-trigger");
       await expect(summary).toHaveAttribute("aria-label", /数量分析/);
       await summary.click();
@@ -536,7 +550,7 @@ test("expiry date header toggles its own sort direction", async ({ page }) => {
       (quantityIndicator!.x + quantityIndicator!.width),
   ).toBeLessThan(18);
 
-  const dateHeader = page.getByRole("columnheader", { name: /效期/ });
+  const dateHeader = page.getByRole("columnheader", { name: /到期日期/ });
   const before = await dateHeader.getAttribute("aria-sort");
   await dateHeader.getByRole("button").click();
   await expect(dateHeader).toHaveAttribute(

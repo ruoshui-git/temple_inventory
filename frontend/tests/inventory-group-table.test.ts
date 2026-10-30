@@ -253,26 +253,26 @@ describe("inventory grouped table", () => {
     wrappers.push(wrapper);
     await flushPromises();
     const page = wrapper.getComponent(StockBrowsePage);
-    page.vm.controller.inStockOnly.value = false;
+    page.vm.controller.stockState.value = "no_stock";
     await flushPromises();
     const zeroStockChip = wrapper
       .findAll(".browse-active-chip-label")
-      .find((chip) => chip.text().includes("零库存"));
+      .find((chip) => chip.text().includes("库存状态：无库存"));
     expect(zeroStockChip).toBeDefined();
     await zeroStockChip!.trigger("click");
     await flushPromises();
     const zeroStockDisclosure = document.querySelector<HTMLDetailsElement>(
-      '.browse-filter-popover [data-filter-field="includeZero"]',
+      '.browse-filter-popover [data-filter-field="stockState"]',
     );
     expect(zeroStockDisclosure?.open).toBe(true);
     expect(document.activeElement).toBe(
-      zeroStockDisclosure?.querySelector('input[type="checkbox"]'),
+      zeroStockDisclosure?.querySelector("select"),
     );
     document
       .querySelector<HTMLButtonElement>(".browse-filter-popover header button")!
       .click();
     await flushPromises();
-    page.vm.controller.inStockOnly.value = true;
+    page.vm.controller.stockState.value = "in_stock";
     await flushPromises();
     expect(wrapper.find(".stock-grid").exists()).toBe(false);
     expect(

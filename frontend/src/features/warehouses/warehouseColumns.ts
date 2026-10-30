@@ -12,6 +12,7 @@ export const warehouseColumnDefinitions: DataColumn[] = [
   },
   {
     id: "warehouse_label",
+    pinned: "start",
     label: "库位",
     sortable: true,
     export: ["warehouse_label"],
@@ -19,6 +20,7 @@ export const warehouseColumnDefinitions: DataColumn[] = [
   { id: "batch_no", label: "批次编号", sortable: true, export: ["batch_no"] },
   {
     id: "stock_qty",
+    quantity: true,
     label: "合计",
     sortable: true,
     align: "end",

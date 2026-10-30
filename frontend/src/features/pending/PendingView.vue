@@ -43,7 +43,13 @@ const table = c.report.mainTable,
 	analysisTable = c.analysis.mainTable;
 const reportColumns = computed<DataColumn[]>(() =>
 	table.value
-		? reportExportColumns(table.value, query.value.dataset, ["warehouse_label", "warehouse"])
+		? reportExportColumns(table.value, query.value.dataset, [
+				"warehouse_label",
+				"warehouse",
+			]).map((column) => ({
+				...column,
+				pinned: column.id === "item_name" ? "start" : column.pinned,
+			}))
 		: [],
 );
 const exportServices = useOptionalInventoryServices();

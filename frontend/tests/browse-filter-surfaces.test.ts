@@ -13,6 +13,7 @@ import {
 } from "../src/services/contracts";
 import GroupByFilter from "../src/components/filters/GroupByFilter.vue";
 import FilterDisclosure from "../src/components/ui/FilterDisclosure.vue";
+import RemoteSelect from "../src/components/ui/RemoteSelect.vue";
 import { filterPanelSessionKey } from "../src/lib/filterPanelSession";
 import { emptyScope } from "../src/lib/browseQuery";
 import {
@@ -101,6 +102,27 @@ it("shows relative and calendar period keys without the old shortcut rows", asyn
   expect(wrapper.text()).not.toContain("使用范围");
   expect(wrapper.find(".period-trigger").exists()).toBe(false);
   wrapper.unmount();
+});
+
+it("keeps disclosure headings single while remote controls retain accessible names", async () => {
+  const load = vi.fn(async () => ({ rows: [], total: 0, next: null }));
+  const itemPanel = mount(FilterDisclosure, {
+    props: { label: "物品", field: "item" },
+    slots: {
+      default: () =>
+        h(RemoteSelect, { label: "物品", externalLabel: true, load }),
+    },
+  });
+  await flushPromises();
+  const disclosure = itemPanel.get("details");
+  expect(disclosure.find("summary").text().match(/物品/g)).toHaveLength(1);
+  expect(
+    disclosure.findAll("label").filter((label) => label.text() === "物品"),
+  ).toHaveLength(0);
+  expect(
+    disclosure.get('input[role="combobox"]').attributes("aria-label"),
+  ).toBe("物品");
+  itemPanel.unmount();
 });
 
 it("supports custom inclusive bounds and inline validation", async () => {

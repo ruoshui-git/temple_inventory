@@ -26,12 +26,13 @@ import {
 	sortableColumnsForView,
 } from "../../lib/reportContract";
 import { nextGroupByField, removeGroupByField } from "../../lib/groupBy";
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { clearScopeField, scopeFilterFieldChips } from "../../lib/filterPresentation";
 import { sitePeriodSummary } from "../../lib/sitePeriod";
 import { hasReportStatuses } from "../../lib/reportFilters";
+import { supportsCategoryScope } from "../../lib/reportQuery";
 import type { useExportWorkspaceController } from "./useReportController";
-import { operationLabels } from "../../lib/presentationLabels";
+import { operationLabels, stockStateLabels } from "../../lib/presentationLabels";
 import { kindIcons } from "../../lib/kindIcons";
 import { useFilterChoices } from "../references/useFilterChoices";
 import { reportExportColumns } from "../../lib/reportExportColumns";
@@ -78,6 +79,19 @@ const {
 	groups,
 } = props.controller;
 const availableGroups = computed(() => groupsForView(dataset.value, query.value.view));
+const categoriesAvailable = computed(() => supportsCategoryScope(dataset.value, query.value.view));
+const locationFields = computed<Array<"categories" | "warehouses">>(() =>
+	categoriesAvailable.value ? ["categories", "warehouses"] : ["warehouses"],
+);
+watch(
+	() => [dataset.value, query.value.view],
+	() => {
+		if (!categoriesAvailable.value) {
+			query.value.scope.categories = [];
+			query.value.scope.uncategorized = false;
+		}
+	},
+);
 const filterChoices = useFilterChoices();
 const personRoleLabels: Record<string, string> = {
 	any: "任一角色",
@@ -300,7 +314,7 @@ function setGroup(index: number, value: string) {
 								:movement="movementFilters"
 								:expiry-only="dataset === 'expiry'"
 								:hierarchy-in-rail="sidebarOpen && sidebarAvailable && !isMobile"
-								records
+								:records="!categoriesAvailable"
 							/>
 							<ItemStatusFilter
 								v-if="dataset !== 'activities'"
@@ -314,6 +328,7 @@ function setGroup(index: number, value: string) {
 							>
 								<RemoteSelect
 									label="人员"
+									external-label
 									:model-value="query.person.name"
 									:context="query.person.role"
 									:load="loadPeople"
@@ -343,6 +358,7 @@ function setGroup(index: number, value: string) {
 							>
 								<RemoteSelect
 									label="借用方"
+									external-label
 									v-model="query.borrower"
 									:load="loadBorrowers"
 								/>
@@ -449,8 +465,26 @@ function setGroup(index: number, value: string) {
 								</fieldset>
 							</FilterDisclosure>
 							<FilterDisclosure
+								v-if="dataset === 'inventory' && query.view !== 'historical'"
+								label="库存状态"
+								field="stockState"
+								:summary="stockStateLabels[query.stockState]"
+							>
+								<label class="form-field">
+									<select v-model="query.stockState" aria-label="库存状态">
+										<option
+											v-for="(label, value) in stockStateLabels"
+											:key="value"
+											:value="value"
+										>
+											{{ label }}
+										</option>
+									</select>
+								</label>
+							</FilterDisclosure>
+							<FilterDisclosure
 								v-if="
-									['inventory', 'expiry'].includes(dataset) ||
+									dataset === 'expiry' ||
 									(dataset === 'loans' && query.view === 'items')
 								"
 								:label="dataset === 'loans' ? '已结清物品' : '零库存'"
@@ -509,6 +543,8 @@ function setGroup(index: number, value: string) {
 								>
 									<SearchSelect
 										label="活动类型"
+										external-label
+										aria-label="活动类型"
 										v-model="query.typeId"
 										:options="reference.activityTypes"
 									/>
@@ -652,18 +688,14 @@ function setGroup(index: number, value: string) {
 				class="browse-filter-rail browse-filter-rail"
 			>
 				<div class="filter-rail-heading">
-					<h3>类别与仓库</h3>
+					<h3>{{ categoriesAvailable ? "类别与仓库" : "仓库" }}</h3>
 					<FilterRailEdge
 						:open="true"
 						:active="query.scope.categories.length + query.scope.warehouses.length > 0"
 						@toggle="toggleSidebar"
 					/>
 				</div>
-				<BrowseFilters
-					v-model="query.scope"
-					:fields="['categories', 'warehouses']"
-					hide-activity
-				/>
+				<BrowseFilters v-model="query.scope" :fields="locationFields" hide-activity />
 			</aside>
 			<FilterRailEdge
 				v-if="!sidebarOpen && sidebarAvailable && !isMobile"

@@ -12,6 +12,7 @@ export const countEditorColumns: DataColumn[] = [
   { id: "image", label: "图片", defaultVisible: true, export: [] },
   {
     id: "item_name",
+    pinned: "start",
     label: "物品名称",
     required: true,
     defaultVisible: true,
@@ -40,6 +41,7 @@ export const countEditorColumns: DataColumn[] = [
   },
   {
     id: "current_qty",
+    quantity: true,
     label: "账面数量",
     defaultVisible: true,
     align: "end",
@@ -47,6 +49,7 @@ export const countEditorColumns: DataColumn[] = [
   },
   {
     id: "qty",
+    quantity: true,
     label: "已核对实点",
     required: true,
     defaultVisible: true,
@@ -57,6 +60,7 @@ export const countEditorColumns: DataColumn[] = [
   { id: "allocations", label: "批次分配", defaultVisible: true, export: [] },
   {
     id: "difference",
+    quantity: true,
     label: "差异量",
     defaultVisible: false,
     export: ["difference"],

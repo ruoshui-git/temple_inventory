@@ -217,6 +217,12 @@ test("browse table chips stay single-line and browse pages retain their phone la
   await settled(page, "/inventory/stock");
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByRole("button", { name: "列表视图" }).click();
+  await page.getByRole("button", { name: "设置列" }).first().click();
+  await page
+    .getByRole("group", { name: "设置表格列" })
+    .getByRole("button", { name: "恢复默认", exact: true })
+    .click();
+  await page.keyboard.press("Escape");
   await expect(page.locator(".data-table-scroll table").first()).toBeVisible();
   await assertSingleLineCells(page);
   await expect(page.locator(".stock-row-actions button").first()).toBeVisible();
@@ -252,6 +258,12 @@ test("browse table chips stay single-line and browse pages retain their phone la
   await settled(page, "/inventory/movements?view=records");
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByRole("button", { name: "设置列" }).first().click();
+  await page
+    .getByRole("group", { name: "设置表格列" })
+    .getByRole("button", { name: "恢复默认", exact: true })
+    .click();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "设置列" }).first().click();
   const unitQuantityColumn = page
     .getByRole("group", { name: "设置表格列" })
     .getByRole("checkbox", { name: "库存数量" });
@@ -263,6 +275,10 @@ test("browse table chips stay single-line and browse pages retain their phone la
     .getByRole("group", { name: "设置表格列" })
     .getByRole("checkbox", { name: "库存数量" })
     .uncheck();
+  await page
+    .getByRole("group", { name: "设置表格列" })
+    .getByRole("checkbox", { name: "原借出" })
+    .check();
   await page.keyboard.press("Escape");
   await expect(page.locator(".record-ref-chip").first()).toBeVisible();
   await assertChipBaselines(

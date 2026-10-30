@@ -3,7 +3,13 @@ import type { DataColumn } from "../../lib/dataTable";
 export function nativeRecordColumns(mode: "drafts" | "counts"): DataColumn[] {
   if (mode !== "counts")
     return [
-      { id: "document", label: "编号", required: true, defaultVisible: true },
+      {
+        id: "document",
+        label: "编号",
+        required: true,
+        defaultVisible: true,
+        pinned: "start",
+      },
       { id: "kind", label: "类型 / 状态", defaultVisible: true },
       { id: "activity_title", label: "活动 / 借用人", defaultVisible: true },
       { id: "summary", label: "整份记录", defaultVisible: true },
@@ -19,6 +25,7 @@ export function nativeRecordColumns(mode: "drafts" | "counts"): DataColumn[] {
   return [
     {
       id: "document",
+      pinned: "start",
       label: "盘点编号",
       required: true,
       defaultVisible: true,
@@ -54,9 +61,27 @@ export function nativeRecordColumns(mode: "drafts" | "counts"): DataColumn[] {
       align: "end",
       export: ["item_count"],
     },
-    { id: "gains", label: "增加", defaultVisible: true, export: ["gains"] },
-    { id: "losses", label: "减少", defaultVisible: true, export: ["losses"] },
-    { id: "net", label: "净差异", defaultVisible: true, export: ["net"] },
+    {
+      id: "gains",
+      label: "增加",
+      defaultVisible: true,
+      export: ["gains"],
+      quantity: true,
+    },
+    {
+      id: "losses",
+      label: "减少",
+      defaultVisible: true,
+      export: ["losses"],
+      quantity: true,
+    },
+    {
+      id: "net",
+      label: "净差异",
+      defaultVisible: true,
+      export: ["net"],
+      quantity: true,
+    },
     {
       id: "date",
       label: "日期",
@@ -80,12 +105,14 @@ export function nativeRecordColumns(mode: "drafts" | "counts"): DataColumn[] {
     },
     {
       id: "actual_qty",
+      quantity: true,
       label: "已核对实点",
       defaultVisible: false,
       export: ["actual_qty"],
     },
     {
       id: "difference",
+      quantity: true,
       label: "差异量",
       defaultVisible: false,
       export: ["difference"],

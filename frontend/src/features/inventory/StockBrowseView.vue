@@ -50,6 +50,7 @@ import { formatQuantity } from "../../lib/formatQuantity";
 import type { StockItem } from "../../lib/stockPresentation";
 import type { useStockBrowseController } from "./useStockBrowseController";
 import { inventoryColumnsForPage } from "./stockColumns";
+import { stockStateLabels } from "../../lib/presentationLabels";
 const props = withDefaults(
 	defineProps<{
 		controller: ReturnType<typeof useStockBrowseController>;
@@ -73,7 +74,7 @@ const {
 	sort,
 	descending,
 	selected,
-	inStockOnly,
+	stockState,
 	analysisDimension,
 	query: quickReportQuery,
 	groups: groupPages,
@@ -359,12 +360,20 @@ watch([() => props.active, isMobile], () => {
 						/>
 						<FilterDisclosure
 							label="库存状态"
-							:summary="inStockOnly ? '仅有库存' : '包括零库存'"
-							field="includeZero"
+							:summary="stockStateLabels[quickReportQuery.stockState]"
+							field="stockState"
 						>
-							<label class="form-choice-label form-check"
-								><input type="checkbox" v-model="inStockOnly" />仅有库存</label
-							>
+							<label class="form-field">
+								<select v-model="stockState" aria-label="库存状态">
+									<option
+										v-for="(label, value) in stockStateLabels"
+										:key="value"
+										:value="value"
+									>
+										{{ label }}
+									</option>
+								</select>
+							</label>
 						</FilterDisclosure>
 					</section>
 					<section>

@@ -21,7 +21,7 @@ function usage(row: Record<string, unknown>) {
 	return `库存单位物品 ${row.item_count} 项，物品单位换算 ${row.conversion_count} 项`;
 }
 const columns: DataColumn[] = [
-	{ id: "label", label: "显示名称", kind: "primary", required: true },
+	{ id: "label", label: "显示名称", kind: "primary", required: true, pinned: "start" },
 	{ id: "name", label: "单位名称", kind: "code" },
 	{ id: "category", label: "单位类别", kind: "text" },
 	{ id: "must_be_whole_number", label: "整数", kind: "chip" },

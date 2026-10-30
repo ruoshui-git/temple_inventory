@@ -24,3 +24,9 @@ withDefaults(
 		<slot />
 	</section>
 </template>
+<style scoped>
+.browse-filter-disclosure :deep(.period-filter-heading),
+.browse-filter-static :deep(.period-filter-heading) {
+	display: none;
+}
+</style>

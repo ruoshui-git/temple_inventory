@@ -4,6 +4,7 @@ export const expiryColumnDefinitions: DataColumn[] = [
   { id: "image", label: "图片", defaultVisible: true, export: [] },
   {
     id: "item_name",
+    pinned: "start",
     label: "物品名称",
     required: true,
     defaultVisible: true,
@@ -54,6 +55,7 @@ export const expiryColumnDefinitions: DataColumn[] = [
   },
   {
     id: "stock_qty",
+    quantity: true,
     label: "库存数量",
     defaultVisible: true,
     sortable: true,

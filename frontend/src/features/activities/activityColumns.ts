@@ -27,7 +27,8 @@ export const activityColumns: DataColumn[] = [
   { id: "status", label: "状态", defaultVisible: true, export: ["status"] },
   {
     id: "modified",
-    label: "更新（站点时间）",
+    label: "更新",
+    hint: "站点时间",
     export: [],
     defaultVisible: true,
     sortable: true,

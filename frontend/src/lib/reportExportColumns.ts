@@ -60,7 +60,7 @@ const tableLabels: Record<string, Record<string, string>> = {
     document: "编号",
     date: "日期",
     stock_uom: "单位",
-    quantity: "数量（借出为正，归还为负）",
+    quantity: "数量",
     activity_title: "活动",
     kind: "类型",
     source_warehouse: "来源位置",
@@ -120,6 +120,33 @@ const tableLabels: Record<string, Record<string, string>> = {
   },
 };
 
+const quantityFields = new Set([
+  "available",
+  "loaned",
+  "borrowed",
+  "returned",
+  "damaged",
+  "lost",
+  "outstanding",
+  "opening",
+  "incoming",
+  "outgoing",
+  "adjustment",
+  "closing",
+  "baseline_qty",
+  "actual_qty",
+  "current_qty",
+  "difference",
+  "stock_qty",
+  "entered_qty",
+  "quantity",
+  "qty",
+  "available_effect",
+  "gains",
+  "losses",
+  "net",
+]);
+
 /** Data columns used by ReportTable are the table's export declaration. */
 export function reportExportColumns(
   table: ReportTable,
@@ -143,5 +170,6 @@ export function reportExportColumns(
         (field === "image" ? "图片" : reportColumnLabels[field] || field),
       defaultVisible: true,
       export: field === "image" ? [] : [field],
+      quantity: quantityFields.has(field),
     }));
 }

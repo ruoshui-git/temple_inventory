@@ -63,6 +63,12 @@ test("loan scope, movement effects and multi-location records render at desktop 
 
   await settled(page, "/inventory/movements?view=items");
   await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole("button", { name: "设置列" }).first().click();
+  await page
+    .getByRole("group", { name: "设置表格列" })
+    .getByRole("button", { name: "恢复默认", exact: true })
+    .click();
+  await page.keyboard.press("Escape");
   await expect(
     page.getByRole("columnheader", { name: "物品名称" }),
   ).toBeVisible();
@@ -232,7 +238,8 @@ test("live XLSX exports include loan scopes and movement available-effect totals
 
   expect(openRows[0]).toContain("编号");
   expect(openRows[0]).toContain("物品名称");
-  expect(openRows[0]).toContain("数量（借出为正，归还为负）");
+  expect(openRows[0]).toContain("数量");
+  expect(openRows[0]).not.toContain("借出为正");
   expect(allRows.length).toBeGreaterThan(openRows.length);
   expect(groupedLoanRows.some((row) => String(row[0]).startsWith("合计"))).toBe(
     true,

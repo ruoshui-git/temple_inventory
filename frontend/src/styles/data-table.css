@@ -257,13 +257,6 @@
 		);
 		mask-image: linear-gradient(270deg, black, transparent);
 	}
-	.data-table-scroll.is-mobile-unpin-end :is(th, td).report-sticky-actions-column,
-	.data-table-scroll.is-mobile-unpin-end :is(th, td).operation-loan-outstanding-column,
-	.data-table-scroll.is-mobile-unpin-end :is(th, td).operation-movement-quantity-column {
-		position: static !important;
-		inset-inline-end: auto !important;
-		box-shadow: none !important;
-	}
 	.data-table-frame:has(.data-table-scroll.is-overflow-start)::before,
 	.data-table-frame:has(.data-table-scroll.is-overflow-end)::after {
 		opacity: 1;
@@ -390,6 +383,13 @@
 .data-table-scroll :is(th, td).data-column-primary {
 	min-width: 200px;
 	white-space: normal;
+}
+@media (max-width: 599px) {
+	.data-table-scroll :is(th, td).data-column-primary {
+		width: 144px;
+		min-width: 144px;
+	max-width: 144px;
+	}
 }
 .data-table-scroll td.data-column-primary {
 	overflow: hidden;
@@ -679,62 +679,26 @@
 }
 /* Settings body cells are empty: unless a content column is pinned beside them, let rows
    scroll under them so the edge fade sits on the table border instead of inside it. */
-.data-table-scroll:not(
-		:has(
-			.report-sticky-actions-column,
-			.operation-loan-outstanding-column,
-			.operation-movement-quantity-column
-		)
-	)
-	td.data-table-settings-cell {
+.data-table-scroll:not(:has(.data-table-pinned-end)) td.data-table-settings-cell {
 	position: static;
 	background: transparent;
 	box-shadow: none;
 }
-.data-table-scroll :is(th, td).report-sticky-actions-column {
-	position: sticky;
-	right: var(--data-table-settings-column-width);
-	z-index: 2;
-	background: var(--p-surface);
-	box-shadow: -6px 0 8px -8px var(--p-shadow-color);
-}
-.data-table-scroll th.report-sticky-actions-column {
-	background: var(--p-soft);
-	z-index: 3;
-}
 .data-table-group-row.is-expanded td,
-.data-table-group-row.is-expanded td.report-sticky-actions-column {
+.data-table-group-row.is-expanded td.data-table-pinned-end,
+.data-table-group-row.is-expanded td.data-table-pinned-start {
 	background: var(--p-soft);
 }
 @media (max-width: 1100px) {
 	.data-table-scroll :is(th, td).operation-loan-outstanding-column {
-		position: sticky;
-		right: var(--data-table-settings-column-width);
-		z-index: 2;
 		width: 140px;
 		min-width: 140px;
 		max-width: 140px;
-		background: var(--p-surface);
-		box-shadow: -6px 0 8px -8px var(--p-shadow-color);
 	}
 	.data-table-scroll :is(th, td).operation-movement-quantity-column {
-		position: sticky;
-		right: var(--data-table-settings-column-width);
-		z-index: 2;
 		width: 200px;
 		min-width: 200px;
 		max-width: 200px;
-		background: var(--p-surface);
-		box-shadow: -6px 0 8px -8px var(--p-shadow-color);
-	}
-	.data-table-scroll th.operation-loan-outstanding-column,
-	.data-table-scroll th.operation-movement-quantity-column {
-		background: var(--p-soft);
-		z-index: 3;
-	}
-	.data-table-group-row td.operation-loan-outstanding-column,
-	.data-table-group-row td.operation-movement-quantity-column {
-		background: var(--p-soft);
 	}
 }
 
@@ -826,6 +790,82 @@
 	outline: 2px solid var(--p-accent);
 	outline-offset: 2px;
 	border-radius: var(--p-radius-control);
+}
+
+.data-table-header-hint {
+	display: inline-grid;
+	width: 24px;
+	min-width: 24px;
+	height: 24px;
+	place-items: center;
+	margin-inline-start: var(--p-space-1);
+	border: 1px solid var(--p-border);
+	border-radius: 50%;
+	background: var(--p-surface);
+	color: var(--p-muted);
+	font-size: var(--p-small);
+	font-weight: 600;
+}
+.data-table-header-hint:focus-visible {
+	outline: 2px solid var(--p-accent);
+	outline-offset: 2px;
+}
+@media (max-width: 1023px) {
+	.data-table-header-hint {
+		width: 44px;
+		min-width: 44px;
+		height: 44px;
+	}
+}
+
+.data-table-scroll.is-overflowing :is(th, td).data-table-pinned-start,
+.data-table-scroll.is-overflowing :is(th, td).data-table-selection-pinned,
+.data-table-scroll.is-overflowing :is(th, td).data-table-pinned-end {
+	position: sticky;
+	z-index: 10;
+	background: var(--p-surface);
+}
+.data-table-scroll.is-overflowing :is(th, td).data-table-pinned-start {
+	left: var(--data-table-pinned-offset, 0px);
+}
+.data-table-scroll.is-overflowing :is(th, td).data-table-selection-pinned {
+	left: 0;
+}
+.data-table-scroll.is-overflowing :is(th, td).data-table-pinned-end {
+	right: var(--data-table-settings-column-width);
+}
+.data-table-scroll.is-overflowing th.data-table-pinned-start,
+.data-table-scroll.is-overflowing th.data-table-selection-pinned,
+.data-table-scroll.is-overflowing th.data-table-pinned-end {
+	background: var(--p-soft);
+}
+.data-table-scroll.is-overflowing .data-table-group-row td.data-table-pinned-start,
+.data-table-scroll.is-overflowing .data-table-group-row td.data-table-selection-pinned,
+.data-table-scroll.is-overflowing .data-table-group-row td.data-table-pinned-end {
+	background: var(--p-soft);
+}
+.data-table-scroll.is-overflow-start :is(th, td).data-table-pinned-start {
+	box-shadow: 6px 0 8px -8px var(--p-shadow-color);
+}
+.data-table-scroll.is-overflow-start :is(th, td).data-table-selection-pinned {
+	box-shadow: 6px 0 8px -8px var(--p-shadow-color);
+}
+.data-table-scroll.is-overflow-end :is(th, td).data-table-pinned-end {
+	box-shadow: -6px 0 8px -8px var(--p-shadow-color);
+}
+.data-table-scroll.is-mobile-unpin-end :is(th, td).data-table-pinned-end {
+	position: static !important;
+	left: auto !important;
+	right: auto !important;
+	box-shadow: none !important;
+}
+.data-table-scroll tbody tr:hover td.data-table-pinned-start,
+.data-table-scroll tbody tr:hover td.data-table-pinned-end {
+	background: var(--p-soft);
+}
+.data-table-scroll td.quantity-column {
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
 }
 
 .data-table-group-row td {
@@ -1098,13 +1138,6 @@
 }
 
 @media (max-width: 1023px) {
-	.data-table-scroll.is-mobile-unpin-end :is(th, td).report-sticky-actions-column,
-	.data-table-scroll.is-mobile-unpin-end :is(th, td).operation-loan-outstanding-column,
-	.data-table-scroll.is-mobile-unpin-end :is(th, td).operation-movement-quantity-column {
-		position: static !important;
-		inset-inline-end: auto !important;
-		box-shadow: none !important;
-	}
 	.data-table-scroll th.align-end {
 		min-width: 5.5em;
 	}

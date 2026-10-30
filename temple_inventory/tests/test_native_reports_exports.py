@@ -275,7 +275,7 @@ class NativeReportsExportsTests(NativeReportTestCase):
 				"kind": "类型",
 				"source_warehouse": "来源位置",
 				"destination_warehouse": "去向位置",
-				"quantity": "数量（借出为正，归还为负）",
+				"quantity": "数量",
 				"outstanding": "未归还数量",
 				"stock_uom": "单位",
 				"time": "时间",
@@ -622,7 +622,7 @@ class NativeReportsExportsTests(NativeReportTestCase):
 				rows = list(csv.reader(stream))
 		self.assertEqual(
 			rows[0],
-			["编号", "类型", "物品名称", "借用方", "活动", "来源位置", "数量（借出为正，归还为负）", "单位"],
+			["编号", "类型", "物品名称", "借用方", "活动", "来源位置", "数量", "单位"],
 		)
 		self.assertEqual([row[0] for row in rows[1:-1]], [partly.name])
 		self.assertEqual(rows[1][3:6], ["部分归还", self.activity.title, projection.context.label(self.a)])
@@ -671,7 +671,7 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			)
 			with path.open(encoding="utf-8-sig", newline="") as stream:
 				rows = list(csv.reader(stream))
-		self.assertEqual(rows[0], ["编号", "类型", "物品名称", "数量（借出为正，归还为负）", "单位"])
+		self.assertEqual(rows[0], ["编号", "类型", "物品名称", "数量", "单位"])
 		self.assertEqual({row[1] for row in rows[1:-1]}, {"借出", "归还"})
 		self.assertEqual(
 			{row[0] for row in rows[1:-1]},

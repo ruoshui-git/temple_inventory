@@ -370,6 +370,12 @@ for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     await setup(page);
     await page.goto("/inventory/movements?view=records");
+    await page.getByRole("button", { name: "设置列" }).click();
+    await page
+      .getByRole("group", { name: "设置表格列" })
+      .getByRole("checkbox", { name: "原借出" })
+      .check();
+    await page.keyboard.press("Escape");
     const record = page.locator(".browse-table tbody tr").first();
     await expect(record).toContainText("+20 个");
     const quantityHeader = page
@@ -646,6 +652,12 @@ test("large-text related-loan context keeps its close action visible", async ({
   await page.setViewportSize({ width: 390, height: 844 });
   await setup(page, 200);
   await page.goto("/inventory/movements?view=records");
+  await page.getByRole("button", { name: "设置列" }).click();
+  await page
+    .getByRole("group", { name: "设置表格列" })
+    .getByRole("checkbox", { name: "原借出" })
+    .check();
+  await page.keyboard.press("Escape");
   const trigger = page.getByRole("button", { name: /借出记录 2 笔借出/ });
   await trigger.click();
   const dialog = page.getByRole("dialog");

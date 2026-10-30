@@ -141,7 +141,13 @@ const quantityLabel = computed(() =>
 				: "可用库存",
 );
 const pickerColumns = computed<DataColumn[]>(() => {
-	return itemPickerColumns(quantityLabel.value, props.purpose || "outbound", multiple.value);
+	return itemPickerColumns(quantityLabel.value, props.purpose || "outbound", multiple.value).map(
+		(column) => ({
+			...column,
+			pinned: column.id === "name" ? "start" : column.pinned,
+			quantity: column.id === "quantity" || column.quantity,
+		}),
+	);
 });
 function earliestExpiry(row: Record<string, unknown>) {
 	const item = row as unknown as StockItem;

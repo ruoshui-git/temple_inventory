@@ -14,7 +14,6 @@ export function useOverflowEdges(
   // overlays such as the "more columns" hint never cover pinned headers.
   const pinnedEndInset = ref(0);
   const pinnedStartInset = ref(0);
-  const mobileUnpinStart = ref(false);
   const mobileUnpinEnd = ref(false);
   const hintTop = ref(0);
   const hintLeft = ref(0);
@@ -29,7 +28,6 @@ export function useOverflowEdges(
       overflowStart.value = false;
       overflowEnd.value = false;
       hintVisible.value = false;
-      mobileUnpinStart.value = false;
       mobileUnpinEnd.value = false;
       return;
     }
@@ -40,38 +38,29 @@ export function useOverflowEdges(
       max > 1 && edgeIsOverflowing(leftGap, overflowStart.value);
     overflowEnd.value =
       max > 1 && edgeIsOverflowing(rightGap, overflowEnd.value);
-    const right = node.getBoundingClientRect().right;
-    let inset = 0;
-    let startInset = 0;
-    for (const cell of Array.from(
-      node.querySelectorAll<HTMLElement>("thead th"),
-    )) {
-      const style = getComputedStyle(cell);
-      if (style.position !== "sticky" || style.right === "auto") continue;
-      // The settings heading pins only its header cell; rows run beneath it to the border.
-      if (cell.classList.contains("data-table-settings-heading")) continue;
-      inset = Math.max(inset, right - cell.getBoundingClientRect().left);
-    }
-    for (const cell of Array.from(
-      node.querySelectorAll<HTMLElement>("thead th"),
-    )) {
-      const style = getComputedStyle(cell);
-      if (style.position !== "sticky" || style.left === "auto") continue;
-      startInset = Math.max(
-        startInset,
-        cell.getBoundingClientRect().right - node.getBoundingClientRect().left,
-      );
-    }
+    const headers = Array.from(node.querySelectorAll<HTMLElement>("thead th"));
+    const endWidth = headers
+      .filter((cell) => cell.classList.contains("data-table-pinned-end"))
+      .reduce((width, cell) => width + cell.offsetWidth, 0);
+    const settingsWidth =
+      headers.find((cell) =>
+        cell.classList.contains("data-table-settings-heading"),
+      )?.offsetWidth ?? 0;
+    const inset = endWidth + settingsWidth;
+    const startInset = headers
+      .filter(
+        (cell) =>
+          cell.classList.contains("data-table-pinned-start") ||
+          cell.classList.contains("data-table-selection-pinned"),
+      )
+      .reduce((width, cell) => width + cell.offsetWidth, 0);
     const phone =
       (typeof window.matchMedia === "function" &&
         window.matchMedia("(max-width: 1023px)").matches) ||
       window.innerWidth < 1024;
-    mobileUnpinStart.value = phone && startInset > node.clientWidth * 0.35;
-    mobileUnpinEnd.value = phone && inset > node.clientWidth * 0.35;
+    mobileUnpinEnd.value = phone && endWidth > node.clientWidth * 0.45;
     pinnedEndInset.value = mobileUnpinEnd.value ? 0 : Math.round(inset);
-    pinnedStartInset.value = mobileUnpinStart.value
-      ? 0
-      : Math.round(startInset);
+    pinnedStartInset.value = Math.round(startInset);
     const frameNode = frame.value;
     if (frameNode) {
       const rect = frameNode.getBoundingClientRect();
@@ -156,7 +145,6 @@ export function useOverflowEdges(
     overflowEnd,
     pinnedStartInset,
     pinnedEndInset,
-    mobileUnpinStart,
     mobileUnpinEnd,
     hintTop,
     hintLeft,

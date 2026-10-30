@@ -322,8 +322,11 @@ function itemFor(row: Record<string, unknown>) {
 	>
 		<template #group-metrics="{ group }">
 			<span class="allocation-group-metrics">
-				{{ group.count }} 种物品 · {{ groupLines(group).length }} 条明细 ·
-				{{ totals(groupLines(group)) }}
+				<span>{{ group.count }} 种物品</span>
+				<span class="allocation-group-separator"> · </span>
+				<span>{{ groupLines(group).length }} 条明细</span>
+				<span class="allocation-group-separator"> · </span>
+				<span>{{ totals(groupLines(group)) }}</span>
 			</span>
 		</template>
 		<template #cell="{ column, row }">
@@ -412,9 +415,18 @@ function itemFor(row: Record<string, unknown>) {
 	min-width: 0;
 }
 .allocation-group-metrics {
+	display: inline-flex;
+	max-width: 100%;
+	flex-wrap: wrap;
 	margin-inline-start: var(--p-space-2);
 	color: var(--p-muted);
 	font-size: var(--p-small);
+}
+.allocation-group-metrics > span:not(.allocation-group-separator) {
+	white-space: nowrap;
+}
+.allocation-group-separator {
+	white-space: pre;
 }
 .allocation-summary-table.is-collapsible .allocation-group-metrics {
 	flex: 1 0 100%;

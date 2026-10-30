@@ -25,6 +25,7 @@ export const productBatchColumns: DataColumn[] = [
   },
   {
     id: "available",
+    quantity: true,
     label: "可用数量",
     defaultVisible: true,
     sortable: true,
@@ -32,6 +33,7 @@ export const productBatchColumns: DataColumn[] = [
   },
   {
     id: "loaned",
+    quantity: true,
     label: "借出",
     defaultVisible: true,
     sortable: true,
@@ -39,6 +41,7 @@ export const productBatchColumns: DataColumn[] = [
   },
   {
     id: "damaged",
+    quantity: true,
     label: "损坏",
     defaultVisible: true,
     sortable: true,
@@ -82,6 +85,7 @@ export const productLocationColumns: DataColumn[] = [
   },
   {
     id: "available",
+    quantity: true,
     label: "可用数量",
     defaultVisible: true,
     sortable: true,
@@ -89,6 +93,7 @@ export const productLocationColumns: DataColumn[] = [
   },
   {
     id: "loaned",
+    quantity: true,
     label: "借出",
     defaultVisible: true,
     sortable: true,
@@ -96,6 +101,7 @@ export const productLocationColumns: DataColumn[] = [
   },
   {
     id: "damaged",
+    quantity: true,
     label: "损坏",
     defaultVisible: true,
     sortable: true,

@@ -8,6 +8,7 @@ export function operationColumnsFor(
     ? [
         {
           id: "document",
+          pinned: "start",
           label: "编号",
           export: ["document"],
           kind: "primary",
@@ -33,6 +34,7 @@ export function operationColumnsFor(
         { id: "time", label: "时间", defaultVisible: false, export: ["time"] },
         {
           id: "available_effect",
+          quantity: true,
           label: "可用变化",
           defaultVisible: true,
           align: "end",
@@ -46,6 +48,7 @@ export function operationColumnsFor(
         },
         {
           id: "quantities",
+          quantity: true,
           label: "库存数量",
           defaultVisible: false,
           align: "end",
@@ -111,6 +114,7 @@ export function operationColumnsFor(
     : [
         {
           id: "document",
+          pinned: "start",
           label: family === "loans" ? "借出单号" : "编号",
           export: ["document"],
           kind: "primary",
@@ -142,6 +146,7 @@ export function operationColumnsFor(
         },
         {
           id: "outstanding",
+          quantity: true,
           label: "未归还数量",
           defaultVisible: true,
           align: "end",
@@ -149,6 +154,7 @@ export function operationColumnsFor(
         },
         {
           id: "quantities",
+          quantity: true,
           label: "借出数量",
           defaultVisible: true,
           align: "end",
@@ -221,23 +227,32 @@ export function operationColumnsFor(
         },
         {
           id: "borrowed",
+          quantity: true,
           label: "借出数量",
           defaultVisible: false,
           export: ["borrowed"],
         },
         {
           id: "returned",
+          quantity: true,
           label: "已归还",
           defaultVisible: false,
           export: ["returned"],
         },
         {
           id: "damaged",
+          quantity: true,
           label: "损坏",
           defaultVisible: false,
           export: ["damaged"],
         },
-        { id: "lost", label: "遗失", defaultVisible: false, export: ["lost"] },
+        {
+          id: "lost",
+          label: "遗失",
+          defaultVisible: false,
+          export: ["lost"],
+          quantity: true,
+        },
         {
           id: "actions",
           label: "操作",
@@ -271,6 +286,7 @@ export function operationItemColumnsFor(
         },
         {
           id: "item_name",
+          pinned: "start",
           label: "物品名称",
           export: ["item_name"],
           defaultVisible: true,
@@ -346,6 +362,7 @@ export function operationItemColumnsFor(
         },
         {
           id: "available_effect",
+          quantity: true,
           label: "可用变化",
           defaultVisible: true,
           align: "end",
@@ -359,12 +376,14 @@ export function operationItemColumnsFor(
         },
         {
           id: "quantities",
+          quantity: true,
           label: "数量",
           defaultVisible: false,
           align: "end",
           sortable: true,
           sortField: "stock_qty",
           className: "operation-movement-quantity-column",
+          pinned: "end",
           export: ["stock_qty", "stock_uom"],
         },
         {
@@ -392,6 +411,7 @@ export function operationItemColumnsFor(
         },
         {
           id: "item_name",
+          pinned: "start",
           label: "物品名称",
           export: ["item_name"],
           defaultVisible: true,
@@ -410,7 +430,9 @@ export function operationItemColumnsFor(
         },
         {
           id: "quantities",
-          label: "数量（借出为正，归还为负）",
+          quantity: true,
+          label: "数量",
+          hint: "借出为正，归还为负",
           defaultVisible: false,
           align: "end",
           export: ["quantity", "stock_uom"],
@@ -488,16 +510,20 @@ export function operationItemColumnsFor(
         },
         {
           id: "outstanding",
+          quantity: true,
           label: "未归还数量",
           defaultVisible: true,
           export: ["outstanding", "stock_uom"],
           sortable: true,
           sortField: "outstanding",
           className: "operation-loan-outstanding-column",
+          pinned: "end",
         },
         {
           id: "borrowed",
-          label: "数量（借出为正，归还为负）",
+          quantity: true,
+          label: "数量",
+          hint: "借出为正，归还为负",
           defaultVisible: true,
           export: ["quantity", "stock_uom"],
           sortable: true,

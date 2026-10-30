@@ -146,6 +146,9 @@ export interface DataColumn<Row = Record<string, unknown>> {
   kind?: DataColumnKind;
   className?: string;
   align?: "start" | "center" | "end";
+  pinned?: "start" | "end";
+  hint?: string;
+  quantity?: boolean;
 }
 
 const numericColumnIds = new Set([

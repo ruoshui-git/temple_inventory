@@ -141,12 +141,10 @@ const columns = computed<DataColumn[]>(() => {
 								id: column,
 								label: column === "image" ? "图片" : columnLabel(column),
 							}),
-			className: [
-				quantityColumns.has(column) ? "report-quantity-cell" : "",
-				["batch", "batch_no"].includes(column) ? "report-batch-column" : "",
-			]
+			className: [["batch", "batch_no"].includes(column) ? "report-batch-column" : ""]
 				.filter(Boolean)
 				.join(" "),
+			quantity: quantityColumns.has(column),
 		}));
 	if (slots.actions)
 		data.push({
@@ -155,6 +153,7 @@ const columns = computed<DataColumn[]>(() => {
 			defaultVisible: true,
 			required: true,
 			kind: "actions",
+			pinned: props.stickyActions ? "end" : undefined,
 			className: props.stickyActions ? "report-sticky-actions-column" : undefined,
 		});
 	return data;

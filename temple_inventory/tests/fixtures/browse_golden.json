@@ -17,6 +17,7 @@
         0,
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -125,6 +126,7 @@
         0,
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -230,6 +232,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -337,6 +340,7 @@
         0,
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -621,6 +625,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -897,6 +902,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -1112,6 +1118,7 @@
       "statuses": [
         0
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -1242,6 +1249,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -1330,6 +1338,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -1412,6 +1421,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -1536,6 +1546,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -1942,6 +1953,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -2078,6 +2090,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -2203,6 +2216,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -2272,6 +2286,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -2480,6 +2495,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -2561,6 +2577,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -2859,6 +2876,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -2940,6 +2958,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -3247,6 +3266,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -3327,6 +3347,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -3618,6 +3639,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -3699,6 +3721,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -4207,6 +4230,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -4296,6 +4320,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -5151,6 +5176,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -5229,6 +5255,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -6151,6 +6178,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -6240,6 +6268,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -6496,6 +6525,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -6579,6 +6609,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -6810,6 +6841,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -6900,6 +6932,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -7188,6 +7221,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -7278,6 +7312,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -7710,6 +7745,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -7795,6 +7831,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -8009,6 +8046,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -8078,6 +8116,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -8651,6 +8690,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -8736,6 +8776,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -9013,6 +9054,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -9103,6 +9145,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -9321,6 +9364,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -9399,6 +9443,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,
@@ -9662,6 +9707,7 @@
       "statuses": [
         1
       ],
+      "stockState": "in_stock",
       "includeZero": false,
       "loanScope": "outstanding",
       "includeUndated": true,

@@ -316,6 +316,7 @@ QUERY_DEFAULT = {
 	"sort": "asc",
 	"sortBy": "identity",
 	"statuses": [1],
+	"stockState": "in_stock",
 	"includeZero": False,
 	"loanScope": "outstanding",
 	"includeUndated": True,
@@ -454,6 +455,7 @@ def validate_query(value):
 	):
 		frappe.throw("请选择有效的排序")
 	for field, allowed in {
+		"stockState": ("in_stock", "available", "no_available", "no_stock", "all"),
 		"activityStatus": ("all", "active", "archived"),
 		"loanStatus": ("all", "outstanding", "open", "settled"),
 		"loanScope": ("outstanding", "all"),
@@ -502,6 +504,20 @@ def validate_query(value):
 		frappe.throw("请选择有效的物品追踪方式")
 	if query["scope"]["tracking"] == "batch_only" and dataset != "expiry":
 		frappe.throw("此数据集不支持该物品追踪筛选")
+	if (dataset, query["view"]) in {
+		("movements", "records"),
+		("loans", "records"),
+		("loans", "outcomes"),
+		("loans", "settlements"),
+		("counts", "records"),
+		("activities", "records"),
+	}:
+		query["scope"]["categories"] = []
+		query["scope"]["uncategorized"] = False
+	if dataset == "inventory":
+		query["includeZero"] = False
+	if dataset != "inventory":
+		query["stockState"] = "in_stock"
 	if dataset == "inventory" and query["view"] == "historical" and query["scope"]["period"]["key"] == "all":
 		frappe.throw("历史库存需要有起止日期的范围")
 	return query

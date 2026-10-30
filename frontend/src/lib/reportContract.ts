@@ -1,3 +1,4 @@
+import type { stockStateLabels } from "./presentationLabels";
 import { emptyScope, type BrowseScope, type DatePeriod } from "./browseQuery";
 export type ReportDataset =
   "inventory" | "expiry" | "movements" | "loans" | "activities" | "counts";
@@ -465,6 +466,7 @@ export interface ReportQuery {
   sort: "asc" | "desc";
   sortBy: string;
   statuses: number[];
+  stockState: keyof typeof stockStateLabels;
   includeZero: boolean;
   loanScope: "outstanding" | "all";
   includeUndated: boolean;
@@ -507,6 +509,7 @@ export function newReportQuery(
     sort: "asc",
     sortBy: "identity",
     statuses: [1],
+    stockState: "in_stock",
     includeZero: false,
     loanScope: "outstanding",
     includeUndated: true,

@@ -63,7 +63,7 @@ export function useStockBrowseController(
     sort = ref("item_name"),
     descending = ref(false),
     selected = ref<string[]>([]),
-    inStockOnly = ref(true),
+    stockState = ref<ReportQuery["stockState"]>("in_stock"),
     analysisDimension = ref<"category" | "location">("category");
   const scope = ref(browseDefaults("inventory", "summary").scope);
   const stopCategoryRename = onCategoryRenamed(({ oldName, category }) => {
@@ -94,7 +94,8 @@ export function useStockBrowseController(
   const query = computed<ReportQuery>(() => {
     const value = JSON.parse(JSON.stringify(constraints.value)) as ReportQuery;
     value.search = search.value;
-    value.includeZero = !inStockOnly.value;
+    value.stockState = stockState.value;
+    value.includeZero = false;
     value.sortBy = sort.value;
     value.sort = descending.value ? "desc" : "asc";
     value.scope = JSON.parse(JSON.stringify(scope.value));
@@ -109,7 +110,7 @@ export function useStockBrowseController(
       constraints.value = JSON.parse(JSON.stringify(incoming));
       scope.value = JSON.parse(JSON.stringify(incoming.scope));
       search.value = incoming.search;
-      inStockOnly.value = !incoming.includeZero;
+      stockState.value = incoming.stockState;
       sort.value = [
         "item_name",
         "item_code",
@@ -279,7 +280,7 @@ export function useStockBrowseController(
       browseDefaults("inventory", "summary"),
       routeScope,
     );
-    inStockOnly.value = true;
+    stockState.value = "in_stock";
     scope.value = browseDefaults("inventory", "summary").scope;
   }
   function setItemStatus(value: ReportQuery["itemStatus"]) {
@@ -300,8 +301,8 @@ export function useStockBrowseController(
       ...chip,
       remove: () => {
         Object.assign(constraints.value, chip.reset);
-        if ("includeZero" in chip.reset)
-          inStockOnly.value = !chip.reset.includeZero;
+        if ("stockState" in chip.reset)
+          stockState.value = chip.reset.stockState || "in_stock";
       },
     })),
   ]);
@@ -399,7 +400,7 @@ export function useStockBrowseController(
     sort,
     descending,
     selected,
-    inStockOnly,
+    stockState,
     setItemStatus,
     analysisDimension,
     scope,

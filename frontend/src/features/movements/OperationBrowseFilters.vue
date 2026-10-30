@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { watch } from "vue";
 import FilterDisclosure from "../../components/ui/FilterDisclosure.vue";
 import BrowseFilters from "../../components/filters/BrowseFilters.vue";
 import ItemStatusFilter from "../../components/filters/ItemStatusFilter.vue";
@@ -34,6 +35,16 @@ function setPersonName(name: string) {
 }
 
 const { query, scope, status, statusChoices, extraChips } = props.controller;
+watch(
+	() => props.records,
+	(records) => {
+		if (records) {
+			scope.value.categories = [];
+			scope.value.uncategorized = false;
+		}
+	},
+	{ immediate: true },
+);
 </script>
 <template>
 	<div class="operation-browse-filters browse-filter-dense">
@@ -95,6 +106,7 @@ const { query, scope, status, statusChoices, extraChips } = props.controller;
 				>
 					<RemoteSelect
 						label="人员"
+						external-label
 						:model-value="query.person.name"
 						:context="query.person.role"
 						:load="loadPeople"
@@ -122,7 +134,12 @@ const { query, scope, status, statusChoices, extraChips } = props.controller;
 					field="borrower"
 					:summary="query.borrower || '不限'"
 				>
-					<RemoteSelect label="借用方" v-model="query.borrower" :load="loadBorrowers" />
+					<RemoteSelect
+						label="借用方"
+						external-label
+						v-model="query.borrower"
+						:load="loadBorrowers"
+					/>
 				</FilterDisclosure>
 				<FilterDisclosure
 					v-if="family === 'loans'"

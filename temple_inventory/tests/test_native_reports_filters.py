@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -16,6 +17,127 @@ from temple_inventory.tests.helpers import NativeReportTestCase
 
 
 class NativeReportsFiltersTests(NativeReportTestCase):
+	def test_document_record_views_drop_category_scope(self):
+		for dataset, view in (
+			("movements", "records"),
+			("loans", "records"),
+			("loans", "outcomes"),
+			("loans", "settlements"),
+			("counts", "records"),
+			("activities", "records"),
+		):
+			query = validate_query(
+				{
+					"dataset": dataset,
+					"view": view,
+					"scope": {"categories": ["Item Group"], "uncategorized": True},
+				}
+			)
+			self.assertEqual(query["scope"]["categories"], [], (dataset, view))
+			self.assertFalse(query["scope"]["uncategorized"], (dataset, view))
+
+	def test_stock_state_filters_whole_items_using_available_and_total_balances(self):
+		from temple_inventory.report_sources import stock_rows
+
+		items = {
+			"Partly available": SimpleNamespace(
+				name="Partly available",
+				item_name="Partial",
+				description="",
+				item_group="Root",
+				stock_uom="Nos",
+				has_batch_no=False,
+				has_expiry_date=False,
+				disabled=False,
+			),
+			"Loaned only": SimpleNamespace(
+				name="Loaned only",
+				item_name="Loaned",
+				description="",
+				item_group="Root",
+				stock_uom="Nos",
+				has_batch_no=False,
+				has_expiry_date=False,
+				disabled=False,
+			),
+			"Damaged only": SimpleNamespace(
+				name="Damaged only",
+				item_name="Damaged",
+				description="",
+				item_group="Root",
+				stock_uom="Nos",
+				has_batch_no=False,
+				has_expiry_date=False,
+				disabled=False,
+			),
+			"No stock": SimpleNamespace(
+				name="No stock",
+				item_name="Empty",
+				description="",
+				item_group="Root",
+				stock_uom="Nos",
+				has_batch_no=False,
+				has_expiry_date=False,
+				disabled=False,
+			),
+		}
+		pairs = [
+			("Partly available", "Shelf", 2),
+			("Partly available", "Loan Warehouse", 3),
+			("Loaned only", "Loan Warehouse", 4),
+			("Damaged only", "Damaged Warehouse", 2),
+			("No stock", "", 0),
+		]
+		context = SimpleNamespace(
+			query={
+				"dataset": "inventory",
+				"stockState": "in_stock",
+				"includeZero": False,
+				"damageOnly": False,
+				"batchNoExact": False,
+				"batchNo": "",
+				"restrictAllocations": False,
+				"allocationKeys": [],
+				"record": "",
+				"recordDoctype": "",
+				"loan": "",
+			},
+			scope={
+				"activity": "",
+				"kinds": [],
+				"sources": [],
+				"destinations": [],
+				"item": "",
+				"tracking": "all",
+				"categories": [],
+				"uncategorized": False,
+			},
+			selected={"Shelf", "Loan Warehouse", "Damaged Warehouse"},
+			leased={"Loan Warehouse"},
+			damaged={"Damaged Warehouse"},
+			load_item_attachments=False,
+			snapshot="2026-10-30 00:00:00",
+			snapshot_is_now=True,
+			item=lambda code: items.get(code),
+			preload_items=lambda _codes: None,
+			matches_item=lambda _code, _warehouse: True,
+			item_fields=lambda item: {"item_code": item.name, "item_name": item.item_name},
+			matches_search=lambda _values: True,
+			label=lambda warehouse: warehouse,
+			location_fields=lambda _warehouse: {},
+		)
+		with patch("temple_inventory.report_sources.stock_pairs", return_value=pairs):
+			for state, expected in (
+				("in_stock", {"Partly available", "Loaned only", "Damaged only"}),
+				("available", {"Partly available"}),
+				("no_available", {"Loaned only", "Damaged only", "No stock"}),
+				("no_stock", {"No stock"}),
+				("all", {"Partly available", "Loaned only", "Damaged only", "No stock"}),
+			):
+				context.query["stockState"] = state
+				rows = list(stock_rows(context))
+				self.assertEqual({row["item_code"] for row in rows}, expected, state)
+
 	def test_period_resolution_matches_shared_frontend_fixture(self):
 		fixture_path = Path(__file__).parents[2] / "frontend" / "tests" / "fixtures" / "periods.json"
 		fixture = json.loads(fixture_path.read_text())

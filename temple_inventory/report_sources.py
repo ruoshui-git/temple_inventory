@@ -601,7 +601,11 @@ def stock_pairs(context, item_codes=None):
 		filters["item_code"] = ["in", sorted(set(item_codes)) or [""]]
 	for value in paged("Bin", filters=filters, fields=["item_code", "warehouse", "actual_qty"]):
 		yield value.item_code, value.warehouse, float(value.actual_qty or 0)
-	if context.query["includeZero"]:
+	include_zero_items = context.query["includeZero"] or (
+		context.query["dataset"] == "inventory"
+		and context.query["stockState"] in ("no_available", "no_stock", "all")
+	)
+	if include_zero_items:
 		item_filters = {"is_stock_item": 1}
 		if item_codes is not None:
 			item_filters["name"] = ["in", sorted(set(item_codes)) or [""]]
@@ -619,6 +623,7 @@ def stock_rows(context, *, item_codes=None):
 	context.preload_items(codes)
 	if context.load_item_attachments:
 		context.preload_item_attachments(codes)
+	rows_by_item = defaultdict(list)
 	for code, warehouse, bin_quantity in pairs:
 		if not context.matches_item(code, warehouse):
 			continue
@@ -636,7 +641,10 @@ def stock_rows(context, *, item_codes=None):
 			# movement restriction must never silently become unrestricted stock.
 			continue
 		if item.has_batch_no and warehouse:
-			balances = batch_balances(code, warehouse, context.snapshot, include_zero=query["includeZero"])
+			include_zero = query["includeZero"] or (
+				query["dataset"] == "inventory" and query["stockState"] in ("no_available", "no_stock", "all")
+			)
+			balances = batch_balances(code, warehouse, context.snapshot, include_zero=include_zero)
 			quantities = [(row.get("batch_no"), row.get("qty", 0)) for row in balances]
 		else:
 			quantity = (
@@ -647,7 +655,10 @@ def stock_rows(context, *, item_codes=None):
 				else 0
 			)
 			quantities = [(None, quantity)]
-		if not quantities and query["includeZero"]:
+		include_zero = query["includeZero"] or (
+			query["dataset"] == "inventory" and query["stockState"] in ("no_available", "no_stock", "all")
+		)
+		if not quantities and include_zero:
 			quantities = [(None, 0)]
 		for batch_name, quantity in quantities:
 			if query.get("batchNoExact") and (batch_name or "") != query["batchNo"]:
@@ -663,7 +674,7 @@ def stock_rows(context, *, item_codes=None):
 				and f"{code}/{warehouse}/{batch_name or ''}" not in query["allocationKeys"]
 			):
 				continue
-			if not quantity and not query["includeZero"]:
+			if not quantity and not include_zero:
 				continue
 			batch = None
 			if batch_name:
@@ -700,22 +711,41 @@ def stock_rows(context, *, item_codes=None):
 			)
 			if query["damageOnly"] and kind != "damaged":
 				continue
-			yield {
-				"id": allocation_id,
-				**context.item_fields(item),
-				"warehouse": warehouse,
-				"warehouse_label": context.label(warehouse),
-				**context.location_fields(warehouse),
-				"batch_no": batch_name or "",
-				"manufacturing_date": str(batch.manufacturing_date or "") if batch else "",
-				"expiry_date": expiry,
-				"remaining_days": (getdate(expiry) - getdate(nowdate())).days if expiry else None,
-				"available": float(quantity) if kind == "available" else 0,
-				"loaned": float(quantity) if kind == "loaned" else 0,
-				"damaged": float(quantity) if kind == "damaged" else 0,
-				"stock_qty": float(quantity),
-				"snapshot": context.snapshot,
-			}
+			rows_by_item[code].append(
+				{
+					"id": allocation_id,
+					**context.item_fields(item),
+					"warehouse": warehouse,
+					"warehouse_label": context.label(warehouse),
+					**context.location_fields(warehouse),
+					"batch_no": batch_name or "",
+					"manufacturing_date": str(batch.manufacturing_date or "") if batch else "",
+					"expiry_date": expiry,
+					"remaining_days": (getdate(expiry) - getdate(nowdate())).days if expiry else None,
+					"available": float(quantity) if kind == "available" else 0,
+					"loaned": float(quantity) if kind == "loaned" else 0,
+					"damaged": float(quantity) if kind == "damaged" else 0,
+					"stock_qty": float(quantity),
+					"snapshot": context.snapshot,
+				}
+			)
+	if query["dataset"] != "inventory":
+		for rows in rows_by_item.values():
+			yield from rows
+		return
+	stock_state = query["stockState"]
+	for _code, rows in rows_by_item.items():
+		available = sum(row["available"] for row in rows)
+		total = sum(row["stock_qty"] for row in rows)
+		keep = {
+			"in_stock": any(row["stock_qty"] != 0 for row in rows),
+			"available": available > 0,
+			"no_available": available <= 0,
+			"no_stock": total == 0,
+			"all": True,
+		}[stock_state]
+		if keep:
+			yield from rows
 
 
 def document_kind(doc):

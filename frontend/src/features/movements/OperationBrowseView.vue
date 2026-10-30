@@ -1038,7 +1038,11 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							@toggle="toggleFilters"
 						/>
 					</div>
-					<BrowseFilters v-model="scope" :fields="['categories', 'warehouses']" />
+					<BrowseFilters
+						v-model="scope"
+						:fields="['categories', 'warehouses']"
+						:records="records"
+					/>
 				</aside>
 				<FilterRailEdge
 					v-if="!filtersOpen && !isMobile"

@@ -12,6 +12,7 @@ export function inventoryColumnsForPage(
     },
     {
       id: "item_name",
+      pinned: "start",
       label: "物品名称",
       defaultVisible: true,
       export: ["item_name"],
@@ -27,6 +28,7 @@ export function inventoryColumnsForPage(
     },
     {
       id: "available",
+      quantity: true,
       label: "可用数量",
       defaultVisible: true,
       sortable: true,
@@ -80,6 +82,7 @@ export function inventoryColumnsForPage(
     },
     {
       id: "loaned",
+      quantity: true,
       label: "借出",
       defaultVisible: false,
       sortable: true,
@@ -88,6 +91,7 @@ export function inventoryColumnsForPage(
     },
     {
       id: "damaged",
+      quantity: true,
       label: "损坏",
       defaultVisible: false,
       sortable: true,
@@ -96,6 +100,7 @@ export function inventoryColumnsForPage(
     },
     {
       id: "total",
+      quantity: true,
       label: "合计",
       defaultVisible: false,
       sortable: true,

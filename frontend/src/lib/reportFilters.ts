@@ -1,3 +1,4 @@
+import { stockStateLabels } from "./presentationLabels";
 import type { ReferenceData } from "../services/contracts";
 import {
   movementLabels,
@@ -91,6 +92,7 @@ export function reportFilterChips(
   ) => {
     const fieldByKey: Record<string, string> = {
       statuses: "status",
+      stockState: "stockState",
       includeZero: "includeZero",
       includeUndated: "includeUndated",
       activityStatus: "activityStatus",
@@ -132,7 +134,7 @@ export function reportFilterChips(
     );
   }
   if (
-    (["inventory", "expiry"].includes(query.dataset) ||
+    (query.dataset === "expiry" ||
       (query.dataset === "loans" && query.view === "items")) &&
     query.includeZero
   )
@@ -141,6 +143,15 @@ export function reportFilterChips(
       query.dataset === "loans" ? "显示已结清物品" : "包含零库存",
       { includeZero: false },
     );
+  if (
+    query.dataset === "inventory" &&
+    query.view !== "historical" &&
+    query.stockState !== "in_stock"
+  ) {
+    add("stockState", `库存状态：${stockStateLabels[query.stockState]}`, {
+      stockState: "in_stock",
+    });
+  }
   if (
     query.dataset === "expiry" &&
     query.expiryWindow === "period" &&

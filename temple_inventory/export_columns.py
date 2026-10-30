@@ -1,7 +1,5 @@
 """Readable export fields and per-table screen column defaults."""
 
-# ruff: noqa: RUF001 — Chinese UI punctuation is intentional.
-
 LABELS = {
 	"item_name": "物品名称",
 	"item_code": "物品编号",
@@ -107,7 +105,7 @@ TABLE_LABELS = {
 		"document": "编号",
 		"source_warehouse": "来源位置",
 		"destination_warehouse": "去向位置",
-		"quantity": "数量（借出为正，归还为负）",
+		"quantity": "数量",
 		"stock_uom": "单位",
 		"kind": "类型",
 	},

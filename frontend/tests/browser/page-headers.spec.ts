@@ -200,9 +200,18 @@ for (const width of [390, 1440]) {
             "--data-table-settings-column-width",
             "0px",
           );
-          await expect(
-            page.locator(".report-sticky-actions-column").first(),
-          ).toHaveCSS("right", "0px");
+          const tableScroll = page.locator(".data-table-scroll").first();
+          if (
+            await tableScroll.evaluate((node) =>
+              node.classList.contains("is-overflowing"),
+            )
+          ) {
+            await expect(
+              page.locator(".data-table-pinned-end").first(),
+            ).toHaveCSS("right", "0px");
+          } else {
+            await expect(tableScroll).not.toHaveClass(/is-overflowing/);
+          }
         }
       }
       if (

@@ -45,7 +45,14 @@ describe("table column contracts", () => {
       })),
     );
     const wrapper = mount(DataTable, {
-      props: { ariaLabel: "横向表格", columns, rows: [] },
+      props: {
+        ariaLabel: "横向表格",
+        columns: columns.map((column, index) => ({
+          ...column,
+          pinned: index === 0 ? "start" : index === 2 ? "end" : undefined,
+        })),
+        rows: [],
+      },
       attachTo: document.body,
     });
     wrappers.push(wrapper);
@@ -53,6 +60,10 @@ describe("table column contracts", () => {
     const headerCells = wrapper.findAll<HTMLElement>("thead th");
     headerCells[0]!.element.style.position = "sticky";
     headerCells[0]!.element.style.left = "0px";
+    Object.defineProperty(headerCells[0]!.element, "offsetWidth", {
+      configurable: true,
+      value: 35,
+    });
     headerCells[0]!.element.getBoundingClientRect = () =>
       ({
         x: 0,
@@ -67,6 +78,10 @@ describe("table column contracts", () => {
       }) as DOMRect;
     headerCells[2]!.element.style.position = "sticky";
     headerCells[2]!.element.style.right = "0px";
+    Object.defineProperty(headerCells[2]!.element, "offsetWidth", {
+      configurable: true,
+      value: 90,
+    });
     headerCells[2]!.element.getBoundingClientRect = () =>
       ({
         x: 410,
@@ -248,7 +263,7 @@ describe("table column contracts", () => {
           {
             id: "actions",
             label: "操作",
-            className: "report-sticky-actions-column",
+            pinned: "end",
           },
         ],
         rows: [],
@@ -260,6 +275,10 @@ describe("table column contracts", () => {
     header.style.position = "sticky";
     header.style.right = "0px";
     let pinnedWidth = 130;
+    Object.defineProperty(header, "offsetWidth", {
+      configurable: true,
+      get: () => pinnedWidth,
+    });
     header.getBoundingClientRect = () =>
       ({
         left: 390 - pinnedWidth,
@@ -287,7 +306,7 @@ describe("table column contracts", () => {
     await nextFrame();
     await nextTick();
     expect(scroll.classList.contains("is-mobile-unpin-end")).toBe(false);
-    pinnedWidth = 150;
+    pinnedWidth = 180;
     scroll.dispatchEvent(new Event("scroll"));
     await nextFrame();
     await nextTick();
@@ -843,12 +862,12 @@ describe("shared data table", () => {
     expect(wrapper.text()).toContain("网络暂不可用");
   });
 
-  it("spans the group identity across leading columns and keeps the summary aligned", () => {
+  it("spans through the group label after a leading thumbnail column", () => {
     const wrapper = mount(DataTable, {
       props: {
         ariaLabel: "分组列对齐",
         columns: [
-          { id: "code", label: "编号" },
+          { id: "image", label: "图片", kind: "thumb" },
           { id: "name", label: "名称" },
           { id: "quantity", label: "数量" },
         ],
@@ -858,6 +877,7 @@ describe("shared data table", () => {
             id: "group-1",
             label: "很长的分组名称",
             labelColumn: "name",
+            countColumn: "name",
             depth: 1,
             count: 4,
             expanded: false,
@@ -865,11 +885,15 @@ describe("shared data table", () => {
             value: { quantity: 12 },
           },
         ],
-        groupSummaryColumns: () => ["quantity"],
+        groupSummaryColumns: () => ["name"],
       },
       slots: {
         "group-column": ({ column }: { column: DataColumn }) =>
-          column.id === "quantity" ? "12 个" : "",
+          column.id === "name"
+            ? "汇总"
+            : column.id === "quantity"
+              ? "12 个"
+              : "",
       },
     });
     wrappers.push(wrapper);
@@ -883,6 +907,71 @@ describe("shared data table", () => {
     expect(
       wrapper.get(".data-table-group-toggle").attributes("aria-expanded"),
     ).toBe("false");
+  });
+
+  it("shows accessible column hints from an independent header control", async () => {
+    const wrapper = mount(DataTable, {
+      props: {
+        ariaLabel: "提示表格",
+        columns: [
+          {
+            id: "quantity",
+            label: "数量",
+            sortable: true,
+            hint: "借出为正，归还为负",
+          },
+        ],
+        rows: [],
+      },
+      attachTo: document.body,
+    });
+    wrappers.push(wrapper);
+    const hint = wrapper.get(".data-table-header-hint");
+    await hint.trigger("click");
+    await nextTick();
+    const descriptionId = wrapper
+      .get("thead th")
+      .attributes("aria-describedby");
+    expect(descriptionId).toBeTruthy();
+    expect(wrapper.get(`#${descriptionId}`).text()).toBe("借出为正，归还为负");
+    expect(document.body.textContent).toContain("借出为正，归还为负");
+    expect(wrapper.get(".data-table-sort").text()).toContain("数量");
+    expect(hint.element).not.toBe(wrapper.get(".data-table-sort").element);
+  });
+
+  it("marks identity and quantity columns and activates pinning only with overflow", async () => {
+    const wrapper = mount(DataTable, {
+      props: {
+        ariaLabel: "身份与数量",
+        columns: [
+          { id: "item_name", label: "物品名称", pinned: "start" },
+          { id: "available", label: "可用数量", quantity: true },
+        ],
+        rows: [
+          {
+            kind: "record",
+            id: "item-1",
+            value: { item_name: "物品甲", available: 12 },
+          },
+        ],
+      },
+      attachTo: document.body,
+    });
+    wrappers.push(wrapper);
+    const scroll = wrapper.get<HTMLElement>(".data-table-scroll").element;
+    expect(scroll.classList.contains("is-overflowing")).toBe(false);
+    expect(wrapper.get("thead th.data-table-pinned-start").exists()).toBe(true);
+    expect(wrapper.get("tbody td.data-table-pinned-start").exists()).toBe(true);
+    expect(wrapper.get("thead th.quantity-column").exists()).toBe(true);
+    expect(wrapper.get("tbody td.quantity-column").exists()).toBe(true);
+    Object.defineProperties(scroll, {
+      scrollWidth: { configurable: true, value: 900 },
+      clientWidth: { configurable: true, value: 390 },
+    });
+    scroll.dispatchEvent(new Event("scroll"));
+    await nextFrame();
+    await nextTick();
+    expect(scroll.classList.contains("is-overflowing")).toBe(true);
   });
 
   it("does not prevent native Space behavior for a control inside a group row", async () => {
