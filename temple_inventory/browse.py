@@ -11,7 +11,7 @@ from temple_inventory.activities import activity_types
 from temple_inventory.configuration import status as configuration_status
 from temple_inventory.native_access import require_app
 from temple_inventory.native_stock import warehouse_scopes
-from temple_inventory.projections import Projection, report_page  # noqa: F401
+from temple_inventory.projections import Projection, add_authorized_page_images, report_page  # noqa: F401
 from temple_inventory.report_query import validate_query
 from temple_inventory.report_sources import (
 	available_scope_leaves,
@@ -248,6 +248,7 @@ def _expiry_page(query, start=0, page_length=30, refresh=False):
 				dimension: _expiry_analysis(projection, dimension) for dimension in ("category", "warehouse")
 			},
 		}
+		add_authorized_page_images(projection.context, result["rows"])
 		facet_query = {**projection.query, "expiryWindow": "period"}
 	# Facets cover the complete applicable scope, excluding only their own choice.
 	with _expiry_projection(facet_query, refresh=refresh) as projection:
@@ -441,6 +442,10 @@ def _dashboard_card(card, scope, movement_period, distribution, refresh=False):
 			"query": projection.query,
 			"expiry_preview_limit": DASHBOARD_EXPIRY_PREVIEW_LIMIT,
 		}
+		add_authorized_page_images(
+			projection.context,
+			[*result["expiry_rows"]["expired"], *result["expiry_rows"]["upcoming"]],
+		)
 		if card == "reminders":
 			result["expired_count"] = sum(
 				len(values) for key, values in buckets.items() if key.startswith("expired_")

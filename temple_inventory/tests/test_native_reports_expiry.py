@@ -1,9 +1,11 @@
 """Report/export contracts exercised against real native stock and permissions."""
 
+from io import BytesIO
 from unittest.mock import patch
 from uuid import uuid4
 
 import frappe
+from PIL import Image
 
 from temple_inventory import browse, catalog, counts, native_api
 from temple_inventory.projections import report_page
@@ -11,6 +13,42 @@ from temple_inventory.tests.helpers import NativeReportTestCase
 
 
 class NativeReportsExpiryTests(NativeReportTestCase):
+	def test_dashboard_expiry_images_do_not_poison_unfiltered_expiry_page_cache(self):
+		item = frappe.get_doc("Item", self.item)
+		item.has_batch_no = 1
+		item.has_expiry_date = 1
+		item.save()
+		batch = catalog.create_batch(
+			self.item,
+			"TI-IMAGE-EXPIRY-" + self.token,
+			expiry_date=frappe.utils.add_days(frappe.utils.nowdate(), 14),
+		)
+		data = self.movement(quantity=5)
+		data["items"][0].update({"batch_no": batch["name"], "use_serial_batch_fields": 1})
+		self.submit(self.create(data))
+		buffer = BytesIO()
+		Image.new("RGB", (8, 8), "blue").save(buffer, "PNG")
+		file = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": f"expiry-{self.token}.png",
+				"content": buffer.getvalue(),
+				"is_private": 1,
+				"attached_to_doctype": "Item",
+				"attached_to_name": self.item,
+				"attached_to_field": "image",
+			}
+		).insert()
+		item = frappe.get_doc("Item", self.item)
+		item.image = file.file_url
+		item.save()
+		query = self.query("expiry", "batches")
+
+		dashboard = browse._dashboard_card("expiry", query["scope"], None, "location")
+		self.assertEqual(dashboard["expiry_rows"]["upcoming"][0]["image"], file.file_url)
+		page = browse._expiry_page(query, 0, 30)
+		self.assertEqual(page["rows"][0]["image"], file.file_url)
+
 	def test_count_adjustment_history_uses_counted_location_as_source_only(self):
 		self.receipt(10)
 		count = counts.save_count(str(uuid4()), self.count_data(8, "Reviewed"))

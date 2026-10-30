@@ -60,12 +60,9 @@ onBeforeUnmount(() => {
 	window.removeEventListener("resize", updateRatio);
 	resizeObserver?.disconnect();
 });
-watch(
-	() => [source.value, props.item.code],
-	() => {
-		open.value = false;
-	},
-);
+watch([source, () => props.item.code], () => {
+	open.value = false;
+});
 onDeactivated(() => {
 	open.value = false;
 });

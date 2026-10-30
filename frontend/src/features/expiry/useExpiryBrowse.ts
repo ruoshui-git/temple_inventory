@@ -65,6 +65,7 @@ export function useExpiryBrowse(
     disposed = false,
     retryMore = false;
   const requests = new Set<AbortController>();
+  const itemByRow = new WeakMap<ReportRow, StockItem>();
   const active = (current = generation) =>
     !disposed && current === generation && reference.user === account;
   function cancel() {
@@ -322,7 +323,9 @@ export function useExpiryBrowse(
     routeError.value = "";
   }
   function item(row: ReportRow): StockItem {
-    return {
+    const cached = itemByRow.get(row);
+    if (cached) return cached;
+    const value: StockItem = {
       code: String(row.item_code),
       name: String(row.item_name),
       category: String(row.category),
@@ -335,6 +338,8 @@ export function useExpiryBrowse(
       loaned: Number(row.loaned),
       damaged: Number(row.damaged),
     };
+    itemByRow.set(row, value);
+    return value;
   }
   function batchQuery(row: ReportRow) {
     const value = JSON.parse(JSON.stringify(query.value)) as ReportQuery;

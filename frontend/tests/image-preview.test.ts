@@ -63,6 +63,18 @@ describe("shared native Item artwork", () => {
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(document.activeElement).toBe(trigger.element);
   });
+  it("keeps the lightbox open when the item object is replaced with equal values", async () => {
+    const wrapper = setup({});
+    await wrapper.get("button.item-image-button").trigger("click");
+    await flushPromises();
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+    await wrapper.setProps({ item: { ...item } });
+    await flushPromises();
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+    await wrapper.setProps({ item: { ...item, code: "ITEM-2" } });
+    await flushPromises();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
   it("separates detail navigation from enlarge and dismisses a stale image after Item changes", async () => {
     const wrapper = setup({ interaction: "detail" });
     await wrapper.get("button.item-image-detail").trigger("click");

@@ -459,6 +459,7 @@ def _projection_identity(projection, generation, permission, configuration):
 	query = {**query, "scope": dict(query.get("scope") or {})}
 	query["include_related"] = bool(getattr(projection, "related", False))
 	query["complete_records"] = bool(getattr(projection, "complete_records", True))
+	query["load_item_attachments"] = bool(getattr(projection, "load_item_attachments", True))
 	for field in ("statuses", "itemCodes", "itemLocationKeys", "allocationKeys"):
 		if isinstance(query.get(field), list):
 			query[field] = sorted(set(query[field]))

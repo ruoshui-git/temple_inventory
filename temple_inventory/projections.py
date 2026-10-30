@@ -595,7 +595,7 @@ def _add_authorized_item_images(context, rows):
 	return rows
 
 
-def _add_authorized_page_images(context, rows):
+def add_authorized_page_images(context, rows):
 	"""Check only page item covers after the reusable base projection is built."""
 	codes = {row.get("item_code") for row in rows if row.get("image") is not None and row.get("item_code")}
 	context.preload_primary_item_images(codes)
@@ -1714,7 +1714,7 @@ def _report_page(query, start, page_length, table, include_related, refresh=Fals
 		if projection.query["groupBy"]:
 			_add_authorized_item_images(projection.context, rows)
 		elif projection.hydrate_page_images:
-			_add_authorized_page_images(projection.context, rows)
+			add_authorized_page_images(projection.context, rows)
 		return {
 			"query": projection.query,
 			"scope": projection.context.scope,
