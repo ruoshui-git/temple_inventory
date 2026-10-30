@@ -294,11 +294,23 @@ select {
 }
 .line-search {
 	flex: 1 1 220px;
-	min-width: min(100%, 190px);
+	min-width: 0;
 }
 .line-search input {
 	flex: 1 1 150px;
-	width: auto;
+	min-width: 0;
+	width: 100%;
+}
+@container (max-width: 780px) {
+	.line-toolbar,
+	.line-toolbar.has-transfer-destination {
+		grid-template-columns: minmax(0, 1fr) auto auto;
+	}
+	.line-search {
+		grid-column: 1 / -1;
+		min-width: 0;
+		white-space: normal;
+	}
 }
 .line-toolbar-status {
 	display: flex;
@@ -597,46 +609,17 @@ select {
 	min-height: 1px;
 }
 .operation-row-menu {
-	position: relative;
 	justify-self: end;
 }
-.operation-row-menu > summary {
-	min-width: 36px;
-	text-align: center;
-	list-style: none;
-}
-.operation-row-menu > summary::-webkit-details-marker {
-	display: none;
-}
-.operation-row-menu-content {
-	position: absolute;
-	right: 0;
-	top: calc(100% + 4px);
-	z-index: var(--p-z-menu);
+.operation-row-menu-panel {
 	display: grid;
 	width: 280px;
 	min-width: 260px;
-	padding: var(--p-space-2);
-	background: var(--p-surface);
-	border: 1px solid var(--p-border);
-	border-radius: var(--p-radius-card);
-	box-shadow: var(--p-shadow-menu);
 }
-.operation-row-menu-content .search-select,
-.operation-row-menu-content .search-select-input {
+.operation-row-menu-panel .search-select,
+.operation-row-menu-panel .search-select-input {
 	width: 100%;
 	min-width: 0;
-}
-.operation-row-menu-content > button {
-	min-height: var(--p-control);
-	padding: 0 var(--p-space-2);
-	border: 0;
-	background: transparent;
-	text-align: start;
-	color: var(--p-ink);
-}
-.operation-row-menu-content > button:hover {
-	background: var(--p-soft);
 }
 .operation-add-section {
 	padding-block: var(--p-space-2);
@@ -711,10 +694,6 @@ select {
 	.operation-compact-identity strong {
 		-webkit-line-clamp: 2;
 	}
-	.operation-row-menu {
-		grid-column: 3;
-		grid-row: 1;
-	}
 	.operation-row-batch {
 		display: grid;
 		grid-column: 1 / -1;
@@ -724,6 +703,10 @@ select {
 			minmax(132px, 1.2fr)
 			minmax(132px, 1.2fr);
 		gap: 2px;
+	}
+	.operation-row-menu {
+		grid-column: 3;
+		grid-row: 1;
 	}
 	.operation-row-cell {
 		gap: 2px;
@@ -774,14 +757,6 @@ select {
 	.operation-row-cell input,
 	.operation-row-cell .search-select .search-select-input input {
 		min-height: 38px;
-	}
-	.operation-row-menu-content {
-		position: fixed;
-		right: var(--p-space-3);
-		bottom: calc(var(--app-action-height, 64px) + var(--app-nav-height, 80px));
-		top: auto;
-		width: min(280px, calc(100vw - 24px));
-		min-width: min(260px, calc(100vw - 24px));
 	}
 	.operation-add-section-picker {
 		align-items: stretch;

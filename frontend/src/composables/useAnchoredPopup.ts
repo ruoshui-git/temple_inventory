@@ -1,6 +1,49 @@
 import { nextTick, onBeforeUnmount, ref, watch, type Ref } from "vue";
 import { chooseFilterPopoverPlacement } from "../lib/filterPopoverPlacement";
 
+type PopupRecord = {
+  owner: string;
+  anchor: Ref<HTMLElement | undefined>;
+  popup: Ref<HTMLElement | undefined>;
+  parent?: PopupRecord;
+  children: Set<PopupRecord>;
+  close: (restoreFocus: boolean) => void;
+};
+
+const activePopups = new Map<string, PopupRecord>();
+
+function depth(record: PopupRecord) {
+  let current = record.parent;
+  let count = 0;
+  while (current) {
+    count++;
+    current = current.parent;
+  }
+  return count;
+}
+
+function containsPopup(record: PopupRecord, target: Node): boolean {
+  if (
+    record.anchor.value?.contains(target) ||
+    record.popup.value?.contains(target)
+  )
+    return true;
+  return [...record.children].some((child) => containsPopup(child, target));
+}
+
+function hasOpenChild(record: PopupRecord) {
+  return [...record.children].some((child) => activePopups.has(child.owner));
+}
+
+function isAncestor(ancestor: PopupRecord, record?: PopupRecord) {
+  let current = record?.parent;
+  while (current) {
+    if (current === ancestor) return true;
+    current = current.parent;
+  }
+  return false;
+}
+
 export function useAnchoredPopup(options: {
   anchor: Ref<HTMLElement | undefined>;
   popup: Ref<HTMLElement | undefined>;
@@ -17,6 +60,13 @@ export function useAnchoredPopup(options: {
   onClose: (restoreFocus: boolean) => void;
 }) {
   const owner = `popup-${Math.random().toString(36).slice(2)}`;
+  const record: PopupRecord = {
+    owner,
+    anchor: options.anchor,
+    popup: options.popup,
+    children: new Set(),
+    close: (restoreFocus) => options.onClose(restoreFocus),
+  };
   const style = ref<Record<string, string>>({ visibility: "hidden" });
   const target = ref<HTMLElement | string>("body");
   let resizeObserver: ResizeObserver | undefined;
@@ -94,19 +144,22 @@ export function useAnchoredPopup(options: {
     };
   }
   function otherPopup(event: Event) {
-    if ((event as CustomEvent).detail !== owner) options.onClose(false);
+    const opening = activePopups.get((event as CustomEvent).detail);
+    if (opening && (opening === record || isAncestor(record, opening))) return;
+    options.onClose(false);
   }
   function outside(event: PointerEvent) {
     if (!options.open.value || !(event.target instanceof Node)) return;
-    if (
-      options.anchor.value?.contains(event.target) ||
-      options.popup.value?.contains(event.target)
-    )
-      return;
+    if (containsPopup(record, event.target)) return;
     options.onClose(false);
   }
   function keydown(event: KeyboardEvent) {
-    if (event.key !== "Escape" || !options.open.value || event.defaultPrevented)
+    if (
+      event.key !== "Escape" ||
+      !options.open.value ||
+      event.defaultPrevented ||
+      hasOpenChild(record)
+    )
       return;
     event.preventDefault();
     event.stopPropagation();
@@ -146,11 +199,33 @@ export function useAnchoredPopup(options: {
     window.removeEventListener("resize", reposition);
     window.removeEventListener("scroll", reposition, true);
   }
+  function closeDescendants(parent: PopupRecord) {
+    [...parent.children].forEach((child) => {
+      closeDescendants(child);
+      child.close(false);
+    });
+  }
+  function register() {
+    const anchor = options.anchor.value;
+    record.parent = [...activePopups.values()]
+      .filter((candidate) => candidate.popup.value?.contains(anchor || null))
+      .sort((a, b) => depth(b) - depth(a))[0];
+    record.parent?.children.add(record);
+    activePopups.set(owner, record);
+  }
+  function unregister() {
+    closeDescendants(record);
+    record.parent?.children.delete(record);
+    record.parent = undefined;
+    activePopups.delete(owner);
+  }
   watch(options.open, async (isOpen) => {
     if (!isOpen) {
+      unregister();
       unlisten();
       return;
     }
+    register();
     document.dispatchEvent(
       new CustomEvent("browse-filter-panel-open", { detail: owner }),
     );
@@ -165,5 +240,18 @@ export function useAnchoredPopup(options: {
     else reposition();
   });
   onBeforeUnmount(unlisten);
-  return { owner, style, target, reposition };
+  onBeforeUnmount(unregister);
+  return {
+    owner,
+    style,
+    target,
+    reposition,
+    activateParent() {
+      let parent = record.parent;
+      while (parent) {
+        parent.close(false);
+        parent = parent.parent;
+      }
+    },
+  };
 }

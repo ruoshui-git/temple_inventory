@@ -92,7 +92,11 @@ const open = ref(false),
 	typed = ref(false),
 	active = ref(0),
 	limit = ref(props.pageSize);
-const { style: popupStyle, target: popupTarget } = useAnchoredPopup({
+const {
+	style: popupStyle,
+	target: popupTarget,
+	activateParent,
+} = useAnchoredPopup({
 	anchor,
 	popup,
 	open,
@@ -160,6 +164,10 @@ watch(
 );
 function choose(value: string) {
 	emit("update:modelValue", value);
+	anchor.value?.dispatchEvent(
+		new CustomEvent("popup-menu-descendant-activate", { bubbles: true }),
+	);
+	activateParent();
 	open.value = false;
 	query.value = "";
 }

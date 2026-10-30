@@ -1946,12 +1946,15 @@ strong {
 	padding-bottom: var(--p-space-2);
 }
 .hierarchy-facet .facet-chips button {
+	display: inline-flex;
+	align-items: center;
 	background: var(--p-soft);
 	color: var(--p-accent);
 	min-height: var(--p-control);
 	white-space: normal;
 	overflow-wrap: anywhere;
 	text-align: left;
+	line-height: 1.2;
 }
 .hierarchy-facet .facet-suggestions {
 	border-color: var(--p-border);

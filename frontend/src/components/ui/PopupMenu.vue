@@ -11,6 +11,7 @@ const props = withDefaults(
 		align?: "start" | "end";
 		variant?: "split" | "icon" | "labeled";
 		sheet?: boolean;
+		panelClass?: string;
 	}>(),
 	{ align: "start", variant: "icon" },
 );
@@ -109,10 +110,12 @@ function activated(event: MouseEvent) {
 			<div
 				ref="popup"
 				class="popup-menu-panel popup-menu-panel--sheet browse-action-menu"
+				:class="props.panelClass"
 				role="menu"
 				:aria-label="label"
 				@keydown="keydown"
 				@click="activated"
+				@popup-menu-descendant-activate="close()"
 			>
 				<slot />
 			</div>
@@ -125,12 +128,13 @@ function activated(event: MouseEvent) {
 				ref="popup"
 				v-show="open && !useSheet"
 				class="popup-menu-panel browse-action-menu"
-				:class="{ 'popup-menu-panel--sheet': sheet }"
+				:class="[props.panelClass, { 'popup-menu-panel--sheet': sheet }]"
 				role="menu"
 				:aria-label="label"
 				:style="style"
 				@keydown="keydown"
 				@click="activated"
+				@popup-menu-descendant-activate="close()"
 			>
 				<slot />
 			</div>

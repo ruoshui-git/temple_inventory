@@ -899,6 +899,10 @@ async function selectExisting(code: string, warehouse: string) {
 								:loaded-count="result.rows.length"
 								:total-count="result.total"
 								@select="setSelected"
+								@select-visible="
+									(keys, checked) =>
+										keys.forEach((key) => setSelected(key, checked))
+								"
 								@load-more="load(true)"
 								@retry="picker.retry()"
 								class="picker-data-table browse-table--compact"

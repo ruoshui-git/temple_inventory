@@ -266,11 +266,16 @@ describe("rapid operation scan integration", () => {
     ).toEqual(["BATCH-A", "BATCH-B"]);
     expect(draft.items.map((line) => line.entryUom)).toEqual(["Box", "Nos"]);
     const originalIds = draft.items.map((line) => line.id);
-    const duplicate = wrapper
-      .findAll("button")
-      .find((button) => button.text() === "复制为新行");
+    await rows[0].get('button[aria-label="明细操作"]').trigger("click");
+    const openPanel = Array.from(
+      document.querySelectorAll<HTMLElement>(".operation-row-menu-panel"),
+    ).find((panel) => panel.style.display !== "none");
+    const duplicate = Array.from(
+      openPanel?.querySelectorAll("button") || [],
+    ).find((button) => button.textContent?.trim() === "复制为新行");
     expect(duplicate).toBeTruthy();
-    await duplicate!.trigger("click");
+    duplicate!.click();
+    await flushPromises();
     expect(draft.items).toHaveLength(3);
     expect(
       draft.items

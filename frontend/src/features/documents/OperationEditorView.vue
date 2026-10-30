@@ -301,6 +301,9 @@ const canOfferPicker = computed(
 const initialExistingLoad = computed(
 	() => loading.value && c.existingDocument.value && !state.server,
 );
+const hasEditorMenuItems = computed(() =>
+	Boolean((state.identity && state.server) || (!loading.value && c.savedExportQuery.value)),
+);
 const itemCount = computed(() => new Set(draft.value.items.map((line) => line.code)).size);
 function stockUnit(line: (typeof draft.value.items)[number]) {
 	return String(
@@ -517,6 +520,7 @@ async function lifecycle() {
 						/>{{ title }}
 					</h1>
 					<PopupMenu
+						v-if="hasEditorMenuItems"
 						class="editor-overflow-menu"
 						label="更多操作"
 						variant="icon"

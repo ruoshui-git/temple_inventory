@@ -43,6 +43,14 @@ const props = withDefaults(
 );
 const emit = defineEmits<{ close: [] }>();
 const panel = ref<HTMLElement>();
+let backdropPointerStarted = false;
+function backdropPointerDown(event: PointerEvent) {
+	backdropPointerStarted = event.target === event.currentTarget;
+}
+function backdropClick(event: MouseEvent) {
+	if (backdropPointerStarted && event.target === event.currentTarget) requestClose();
+	backdropPointerStarted = false;
+}
 const titleId = useId();
 const parentStage = inject(overlayStageKey, undefined);
 const stageHost = ref<HTMLElement>();
@@ -322,7 +330,9 @@ onBeforeUnmount(() => {
 	>
 		<div
 			:class="parentStage ? 'overlay-stage' : 'ui-overlay'"
-			@click.self="requestClose"
+			@pointerdown="backdropPointerDown"
+			@pointercancel="backdropPointerStarted = false"
+			@click="backdropClick"
 			@keydown="keydown"
 		>
 			<section

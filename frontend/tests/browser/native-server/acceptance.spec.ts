@@ -1042,16 +1042,23 @@ test("real movement editor writes batch receipts, existing-batch outbound flows,
     await card.evaluate((element) =>
       element.scrollIntoView({ block: "center" }),
     );
-    await card.locator(".operation-row-menu summary").click();
+    const rowMenu = (row: typeof card) =>
+      row.getByRole("button", { name: "明细操作" });
+    await rowMenu(card).click();
     await page.screenshot({
       path: test.info().outputPath("row-menu-open.png"),
     });
+    await page.keyboard.press("Escape");
+    await expect(rowMenu(card)).toHaveAttribute("aria-expanded", "false");
     await page.setViewportSize({ width: 390, height: 844 });
+    await rowMenu(card).click();
     await page.screenshot({
       path: test.info().outputPath("row-menu-open-phone.png"),
     });
+    await page.getByRole("button", { name: "取消" }).click();
     await page.setViewportSize({ width: 1440, height: 900 });
-    await card.getByRole("button", { name: "复制为新行" }).click();
+    await rowMenu(card).click();
+    await page.getByRole("menuitem", { name: "复制为新行" }).click();
     const rows = page
       .locator(".operation-compact-row")
       .filter({ hasText: code });
@@ -1059,29 +1066,22 @@ test("real movement editor writes batch receipts, existing-batch outbound flows,
     const secondUnit = rows.nth(1).getByRole("combobox", { name: "单位" });
     await secondUnit.fill("个");
     await page.getByRole("option", { name: /^个/ }).click();
-    await rows.nth(1).locator(".operation-row-menu summary").click();
-    const rowMove = rows.nth(1).getByRole("combobox", { name: "移到其他位置" });
+    await rowMenu(rows.nth(1)).click();
+    const rowMove = page.getByRole("combobox", { name: "移到其他位置" });
     await rowMove.fill(warehouseLabel(target));
-    await expect(
-      page
-        .getByRole("option")
-        .filter({ hasText: warehouseLabel(target) })
-        .first(),
-    ).toBeVisible();
+    const moveOption = page
+      .getByRole("option")
+      .filter({ hasText: warehouseLabel(target) })
+      .first();
+    await expect(moveOption).toBeVisible();
     await page.screenshot({
       path: test.info().outputPath("move-location-picker.png"),
     });
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.screenshot({
-      path: test.info().outputPath("move-location-picker-phone.png"),
-    });
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await page
-      .getByRole("option")
-      .filter({ hasText: warehouseLabel(target) })
-      .first()
-      .click();
-    await page.keyboard.press("Escape");
+    await moveOption.click();
+    await expect(rowMenu(rows.nth(1))).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
     for (const [index, quantity] of ["1", "2"].entries()) {
       const row = rows.nth(index);
       await row.locator('input[data-field="batch"]').fill("");

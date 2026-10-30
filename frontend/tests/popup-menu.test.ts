@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
+import { h } from "vue";
 import PopupMenu from "../src/components/ui/PopupMenu.vue";
+import SearchSelect from "../src/components/ui/SearchSelect.vue";
 
 const wrappers: VueWrapper[] = [];
 function rect(left: number, top: number, width = 40, height = 30) {
@@ -155,6 +157,126 @@ describe("PopupMenu", () => {
     );
   });
 
+  it("closes after activating a menu action", async () => {
+    const wrapper = mount(PopupMenu, {
+      attachTo: document.body,
+      props: { label: "操作" },
+      slots: { default: "<button>删除</button>" },
+    });
+    wrappers.push(wrapper);
+    await open(wrapper);
+    document
+      .querySelector<HTMLButtonElement>(".popup-menu-panel button")!
+      .click();
+    await flushPromises();
+    expect(wrapper.get(".popup-menu-trigger").attributes("aria-expanded")).toBe(
+      "false",
+    );
+  });
+
+  function mountNestedMenu(onMove = vi.fn(), mobile = false) {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({
+        matches: !mobile,
+        addEventListener() {},
+        removeEventListener() {},
+      }),
+    });
+    const wrapper = mount(PopupMenu, {
+      attachTo: document.body,
+      props: {
+        label: "明细操作",
+        panelClass: "operation-row-menu-panel",
+        sheet: true,
+      },
+      slots: {
+        default: () =>
+          h(SearchSelect, {
+            label: "移到其他位置",
+            ariaLabel: "移到其他位置",
+            externalLabel: true,
+            modelValue: "",
+            options: [
+              { value: "ROOM-A", label: "位置甲" },
+              { value: "ROOM-B", label: "位置乙" },
+            ],
+            "onUpdate:modelValue": onMove,
+          }),
+      },
+    });
+    wrapper.get(".popup-menu-trigger").element.getBoundingClientRect = () =>
+      rect(100, 100);
+    wrappers.push(wrapper);
+    return wrapper;
+  }
+
+  async function openNestedSelect() {
+    const input = document.querySelector<HTMLInputElement>(
+      '.operation-row-menu-panel input[role="combobox"]',
+    )!;
+    input.getBoundingClientRect = () => rect(150, 140, 180, 36);
+    input.focus();
+    await flushPromises();
+    return input;
+  }
+
+  it("keeps a nested SearchSelect open and closes both menus after choosing", async () => {
+    const onMove = vi.fn();
+    const wrapper = mountNestedMenu(onMove);
+    await open(wrapper);
+    const input = await openNestedSelect();
+    expect(input.getAttribute("aria-expanded")).toBe("true");
+    await document.querySelector<HTMLElement>('[role="option"]')!.click();
+    await flushPromises();
+    expect(onMove).toHaveBeenCalledWith("ROOM-A");
+    expect(wrapper.get(".popup-menu-trigger").attributes("aria-expanded")).toBe(
+      "false",
+    );
+  });
+
+  it("closes nested and parent popups on outside pointerdown", async () => {
+    const wrapper = mountNestedMenu();
+    await open(wrapper);
+    const input = await openNestedSelect();
+    document.body.dispatchEvent(
+      new PointerEvent("pointerdown", { bubbles: true }),
+    );
+    await flushPromises();
+    expect(wrapper.get(".popup-menu-trigger").attributes("aria-expanded")).toBe(
+      "false",
+    );
+    expect(input.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("closes only the nested popup first on Escape", async () => {
+    const wrapper = mountNestedMenu();
+    await open(wrapper);
+    const input = await openNestedSelect();
+    input.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+    );
+    await flushPromises();
+    expect(input.getAttribute("aria-expanded")).toBe("false");
+    expect(wrapper.get(".popup-menu-trigger").attributes("aria-expanded")).toBe(
+      "true",
+    );
+  });
+
+  it("closes a phone sheet after selecting a nested SearchSelect option", async () => {
+    const onMove = vi.fn();
+    const wrapper = mountNestedMenu(onMove, true);
+    await wrapper.get(".popup-menu-trigger").trigger("click");
+    const input = await openNestedSelect();
+    expect(input.getAttribute("aria-expanded")).toBe("true");
+    await document.querySelector<HTMLElement>('[role="option"]')!.click();
+    await flushPromises();
+    expect(onMove).toHaveBeenCalledWith("ROOM-A");
+    expect(wrapper.get(".popup-menu-trigger").attributes("aria-expanded")).toBe(
+      "false",
+    );
+  });
+
   it("uses a dismissible Overlay sheet on phones and selects items", async () => {
     Object.defineProperty(window, "matchMedia", {
       configurable: true,
@@ -211,6 +333,9 @@ describe("PopupMenu", () => {
     });
     wrappers.push(wrapper);
     await open(wrapper);
+    document
+      .querySelector(".ui-overlay")!
+      .dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
     await document
       .querySelector(".ui-overlay")!
       .dispatchEvent(new MouseEvent("click", { bubbles: true }));

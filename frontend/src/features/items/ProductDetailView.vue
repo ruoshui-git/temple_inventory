@@ -425,6 +425,9 @@ const locationPrefs =
 	align-items: center;
 	gap: 8px;
 }
+.item-detail-actions :deep(.ui-button) {
+	white-space: nowrap;
+}
 .item-disabled-badge {
 	display: inline-flex;
 	border-radius: 999px;

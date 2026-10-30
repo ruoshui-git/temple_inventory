@@ -47,6 +47,7 @@ import ItemImage from "../../components/ItemImage.vue";
 import ItemPicker, { type ItemScanOption, type ItemScanResolution } from "../items/ItemPicker.vue";
 import type { StockItem } from "../../lib/stockPresentation";
 import UiButton from "../../components/ui/UiButton.vue";
+import PopupMenu from "../../components/ui/PopupMenu.vue";
 import { useConfirm } from "../../services/confirm";
 import { useVirtualKeyboard } from "../../composables/useVirtualKeyboard";
 import ConversionEditor from "../conversions/ConversionEditor.vue";
@@ -463,17 +464,8 @@ function moveLine(line: AllocationLine, location: string) {
 	}
 	mergeCompatibleOperationLines(props.draft);
 }
-function closeLineMenu(line: AllocationLine) {
-	void nextTick(() => {
-		const row = Array.from(
-			root.value?.querySelectorAll<HTMLElement>("[data-line-id]") || [],
-		).find((element) => element.dataset.lineId === line.id);
-		row?.querySelector("details.operation-row-menu")?.removeAttribute("open");
-	});
-}
 function moveLineFromMenu(line: AllocationLine, location: string) {
 	moveLine(line, location);
-	closeLineMenu(line);
 }
 function sectionLocationOptions(section: OperationLocationSection) {
 	return locationOptions.value.filter(
@@ -502,7 +494,6 @@ function duplicateLine(line: AllocationLine) {
 	const copy = copyOperationLine(line);
 	props.draft.items.splice(props.draft.items.indexOf(line) + 1, 0, copy);
 	markRecent(copy);
-	closeLineMenu(line);
 }
 function pickAt(location: string) {
 	if (receive.value) {
@@ -1882,34 +1873,34 @@ function receiveBatchChanged(line: AllocationLine) {
 							aria-hidden="true"
 						></span>
 					</div>
-					<details class="operation-row-menu">
-						<summary aria-label="明细操作">⋯</summary>
-						<div class="operation-row-menu-content">
-							<SearchSelect
-								:label="'移到其他位置'"
-								external-label
-								aria-label="移到其他位置"
-								model-value=""
-								placeholder="选择其他位置"
-								:disabled="disabled || hydrating || fixedSectionLocation"
-								:options="lineLocationOptions(section, line)"
-								@update:model-value="moveLineFromMenu(line, $event)"
-							/>
-							<button type="button" :disabled="disabled" @click="pick([line])">
-								更换物品
-							</button>
-							<button
-								type="button"
-								:disabled="disabled"
-								@click="duplicateLine(line)"
-							>
-								复制为新行
-							</button>
-							<button type="button" :disabled="disabled" @click="remove(line)">
-								删除
-							</button>
-						</div>
-					</details>
+					<PopupMenu
+						class="operation-row-menu"
+						panel-class="operation-row-menu-panel"
+						label="明细操作"
+						variant="icon"
+						align="end"
+						sheet
+					>
+						<SearchSelect
+							:label="'移到其他位置'"
+							external-label
+							aria-label="移到其他位置"
+							model-value=""
+							placeholder="选择其他位置"
+							:disabled="disabled || hydrating || fixedSectionLocation"
+							:options="lineLocationOptions(section, line)"
+							@update:model-value="moveLineFromMenu(line, $event)"
+						/>
+						<button type="button" :disabled="disabled" @click="pick([line])">
+							更换物品
+						</button>
+						<button type="button" :disabled="disabled" @click="duplicateLine(line)">
+							复制为新行
+						</button>
+						<button type="button" :disabled="disabled" @click="remove(line)">
+							删除
+						</button>
+					</PopupMenu>
 				</article>
 			</section>
 			<div
@@ -2022,6 +2013,7 @@ function receiveBatchChanged(line: AllocationLine) {
 
 <style scoped>
 .operation-lines-panel {
+	container-type: inline-size;
 	min-width: 0;
 	display: grid;
 	gap: var(--p-space-3);
@@ -2069,6 +2061,8 @@ function receiveBatchChanged(line: AllocationLine) {
 }
 .line-search input {
 	min-height: 36px;
+	min-width: 0;
+	width: 100%;
 }
 .line-toolbar-summary {
 	min-width: 0;

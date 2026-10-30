@@ -114,6 +114,40 @@ it("uses selectable phone list rows and preserves selection when switching to de
   expect(document.body.textContent).toContain("添加所选（2）");
 });
 
+it("updates the picker model when DataTable selects all loaded rows", async () => {
+  mockPickerViewport(true);
+  const call = vi.fn<InventoryServices["call"]>(async (endpoint) => {
+    if (endpoint === "catalog.picker_rows")
+      return {
+        results: pickerRows,
+        matched_count: 2,
+        next_start: null,
+      } as never;
+    if (endpoint === "table_preferences.get_column_preferences")
+      return {} as never;
+    throw new Error(`Unexpected ${endpoint}`);
+  });
+  const wrapper = mount(pickerHost(call), { attachTo: document.body });
+  wrappers.push(wrapper);
+  await flushPromises();
+  const table = wrapper.findComponent({ name: "DataTable" });
+  expect(table.exists()).toBe(true);
+  table.vm.$emit(
+    "selectVisible",
+    ["ITEM-A\u0000ROOM-A", "ITEM-B\u0000ROOM-A"],
+    true,
+  );
+  await nextTick();
+  expect(document.body.textContent).toContain("添加所选（2）");
+  table.vm.$emit(
+    "selectVisible",
+    ["ITEM-A\u0000ROOM-A", "ITEM-B\u0000ROOM-A"],
+    false,
+  );
+  await nextTick();
+  expect(document.body.textContent).toContain("添加所选（0）");
+});
+
 it("keeps the DataTable presentation on desktop", async () => {
   mockPickerViewport(true);
   const call = vi.fn<InventoryServices["call"]>(async (endpoint) => {

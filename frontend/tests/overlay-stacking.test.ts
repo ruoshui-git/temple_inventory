@@ -12,6 +12,27 @@ afterEach(() => {
 });
 
 describe("stacked overlays", () => {
+  it("keeps open when a pointer starts in the panel and ends on the backdrop", async () => {
+    const wrapper = mount(Overlay, {
+      attachTo: document.body,
+      props: { title: "Dialog" },
+      slots: { default: "<button>Inside</button>" },
+    });
+    wrappers.push(wrapper);
+    await flushPromises();
+    const backdrop = document.querySelector<HTMLElement>(".ui-overlay")!;
+    const inside = document.querySelector<HTMLElement>(".ui-dialog")!;
+    inside.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    backdrop.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+    backdrop.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flushPromises();
+    expect(wrapper.emitted("close")).toBeUndefined();
+    backdrop.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    backdrop.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flushPromises();
+    expect(wrapper.emitted("close")).toHaveLength(1);
+  });
+
   it("closes only the top modal on Escape and restores focus into its parent", async () => {
     const host = defineComponent({
       setup() {
