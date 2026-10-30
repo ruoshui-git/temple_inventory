@@ -281,7 +281,7 @@ class NotificationTests(NativeDocumentTests):
 		):
 			self.assertFalse(push._send(subscription, {"title": "test"}))
 		self.assertEqual(webpush.call_args.kwargs["ttl"], 86400)
-		self.assertEqual(webpush.call_args.kwargs["urgency"], "normal")
+		self.assertEqual(webpush.call_args.kwargs["headers"], {"Urgency": "normal"})
 		self.assertNotIn("private", set_value.call_args.args[3])
 		self.assertIn("RuntimeError", set_value.call_args.args[3])
 
