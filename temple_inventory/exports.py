@@ -913,6 +913,7 @@ def _export_record_row(projection, whole_operation, operation_cache, row):
 		"destination_warehouse_path": endpoint_values("destination", "warehouse_path"),
 		"destination_warehouse_native_name": endpoint_values("destination", "warehouse_native_name"),
 		"original_loan": "；".join(operation.get("original_loans", [])),
+		"settlement_records": "；".join(record["name"] for record in operation.get("settlement_records", [])),
 	}
 
 
@@ -998,6 +999,8 @@ def _sum_fields(table, query):
 		return (
 			("available_effect", "stock_qty")
 			if dataset == "movements"
+			else (*LOAN_SUMS, "quantity")
+			if dataset == "loans" and table == "records"
 			else LOAN_SUMS
 			if dataset == "loans"
 			else (*COUNT_SUMS, "gains", "losses", "net")

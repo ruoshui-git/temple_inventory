@@ -105,6 +105,7 @@ export function reportFilterChips(
       allocations: "allocations",
       itemLocations: "itemLocations",
       loanStatus: "status",
+      loanScope: "loanScope",
       loanOutcome: "loanOutcome",
       damageOnly: "damageOnly",
       activityKind: "activityKind",
@@ -262,6 +263,10 @@ export function reportFilterChips(
       `借用状态：${reportLoanStatusLabels[query.loanStatus] || query.loanStatus}`,
       { loanStatus: "all" },
     );
+  if (query.dataset === "loans" && query.loanScope !== "outstanding")
+    add("loanScope", "记录范围：借出与归还全部记录", {
+      loanScope: "outstanding",
+    });
   if (query.loanOutcome !== "all")
     add(
       "loanOutcome",

@@ -41,6 +41,7 @@ export const reportColumnLabels: Record<string, string> = {
   activity_type: "活动类型编号",
   activity_type_label: "活动类型",
   original_loan: "原借出",
+  settlement_records: "结算记录",
   original_loan_line: "原借出明细",
   original_activity: "原借出活动",
   original_activity_title: "原借出活动名称",

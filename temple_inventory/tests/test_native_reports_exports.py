@@ -139,16 +139,20 @@ class NativeReportsExportsTests(NativeReportTestCase):
 				"records",
 				[
 					"document",
+					"kind",
 					"borrower",
 					"activity_title",
 					"date",
 					"outstanding",
-					"borrowed",
+					"quantity",
 					"stock_uom",
 					"item_count",
 					"source",
 					"destination",
 					"loan_status",
+					"docstatus",
+					"original_loan",
+					"settlement_records",
 				],
 			),
 			(
@@ -258,9 +262,11 @@ class NativeReportsExportsTests(NativeReportTestCase):
 				"original_loan": "原借出",
 			},
 			("loans", "records"): {
-				"document": "借出单号",
-				"date": "借出日期",
+				"document": "编号",
+				"kind": "类型",
+				"date": "日期",
 				"borrowed": "借出数量",
+				"quantity": "数量 / 单位",
 				"outstanding": "未归还数量",
 				"loan_status": "借用状态",
 				"time": "时间",
@@ -268,6 +274,8 @@ class NativeReportsExportsTests(NativeReportTestCase):
 				"returned": "已归还",
 				"damaged": "损坏",
 				"lost": "遗失",
+				"original_loan": "原借出",
+				"settlement_records": "结算记录",
 			},
 			("loans", "loan_history"): {
 				"document": "编号",
@@ -766,6 +774,25 @@ class NativeReportsExportsTests(NativeReportTestCase):
 		self.assertTrue(rows[0]["source"])
 		self.assertTrue(rows[0]["destination"])
 		self.assertNotIn(self.a, rows[0]["source"] + rows[0]["destination"])
+
+	def test_all_scope_loan_records_export_own_quantities_and_related_document_refs(self):
+		self.receipt(10)
+		loan = self.submit(
+			self.create(self.movement("Loan", 5, self.a, self.loan_leaf, ti_borrower="部分归还"))
+		)
+		settlement = self.submit(self.settlement(loan, 2))
+		query = self.query("loans", "records", loan=loan.name, loanScope="all")
+		query["scope"]["period"] = {"key": "all", "from": "", "to": ""}
+		with Projection(query, refresh=True) as projection:
+			projection.build()
+			rows = list(exports._export_rows(projection, "records"))
+		loan_row = next(row for row in rows if row["document"] == loan.name)
+		settlement_row = next(row for row in rows if row["document"] == settlement.name)
+		self.assertEqual(loan_row["quantity"], 5)
+		self.assertEqual(loan_row["settlement_records"], settlement.name)
+		self.assertEqual(settlement_row["kind"], "Return")
+		self.assertEqual(settlement_row["quantity"], 2)
+		self.assertEqual(settlement_row["original_loan"], loan.name)
 
 	def test_archive_names_number_repeated_file_names(self):
 		used = set()

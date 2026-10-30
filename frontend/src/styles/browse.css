@@ -3217,8 +3217,13 @@
 	white-space: nowrap;
 	min-width: max-content;
 }
-.activity-browse .record-ref-chip {
-	min-height: 44px;
+.activity-browse .record-ref-list {
+	display: flex;
+	flex-wrap: nowrap;
+	gap: 4px;
+	max-width: 220px;
+	overflow-x: auto;
+	overflow-y: hidden;
 }
 .activity-browse .operation-item-totals,
 .activity-browse .operation-item-totals .operation-total {
@@ -3227,6 +3232,11 @@
 .activity-browse .operation-group-metrics {
 	max-width: none;
 	white-space: nowrap;
+}
+@media (pointer: coarse) {
+	.activity-browse .record-ref-chip {
+		min-height: 44px;
+	}
 }
 .report-scope-controls {
 	display: grid;

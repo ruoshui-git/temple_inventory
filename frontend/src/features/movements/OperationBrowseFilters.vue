@@ -51,7 +51,7 @@ watch(
 		<div class="browse-filter-mega">
 			<section class="browse-filter-mega-section">
 				<FilterDisclosure
-					v-if="family === 'loans' && !records"
+					v-if="family === 'loans'"
 					label="范围"
 					field="loanScope"
 					:summary="query.loanScope === 'all' ? '借出与归还全部记录' : '仅未归还借出'"
@@ -72,10 +72,10 @@ watch(
 					<p class="form-field-hint">
 						仅未归还借出：只列仍有未还数量的借出行。借出与归还全部记录：列出全部借出行，以及它们的归还、损坏、遗失行。
 					</p>
-					<label class="form-choice-label form-check"
+					<label v-if="!records" class="form-choice-label form-check"
 						><input v-model="query.includeZero" type="checkbox" />包括已结清物品</label
 					>
-					<p class="form-field-hint">
+					<p v-if="!records" class="form-field-hint">
 						也列出已全部归还的借出行和物品（未归还余额为零）。
 					</p>
 				</FilterDisclosure>

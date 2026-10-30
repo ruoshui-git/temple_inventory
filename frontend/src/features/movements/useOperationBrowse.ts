@@ -58,6 +58,7 @@ export interface OperationGroup {
       destination_native_name?: string;
     }[];
     original_loans: string[];
+    settlement_records?: { name: string; kind: string }[];
     original_loan_details?: { name: string; borrower: string; date: string }[];
     loan_status?: string;
   };
@@ -559,7 +560,7 @@ export function useOperationBrowse(
   }
   function setHistoryScope(value: "outstanding" | "all") {
     if (query.value.loanScope === value) return;
-    skipNextQueryLoad = true;
+    if (!props.records) skipNextQueryLoad = true;
     query.value.loanScope = value;
     for (const [id, table] of Object.entries(details)) {
       detailRequests.get(id)?.abort();
@@ -644,18 +645,6 @@ export function useOperationBrowse(
           ? { ...chip, label: "包括已结清物品", summary: "包括已结清物品" }
           : chip,
       ),
-    ...(props.family === "loans" &&
-    !props.records &&
-    query.value.loanScope === "all"
-      ? [
-          {
-            key: "loanScope",
-            label: "记录范围：借出与归还全部记录",
-            field: "loanScope",
-            reset: { loanScope: "outstanding" as const },
-          },
-        ]
-      : []),
   ]);
   const scopeChips = computed(() => scopeFilterChips(scope.value, reference));
   function clearFilters() {

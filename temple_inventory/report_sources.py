@@ -857,6 +857,41 @@ def whole_operation(context, doctype, name):
 			if any(outstanding.values())
 			else "Settled"
 		)
+		original_lines = {
+			(line.name, line.item_code): line for line in doc.items if line.name and line.item_code
+		}
+		candidate_names = _settlement_document_names(
+			(doc.name, line_name, item_code) for line_name, item_code in original_lines
+		)
+		settlements = {}
+		valid_settlements = {
+			"Return": ("Material Transfer", {"Returned", "Damaged"}),
+			"Damage": ("Material Transfer", {"Damaged"}),
+			"Loss": ("Material Issue", {"Lost"}),
+		}
+		for row in movement_rows(
+			context,
+			include_all_dates=True,
+			apply_activity=False,
+			apply_search=False,
+			document_names=candidate_names,
+		):
+			original = original_lines.get((row.get("original_loan_line"), row.get("item_code")))
+			settlement = valid_settlements.get(row.get("kind"))
+			parent = context.parent(row["doctype"], row["document"])
+			if (
+				original
+				and settlement
+				and parent
+				and parent.purpose == settlement[0]
+				and row.get("outcome") in settlement[1]
+				and row.get("source_warehouse") == original.get("t_warehouse")
+			):
+				settlements[row["document"]] = row["kind"]
+		result["settlement_records"] = [
+			{"name": settlement_name, "kind": settlement_kind}
+			for settlement_name, settlement_kind in sorted(settlements.items())
+		]
 	if doctype == "Stock Reconciliation":
 		# gains/losses are signed per-unit aggregates; losses stay negative.
 		result["gains"] = [{"uom": unit, "qty": quantity} for unit, quantity in sorted(gains.items())]
@@ -1096,6 +1131,13 @@ def loan_rows(context):
 			continue
 		if query["view"] != "items" and query["loanStatus"] == "settled" and has_outstanding:
 			continue
+		if (
+			query["view"] == "records"
+			and query["loanScope"] == "outstanding"
+			and loan.docstatus != 0
+			and (loan.docstatus != 1 or not has_outstanding)
+		):
+			continue
 		for line in loan.items:
 			item = context.item(line.item_code)
 			if not item:
@@ -1167,7 +1209,7 @@ def _settlement_document_names(originals):
 
 
 def settlement_rows(context):
-	loans = {(row["original_loan_line"], row["batch_no"]): row for row in loan_rows(context)}
+	loans = {(row["original_loan_line"], row.get("batch_no") or ""): row for row in loan_rows(context)}
 	document_names = _settlement_document_names(
 		(row["original_loan"], row["original_loan_line"], row["item_code"]) for row in loans.values()
 	)
@@ -1178,7 +1220,7 @@ def settlement_rows(context):
 		apply_search=False,
 		document_names=document_names,
 	):
-		original = loans.get((row["original_loan_line"], row["batch_no"]))
+		original = loans.get((row["original_loan_line"], row.get("batch_no") or ""))
 		if not original or row["original_loan"] != original["original_loan"]:
 			continue
 		if not in_period(row["date"], context.related_period) or not context.matches_search(
@@ -1196,7 +1238,12 @@ def settlement_rows(context):
 def linked_settlement_rows(context):
 	"""Return submitted events linked to loans selected by the original loan filters."""
 	originals = {
-		(row["original_loan"], row["original_loan_line"], row["batch_no"], row["item_code"]): row
+		(
+			row["original_loan"],
+			row["original_loan_line"],
+			row.get("batch_no") or "",
+			row["item_code"],
+		): row
 		for row in loan_rows(context)
 	}
 	if not originals:
@@ -1243,7 +1290,12 @@ def linked_settlement_rows(context):
 		apply_search=False,
 		document_names=document_names,
 	):
-		key = (row["original_loan"], row["original_loan_line"], row["batch_no"], row["item_code"])
+		key = (
+			row["original_loan"],
+			row["original_loan_line"],
+			row.get("batch_no") or "",
+			row["item_code"],
+		)
 		original = originals.get(key)
 		valid_settlements = {
 			"Return": ("Material Transfer", {"Returned", "Damaged"}),

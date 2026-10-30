@@ -115,13 +115,20 @@ export function operationColumnsFor(
         {
           id: "document",
           pinned: "start",
-          label: family === "loans" ? "借出单号" : "编号",
+          label: "编号",
           export: ["document"],
           kind: "primary",
           required: true,
           defaultVisible: true,
           sortable: true,
           sortField: "identity",
+        },
+        {
+          id: "kind",
+          label: "类型",
+          defaultVisible: true,
+          export: ["kind"],
+          sortable: true,
         },
         {
           id: "borrower",
@@ -139,7 +146,7 @@ export function operationColumnsFor(
         },
         {
           id: "date",
-          label: "借出日期",
+          label: "日期",
           defaultVisible: true,
           export: ["date"],
           sortable: true,
@@ -155,10 +162,10 @@ export function operationColumnsFor(
         {
           id: "quantities",
           quantity: true,
-          label: "借出数量",
+          label: "数量 / 单位",
           defaultVisible: true,
           align: "end",
-          export: ["borrowed", "stock_uom"],
+          export: ["quantity", "stock_uom"],
         },
         {
           id: "stock_uom",
@@ -222,8 +229,20 @@ export function operationColumnsFor(
         {
           id: "docstatus",
           label: "状态",
-          defaultVisible: false,
+          defaultVisible: true,
           export: ["docstatus"],
+        },
+        {
+          id: "related_loans",
+          label: "原借出",
+          defaultVisible: true,
+          export: ["original_loan"],
+        },
+        {
+          id: "related_settlements",
+          label: "结算记录",
+          defaultVisible: true,
+          export: ["settlement_records"],
         },
         {
           id: "borrowed",

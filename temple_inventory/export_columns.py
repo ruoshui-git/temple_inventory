@@ -46,6 +46,7 @@ LABELS = {
 	"net": "净差异",
 	"available_effect": "可用变化",
 	"original_loan": "原借出",
+	"settlement_records": "结算记录",
 	"outstanding": "未归还数量",
 	"borrowed": "借出量",
 	"returned": "正常归还量",
@@ -125,12 +126,16 @@ TABLE_LABELS = {
 		"loan_status": "借用状态",
 	},
 	("loans", "records"): {
-		"document": "借出单号",
-		"date": "借出日期",
+		"document": "编号",
+		"kind": "类型",
+		"date": "日期",
 		"outstanding": "未归还数量",
 		"borrowed": "借出数量",
+		"quantity": "数量 / 单位",
 		"loan_status": "借用状态",
 		"returned": "已归还",
+		"original_loan": "原借出",
+		"settlement_records": "结算记录",
 	},
 	("loans", "lines"): {
 		"document": "借出单号",
@@ -322,6 +327,7 @@ DEFAULT_COLUMNS = {
 DATASET_DEFAULT_COLUMNS = {
 	("loans", "records"): [
 		"document",
+		"kind",
 		"date",
 		"time",
 		"docstatus",
@@ -329,12 +335,14 @@ DATASET_DEFAULT_COLUMNS = {
 		"borrower",
 		"activity_title",
 		"item_count",
-		"borrowed",
+		"quantity",
 		"returned",
 		"damaged",
 		"lost",
 		"outstanding",
 		"stock_uom",
+		"original_loan",
+		"settlement_records",
 		"source",
 		"destination",
 	],
@@ -384,6 +392,7 @@ EXTRA_COLUMNS = {
 		"damaged",
 	},
 	"records": {
+		"original_loan",
 		"borrowed",
 		"returned",
 		"damaged",
@@ -495,6 +504,8 @@ def allowed_columns(dataset, table):
 	columns = (
 		set(DEFAULT_COLUMNS[table]) | set(default_columns(dataset, table)) | EXTRA_COLUMNS.get(table, set())
 	)
+	if dataset == "loans" and table == "records":
+		columns.update({"quantity", "settlement_records"})
 	if dataset == "counts" and table == "records":
 		columns.update({"gains", "losses", "net"})
 	return columns
@@ -508,6 +519,8 @@ def contract():
 			fields.update({"expiry_date", "remaining_days"})
 		if table in ("records", "history", "loan_history"):
 			fields.add("original_loan")
+		if dataset == "loans" and table == "records":
+			fields.add("settlement_records")
 		if table == "records":
 			fields.update({"source", "destination"})
 		if dataset == "counts" and table == "records":

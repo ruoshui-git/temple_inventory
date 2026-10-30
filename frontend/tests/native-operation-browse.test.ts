@@ -968,6 +968,61 @@ describe("native operation browsing", () => {
     expect(records.query.value.sort).toBe("asc");
   });
 
+  it("shows a removable loan scope chip in records view", async () => {
+    const { wrapper } = setup(
+      service(),
+      reactive({ family: "loans" as const, records: true }),
+      true,
+    );
+    await flushPromises();
+    const controller = wrapper.getComponent(OperationBrowsePage).vm.controller;
+    expect(
+      controller.extraChips.value.some((chip) => chip.key === "loanScope"),
+    ).toBe(false);
+
+    controller.query.value.loanScope = "all";
+    controller.query.value.loanStatus = "open";
+    controller.query.value.borrower = "演出团队";
+    await flushPromises();
+    expect(controller.extraChips.value).toContainEqual(
+      expect.objectContaining({
+        key: "loanScope",
+        label: "记录范围：借出与归还全部记录",
+        reset: { loanScope: "outstanding" },
+      }),
+    );
+    expect(
+      controller.extraChips.value.some((chip) => chip.key === "loanStatus"),
+    ).toBe(false);
+    expect(
+      controller.extraChips.value.some((chip) => chip.key === "borrower"),
+    ).toBe(true);
+  });
+
+  it("reloads loan records when the records scope changes", async () => {
+    const call = service();
+    const { c } = setup(
+      call,
+      reactive({ family: "loans" as const, records: true }),
+    );
+    await flushPromises();
+    const initialCalls = call.mock.calls.filter(
+      ([endpoint]) => endpoint === "browse.operation_page",
+    ).length;
+
+    c.setHistoryScope("all");
+    await flushPromises();
+
+    const operationPageCalls = call.mock.calls.filter(
+      ([endpoint]) => endpoint === "browse.operation_page",
+    );
+    expect(operationPageCalls.length).toBeGreaterThan(initialCalls);
+    expect(operationPageCalls.at(-1)?.[1]).toMatchObject({
+      query: expect.objectContaining({ loanScope: "all", view: "records" }),
+      records: true,
+    });
+  });
+
   it("keeps complete server groups and totals independent of the loaded page, then loads contributions lazily", async () => {
     const call = service();
     const groupedQuery = newReportQuery("loans");

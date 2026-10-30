@@ -1,11 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   auditCjkFontType,
   nativeUiSession,
   requiredAuditCjkFont,
 } from "./fixtures/nativeUi";
 const font = requiredAuditCjkFont();
+const uiPolishShots = resolve(process.cwd(), "tests/browser/.ui-polish-shots");
+mkdirSync(uiPolishShots, { recursive: true });
 async function setup(page: Page, scale = 100, density = "balanced") {
   await page.route("**/refinement-font.otf", (route) =>
     route.fulfill({
@@ -221,6 +224,8 @@ async function setup(page: Page, scale = 100, density = "balanced") {
       };
     else if (method === "native_api.editor_clock")
       message = { timestamp: "2026-10-17 10:00:00" };
+    else if (method === "people.recorded_names")
+      message = [{ value: "人员甲", label: "人员甲", count: 3 }];
     else if (method === "projections.report_page")
       message = {
         query: args.query,
@@ -474,6 +479,37 @@ for (const width of [390, 1440]) {
       page.getByRole("dialog", { name: "裁剪图片", exact: true }),
     ).toBeVisible();
     await expect(page.locator("cropper-selection")).toBeVisible();
+    const selectionNode = page.locator("cropper-selection");
+    const cropImage = page.locator("cropper-image");
+    const initialSelection = await selectionNode.boundingBox();
+    const imageBox = await cropImage.boundingBox();
+    expect(initialSelection).not.toBeNull();
+    expect(imageBox).not.toBeNull();
+    const moveHandle = selectionNode.locator('cropper-handle[action="move"]');
+    const moveBox = await moveHandle.boundingBox();
+    expect(moveBox).not.toBeNull();
+    const startX = moveBox!.x + moveBox!.width / 2;
+    const startY = moveBox!.y + moveBox!.height / 2;
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(startX, imageBox!.y + imageBox!.height + 60, {
+      steps: 8,
+    });
+    const movedSelection = await selectionNode.boundingBox();
+    expect(movedSelection!.y).toBeGreaterThan(initialSelection!.y);
+    expect(movedSelection!.y + movedSelection!.height).toBeLessThanOrEqual(
+      imageBox!.y + imageBox!.height + 1,
+    );
+    await page.mouse.move(startX, imageBox!.y + imageBox!.height + 100, {
+      steps: 4,
+    });
+    const continuedSelection = await selectionNode.boundingBox();
+    expect(continuedSelection!.y).toBeGreaterThanOrEqual(movedSelection!.y);
+    if (width === 390 || width === 1440)
+      await page.screenshot({
+        path: resolve(uiPolishShots, `crop-mid-drag-${width}.png`),
+      });
+    await page.mouse.up();
     const cropSelection = await page
       .locator("cropper-selection")
       .evaluate((node) => {
@@ -622,6 +658,37 @@ test("open movement filter follows the breakpoint without losing selection", asy
       .getByRole("checkbox", { name: selectedLocation, exact: true }),
   ).toBeChecked();
 });
+
+for (const width of [390, 1440]) {
+  test(`keeps people search nested in the filter panel at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await setup(page);
+    await page.goto("/inventory/movements?view=records");
+    await page.getByRole("button", { name: /^筛选/ }).click();
+    const panel =
+      width < 1024
+        ? page.getByRole("dialog", { name: "筛选", exact: true })
+        : page.locator(".browse-filter-popover");
+    await panel
+      .locator('details[data-filter-field="person"] > summary')
+      .click();
+    await panel.locator('input[aria-label="人员"]').click();
+    await expect(page.getByRole("option", { name: /人员甲/ })).toBeVisible();
+    await page.screenshot({
+      path: resolve(
+        uiPolishShots,
+        `filter-person-${width < 1024 ? "phone" : "desktop"}.png`,
+      ),
+      fullPage: true,
+    });
+    await page.getByRole("option", { name: /人员甲/ }).click();
+    await expect(panel).toBeVisible();
+    await page.mouse.click(4, 700);
+    await expect(panel).toBeHidden();
+  });
+}
 
 for (const width of [390, 1440]) {
   test(`centered warehouse icons and readable long labels ${width}`, async ({

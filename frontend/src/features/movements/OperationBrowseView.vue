@@ -374,6 +374,12 @@ function operationRow(row: Record<string, unknown>): OperationGroup {
 							date: String(detail.date || ""),
 						}))
 					: [],
+				settlement_records: Array.isArray(whole.settlement_records)
+					? (whole.settlement_records as Record<string, unknown>[]).map((record) => ({
+							name: String(record.name || ""),
+							kind: String(record.kind || ""),
+						}))
+					: [],
 				loan_status: typeof whole.loan_status === "string" ? whole.loan_status : undefined,
 			},
 		};
@@ -469,6 +475,10 @@ function relatedLoanDetails(row: Record<string, unknown>) {
 			},
 		];
 	return [];
+}
+function relatedSettlementRecords(row: Record<string, unknown>) {
+	const whole = operationRow(row).whole;
+	return whole?.settlement_records || [];
 }
 function groupMetricEntries(group: DataTableGroup, column: string) {
 	const row = group.value || {};
@@ -841,6 +851,9 @@ function openedRecord(row: OperationGroup) {
 	props.family === "loans"
 		? emit("openLoan", String(row.document))
 		: emit("openDocument", String(row.doctype), String(row.document));
+}
+function openedSettlement(name: string) {
+	if (!result.stale) emit("openDocument", "Stock Entry", name);
 }
 function switchView(records: boolean) {
 	if (records === props.records) return;
@@ -1976,6 +1989,21 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								:disabled="result.stale"
 								@open="c.relatedLoans.show(relatedLoanNames(row))"
 							/>
+							<div
+								v-else-if="column.id === 'related_settlements'"
+								class="record-ref-list"
+							>
+								<RecordRef
+									v-for="record in relatedSettlementRecords(row)"
+									:key="record.name"
+									:kind="record.kind"
+									:identity="record.name"
+									:document-name="record.name"
+									tooltip="查看结算记录"
+									:disabled="result.stale"
+									@open="openedSettlement(record.name)"
+								/>
+							</div>
 							<template v-else-if="column.id === 'kind'">{{
 								enumPresentationLabel("kind", row.kind)
 							}}</template>
@@ -2060,6 +2088,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								v-else-if="
 									column.id === 'actions' &&
 									row.docstatus === 1 &&
+									row.kind === 'Loan' &&
 									operationRow(row).whole?.loan_status === 'Open'
 								"
 								:disabled="result.stale || !reference.operations.Return"

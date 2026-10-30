@@ -16,6 +16,20 @@ it("presents and clears a non-default expiry window chip", () => {
   });
 });
 
+it("presents the all-loan-records scope as a removable chip", () => {
+  const query = newReportQuery("loans");
+  query.view = "records";
+  query.loanScope = "all";
+  expect(reportFilterChips(query, createReferenceData())).toContainEqual(
+    expect.objectContaining({
+      key: "loanScope",
+      label: "记录范围：借出与归还全部记录",
+      field: "loanScope",
+      reset: { loanScope: "outstanding" },
+    }),
+  );
+});
+
 it("translates every non-default report select value in its chip", () => {
   const reference = createReferenceData();
   const cases = [

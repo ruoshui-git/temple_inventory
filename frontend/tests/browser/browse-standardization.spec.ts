@@ -528,7 +528,7 @@ for (const scenario of [
   {
     name: "loans records",
     path: "/inventory/loans?view=records",
-    label: "借出单号",
+    label: "编号",
   },
 ]) {
   test(`${scenario.name} sort round trips through the URL`, async ({

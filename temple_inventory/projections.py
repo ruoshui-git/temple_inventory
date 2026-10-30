@@ -160,6 +160,15 @@ FIXED_COLUMNS = {
 		"item_count",
 		"allocation_count",
 		"item_codes",
+		"borrowed",
+		"returned",
+		"damaged",
+		"lost",
+		"outstanding",
+		"quantity",
+		"loan_status",
+		"original_loan",
+		"settlement_records",
 	],
 	"locations": [
 		"id",
@@ -1127,6 +1136,12 @@ class Projection(AbstractContextManager):
 			({field: row.get(field) for field in preview_fields} for row in source),
 		)
 		self.group(table, "records", fields, sums, maximums=header_fields)
+		if dataset == "loans":
+			self.column_names["records"].extend(
+				field
+				for field in ("quantity", "original_loan", "settlement_records")
+				if field not in self.column_names["records"]
+			)
 		self.main_table, self.summary_table, self.sums = "records", "records", tuple(sums)
 
 	def build(self, *, related=False, complete_records=True):
@@ -1189,6 +1204,38 @@ class Projection(AbstractContextManager):
 				sums = LOAN_SUMS
 			else:
 				self.add("outcomes", loan_rows(context))
+				if view == "records":
+					loan_lines = list(self.rows("outcomes"))
+					settlement_lines = (
+						list(linked_settlement_rows(context)) if query["loanScope"] == "all" else []
+					)
+					loan_metadata = {row["document"]: row for row in loan_lines}
+					settlement_metadata = {}
+					for row in settlement_lines:
+						original = loan_metadata.get(row["original_loan"], {})
+						values = settlement_metadata.setdefault(row["document"], (set(), set(), set()))
+						values[0].add(original.get("borrower", ""))
+						values[1].add(original.get("activity", "") or row.get("original_activity", ""))
+						values[2].add(
+							original.get("activity_title", "") or row.get("original_activity_title", "")
+						)
+					for row in settlement_lines:
+						borrowers, activities, activity_titles = settlement_metadata[row["document"]]
+						row["borrower"] = row.get("borrower") or (
+							next(iter(borrowers)) if len(borrowers) == 1 else ""
+						)
+						row["activity"] = row.get("activity") or (
+							next(iter(activities)) if len(activities) == 1 else ""
+						)
+						row["activity_title"] = row.get("activity_title") or (
+							next(iter(activity_titles)) if len(activity_titles) == 1 else ""
+						)
+						row["borrowed"] = row["stock_qty"]
+						row["quantity"] = row["stock_qty"]
+						row["returned"] = row["damaged"] = row["lost"] = row["outstanding"] = 0
+					for row in loan_lines:
+						row["quantity"] = row["borrowed"]
+					self.add("outcomes", settlement_lines)
 				if view == "items":
 					self.add("linked_settlements", linked_settlement_rows(context))
 					self.add("loan_history", _loan_history_rows(self))
@@ -1217,13 +1264,14 @@ class Projection(AbstractContextManager):
 						"date",
 						"time",
 						"docstatus",
+						"kind",
 						"activity",
 						"activity_title",
 						"borrower",
 						"loan_status",
 						"stock_uom",
 					),
-					LOAN_SUMS,
+					(*LOAN_SUMS, "quantity") if view == "records" else LOAN_SUMS,
 				)
 				if view == "records" and complete_records:
 					self.complete_native_records("loans")
@@ -1430,7 +1478,8 @@ class Projection(AbstractContextManager):
 			base = document_fields(self.context, doc)
 			groups = {}
 			item_codes = set()
-			balances = self.context.loan_balances(name, by_batch=True) if dataset == "loans" else None
+			is_loan = dataset == "loans" and base.get("kind") == "Loan"
+			balances = self.context.loan_balances(name, by_batch=True) if is_loan else None
 			for line in doc.items:
 				item = self.context.item(line.item_code)
 				if not item:
@@ -1488,13 +1537,24 @@ class Projection(AbstractContextManager):
 						group["item_codes"].add(item.name)
 						group["allocation_count"] += 1
 				else:
-					for batch, borrowed in batch_quantities(line).items():
-						outcomes = balances[(line.name, batch)]
+					for batch, borrowed in (
+						batch_quantities(line).items() if is_loan else [("", float(line.transfer_qty or 0))]
+					):
+						outcomes = (
+							balances[(line.name, batch)]
+							if is_loan
+							else {
+								"Returned": 0,
+								"Damaged": 0,
+								"Lost": 0,
+							}
+						)
 						group = groups.setdefault(
 							item.stock_uom,
 							{
 								"stock_qty": 0,
 								"borrowed": 0,
+								"quantity": 0,
 								"returned": 0,
 								"damaged": 0,
 								"lost": 0,
@@ -1504,10 +1564,13 @@ class Projection(AbstractContextManager):
 							},
 						)
 						group["borrowed"] += borrowed
+						group["quantity"] += borrowed
 						group["returned"] += outcomes["Returned"]
 						group["damaged"] += outcomes["Damaged"]
 						group["lost"] += outcomes["Lost"]
-						outstanding = borrowed - sum(outcomes.values()) if doc.docstatus == 1 else 0
+						outstanding = (
+							borrowed - sum(outcomes.values()) if is_loan and doc.docstatus == 1 else 0
+						)
 						group["outstanding"] += outstanding
 						group["stock_qty"] += outstanding
 						group["item_codes"].add(item.name)
@@ -1809,7 +1872,11 @@ def _group_page(validated, path, parent_unit, start, size, refresh=False):
 		if validated["view"] == "records" and validated["dataset"] in ("movements", "loans"):
 			leaf_table = "group_leaf_records"
 			leaf_sums = (
-				("stock_qty", "available_effect") if validated["dataset"] == "movements" else LOAN_SUMS
+				("stock_qty", "available_effect")
+				if validated["dataset"] == "movements"
+				else (*LOAN_SUMS, "quantity")
+				if validated["dataset"] == "loans" and validated["view"] == "records"
+				else LOAN_SUMS
 			)
 			leaf_fields = (*fields, "doctype", "document", "document_id")
 			leaf_maximums = tuple(

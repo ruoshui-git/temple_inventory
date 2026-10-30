@@ -279,6 +279,7 @@ const sortableColumnsByView: Record<string, string[]> = {
   "loans:records": [
     "identity",
     "document",
+    "kind",
     "doctype",
     "borrower",
     "activity_title",

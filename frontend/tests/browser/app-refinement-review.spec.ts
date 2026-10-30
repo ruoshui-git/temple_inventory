@@ -167,7 +167,9 @@ async function prepare(page: Page, scale = 100, density = "balanced") {
         doctype: "Stock Entry",
         document: "MAT-2026-0000" + n,
         kind: loan
-          ? "Loan"
+          ? query.loanScope === "all" && n === 2
+            ? "Return"
+            : "Loan"
           : n === 1
             ? "Receive"
             : n === 2
@@ -206,7 +208,12 @@ async function prepare(page: Page, scale = 100, density = "balanced") {
               destination: n === 2 ? "" : "ROOM-B",
             },
           ],
-          original_loans: [],
+          original_loans:
+            loan && query.loanScope === "all" && n === 2
+              ? ["MAT-2026-00001"]
+              : [],
+          settlement_records:
+            loan && n === 1 ? [{ name: "MAT-2026-00002", kind: "Return" }] : [],
           loan_status: "Open",
         },
       }));
@@ -384,11 +391,12 @@ for (const width of [1440, 390]) {
     expect(errors).toEqual([]);
   });
 
-  if (width < 1024)
-    test(`loan records and item summaries at ${width}`, async ({
+  if (width === 1440 || width === 390)
+    test(`loan records and item summaries at ${width >= 1024 ? 1280 : width}`, async ({
       page,
     }, info) => {
-      await page.setViewportSize({ width, height: 1000 });
+      const loanWidth = width >= 1024 ? 1280 : width;
+      await page.setViewportSize({ width: loanWidth, height: 1000 });
       const errors = await prepare(page);
       await page.goto("/inventory/loans?view=records");
       const loanRows = page.locator("[data-browse-row]");
@@ -396,9 +404,22 @@ for (const width of [1440, 390]) {
       await expect(
         page.getByRole("button", { name: "登记归还", exact: true }),
       ).toHaveCount(3);
-      await expect(loanRows.first().locator("td").nth(1)).toBeEmpty();
       await expect(loanRows.first().locator("td").nth(2)).toBeEmpty();
-      if (width < 1024) {
+      await expect(loanRows.first().locator("td").nth(3)).toBeEmpty();
+      await page.getByRole("button", { name: "筛选", exact: true }).click();
+      const loanScopeDisclosure = page.locator(
+        '[data-filter-field="loanScope"] > summary',
+      );
+      await expect(loanScopeDisclosure).toBeVisible();
+      if (loanWidth < 1024)
+        await page.getByRole("button", { name: "完成", exact: true }).click();
+      else await page.getByRole("button", { name: "关闭筛选" }).click();
+      await expect(page.locator("td .record-ref-chip").first()).toBeVisible();
+      const rowHeights = await loanRows.evaluateAll((rows) =>
+        rows.map((row) => Math.round(row.getBoundingClientRect().height)),
+      );
+      expect(new Set(rowHeights).size).toBe(1);
+      if (loanWidth < 1024) {
         expect(
           await page.evaluate(
             () => document.documentElement.scrollWidth <= innerWidth + 1,
@@ -414,6 +435,34 @@ for (const width of [1440, 390]) {
       await page.evaluate(() => document.fonts.ready);
       await reviewScreenshot(page, {
         path: info.outputPath("loan-records.png"),
+        fullPage: true,
+      });
+      await page.getByRole("button", { name: "筛选", exact: true }).click();
+      await loanScopeDisclosure.click();
+      await page.getByRole("button", { name: "借出与归还全部记录" }).click();
+      await expect(
+        page.getByText("记录范围：借出与归还全部记录", { exact: true }),
+      ).toBeVisible();
+      await expect(page.locator("td .record-ref-chip")).toHaveCount(2);
+      const allRowHeights = await loanRows.evaluateAll((rows) =>
+        rows.map((row) => Math.round(row.getBoundingClientRect().height)),
+      );
+      expect(new Set(allRowHeights).size).toBe(1);
+      if (loanWidth < 1024)
+        await page.getByRole("button", { name: "完成", exact: true }).click();
+      else await page.getByRole("button", { name: "关闭筛选" }).click();
+      if (loanWidth >= 1024) {
+        const tableScrollport = page.locator(".data-table-scroll").first();
+        await tableScrollport.evaluate((el) => {
+          el.scrollLeft = el.scrollWidth;
+        });
+        await reviewScreenshot(page, {
+          path: info.outputPath("loan-records-related.png"),
+          fullPage: true,
+        });
+      }
+      await reviewScreenshot(page, {
+        path: info.outputPath("loan-records-all.png"),
         fullPage: true,
       });
       await page.getByRole("button", { name: "明细", exact: true }).click();

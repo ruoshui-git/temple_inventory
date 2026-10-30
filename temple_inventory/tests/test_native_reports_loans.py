@@ -12,6 +12,62 @@ from temple_inventory.tests.helpers import NativeReportTestCase
 
 
 class NativeReportsLoansTests(NativeReportTestCase):
+	def test_loan_records_scope_includes_linked_settlement_documents_only_in_all_scope(self):
+		self.receipt(10)
+		open_loan = self.submit(
+			self.create(self.movement("Loan", 5, self.a, self.loan_leaf, ti_borrower="部分归还"))
+		)
+		settlement = self.submit(self.settlement(open_loan, 2))
+		settled_loan = self.submit(
+			self.create(self.movement("Loan", 3, self.a, self.loan_leaf, ti_borrower="全部归还"))
+		)
+		self.submit(self.settlement(settled_loan, 3))
+		query = self.query("loans", "records", loan=open_loan.name, loanScope="all")
+		query["scope"]["period"] = {"key": "all", "from": "", "to": ""}
+		all_rows = browse.operation_page(query, records=True)["rows"]
+		self.assertEqual({row["document"] for row in all_rows}, {open_loan.name, settlement.name})
+		settlement_row = next(row for row in all_rows if row["document"] == settlement.name)
+		self.assertEqual(settlement_row["kind"], "Return")
+		self.assertEqual(settlement_row["whole"]["original_loans"], [open_loan.name])
+		loan_row = next(row for row in all_rows if row["document"] == open_loan.name)
+		self.assertEqual(
+			loan_row["whole"]["settlement_records"],
+			[{"name": settlement.name, "kind": "Return"}],
+		)
+
+		outstanding = {**query, "loanScope": "outstanding"}
+		outstanding_rows = browse.operation_page(outstanding, records=True)["rows"]
+		self.assertEqual([row["document"] for row in outstanding_rows], [open_loan.name])
+
+		draft = self.create(self.movement("Loan", 1, self.a, self.loan_leaf, ti_borrower="草稿"))
+		draft_query = self.query("loans", "records", statuses=[0], loanScope="outstanding")
+		draft_query["scope"]["period"] = {"key": "all", "from": "", "to": ""}
+		draft_rows = browse.operation_page(draft_query, records=True)["rows"]
+		self.assertIn(draft.name, {row["document"] for row in draft_rows})
+
+	def test_activity_option_search_is_permission_checked_active_and_searchable(self):
+		active = activities.save_activity(
+			{
+				"title": f"Picker title {self.token}",
+				"activity_type": "TI-TYPE-OTHER",
+				"notes": f"unique notes {self.token}",
+			}
+		)
+		archived = activities.save_activity(
+			{"title": f"Picker archived {self.token}", "activity_type": "TI-TYPE-OTHER"}
+		)
+		frappe.db.set_value("Inventory Activity", archived["name"], "status", "Archived")
+		with patch("temple_inventory.activities.frappe.get_list", wraps=frappe.get_list) as get_list:
+			result = activities.search_activities(f"unique notes {self.token}")
+		self.assertEqual([row["name"] for row in result["rows"]], [active["name"]])
+		self.assertEqual(result["rows"][0]["type_label"], "其它")
+		self.assertTrue(any(call.args[0] == "Inventory Activity" for call in get_list.call_args_list))
+		self.assertNotIn(archived["name"], {row["name"] for row in activities.search_activities()["rows"]})
+		self.assertEqual(
+			activities.activity_label(archived["name"]),
+			{"name": archived["name"], "title": archived["title"], "archived": True},
+		)
+
 	def test_movement_history_preloads_only_permission_readable_primary_images(self):
 		self.receipt(3)
 		file = frappe.get_doc(

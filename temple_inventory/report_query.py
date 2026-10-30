@@ -133,6 +133,7 @@ SORTABLE_COLUMNS = {
 	("loans", "records"): (
 		"identity",
 		"document",
+		"kind",
 		"doctype",
 		"borrower",
 		"activity_title",
