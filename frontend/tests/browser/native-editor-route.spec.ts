@@ -1,10 +1,5 @@
 import { sampleWarehouses } from "./fixtures/nativeUi";
 import { expect, test } from "@playwright/test";
-import { mkdirSync } from "node:fs";
-import { resolve } from "node:path";
-
-const uiPolishShots = resolve(process.cwd(), "tests/browser/.ui-polish-shots");
-mkdirSync(uiPolishShots, { recursive: true });
 
 // Production routing/transport exercise with controlled native responses.
 // Real native interoperability is validated separately on development.localhost.
@@ -221,10 +216,8 @@ test("save, reload and amendment keep the current native identity in the URL", a
     .first()
     .check();
   await addPicker.getByRole("button", { name: /添加所选/ }).click();
-  await expect(
-    page.getByRole("button", { name: "更换物品", exact: true }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "更换物品", exact: true }).click();
+  await page.getByRole("button", { name: "明细操作" }).first().click();
+  await page.getByRole("menuitem", { name: "更换物品", exact: true }).click();
   const picker = page.getByRole("dialog", { name: "选择物品", exact: true });
   await expect(picker).toBeVisible();
   const chooseButton = picker.getByRole("button", {
@@ -241,7 +234,7 @@ test("save, reload and amendment keep the current native identity in the URL", a
     cellBox!.x + cellBox!.width + 1,
   );
   await page.screenshot({
-    path: resolve(uiPolishShots, "item-picker-replace.png"),
+    path: test.info().outputPath("item-picker-replace.png"),
   });
   await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
   await expect(
@@ -291,10 +284,11 @@ test("save, reload and amendment keep the current native identity in the URL", a
       "现有 7",
     );
     await page.screenshot({
-      path: resolve(
-        uiPolishShots,
-        `outbound-existing-${width < 1024 ? "phone" : "desktop"}.png`,
-      ),
+      path: test
+        .info()
+        .outputPath(
+          `outbound-existing-${width < 1024 ? "phone" : "desktop"}.png`,
+        ),
       fullPage: true,
     });
   }

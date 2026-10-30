@@ -1,14 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { readFileSync, writeFileSync } from "node:fs";
 import {
   auditCjkFontType,
   nativeUiSession,
   requiredAuditCjkFont,
 } from "./fixtures/nativeUi";
 const font = requiredAuditCjkFont();
-const uiPolishShots = resolve(process.cwd(), "tests/browser/.ui-polish-shots");
-mkdirSync(uiPolishShots, { recursive: true });
 async function setup(page: Page, scale = 100, density = "balanced") {
   await page.route("**/refinement-font.otf", (route) =>
     route.fulfill({
@@ -507,7 +504,7 @@ for (const width of [390, 1440]) {
     expect(continuedSelection!.y).toBeGreaterThanOrEqual(movedSelection!.y);
     if (width === 390 || width === 1440)
       await page.screenshot({
-        path: resolve(uiPolishShots, `crop-mid-drag-${width}.png`),
+        path: test.info().outputPath(`crop-mid-drag-${width}.png`),
       });
     await page.mouse.up();
     const cropSelection = await page
@@ -677,10 +674,9 @@ for (const width of [390, 1440]) {
     await panel.locator('input[aria-label="人员"]').click();
     await expect(page.getByRole("option", { name: /人员甲/ })).toBeVisible();
     await page.screenshot({
-      path: resolve(
-        uiPolishShots,
-        `filter-person-${width < 1024 ? "phone" : "desktop"}.png`,
-      ),
+      path: test
+        .info()
+        .outputPath(`filter-person-${width < 1024 ? "phone" : "desktop"}.png`),
       fullPage: true,
     });
     await page.getByRole("option", { name: /人员甲/ }).click();

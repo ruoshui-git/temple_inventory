@@ -444,10 +444,19 @@ for (const width of [1440, 390]) {
         page.getByText("记录范围：借出与归还全部记录", { exact: true }),
       ).toBeVisible();
       await expect(page.locator("td .record-ref-chip")).toHaveCount(2);
-      const allRowHeights = await loanRows.evaluateAll((rows) =>
-        rows.map((row) => Math.round(row.getBoundingClientRect().height)),
+      // Reference chips must not make a row taller than chip-free rows
+      // (settlement rows have no 登记归还 button, so heights may differ).
+      const heights = await loanRows.evaluateAll((rows) =>
+        rows.map((row) => ({
+          chips: row.querySelectorAll(".record-ref-chip").length,
+          height: Math.round(row.getBoundingClientRect().height),
+        })),
       );
-      expect(new Set(allRowHeights).size).toBe(1);
+      const plainHeight = Math.max(
+        ...heights.filter((row) => !row.chips).map((row) => row.height),
+      );
+      for (const row of heights.filter((row) => row.chips))
+        expect(row.height).toBeLessThanOrEqual(plainHeight);
       if (loanWidth < 1024)
         await page.getByRole("button", { name: "完成", exact: true }).click();
       else await page.getByRole("button", { name: "关闭筛选" }).click();
