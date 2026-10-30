@@ -3,6 +3,7 @@ import type { InventoryServices, ReferenceData } from "./contracts";
 export interface UnitRow {
   name: string;
   label: string;
+  category: string;
   must_be_whole_number: boolean;
   enabled: boolean;
   item_count: number;
@@ -23,6 +24,7 @@ export function saveUnit(
     uom_name?: string;
     label: string;
     must_be_whole_number: boolean;
+    category?: string;
     enabled?: boolean;
   },
 ) {
@@ -48,6 +50,7 @@ export async function refreshUnitReference(
       label: string;
       must_be_whole_number: boolean;
       category: string | null;
+      enabled: boolean;
     }[];
   }>("browse.bootstrap");
   reference.units.splice(
@@ -58,6 +61,20 @@ export async function refreshUnitReference(
       label: row.label || row.name,
       whole: Boolean(row.must_be_whole_number),
       category: row.category,
+      enabled: Boolean(row.enabled),
     })),
   );
+}
+
+export function listUnitCategories(services: InventoryServices) {
+  return services.call<{ name: string }[]>("units.list_categories");
+}
+
+export function createUnitCategory(
+  services: InventoryServices,
+  category_name: string,
+) {
+  return services.call<{ name: string }>("units.create_category", {
+    category_name,
+  });
 }

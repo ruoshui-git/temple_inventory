@@ -13,9 +13,17 @@ import type { useUnitsController } from "./useUnitsController";
 const props = defineProps<{ controller: ReturnType<typeof useUnitsController> }>();
 const c = props.controller;
 const { isMobile } = useResponsiveLayout();
+// The server refuses to disable a unit that Items still use.
+function inUse(row: Record<string, unknown>) {
+	return Boolean(row.enabled) && Number(row.item_count) + Number(row.conversion_count) > 0;
+}
+function usage(row: Record<string, unknown>) {
+	return `库存单位物品 ${row.item_count} 项，物品单位换算 ${row.conversion_count} 项`;
+}
 const columns: DataColumn[] = [
 	{ id: "label", label: "显示名称", kind: "primary", required: true },
 	{ id: "name", label: "单位名称", kind: "code" },
+	{ id: "category", label: "单位类别", kind: "text" },
 	{ id: "must_be_whole_number", label: "整数", kind: "chip" },
 	{ id: "enabled", label: "状态", kind: "status" },
 	{ id: "item_count", label: "使用物品", kind: "number", align: "end" },
@@ -71,9 +79,16 @@ const tableRows = computed<DataTableRecord[]>(() =>
 					align="end"
 				>
 					<UiButton icon="settings" @click="c.openEdit(row as never)">编辑</UiButton>
-					<UiButton icon="warning" @click="c.toggleEnabled(row as never)">{{
-						row.enabled ? "停用" : "启用"
-					}}</UiButton>
+					<UiButton
+						icon="warning"
+						:disabled="inUse(row)"
+						@click="c.toggleEnabled(row as never)"
+					>
+						<span class="menu-item-label">{{ row.enabled ? "停用" : "启用" }}</span
+						><small v-if="inUse(row)" class="unit-delete-reason"
+							>正在使用：{{ usage(row) }}</small
+						>
+					</UiButton>
 					<UiButton
 						icon="disposal"
 						variant="danger"
@@ -99,14 +114,18 @@ const tableRows = computed<DataTableRecord[]>(() =>
 				<div class="units-phone-details">
 					<span>{{ row.must_be_whole_number ? "整数" : "可小数" }}</span>
 					<span>{{ row.enabled ? "启用" : "停用" }}</span>
+					<span>单位类别 {{ row.category || "—" }}</span>
 					<span>使用物品 {{ row.item_count }}</span>
 					<span>换算 {{ row.conversion_count }}</span>
 				</div>
 				<PopupMenu label="单位操作" variant="icon" align="end" class="units-phone-actions">
 					<UiButton icon="settings" @click="c.openEdit(row)">编辑</UiButton>
-					<UiButton icon="warning" @click="c.toggleEnabled(row)">{{
-						row.enabled ? "停用" : "启用"
-					}}</UiButton>
+					<UiButton icon="warning" :disabled="inUse(row)" @click="c.toggleEnabled(row)">
+						<span class="menu-item-label">{{ row.enabled ? "停用" : "启用" }}</span
+						><small v-if="inUse(row)" class="unit-delete-reason"
+							>正在使用：{{ usage(row) }}</small
+						>
+					</UiButton>
 					<UiButton
 						icon="disposal"
 						variant="danger"
@@ -159,6 +178,30 @@ const tableRows = computed<DataTableRecord[]>(() =>
 				<label class="unit-checkbox"
 					><input v-model="c.whole.value" type="checkbox" /> 必须为整数</label
 				>
+				<FormField label="单位类别">
+					<template #default="{ fieldAttrs }">
+						<select v-bind="fieldAttrs" v-model="c.category.value">
+							<option value="">未分类</option>
+							<option
+								v-for="option in c.categories.value"
+								:key="option.name"
+								:value="option.name"
+							>
+								{{ option.name }}
+							</option>
+						</select>
+					</template>
+				</FormField>
+				<div class="unit-category-create">
+					<input
+						v-model="c.categoryName.value"
+						aria-label="新单位类别名称"
+						placeholder="新单位类别名称"
+					/>
+					<UiButton :disabled="!c.categoryName.value.trim()" @click="c.addCategory"
+						>创建类别</UiButton
+					>
+				</div>
 				<label v-if="c.editing.value" class="unit-checkbox"
 					><input v-model="c.enabled.value" type="checkbox" /> 启用</label
 				>

@@ -69,12 +69,13 @@ function fixture() {
       {
         name: "Nos",
         label: "个",
+        category: "Count",
         must_be_whole_number: true,
         enabled: true,
         item_count: 3,
         conversion_count: 1,
         deletable: false,
-        delete_reason: "已被物品引用，不能删除；可以停用",
+        delete_reason: "已被物品引用，不能删除",
       },
     ]),
     search: ref(""),
@@ -89,6 +90,9 @@ function fixture() {
     label: ref(""),
     whole: ref(false),
     enabled: ref(true),
+    category: ref(""),
+    categoryName: ref(""),
+    categories: ref([{ name: "Count" }]),
     saving: ref(false),
     validation,
     refresh: vi.fn(),
@@ -100,6 +104,7 @@ function fixture() {
     save: vi.fn(() => {
       if (!controller.editing.value && !validation.validate().ok) return;
     }),
+    addCategory: vi.fn(),
     toggleEnabled: vi.fn(),
     remove: vi.fn(),
   };
@@ -120,8 +125,20 @@ describe("units management page", () => {
     const { wrapper } = fixture();
     expect(wrapper.text()).toContain("个");
     expect(wrapper.text()).toContain("Nos");
-    expect(wrapper.text()).toContain("已被物品引用，不能删除；可以停用");
-    expect(wrapper.get("button[disabled]").text()).toContain("删除");
+    expect(wrapper.text()).toContain("已被物品引用，不能删除");
+    expect(wrapper.text()).toContain("库存单位物品 3 项，物品单位换算 1 项");
+    expect(
+      wrapper
+        .findAll("button[disabled]")
+        .some((button) => button.text().includes("删除")),
+    ).toBe(true);
+    expect(wrapper.text()).toContain("单位类别 Count");
+    expect(
+      wrapper
+        .findAll("button")
+        .find((button) => button.text().includes("停用"))
+        ?.attributes("disabled"),
+    ).toBeDefined();
   });
 
   it("validates the create dialog before saving", async () => {

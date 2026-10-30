@@ -50,6 +50,10 @@ function operation(kind: string, warehouse: string) {
 }
 function saved() {
 	document.dispatchEvent(new Event("inventory-configuration-changed"));
+	if (typeof BroadcastChannel === "undefined") return;
+	const channel = new BroadcastChannel("temple-inventory-configuration");
+	channel.postMessage("changed");
+	channel.close();
 }
 </script>
 <template>

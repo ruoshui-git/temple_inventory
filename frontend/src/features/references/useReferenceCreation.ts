@@ -177,9 +177,13 @@ export function useReferenceCreation(
           );
         });
         if (clash) {
-          existingUnit.value = clash.name;
           const clashText = normalizedLabel || normalizedName;
-          error.value = `「${clashText}」已被单位 ${unitLabel(clash.name)} 使用`;
+          // A disabled unit can't be chosen for new input; it must be re-enabled first.
+          existingUnit.value = clash.enabled === false ? "" : clash.name;
+          error.value =
+            clash.enabled === false
+              ? `「${clashText}」属于已停用的单位 ${unitLabel(clash.name)}，请先在单位管理中启用`
+              : `「${clashText}」已被单位 ${unitLabel(clash.name)} 使用`;
           busy.value = false;
           return;
         }
@@ -200,6 +204,7 @@ export function useReferenceCreation(
             name: result.name,
             label: result.label || result.name,
             whole: result.must_be_whole_number,
+            enabled: true,
           });
         }
         selected(result.name);

@@ -71,6 +71,18 @@ describe("shared unit labels and ordering", () => {
     setUnitSource(undefined);
   });
 
+  it("keeps disabled unit labels and ranks from reference data", () => {
+    const reference = createReferenceData();
+    reference.units = [
+      { name: "Nos", label: "个", whole: true, enabled: false },
+      { name: "Box", label: "箱", whole: true, enabled: true },
+    ];
+    setUnitSource(reference);
+    expect(unitLabel("Nos")).toBe("个");
+    expect(unitRank("Nos")).toBe(0);
+    setUnitSource(undefined);
+  });
+
   it("builds translated unit options with native names and conversion factors", () => {
     const reference = createReferenceData();
     reference.units = [

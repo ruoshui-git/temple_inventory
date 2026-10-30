@@ -16,7 +16,10 @@ import {
 } from "../src/services/contracts";
 import { useApplication } from "../src/features/application/useApplication";
 const wrappers: VueWrapper[] = [];
-afterEach(() => wrappers.splice(0).forEach((wrapper) => wrapper.unmount()));
+afterEach(() => {
+  wrappers.splice(0).forEach((wrapper) => wrapper.unmount());
+  vi.restoreAllMocks();
+});
 const sessionValue = (user = "alice") => ({
   user,
   csrf_token: "token",
@@ -164,6 +167,61 @@ describe("native application boundary", () => {
     expect(room?.kind).toBe("room");
     expect(room?.label).toBe("T1 / A14");
     expect(room?.path).toBe("T1 / A14");
+  });
+
+  it("sorts physical destination leaves by their presented paths", () => {
+    const reference = createReferenceData();
+    const leaf = (name: string, path: string) => ({
+      name,
+      label: name,
+      local_label: name,
+      short_label: "",
+      full_label: path,
+      path,
+      search_text: path,
+      kind: "shelf" as const,
+      owner: "",
+      direct: false,
+      storable: true,
+      missing_direct: false,
+      parent: "",
+      is_group: false,
+      disabled: false,
+      lft: 0,
+      rgt: 0,
+      version: "",
+      protected: false,
+      can_edit: true,
+    });
+    hydrateReferenceData(reference, {
+      ...bootstrap(),
+      physical_leaves: ["Z-NATIVE", "A-NATIVE"],
+      warehouses: [leaf("Z-NATIVE", "T2 / A02"), leaf("A-NATIVE", "T1 / A99")],
+    });
+    expect(reference.physicalLeaves).toEqual(["A-NATIVE", "Z-NATIVE"]);
+  });
+
+  it("refreshes stale reference data when the app regains focus", async () => {
+    const call = vi.fn(async (endpoint) =>
+      endpoint === "browse.bootstrap"
+        ? bootstrap()
+        : { setup_required: false, warnings: [], blockers: [] },
+    );
+    setup(
+      vi.fn(async () => sessionValue()),
+      call,
+    );
+    await flushPromises();
+    const bootstraps = () =>
+      call.mock.calls.filter(([endpoint]) => endpoint === "browse.bootstrap");
+    window.dispatchEvent(new Event("focus"));
+    await flushPromises();
+    expect(bootstraps()).toHaveLength(1);
+    const now = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(now + 61_000);
+    window.dispatchEvent(new Event("focus"));
+    await flushPromises();
+    expect(bootstraps()).toHaveLength(2);
   });
 
   it("delays worker activation while an editor retains unsaved input and releases its guard on unmount", async () => {

@@ -47,7 +47,11 @@ validation.register(
 	() => document.querySelector<HTMLElement>(".unit-create input")?.focus(),
 );
 const requiredError = computed(() => props.error || validation.errors["unit-name"]);
-const unitOptions = computed(() => reference.units.map((unit) => unitOption(unit.name, unit)));
+const unitOptions = computed(() =>
+	reference.units
+		.filter((unit) => unit.enabled !== false || unit.name === props.modelValue)
+		.map((unit) => unitOption(unit.name, unit)),
+);
 async function close() {
 	await finish();
 }

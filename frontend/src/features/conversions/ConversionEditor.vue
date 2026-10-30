@@ -87,9 +87,11 @@ async function selectExistingUnit() {
 					label="输入单位"
 					v-model="unit"
 					:options="
-						reference.units.map((row) => ({
-							...unitOption(row.name, { ...row, stockUom: line.uom }),
-						}))
+						reference.units
+							.filter((row) => row.enabled !== false || row.name === unit)
+							.map((row) => ({
+								...unitOption(row.name, { ...row, stockUom: line.uom }),
+							}))
 					"
 					:disabled="disabled || busy"
 				/>

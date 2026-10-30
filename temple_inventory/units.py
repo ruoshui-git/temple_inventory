@@ -45,11 +45,12 @@ def _unit_row(row, item_counts=None, conversion_counts=None, transaction_units=N
 		"label": row.ti_label or row.name,
 		"must_be_whole_number": bool(row.must_be_whole_number),
 		"enabled": bool(row.enabled),
+		"category": row.category or "",
 		"item_count": item_count,
 		"conversion_count": conversion_count,
 		"used_in_transactions": transaction_use,
 		"deletable": deletable,
-		"delete_reason": "已被物品、换算或库存单据引用，不能删除；可以停用" if not deletable else "",
+		"delete_reason": "已被物品、换算或库存单据引用，不能删除" if not deletable else "",
 	}
 
 
@@ -59,7 +60,7 @@ def list_units():
 	frappe.has_permission("UOM", "read", throw=True)
 	rows = frappe.get_list(
 		"UOM",
-		fields=["name", "ti_label", "must_be_whole_number", "enabled"],
+		fields=["name", "ti_label", "must_be_whole_number", "enabled", "category"],
 		limit_page_length=0,
 	)
 	names = [row.name for row in rows]
@@ -86,7 +87,29 @@ def list_units():
 
 
 @frappe.whitelist(methods=["POST"])
-def save_unit(name=None, uom_name=None, label="", must_be_whole_number=False, enabled=True):
+def list_categories():
+	require_app()
+	frappe.has_permission("UOM Category", "read", throw=True)
+	return frappe.get_list("UOM Category", fields=["name"], limit_page_length=0, order_by="name asc")
+
+
+@frappe.whitelist(methods=["POST"])
+def create_category(category_name):
+	require_app()
+	frappe.has_permission("UOM Category", "create", throw=True)
+	category_name = str(category_name or "").strip()
+	if not category_name:
+		frappe.throw("请填写单位类别")
+	if frappe.db.exists("UOM Category", category_name):
+		return {"name": category_name}
+	doc = frappe.get_doc({"doctype": "UOM Category", "category_name": category_name})
+	doc.check_permission("create")
+	doc.insert()
+	return {"name": doc.name}
+
+
+@frappe.whitelist(methods=["POST"])
+def save_unit(name=None, uom_name=None, label="", must_be_whole_number=False, enabled=True, category=None):
 	require_app()
 	if name:
 		doc = frappe.get_doc("UOM", name, for_update=True)
@@ -95,6 +118,17 @@ def save_unit(name=None, uom_name=None, label="", must_be_whole_number=False, en
 			frappe.throw("单位名称是原生身份，不能重命名")
 		doc.ti_label = str(label or "").strip()
 		doc.must_be_whole_number = cint(must_be_whole_number)
+		if category is not None:
+			doc.category = str(category or "").strip() or None
+		if not cint(enabled) and doc.enabled:
+			item_count = frappe.db.count("Item", {"stock_uom": doc.name})
+			conversion_count = frappe.db.count(
+				"UOM Conversion Detail", {"uom": doc.name, "parenttype": "Item"}
+			)
+			if item_count or conversion_count:
+				frappe.throw(
+					f"单位正在使用，不能停用：库存单位物品 {item_count} 项，物品单位换算 {conversion_count} 项"
+				)
 		doc.enabled = cint(enabled)
 		doc.save()
 	else:
@@ -104,8 +138,9 @@ def save_unit(name=None, uom_name=None, label="", must_be_whole_number=False, en
 			frappe.throw("请填写单位名称")
 		created = create_uom(uom_name, must_be_whole_number, label)
 		doc = frappe.get_doc("UOM", created["name"], for_update=True)
+		doc.category = str(category or "").strip() or None
 		doc.enabled = cint(enabled)
-		if not doc.enabled:
+		if doc.category or not doc.enabled:
 			doc.save()
 	clear_uom_label_cache()
 	return _unit_row(doc)

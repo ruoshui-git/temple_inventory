@@ -183,6 +183,7 @@ export interface ReferenceData {
     label: string;
     whole: boolean;
     category?: string | null;
+    enabled?: boolean;
   }[];
   operations: Record<string, boolean>;
   settings: Record<string, unknown>;
@@ -287,6 +288,7 @@ export interface BootstrapData {
     label: string;
     must_be_whole_number: boolean;
     category: string | null;
+    enabled: boolean;
   }[];
   activity_types: { name: string; label: string; enabled: boolean | number }[];
   operations: ReferenceData["operations"];
@@ -295,6 +297,9 @@ export function hydrateReferenceData(
   reference: ReferenceData,
   result: BootstrapData,
 ) {
+  const warehousePaths = new Map(
+    result.warehouses.map((row) => [row.name, row.path]),
+  );
   Object.assign(reference, {
     user: result.user,
     site: result.site,
@@ -319,13 +324,20 @@ export function hydrateReferenceData(
       label: row.label || row.name,
       whole: Boolean(row.must_be_whole_number),
       category: row.category,
+      enabled: Boolean(row.enabled),
     })),
     activityTypes: result.activity_types.map((row) => ({
       value: row.name,
       label: row.label,
       enabled: Boolean(row.enabled),
     })),
-    physicalLeaves: result.physical_leaves,
+    physicalLeaves: [...result.physical_leaves].sort((left, right) => {
+      const leftPath = warehousePaths.get(left) || left;
+      const rightPath = warehousePaths.get(right) || right;
+      return leftPath.localeCompare(rightPath, "zh-CN", {
+        sensitivity: "base",
+      });
+    }),
     leasedLeaves: result.leased_leaves,
     damagedLeaves: result.damaged_leaves,
     operations: result.operations,

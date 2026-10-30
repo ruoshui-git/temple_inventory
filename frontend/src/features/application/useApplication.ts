@@ -38,11 +38,14 @@ export function useApplication(
   const resuming = ref(false);
   let generation = 0,
     disposed = false;
+  let referenceChannel: BroadcastChannel | undefined;
+  let lastCheck = 0;
   const current = (value: number) => !disposed && value === generation;
   async function check() {
     const wasReady = state.gate === "ready";
     const openingAccount = reference.user;
     const request = ++generation;
+    lastCheck = Date.now();
     state.loading = true;
     state.error = "";
     try {
@@ -147,6 +150,10 @@ export function useApplication(
   function configurationChanged() {
     void check();
   }
+  // Other tabs announce changes over the channel; focus catches other devices' changes.
+  function windowFocused() {
+    if (Date.now() - lastCheck > 60_000) void check();
+  }
   onMounted(() => {
     void check();
     void registerPwa();
@@ -154,6 +161,12 @@ export function useApplication(
       "inventory-configuration-changed",
       configurationChanged,
     );
+    referenceChannel =
+      typeof BroadcastChannel === "undefined"
+        ? undefined
+        : new BroadcastChannel("temple-inventory-configuration");
+    referenceChannel?.addEventListener("message", configurationChanged);
+    window.addEventListener("focus", windowFocused);
   });
   onBeforeUnmount(() => {
     disposed = true;
@@ -162,6 +175,9 @@ export function useApplication(
       "inventory-configuration-changed",
       configurationChanged,
     );
+    referenceChannel?.removeEventListener("message", configurationChanged);
+    referenceChannel?.close();
+    window.removeEventListener("focus", windowFocused);
   });
   return {
     state,

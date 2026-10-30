@@ -11,6 +11,8 @@ import {
   listUnits,
   refreshUnitReference,
   saveUnit,
+  createUnitCategory,
+  listUnitCategories,
   type UnitRow,
 } from "../../services/units";
 
@@ -32,6 +34,9 @@ export function useUnitsController() {
   const label = ref("");
   const whole = ref(false);
   const enabled = ref(true);
+  const category = ref("");
+  const categoryName = ref("");
+  const categories = ref<{ name: string }[]>([]);
   const validation = useFormValidation();
   validation.register("unit-name", () => name.value, [
     (value) => (value.trim() ? true : "请输入单位名称"),
@@ -49,6 +54,7 @@ export function useUnitsController() {
     refreshError.value = "";
     try {
       rows.value = await listUnits(services);
+      categories.value = await listUnitCategories(services);
       initialized.value = true;
     } catch (reason) {
       refreshError.value =
@@ -63,6 +69,8 @@ export function useUnitsController() {
     label.value = "";
     whole.value = false;
     enabled.value = true;
+    category.value = "";
+    categoryName.value = "";
     error.value = "";
     labelError.value = "";
     validation.clear("unit-name");
@@ -74,6 +82,8 @@ export function useUnitsController() {
     label.value = row.label === row.name ? "" : row.label;
     whole.value = row.must_be_whole_number;
     enabled.value = row.enabled;
+    category.value = row.category;
+    categoryName.value = "";
     error.value = "";
     labelError.value = "";
     validation.clear("unit-name");
@@ -90,6 +100,7 @@ export function useUnitsController() {
         label: label.value.trim(),
         must_be_whole_number: whole.value,
         enabled: enabled.value,
+        category: category.value,
       });
       await refreshUnitReference(services, reference);
       await refresh();
@@ -107,12 +118,27 @@ export function useUnitsController() {
       saving.value = false;
     }
   }
+  async function addCategory() {
+    const value = categoryName.value.trim();
+    if (!value) return;
+    try {
+      const result = await createUnitCategory(services, value);
+      if (!categories.value.some((row) => row.name === result.name))
+        categories.value.push(result);
+      category.value = result.name;
+      categoryName.value = "";
+    } catch (reason) {
+      error.value =
+        reason instanceof Error ? reason.message : "单位类别创建失败";
+    }
+  }
   async function toggleEnabled(row: UnitRow) {
     try {
       await saveUnit(services, {
         name: row.name,
         label: row.label === row.name ? "" : row.label,
         must_be_whole_number: row.must_be_whole_number,
+        category: row.category,
         enabled: !row.enabled,
       });
       await refreshUnitReference(services, reference);
@@ -162,12 +188,16 @@ export function useUnitsController() {
     label,
     whole,
     enabled,
+    category,
+    categoryName,
+    categories,
     saving,
     validation,
     refresh,
     openCreate,
     openEdit,
     save,
+    addCategory,
     toggleEnabled,
     remove,
   };

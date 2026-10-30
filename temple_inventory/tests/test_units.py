@@ -18,6 +18,44 @@ class UnitTests(NativeDocumentTests):
 		self.assertFalse(updated["enabled"])
 		self.assertFalse(updated["must_be_whole_number"])
 
+	def test_disabling_uom_in_use_is_blocked_with_counts(self):
+		name = f"TI-TEST-Unit-{self.token}"
+		units.save_unit(uom_name=name)
+		frappe.db.set_value("Item", self.item, "stock_uom", name)
+		with self.assertRaises(frappe.ValidationError) as error:
+			units.save_unit(name=name, enabled=False)
+		self.assertIn("库存单位物品 1 项", str(error.exception))
+		self.assertTrue(frappe.db.get_value("UOM", name, "enabled"))
+
+	def test_disabling_uom_used_by_item_conversion_is_blocked(self):
+		name = f"TI-TEST-Conversion-Unit-{self.token}"
+		units.save_unit(uom_name=name)
+		item = frappe.get_doc("Item", self.item)
+		item.append("uoms", {"uom": name, "conversion_factor": 2})
+		item.save()
+		with self.assertRaises(frappe.ValidationError) as error:
+			units.save_unit(name=name, enabled=False)
+		self.assertIn("物品单位换算 1 项", str(error.exception))
+
+	def test_disabled_units_remain_in_ranked_reference(self):
+		name = f"TI-TEST-Disabled-{self.token}"
+		units.save_unit(uom_name=name, label="已停用显示")
+		units.save_unit(name=name, label="已停用显示", enabled=False)
+		from temple_inventory.uom_labels import ranked_uoms
+
+		row = next(row for row in ranked_uoms() if row["name"] == name)
+		self.assertEqual(row["label"], "已停用显示")
+		self.assertFalse(row["enabled"])
+
+	def test_unit_category_can_be_created_and_assigned(self):
+		category = f"TI-TEST-Category-{self.token}"
+		units.create_category(category)
+		name = f"TI-TEST-Unit-{self.token}"
+		row = units.save_unit(uom_name=name, category=category)
+		self.assertEqual(row["category"], category)
+		self.assertEqual(units.save_unit(name=name, enabled=False)["category"], category)
+		self.assertIn(category, {entry.name for entry in units.list_categories()})
+
 	def test_unit_label_clash_uses_uom_validation(self):
 		name = f"TI-TEST-Unit-{self.token}"
 		other = f"TI-TEST-Other-{self.token}"
@@ -37,7 +75,7 @@ class UnitTests(NativeDocumentTests):
 		self.assertGreater(row["item_count"], 0)
 		with self.assertRaises(frappe.ValidationError) as error:
 			units.delete_unit(used)
-		self.assertIn("停用", str(error.exception))
+		self.assertIn("不能删除", str(error.exception))
 		self.assertTrue(units.delete_unit(unused)["deleted"])
 
 	def test_unit_name_is_immutable(self):

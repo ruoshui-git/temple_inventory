@@ -17,7 +17,7 @@ from temple_inventory.tests.test_native_documents import NativeDocumentTests
 
 
 class CatalogUnitsTests(NativeDocumentTests):
-	def test_uom_bootstrap_filters_disabled_units_and_returns_category(self):
+	def test_uom_bootstrap_includes_disabled_units_and_returns_category(self):
 		unit_name = f"TI-Count-{self.token}"
 		catalog.create_uom(unit_name, must_be_whole_number=True)
 		enabled_name = f"TI-Count-Enabled-{self.token}"
@@ -25,7 +25,8 @@ class CatalogUnitsTests(NativeDocumentTests):
 		frappe.get_doc("UOM", unit_name).db_set("enabled", 0)
 		rows = browse.bootstrap()["uoms"]
 		names = [row["name"] for row in rows]
-		self.assertNotIn(unit_name, set(names))
+		self.assertIn(unit_name, names)
+		self.assertFalse(next(row for row in rows if row["name"] == unit_name)["enabled"])
 		self.assertIn(enabled_name, names)
 		used = set(
 			row[0]
