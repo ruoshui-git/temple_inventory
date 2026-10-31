@@ -72,6 +72,89 @@ prune_volume_backups() {
 		'cd sites/.deploy-backups && ls -1 | sort | head -n -5 | xargs -r rm -rf --'
 }
 
+sample_snapshot=/home/frappe/frappe-bench/sites/.sample-snapshot
+
+# A seeded site depends only on the app source (tests and built frontend aside)
+# and the framework versions, so pushes that change neither reuse the snapshot.
+seed_key() {
+	local image=$1
+	{
+		# shellcheck disable=SC2016
+		IMAGE=$image compose run --rm --no-deps -T backend bash -c '
+			set -euo pipefail
+			cd apps/temple_inventory
+			find temple_inventory -type f ! -path "*/__pycache__/*" ! -path "temple_inventory/tests/*" \
+				! -path "temple_inventory/public/frontend/*" ! -path temple_inventory/www/inventory.html -print0 |
+				sort -z | xargs -0 sha256sum
+		'
+		docker image inspect --format \
+			'{{index .Config.Labels "org.kufang.frappe-version"}} {{index .Config.Labels "org.kufang.erpnext-version"}}' \
+			"$image"
+	} | sha256sum | cut -c1-16
+}
+
+# Seeded dates are relative to the seeding day, so a snapshot serves that day only.
+fresh_snapshot() {
+	local image=$1 key=$2 seeded snapshot_key day zone
+	seeded=$(IMAGE=$image compose run --rm --no-deps -T backend cat "$sample_snapshot/seeded" 2>/dev/null) || return 1
+	read -r snapshot_key day zone <<<"$seeded"
+	[[ $snapshot_key == "$key" && -n $zone && $(TZ=$zone date +%F) == "$day" ]]
+}
+
+save_snapshot() {
+	local image=$1 key=$2
+	log "save seeded snapshot $key"
+	# shellcheck disable=SC2016
+	IMAGE=$image compose run --rm --no-deps -T -e SITE_NAME -e KEY="$key" -e SNAPSHOT="$sample_snapshot" \
+		backend bash -c '
+		set -euo pipefail
+		rm -rf "$SNAPSHOT.tmp"
+		mkdir -p "$SNAPSHOT.tmp"
+		bench --site "$SITE_NAME" backup --with-files --backup-path "$SNAPSHOT.tmp"
+		day=$(bench --site "$SITE_NAME" execute frappe.utils.nowdate | tr -d "\"")
+		zone=$(bench --site "$SITE_NAME" execute frappe.utils.get_system_timezone | tr -d "\"")
+		cd "$SNAPSHOT.tmp"
+		# Private first: once it is renamed, only the public archive ends in -files.tar.
+		mv -- ./*-database.sql.gz database.sql.gz
+		mv -- ./*-private-files.tar private.tar
+		mv -- ./*-files.tar public.tar
+		rm -f -- ./*-site_config_backup.json
+		printf "%s %s %s\n" "$KEY" "$day" "$zone" >seeded
+		rm -rf "$SNAPSHOT"
+		mv "$SNAPSHOT.tmp" "$SNAPSHOT"
+	'
+}
+
+# Sample shows exactly what the deployed commit installs: nothing from earlier
+# deploys or visitors survives. Site config (database login, maintenance) stays.
+reseed_sample() {
+	local image=$1 key
+	key=$(seed_key "$image")
+	log "wipe files"
+	# shellcheck disable=SC2016
+	IMAGE=$image compose run --rm --no-deps -T -e SITE_NAME backend bash -c '
+		set -euo pipefail
+		cd "/home/frappe/frappe-bench/sites/$SITE_NAME"
+		find public/files private/files -mindepth 1 -delete
+	'
+	if fresh_snapshot "$image" "$key"; then
+		log "restore seeded snapshot $key"
+		bench_with "$image" --site "$SITE_NAME" restore "$sample_snapshot/database.sql.gz" \
+			--with-public-files "$sample_snapshot/public.tar" --with-private-files "$sample_snapshot/private.tar" \
+			--db-root-username root --db-root-password "$DB_ROOT_PASSWORD" --force
+		bench_with "$image" --site "$SITE_NAME" clear-cache
+		bench_with "$image" purge-jobs --site "$SITE_NAME"
+		return
+	fi
+	log "reinstall"
+	bench_with "$image" --site "$SITE_NAME" reinstall --yes \
+		--db-root-username root --db-root-password "$DB_ROOT_PASSWORD" --admin-password admin
+	bench_with "$image" purge-jobs --site "$SITE_NAME"
+	log "seed"
+	seed_sample "$image"
+	save_snapshot "$image" "$key"
+}
+
 deploy() {
 	local new=$1 current ts dir
 	[[ $new =~ $image_pattern ]] || die "image must match $image_pattern"
@@ -106,8 +189,12 @@ deploy() {
 		maintenance "$current" on
 		stop_jobs
 	fi
-	log "migrate"
-	bench_with "$new" --site "$SITE_NAME" migrate
+	if [[ $ENVIRONMENT == sample ]]; then
+		reseed_sample "$new"
+	else
+		log "migrate"
+		bench_with "$new" --site "$SITE_NAME" migrate
+	fi
 	site_policy "$new"
 	log "recreate services"
 	start_web "$new"

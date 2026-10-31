@@ -201,7 +201,13 @@ IMAGE=ghcr.io/ruoshui-git/temple_inventory@sha256:REPLACE_WITH_64_LOWERCASE_HEX
 /srv/kufang/staging/bootstrap.sh "$IMAGE"
 ```
 
-Sample loads the full sample set and mutes email. Like the development site, it
+Sample loads the full sample set and mutes email. Every Sample deploy starts
+fresh: it deletes uploaded files, reinstalls the site with the new image and
+reseeds the full set, so Sample shows exactly what the deployed commit installs
+and nothing from earlier deploys or visitors survives. After seeding it keeps
+one snapshot in `sites/.sample-snapshot`; a later deploy on the same day whose
+app source (tests and built frontend aside) and framework versions match
+restores that snapshot instead of reseeding, so frontend-only pushes are quick. Like the development site, it
 is a public demo: Administrator and every `*@example.com` demo user log in with
 the password `admin` (also listed in `credentials.txt`). Production opts into the
 installer only during initial setup, uses `data="real"`, company `Org`, abbr
@@ -331,14 +337,15 @@ actual backups regularly; Compose and offline guard tests cannot prove database 
 ## Deployment failures and recovery
 
 Deployments validate and pull the exact digest, back up the site, enable
-maintenance mode, stop workers/scheduler, migrate with the new image, recreate
+maintenance mode, stop workers/scheduler, migrate with the new image (Sample
+reinstalls and reseeds instead), recreate
 services and check the image, Traefik HTTPS ping (using `curl --resolve`) and a
 database query. Only a healthy deployment records a successful history entry.
 Images are pruned while retaining current and previous images, including those
 recorded by the other local environment. Persistent volumes are never pruned.
 
 Sample and staging retain volume pre-deployment backups. Failures after
-migration starts restore the backup with the previous image automatically,
+migration or reinstall starts restore the backup with the previous image automatically,
 check recovery health and exit nonzero so CI still reports the failed deploy.
 If automatic recovery reports incomplete, keep the site out of use, inspect
 `state/history`, service logs and backup contents before attempting recovery.

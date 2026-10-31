@@ -43,16 +43,7 @@ site_policy "$image"
 maintenance "$image" on
 
 case $ENVIRONMENT in
-	sample)
-		site set-config temple_inventory_sample_site 1
-		site execute temple_inventory.sample_install.prepare_development_sample_site --kwargs '{"data": "full"}'
-		users=$(site execute frappe.get_all --args '["User"]' \
-			--kwargs '{"filters": {"name": ["like", "%@example.com"]}, "pluck": "name"}')
-		for user in $(python3 -c 'import json, sys; print(" ".join(json.loads(sys.argv[1])))' "$users"); do
-			site set-password "$user" "$admin_password"
-			printf '%s %s\n' "$user" "$admin_password" >>credentials.txt
-		done
-		;;
+	sample) seed_sample "$image" ;;
 	staging)
 		restore_host_backup "$backup_dir" "$image"
 		site set-password Administrator "$admin_password"

@@ -28,6 +28,8 @@ case " $* " in
 	*' inspect '*) printf '%s\n' "$TEST_IMAGE" ;;
 	*' ps -q backend '*) printf 'fixture-backend\n' ;;
 	*'SELECT COUNT(*) FROM '*) printf '[[0]]\n' ;;
+	*' frappe.get_all '*) printf '["demo@example.com"]\n' ;;
+	*'/.sample-snapshot/seeded '*) cat "$LIFECYCLE_ROOT/seeded" ;;
 esac
 STUB
 cat >"$test_root/bin/rclone" <<'STUB'
@@ -77,4 +79,49 @@ bash "$test_root/production/bootstrap.sh" "$TEST_IMAGE" >/dev/null
 grep -Fq 'Administrator fixture-admin' "$test_root/production/credentials.txt"
 grep -Fq -- '--admin-password fixture-admin' "$test_root/calls"
 grep -Fq 'SELECT COUNT(*) FROM' "$test_root/calls"
-printf 'PASS: stopped staging refresh order, mail policy, backup ownership, same-digest promotion history, production bootstrap zero-count verification\n'
+# Every sample deploy wipes files, reinstalls and reseeds instead of migrating.
+NEW_IMAGE=ghcr.io/ruoshui-git/temple_inventory@sha256:$(printf '%064d' 2)
+mkdir -p "$test_root/sample/state"
+cp "$source_dir/"*.sh "$test_root/sample/"
+printf 'sample\n' >"$test_root/sample/ENVIRONMENT"
+printf 'SITE_NAME=sample.kufang.online\nDB_ROOT_PASSWORD=dummy\n' >"$test_root/sample/.env"
+printf '%s\n' "$TEST_IMAGE" >"$test_root/sample/state/current"
+printf 'IMAGE=%s\n' "$TEST_IMAGE" >"$test_root/sample/image.env"
+: >"$test_root/calls"
+TEST_IMAGE=$NEW_IMAGE bash "$test_root/sample/deploy.sh" deploy "$NEW_IMAGE" >/dev/null
+python3 - "$test_root" <<'PY'
+import pathlib
+import sys
+root = pathlib.Path(sys.argv[1])
+commands = (root / "calls").read_text().splitlines()
+def first(fragment):
+	return next(i for i, line in enumerate(commands) if fragment in line)
+assert not any(" migrate" in line for line in commands)
+assert first("set-maintenance-mode on") < first("find public/files private/files") < first(" reinstall --yes")
+assert first(" reinstall --yes") < first("purge-jobs") < first("prepare_development_sample_site")
+assert first("prepare_development_sample_site") < first("set-password demo@example.com admin")
+assert first("set-password demo@example.com admin") < first("set-maintenance-mode off")
+credentials = (root / "sample/credentials.txt").read_text()
+assert "Administrator admin" in credentials and "demo@example.com admin" in credentials
+assert first("set-password demo@example.com admin") < first("-e KEY=") < first("set-maintenance-mode off")
+PY
+[[ $(cat "$test_root/sample/state/current") == "$NEW_IMAGE" ]]
+# A snapshot seeded today from the same source restores instead of reseeding.
+NEWER_IMAGE=ghcr.io/ruoshui-git/temple_inventory@sha256:$(printf '%064d' 3)
+key=$(printf '%s\n' "$NEWER_IMAGE" | sha256sum | cut -c1-16)
+printf '%s %s UTC\n' "$key" "$(TZ=UTC date +%F)" >"$test_root/seeded"
+: >"$test_root/calls"
+TEST_IMAGE=$NEWER_IMAGE bash "$test_root/sample/deploy.sh" deploy "$NEWER_IMAGE" >/dev/null
+python3 - "$test_root" <<'PY'
+import pathlib
+import sys
+root = pathlib.Path(sys.argv[1])
+commands = (root / "calls").read_text().splitlines()
+def first(fragment):
+	return next(i for i, line in enumerate(commands) if fragment in line)
+assert not any(" reinstall " in line or "prepare_development_sample_site" in line or "-e KEY=" in line for line in commands)
+assert first("find public/files private/files") < first(" restore /home/frappe/frappe-bench/sites/.sample-snapshot/database.sql.gz")
+assert first(".sample-snapshot/database.sql.gz") < first("clear-cache") < first("set-maintenance-mode off")
+PY
+[[ $(cat "$test_root/sample/state/current") == "$NEWER_IMAGE" ]]
+printf 'PASS: stopped staging refresh order, mail policy, backup ownership, same-digest promotion history, production bootstrap zero-count verification, sample reseed and same-day snapshot\n'

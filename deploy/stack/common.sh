@@ -72,6 +72,22 @@ site_policy() {
 		bench_with "$image" --site "$SITE_NAME" disable-scheduler
 	fi
 }
+# Sample is a public demo: the full sample set, with every login matching the
+# development site. Rewrites credentials.txt for the seeded users.
+seed_sample() {
+	local image=$1 users user
+	bench_with "$image" --site "$SITE_NAME" set-config temple_inventory_sample_site 1
+	bench_with "$image" --site "$SITE_NAME" execute temple_inventory.sample_install.prepare_development_sample_site \
+		--kwargs '{"data": "full"}'
+	users=$(bench_with "$image" --site "$SITE_NAME" execute frappe.get_all --args '["User"]' \
+		--kwargs '{"filters": {"name": ["like", "%@example.com"]}, "pluck": "name"}')
+	printf '# %s logins, seeded %s\nAdministrator admin\n' "$SITE_NAME" "$(date -u +%FT%TZ)" >credentials.txt
+	for user in $(python3 -c 'import json, sys; print(" ".join(json.loads(sys.argv[1])))' "$users"); do
+		bench_with "$image" --site "$SITE_NAME" set-password "$user" admin
+		printf '%s admin\n' "$user" >>credentials.txt
+	done
+	chmod 600 credentials.txt
+}
 healthy() {
 	local image=$1 running
 	for _ in $(seq 1 36); do

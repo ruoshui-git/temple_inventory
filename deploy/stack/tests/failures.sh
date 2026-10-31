@@ -14,7 +14,7 @@ cat >"$test_root/bin/docker" <<'STUB'
 set -euo pipefail
 printf '%s\n' "$*" >>"$FAILURE_ROOT/calls"
 case " $* " in
-	*' migrate '*) [[ $FAIL_SCENARIO != migrate && $FAIL_SCENARIO != recovery ]] || exit 41 ;;
+	*' migrate '*|*' reinstall '*) [[ $FAIL_SCENARIO != migrate && $FAIL_SCENARIO != recovery ]] || exit 41 ;;
 	*' up -d --remove-orphans db redis-cache redis-queue backend websocket frontend '*)
 		[[ $FAIL_SCENARIO != recreate ]] || exit 42 ;;
 	*' cp backend:'*)

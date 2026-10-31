@@ -1,8 +1,9 @@
 name: Sample
 
 # Every push to main: test, build one immutable image, deploy it to the sample
-# site. Deploys are serialized; a newer commit waiting behind a running deploy
-# replaces any older pending one, so sample converges on the latest main.
+# site, which the host reinstalls and reseeds from scratch. Deploys are
+# serialized; a newer commit waiting behind a running deploy replaces any older
+# pending one, so sample converges on the latest main.
 on:
   push:
     branches: [main]
