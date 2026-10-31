@@ -122,7 +122,7 @@ class NativeReportsFiltersTests(NativeReportTestCase):
 			preload_items=lambda _codes: None,
 			matches_item=lambda _code, _warehouse: True,
 			item_fields=lambda item: {"item_code": item.name, "item_name": item.item_name},
-			matches_search=lambda _values: True,
+			matches_search=lambda _values, **_kwargs: True,
 			label=lambda warehouse: warehouse,
 			location_fields=lambda _warehouse: {},
 		)
@@ -148,6 +148,23 @@ class NativeReportsFiltersTests(NativeReportTestCase):
 			resolved = resolve_period(filters, today_provider=lambda: fixture["site_date"])
 			self.assertEqual(resolved["date_from"], expected["from"], key)
 			self.assertEqual(resolved["date_to"], expected["to"], key)
+
+	def test_browse_search_finds_items_by_barcode(self):
+		# Scanning on a browse page searches with the raw barcode.
+		barcode = f"0850{self.token}"
+		item = frappe.get_doc("Item", self.item)
+		item.append("barcodes", {"barcode": barcode})
+		item.save()
+		self.receipt(4)
+		for dataset, view in (("inventory", "summary"), ("movements", "lines")):
+			for term in (barcode, barcode[2:-1]):
+				query = validate_query({"dataset": dataset, "view": view, "search": term})
+				rows = report_page(query, refresh=True)["rows"]
+				self.assertIn(self.item, {row.get("item_code") for row in rows}, (dataset, term))
+		query = validate_query({"dataset": "inventory", "view": "summary", "search": f"{barcode}-none"})
+		self.assertNotIn(
+			self.item, {row.get("item_code") for row in report_page(query, refresh=True)["rows"]}
+		)
 
 	def test_unfiltered_movement_record_fast_path_matches_full_expansion(self):
 		self.submit(self.create(self.movement(quantity=2)))

@@ -541,9 +541,28 @@ class ReportContext:
 				return False
 		return True
 
-	def matches_search(self, values, *, related=False):
+	def matches_search(self, values, *, related=False, item_code=None):
 		term = self.query["relatedSearch" if related else "search"].strip().casefold()
-		return not term or term in " ".join(str(value or "") for value in values).casefold()
+		if not term or term in " ".join(str(value or "") for value in values).casefold():
+			return True
+		# A scanned or typed barcode finds its Item on every item-based page.
+		return bool(item_code) and item_code in self.barcode_matches(related)
+
+	def barcode_matches(self, related=False):
+		"""Items with a barcode containing the search term, read once per request."""
+		key = "relatedSearch" if related else "search"
+		cache = self.__dict__.setdefault("_barcode_matches", {})
+		if key not in cache:
+			term = self.query[key].strip()
+			escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+			cache[key] = set(
+				frappe.get_all(
+					"Item Barcode",
+					filters={"parenttype": "Item", "barcode": ["like", f"%{escaped}%"]},
+					pluck="parent",
+				)
+			)
+		return cache[key]
 
 	def matches_line(self, row, *, apply_activity=True, apply_search=True):
 		query = self.query
@@ -601,7 +620,7 @@ class ReportContext:
 			or any(location in self.damaged for location in locations)
 		):
 			return False
-		return not apply_search or self.matches_search(row.values())
+		return not apply_search or self.matches_search(row.values(), item_code=row.get("item_code"))
 
 
 def stock_pairs(context, item_codes=None):
@@ -691,7 +710,8 @@ def stock_rows(context, *, item_codes=None):
 				batch = context.batch(batch_name)
 			expiry = str(batch.expiry_date or "") if batch else ""
 			if not context.matches_search(
-				[code, item.item_name, item.description, item.item_group, warehouse, batch_name, expiry]
+				[code, item.item_name, item.description, item.item_group, warehouse, batch_name, expiry],
+				item_code=code,
 			):
 				continue
 			if query["dataset"] == "expiry":
@@ -1289,7 +1309,7 @@ def settlement_rows(context):
 		if not original or row["original_loan"] != original["original_loan"]:
 			continue
 		if not in_period(row["date"], context.related_period) or not context.matches_search(
-			row.values(), related=True
+			row.values(), related=True, item_code=row.get("item_code")
 		):
 			continue
 		yield {
@@ -1485,7 +1505,8 @@ def historical_rows(context):
 			continue
 		item = context.item(value.item_code)
 		if not context.matches_search(
-			[item.name, item.item_name, item.item_group, item.description, value.warehouse]
+			[item.name, item.item_name, item.item_group, item.description, value.warehouse],
+			item_code=item.name,
 		):
 			continue
 		code, warehouse = value.item_code, value.warehouse
@@ -1702,7 +1723,7 @@ def activity_relations(context, activity_name, *, lifetime=False):
 		row
 		for row in relations
 		if in_period(row["date"], context.related_period)
-		and context.matches_search(row.values(), related=True)
+		and context.matches_search(row.values(), related=True, item_code=row.get("item_code"))
 	)
 
 
