@@ -224,6 +224,20 @@ describe("compact count workspace", () => {
     expect(phone.wrapper.findAll(".count-card")).toHaveLength(5);
   });
 
+  it("collapses and expands count location groups with the keyboard", async () => {
+    const { wrapper } = setup([row(0, "ROOM-A"), row(1, "ROOM-B")]);
+    await flushPromises();
+    const group = wrapper
+      .findAll(".count-data-table .data-table-group-row")
+      .find((entry) => entry.text().includes("甲室"))!;
+    await group.trigger("keydown", { key: "ArrowLeft" });
+    await flushPromises();
+    expect(wrapper.findAll("tbody tr[data-count-key]")).toHaveLength(1);
+    await group.trigger("keydown", { key: "ArrowRight" });
+    await flushPromises();
+    expect(wrapper.findAll("tbody tr[data-count-key]")).toHaveLength(2);
+  });
+
   it("renders phone count cards as read-only when the count is not writable", async () => {
     const { wrapper, controller } = setup([row(0, "ROOM-A")], true);
     controller.writable.value = false;

@@ -153,6 +153,35 @@ test("fixture count editor and detail render the review layouts at desktop and p
         editable: true,
       };
     } else if (method === "native_api.load_document") message = detailDocument;
+    else if (method === "browse.counts_page")
+      message = {
+        rows: [
+          {
+            id: "count-list-row",
+            doctype: "Stock Reconciliation",
+            document: "MAT-RECO-2026-00023",
+            item_name: "礼堂椅",
+            kind: "Reconcile",
+            docstatus: 1,
+            date: "2026-10-16",
+            time: "12:00:00",
+            allocation_count: 2,
+            item_count: 2,
+            document_count: 1,
+            whole: {
+              version: "count-row-v1",
+              editable: false,
+              line_count: 2,
+              item_count: 2,
+              quantities: [{ uom: "Nos", qty: 2 }],
+              branches: [],
+              original_loans: [],
+            },
+          },
+        ],
+        matched_count: 1,
+        next_start: null,
+      };
     else if (method === "native_files.attachments") message = [];
     else if (method === "table_preferences.get_column_preferences")
       message = {};
@@ -194,6 +223,55 @@ test("fixture count editor and detail render the review layouts at desktop and p
   }
 
   for (const [width, height] of [
+    [1280, 900],
+    [430, 932],
+  ]) {
+    await page.setViewportSize({ width, height });
+    await page.goto("/inventory/counts/new");
+    await expect(page.locator("[data-count-key]").first()).toBeVisible();
+    const before = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+    );
+    await page
+      .locator(".ti-disclosure-section")
+      .filter({ hasText: "活动、人员与附件" })
+      .locator("summary")
+      .click();
+    await expect(
+      page
+        .locator(".ti-disclosure-section")
+        .filter({ hasText: "活动、人员与附件" }),
+    ).toHaveAttribute("open", "");
+    const after = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+    );
+    const overflowers = await page.evaluate(() =>
+      Array.from(document.body.querySelectorAll<HTMLElement>("*"))
+        .map((element) => ({
+          tag: element.tagName,
+          className:
+            typeof element.className === "string" ? element.className : "",
+          text: element.innerText?.slice(0, 80) || "",
+          right: Math.round(element.getBoundingClientRect().right),
+        }))
+        .filter((element) => element.right > window.innerWidth + 1)
+        .slice(-12),
+    );
+    expect(
+      after,
+      `horizontal overflow at ${width}px (before ${before}px): ${JSON.stringify(overflowers)}`,
+    ).toBe(0);
+    if (width === 430)
+      await page.screenshot({
+        path: test.info().outputPath("count-context-430x932.png"),
+      });
+  }
+
+  for (const [width, height] of [
     [1440, 900],
     [390, 844],
   ]) {
@@ -211,5 +289,39 @@ test("fixture count editor and detail render the review layouts at desktop and p
       path: test.info().outputPath(`count-detail-${width}x${height}.png`),
     });
   }
+
+  await page.setViewportSize({ width: 430, height: 932 });
+  await page.goto("/inventory/counts");
+  await expect(page.getByText("MAT-RECO-2026-00023")).toBeVisible();
+  const countId = page
+    .locator(".count-records-table .count-record-id-column")
+    .first();
+  await expect(countId).not.toHaveClass(/data-table-pinned-start/);
+  await expect(page.locator("body")).toContainText("新建盘点");
+  await expect(
+    page.locator(".browse-mobile-actions").getByRole("button", {
+      name: "新建盘点",
+    }),
+  ).toHaveCount(0);
+  await expect(
+    page.locator(".browse-split-button").getByRole("button", {
+      name: "新建盘点",
+    }),
+  ).toBeVisible();
+  const beforeStyle = await page.addStyleTag({
+    content: `
+      .count-records-table :is(th, td).count-record-id-column { min-width: 240px !important; width: 240px !important; }
+      .count-records-table td.count-record-id-column { position: sticky !important; left: 0 !important; z-index: 12 !important; }
+      .count-records-table td.count-record-id-column > :first-child,
+      .count-records-table td.count-record-id-column .browse-row-link { display: inline-flex !important; width: max-content !important; max-width: none !important; overflow: visible !important; text-overflow: clip !important; }
+    `,
+  });
+  await page.screenshot({
+    path: test.info().outputPath("count-records-before-430x932.png"),
+  });
+  await beforeStyle.evaluate((style) => style.remove());
+  await page.screenshot({
+    path: test.info().outputPath("count-records-430x932.png"),
+  });
   expect(errors).toEqual([]);
 });

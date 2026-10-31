@@ -140,10 +140,97 @@ function setup(mobile = false, submittedNative = false) {
   });
   const wrapper = mount(root, { attachTo: document.body });
   wrappers.push(wrapper);
-  return { wrapper, controller };
+  return { wrapper, controller, call };
+}
+
+function successfulCountWrite(method: string, args: Record<string, unknown>) {
+  const data = (args.data || {}) as Record<string, unknown>;
+  const doc = {
+    doctype: "Stock Reconciliation",
+    name: "COUNT-1",
+    version: "v1",
+    docstatus: 0,
+    editable: true,
+    posting_date: "2026-10-19",
+    posting_time: "10:00:00",
+    ...data,
+  };
+  if (method === "counts.save_count") return doc;
+  if (method === "native_api.submit_document")
+    return { ...doc, version: "v2", docstatus: 1, editable: false };
+  throw new Error(`Unexpected write ${method}`);
 }
 
 describe("count confirmation summary", () => {
+  it("submits once when confirmation is clicked twice and clears old errors", async () => {
+    const { wrapper, controller, call } = setup();
+    await flushPromises();
+    controller.input(controller.rows.value[176]!, "3");
+    await flushPromises();
+    controller.state.error = "旧错误";
+    call.mockImplementation(async (method, args) =>
+      successfulCountWrite(method, args),
+    );
+
+    const first = controller.confirm();
+    const second = controller.confirm();
+    expect(controller.busy.value).toBe(true);
+    await Promise.all([first, second]);
+    await flushPromises();
+
+    expect(
+      call.mock.calls.filter(([method]) => method === "counts.save_count"),
+    ).toHaveLength(1);
+    expect(
+      call.mock.calls.filter(
+        ([method]) => method === "native_api.submit_document",
+      ),
+    ).toHaveLength(1);
+    expect(controller.state.status).toBe("submitted");
+    expect(controller.state.error).toBe("");
+    expect(wrapper.text()).not.toContain("旧错误");
+  });
+
+  it("waits for an in-flight autosave before submitting", async () => {
+    const { controller, call } = setup();
+    await flushPromises();
+    controller.input(controller.rows.value[176]!, "3");
+    await flushPromises();
+    let resolveSave: ((value: unknown) => void) | undefined;
+    call.mockImplementation((method, args) => {
+      if (method === "counts.save_count" && !resolveSave)
+        return new Promise((resolve) => {
+          resolveSave = resolve;
+        });
+      return Promise.resolve(successfulCountWrite(method, args));
+    });
+
+    const autosave = controller.save();
+    await flushPromises();
+    const confirmation = controller.confirm();
+    await flushPromises();
+    expect(
+      call.mock.calls.some(
+        ([method]) => method === "native_api.submit_document",
+      ),
+    ).toBe(false);
+    resolveSave!(
+      successfulCountWrite("counts.save_count", {
+        data: controller.values.value,
+      }),
+    );
+    await Promise.all([autosave, confirmation]);
+    await flushPromises();
+
+    expect(controller.state.status).toBe("submitted");
+    expect(controller.state.error).toBe("");
+    expect(
+      call.mock.calls.filter(
+        ([method]) => method === "native_api.submit_document",
+      ),
+    ).toHaveLength(1);
+  });
+
   it("renders submitted native count differences in the read-only table on phones", async () => {
     const { wrapper } = setup(true, true);
     await flushPromises();

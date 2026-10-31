@@ -138,6 +138,47 @@ def _baseline(timestamp, *, lock=False, previous_rows=None):
 	return {"rows": rows, "timestamp": str(posting), "warehouses": warehouses}
 
 
+def _stale_labels(rows):
+	from temple_inventory.native_topology import present_locations
+
+	warehouses = {row.get("warehouse") for row in rows if row.get("warehouse")}
+	settings = frappe.get_single("Temple Inventory Settings")
+	location_labels = {
+		row["name"]: row["label"]
+		for row in present_locations(
+			frappe.get_all(
+				"Warehouse",
+				filters={"company": settings.company},
+				fields=[
+					"name",
+					"warehouse_name",
+					"ti_label",
+					"ti_short_label",
+					"ti_direct_storage",
+					"parent_warehouse",
+					"is_group",
+				],
+				limit_page_length=0,
+			)
+		)
+		if row.get("name") in warehouses
+	}
+	item_names = {
+		row.name: row.item_name
+		for row in frappe.get_all(
+			"Item",
+			filters={"name": ["in", sorted({row.get("item_code") for row in rows}) or [""]]},
+			fields=["name", "item_name"],
+			limit_page_length=0,
+		)
+	}
+	return "、".join(
+		f"{item_names.get(row.get('item_code'), row.get('item_code'))}（{row.get('item_code')}）·"
+		f"{location_labels.get(row.get('warehouse'), row.get('warehouse'))}"
+		for row in rows
+	)
+
+
 @frappe.whitelist()
 def count_baseline(timestamp, previous_rows=None):
 	require_app()
@@ -235,7 +276,7 @@ def save_count(request_id, data, name=None, version=None):
 		and Decimal(str(row.get("baseline_qty") or 0)) != Decimal(str(current[_key(row)]["baseline_qty"]))
 	]
 	if stale:
-		labels = "、".join(f"{row.get('item_code')}@{row.get('warehouse')}" for row in stale)
+		labels = _stale_labels(stale)
 		frappe.throw(f"基准已变化的盘点行：{labels}。请逐行确认仍按当前实点后再保存或确认。")
 	differences = _differences(reviews, baseline["rows"])
 	if not differences:
@@ -293,11 +334,13 @@ def before_validate(doc, method=None):
 			# an earlier review as the result of the newly edited reconciliation.
 			doc.set("ti_count_review", [])
 			return
-	baseline = frappe.flags.get("ti_count_baseline") or _baseline(
-		f"{doc.posting_date} {doc.posting_time}",
-		lock=True,
-		previous_rows=[row.as_dict() for row in doc.ti_count_review],
-	)
+	baseline = frappe.flags.get("ti_count_baseline")
+	if baseline is None:
+		baseline = _baseline(
+			f"{doc.posting_date} {doc.posting_time}",
+			lock=True,
+			previous_rows=[row.as_dict() for row in doc.ti_count_review],
+		)
 	review_dicts = [row.as_dict() for row in doc.ti_count_review]
 	current = {_key(row): row for row in baseline["rows"]}
 	stale = [
@@ -308,7 +351,7 @@ def before_validate(doc, method=None):
 		and Decimal(str(row.get("baseline_qty") or 0)) != Decimal(str(current[_key(row)]["baseline_qty"]))
 	]
 	if stale:
-		labels = "、".join(f"{row.get('item_code')}@{row.get('warehouse')}" for row in stale)
+		labels = _stale_labels(stale)
 		frappe.throw(f"基准已变化的盘点行：{labels}。请重新核对后再提交。")
 	differences = _differences(review_dicts, baseline["rows"])
 	for row, value in zip(doc.ti_count_review, review_dicts, strict=True):

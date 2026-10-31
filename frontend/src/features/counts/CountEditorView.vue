@@ -199,6 +199,13 @@ const readOnlyLines = computed<Record<string, unknown>[]>(() =>
 			return { ...line, reason: String(line.reason || reviewed?.reason || "") };
 		}),
 );
+const collapsedReadOnlyGroups = ref(new Set<string>());
+function toggleReadOnlyGroup(id: string) {
+	const next = new Set(collapsedReadOnlyGroups.value);
+	if (next.has(id)) next.delete(id);
+	else next.add(id);
+	collapsedReadOnlyGroups.value = next;
+}
 const readOnlyColumns: DataColumn[] = [
 	{ id: "item_name", label: "物品", kind: "primary", defaultVisible: true },
 	{ id: "warehouse", label: "位置", kind: "text", defaultVisible: true },
@@ -226,16 +233,20 @@ const readOnlyTableRows = computed<DataTableEntry[]>(() => {
 			depth: 0,
 			count: locationRows.length,
 			countLabel: "行",
-			expanded: true,
+			expanded: !collapsedReadOnlyGroups.value.has(`count-detail:${location}`),
 			hasChildren: locationRows.length > 0,
 		});
-		locationRows.forEach((row, index) =>
-			result.push({
-				kind: "record",
-				id: String(row.name || `${location}:${index}`),
-				value: { ...row, difference: Number(row.qty || 0) - Number(row.current_qty || 0) },
-			}),
-		);
+		if (!collapsedReadOnlyGroups.value.has(`count-detail:${location}`))
+			locationRows.forEach((row, index) =>
+				result.push({
+					kind: "record",
+					id: String(row.name || `${location}:${index}`),
+					value: {
+						...row,
+						difference: Number(row.qty || 0) - Number(row.current_qty || 0),
+					},
+				}),
+			);
 	}
 	return result;
 });
@@ -443,7 +454,11 @@ async function back() {
 			label="盘点记录加载中…"
 			:announce="false"
 		/>
-		<p v-if="state.error" class="notice-bar danger" role="alert">
+		<p
+			v-if="state.error && state.status !== 'submitted'"
+			class="notice-bar danger"
+			role="alert"
+		>
 			{{ state.error }}
 			<UiButton v-if="c.existingDocument.value && !state.server" @click="c.load(true)"
 				>重新读取</UiButton
@@ -825,6 +840,7 @@ async function back() {
 				compact
 				empty-text="此记录没有差异明细。"
 				table-class="count-readonly-table"
+				@toggle-group="toggleReadOnlyGroup"
 			>
 				<template #cell="{ column, row }">
 					<div v-if="column.id === 'item_name'" class="count-readonly-item">
@@ -926,12 +942,18 @@ async function back() {
 			<p v-if="deskOrigin && values.ti_notes" class="content-long-text">
 				{{ values.ti_notes }}
 			</p>
-			<p v-if="state.error" class="notice-bar danger" role="alert">{{ state.error }}</p>
+			<p
+				v-if="state.error && state.status !== 'submitted'"
+				class="notice-bar danger"
+				role="alert"
+			>
+				{{ state.error }}
+			</p>
 			<template #footer
 				><UiButton :disabled="busy" @click="reviewOpen = false">返回检查</UiButton
 				><UiButton
 					variant="primary"
-					:disabled="c.hasDifferences.value && !c.canSubmit.value"
+					:disabled="busy || (c.hasDifferences.value && !c.canSubmit.value)"
 					:loading="busy"
 					@click="confirm"
 					>确认提交</UiButton

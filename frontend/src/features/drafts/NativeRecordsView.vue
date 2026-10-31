@@ -484,7 +484,15 @@ function activityLabel(row: Record<string, unknown>) {
 						:active="active"
 					/>
 				</BrowseOverflowMenu>
-				<UiButton variant="primary" icon="count" @click="emit('newCount')"
+				<BrowseSplitButton
+					v-if="isMobile"
+					label="新建盘点"
+					kind="count"
+					icon="count"
+					:options="[]"
+					@select="emit('newCount')"
+				/>
+				<UiButton v-else variant="primary" icon="count" @click="emit('newCount')"
 					>新建盘点</UiButton
 				>
 			</template>
@@ -978,33 +986,19 @@ function activityLabel(row: Record<string, unknown>) {
 	display: block;
 	color: var(--p-muted);
 }
+/* Unpinned so phones keep room for the other columns; the full ID stays on one line. */
 :deep(.count-records-table :is(th, td).count-record-id-column) {
-	min-width: 240px;
+	width: auto;
+	min-width: max-content;
+	max-width: none;
 	white-space: nowrap;
 }
 :deep(.count-records-table td.count-record-id-column) {
 	overflow: visible;
 }
+:deep(.count-records-table td.count-record-id-column :is(.browse-row-link, strong)),
 :deep(.count-records-table td.count-record-id-column > :first-child) {
-	display: inline-flex;
-	width: max-content;
-	max-width: none;
-	overflow: visible;
-	text-overflow: clip;
-	white-space: nowrap;
-}
-:deep(.count-records-table td.count-record-id-column .browse-row-link) {
-	display: inline-flex;
-	width: max-content;
-	max-width: none;
-	overflow: visible;
-	text-overflow: clip;
-	white-space: nowrap;
-	-webkit-line-clamp: unset;
-}
-:deep(.count-records-table td.count-record-id-column .browse-row-link strong) {
 	display: inline;
-	width: auto;
 	max-width: none;
 	overflow: visible;
 	text-overflow: clip;

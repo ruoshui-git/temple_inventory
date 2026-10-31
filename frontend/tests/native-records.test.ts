@@ -164,6 +164,8 @@ describe("native drafts and count records", () => {
     const identity = wrapper.find("th.count-record-id-column");
     expect(identity.exists()).toBe(true);
     expect(identity.classes()).toContain("data-column-primary");
+    expect(identity.classes()).not.toContain("data-table-pinned-start");
+    expect(wrapper.find(".count-record-id-column").exists()).toBe(true);
     expect(wrapper.text()).toContain("+1 个");
     expect(wrapper.text()).toContain("−1 个");
     expect(wrapper.text()).toContain("0 个");

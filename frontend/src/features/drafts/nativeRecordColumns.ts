@@ -25,7 +25,6 @@ export function nativeRecordColumns(mode: "drafts" | "counts"): DataColumn[] {
   return [
     {
       id: "document",
-      pinned: "start",
       label: "盘点编号",
       required: true,
       defaultVisible: true,

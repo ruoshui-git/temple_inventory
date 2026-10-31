@@ -312,7 +312,20 @@ export function useCountEditor(props: {
     clearTimeout(timer);
     timer = setTimeout(() => void save(), 1000);
   }
-  watch(values, changed, { deep: true });
+  // Server-assigned row names arrive after a save; they are not user edits.
+  function fingerprint() {
+    const { items, ti_count_review, ...rest } = values.value;
+    const strip = (rows: Record<string, unknown>[] | undefined) =>
+      (rows || []).map(({ name: _name, ...row }) => row);
+    return JSON.stringify({
+      ...rest,
+      items: strip(items as Record<string, unknown>[] | undefined),
+      ti_count_review: strip(
+        ti_count_review as Record<string, unknown>[] | undefined,
+      ),
+    });
+  }
+  watch(fingerprint, changed);
   async function loadNames() {
     const codes = [
       ...new Set([
@@ -556,9 +569,9 @@ export function useCountEditor(props: {
   function closeHistory() {
     historyTarget.value = undefined;
   }
-  async function save(manual = false) {
+  async function save(manual = false, fromConfirm = false) {
     state.error = "";
-    if (!active() || !writable.value || busy.value) return;
+    if (!active() || !writable.value || (busy.value && !fromConfirm)) return;
     if (manual) showError.value = true;
     clearTimeout(timer);
     if (!valid.value || supportingDirty.value) {
@@ -606,32 +619,34 @@ export function useCountEditor(props: {
     }
   }
   async function confirm() {
-    state.error = "";
     if (!active() || busy.value) return;
-    if (!state.confirmationVersion) {
-      await save(true);
-      if (state.status === "matching") {
-        reviewOpen.value = false;
-        return;
-      }
-      if (
-        state.status !== "saved" ||
-        files.incomplete.value ||
-        files.busy.value
-      ) {
-        const message = state.error || blockers.value[0] || "请先保存盘点草稿";
-        if (!(await markServerStaleRows(message))) state.error = message;
-        return;
-      }
-    }
-    if (!canSubmit.value) {
-      state.error = "没有确认盘点调整的权限，已保存的草稿单据可继续编辑";
-      return;
-    }
     busy.value = true;
+    state.error = "";
     try {
+      if (!state.confirmationVersion) {
+        await save(true, true);
+        if (state.status === "matching") {
+          reviewOpen.value = false;
+          return;
+        }
+        if (
+          state.status !== "saved" ||
+          files.incomplete.value ||
+          files.busy.value
+        ) {
+          const message =
+            state.error || blockers.value[0] || "请先保存盘点草稿";
+          if (!(await markServerStaleRows(message))) state.error = message;
+          return;
+        }
+      }
+      if (!canSubmit.value) {
+        state.error = "没有确认盘点调整的权限，已保存的草稿单据可继续编辑";
+        return;
+      }
       await editor.confirm();
       if (active() && state.status === "submitted") {
+        state.error = "";
         reviewOpen.value = false;
         finished.value = true;
       }

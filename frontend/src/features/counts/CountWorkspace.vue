@@ -51,6 +51,7 @@ watch(search, (value) => {
 });
 const reviewFilter = ref<"all" | "unreviewed" | "difference">("all");
 const groupBy = ref<"location" | "item" | "none">("location");
+const collapsedGroups = ref(new Set<string>());
 const selectedLocations = ref<string[]>(c.warehouseFilter ? [c.warehouseFilter] : []);
 const sortBy = ref<"location" | "item_name" | "item_code" | "batch">("location");
 const sortDirection = ref<1 | -1>(1);
@@ -221,14 +222,21 @@ const countTableRows = computed<DataTableEntry[]>(() => {
 			depth: 0,
 			count: groupCounts.value.get(key) || grouped.length,
 			countLabel: "行",
-			expanded: true,
+			expanded: !collapsedGroups.value.has(`count-group:${groupBy.value}:${key}`),
 			hasChildren: grouped.length > 0,
 		});
+		if (collapsedGroups.value.has(`count-group:${groupBy.value}:${key}`)) continue;
 		for (const row of grouped)
 			result.push({ kind: "record", id: c.countKey(row), value: row });
 	}
 	return result;
 });
+function toggleCountGroup(id: string) {
+	const next = new Set(collapsedGroups.value);
+	if (next.has(id)) next.delete(id);
+	else next.add(id);
+	collapsedGroups.value = next;
+}
 const countEmptyText = computed(() =>
 	rows.value.length ? "没有符合当前搜索和筛选条件的行。" : "此范围没有库存行。",
 );
@@ -525,6 +533,7 @@ function itemImage(row: CountRow) {
 			:sort-direction="sortDirection === 1 ? 'asc' : 'desc'"
 			:column-preferences="countColumnPreferences"
 			@sort="sort($event as 'location' | 'item_name' | 'item_code' | 'batch')"
+			@toggle-group="toggleCountGroup"
 		>
 			<template #cell="{ column, row }">
 				<template v-if="column.id === 'location'">{{
@@ -796,8 +805,8 @@ function itemImage(row: CountRow) {
 .count-pagination {
 	justify-content: center;
 }
-.count-workspace :deep(.browse-filter-popover .hierarchy-inline-tree),
-.count-workspace :deep(.compact-filter-content .hierarchy-inline-tree) {
+:global(.browse-filter-popover .hierarchy-inline-tree),
+:global(.compact-filter-content .hierarchy-inline-tree) {
 	max-height: min(45dvh, 320px);
 	overflow: auto;
 }

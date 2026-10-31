@@ -201,6 +201,14 @@ export function createNativeEditor(options: {
       )
     )
       return;
+    // A saved document at the current revision has nothing to write.
+    if (
+      !running &&
+      state.status === "saved" &&
+      state.identity &&
+      state.revision === state.savedRevision
+    )
+      return;
     retain();
     pending = true;
     if (running) return running;
