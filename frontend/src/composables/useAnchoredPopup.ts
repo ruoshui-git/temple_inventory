@@ -1,6 +1,42 @@
 import { nextTick, onBeforeUnmount, ref, watch, type Ref } from "vue";
 import { chooseFilterPopoverPlacement } from "../lib/filterPopoverPlacement";
 
+export function placeInVisualViewport(options: {
+  anchor: DOMRect;
+  viewport: Pick<
+    VisualViewport,
+    "width" | "height" | "offsetLeft" | "offsetTop"
+  >;
+  popupWidth: number;
+  naturalHeight: number;
+  margin: number;
+  gap: number;
+  minimumHeight: number;
+  align: "start" | "end";
+}) {
+  const { anchor, viewport } = options;
+  const placement = chooseFilterPopoverPlacement({
+    triggerTop: anchor.top - viewport.offsetTop,
+    triggerBottom: anchor.bottom - viewport.offsetTop,
+    viewportHeight: viewport.height,
+    naturalHeight: options.naturalHeight,
+    margin: options.margin,
+    gap: options.gap,
+    minimumHeight: options.minimumHeight,
+    triggerLeft: anchor.left - viewport.offsetLeft,
+    triggerRight: anchor.right - viewport.offsetLeft,
+    viewportWidth: viewport.width,
+    popupWidth: options.popupWidth,
+    align: options.align,
+    horizontalMargin: options.margin,
+  });
+  return {
+    ...placement,
+    top: placement.top + viewport.offsetTop,
+    left: (placement.left ?? options.margin) + viewport.offsetLeft,
+  };
+}
+
 type PopupRecord = {
   owner: string;
   anchor: Ref<HTMLElement | undefined>;
@@ -78,6 +114,20 @@ export function useAnchoredPopup(options: {
   const style = ref<Record<string, string>>({ visibility: "hidden" });
   const target = ref<HTMLElement | string>("body");
   let resizeObserver: ResizeObserver | undefined;
+  let frame = 0;
+  function scheduleReposition(event?: Event) {
+    if (
+      event &&
+      event.target instanceof Node &&
+      options.popup.value?.contains(event.target)
+    )
+      return;
+    if (frame) return;
+    frame = requestAnimationFrame(() => {
+      frame = 0;
+      reposition();
+    });
+  }
   function updateTarget() {
     const overlay = options.anchor.value?.closest<HTMLElement>(
       ".ui-dialog, .overlay-stage-panel",
@@ -94,11 +144,20 @@ export function useAnchoredPopup(options: {
       return;
     }
     const rect = anchor.getBoundingClientRect();
+    const visualViewport = window.visualViewport;
+    const viewport =
+      visualViewport && visualViewport.width > 0 && visualViewport.height > 0
+        ? visualViewport
+        : undefined;
+    const viewportLeft = viewport?.offsetLeft ?? 0;
+    const viewportTop = viewport?.offsetTop ?? 0;
+    const viewportWidth = viewport?.width ?? window.innerWidth;
+    const viewportHeight = viewport?.height ?? window.innerHeight;
     if (
-      rect.bottom <= 0 ||
-      rect.top >= window.innerHeight ||
-      rect.right <= 0 ||
-      rect.left >= window.innerWidth
+      rect.bottom <= viewportTop ||
+      rect.top >= viewportTop + viewportHeight ||
+      rect.right <= viewportLeft ||
+      rect.left >= viewportLeft + viewportWidth
     ) {
       options.onClose(false);
       return;
@@ -107,7 +166,7 @@ export function useAnchoredPopup(options: {
     const gap = options.gap ?? 4;
     const maxWidth = Math.min(
       options.maxWidth ?? 360,
-      window.innerWidth - margin * 2,
+      viewportWidth - margin * 2,
     );
     // Measure the content width, not the stretched block or a prior placement.
     const appliedWidth = popup.style.width;
@@ -122,21 +181,21 @@ export function useAnchoredPopup(options: {
       Math.max(popup.scrollHeight, popup.getBoundingClientRect().height),
       options.maxHeight ?? Infinity,
     );
-    const placement = chooseFilterPopoverPlacement({
-      triggerTop: rect.top,
-      triggerBottom: rect.bottom,
-      viewportHeight: window.innerHeight,
+    const placement = placeInVisualViewport({
+      anchor: rect,
+      viewport: viewport ?? {
+        width: window.innerWidth,
+        height: window.innerHeight,
+        offsetLeft: 0,
+        offsetTop: 0,
+      },
+      popupWidth: width,
       naturalHeight,
       margin,
       gap,
       minimumHeight:
         options.preferredMinHeight ?? Math.max(0, naturalHeight - 2),
-      triggerLeft: rect.left,
-      triggerRight: rect.right,
-      viewportWidth: window.innerWidth,
-      popupWidth: width,
       align: options.align ?? "start",
-      horizontalMargin: margin,
     });
     const maxHeight = Math.min(
       placement.maxHeight,
@@ -190,11 +249,13 @@ export function useAnchoredPopup(options: {
     window.addEventListener("popstate", routeChanged);
     window.addEventListener("hashchange", routeChanged);
     if (options.managePosition !== false) {
-      window.addEventListener("resize", reposition);
-      window.addEventListener("scroll", reposition, true);
+      window.addEventListener("resize", scheduleReposition);
+      window.addEventListener("scroll", scheduleReposition, true);
+      window.visualViewport?.addEventListener("resize", scheduleReposition);
+      window.visualViewport?.addEventListener("scroll", scheduleReposition);
     }
     if (typeof ResizeObserver !== "undefined") {
-      resizeObserver ??= new ResizeObserver(reposition);
+      resizeObserver ??= new ResizeObserver(() => scheduleReposition());
       if (options.popup.value) resizeObserver.observe(options.popup.value);
     }
   }
@@ -209,9 +270,13 @@ export function useAnchoredPopup(options: {
     window.removeEventListener("popstate", routeChanged);
     window.removeEventListener("hashchange", routeChanged);
     if (options.managePosition !== false) {
-      window.removeEventListener("resize", reposition);
-      window.removeEventListener("scroll", reposition, true);
+      window.removeEventListener("resize", scheduleReposition);
+      window.removeEventListener("scroll", scheduleReposition, true);
+      window.visualViewport?.removeEventListener("resize", scheduleReposition);
+      window.visualViewport?.removeEventListener("scroll", scheduleReposition);
     }
+    cancelAnimationFrame(frame);
+    frame = 0;
   }
   function closeDescendants(parent: PopupRecord) {
     [...parent.children].forEach((child) => {

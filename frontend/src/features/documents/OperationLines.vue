@@ -47,9 +47,9 @@ import ItemImage from "../../components/ItemImage.vue";
 import ItemPicker, { type ItemScanOption, type ItemScanResolution } from "../items/ItemPicker.vue";
 import type { StockItem } from "../../lib/stockPresentation";
 import UiButton from "../../components/ui/UiButton.vue";
+import InventoryIcon from "../../components/InventoryIcon.vue";
 import PopupMenu from "../../components/ui/PopupMenu.vue";
 import { useConfirm } from "../../services/confirm";
-import { useVirtualKeyboard } from "../../composables/useVirtualKeyboard";
 import ConversionEditor from "../conversions/ConversionEditor.vue";
 import { operationLabels } from "../../lib/presentationLabels";
 import {
@@ -71,7 +71,6 @@ const props = withDefaults(
 );
 const emit = defineEmits<{ expand: [] }>();
 const { confirm } = useConfirm();
-const { keyboardOpen } = useVirtualKeyboard();
 const previewDate = computed(() => reference.siteDate);
 const receive = computed(() => props.draft.kind === "Receive");
 const settlement = computed(() => isSettlement(props.draft));
@@ -1423,10 +1422,7 @@ function receiveBatchChanged(line: AllocationLine) {
 						shouldShowLineTools(draft.items.length))
 				"
 				class="line-toolbar"
-				:class="{
-					'is-keyboard-open': keyboardOpen,
-					'has-transfer-destination': draft.kind === 'Transfer' && !disabled,
-				}"
+				:class="{ 'has-transfer-destination': draft.kind === 'Transfer' && !disabled }"
 			>
 				<FormField
 					v-if="draft.kind === 'Transfer' && !disabled"
@@ -1640,6 +1636,7 @@ function receiveBatchChanged(line: AllocationLine) {
 									v-model="line.batch"
 									:aria-label="`${lineName(line)}批次`"
 									placeholder="自动生成"
+									enterkeyhint="next"
 									:disabled="disabled || hydrating"
 									:aria-invalid="lineInvalid(line, 'batch')"
 									:aria-describedby="
@@ -1692,6 +1689,7 @@ function receiveBatchChanged(line: AllocationLine) {
 									data-field="expiry"
 									v-model="line.expiry"
 									type="date"
+									enterkeyhint="next"
 									:aria-label="`${lineName(line)}效期`"
 									:disabled="disabled || hydrating"
 									:aria-invalid="lineInvalid(line, 'expiry')"
@@ -1721,6 +1719,7 @@ function receiveBatchChanged(line: AllocationLine) {
 									data-field="manufacturingDate"
 									v-model="line.manufacturingDate"
 									type="date"
+									enterkeyhint="next"
 									:aria-label="`${lineName(line)}生产日期`"
 									:disabled="disabled || hydrating"
 									:aria-invalid="lineInvalid(line, 'manufacturingDate')"
@@ -1745,6 +1744,7 @@ function receiveBatchChanged(line: AllocationLine) {
 								inputmode="decimal"
 								min="0"
 								step="any"
+								enterkeyhint="next"
 								:value="enteredQty(line)"
 								:disabled="disabled || hydrating"
 								:aria-label="`${lineName(line)}数量`"
@@ -1784,6 +1784,7 @@ function receiveBatchChanged(line: AllocationLine) {
 								:disabled="disabled || hydrating"
 								:clearable="false"
 								data-field="uom"
+								enterkeyhint="next"
 								:options="[
 									unitOption(line.uom),
 									...(stockItem(line.code)?.alternateUnits?.map((row) =>
@@ -1907,12 +1908,15 @@ function receiveBatchChanged(line: AllocationLine) {
 							@update:model-value="moveLineFromMenu(line, $event)"
 						/>
 						<button type="button" :disabled="disabled" @click="pick([line])">
+							<InventoryIcon name="box" />
 							更换物品
 						</button>
 						<button type="button" :disabled="disabled" @click="duplicateLine(line)">
+							<InventoryIcon name="document" />
 							复制为新行
 						</button>
 						<button type="button" :disabled="disabled" @click="remove(line)">
+							<InventoryIcon name="trash" />
 							删除
 						</button>
 					</PopupMenu>
@@ -2051,7 +2055,7 @@ function receiveBatchChanged(line: AllocationLine) {
 .line-toolbar.has-transfer-destination {
 	grid-template-columns: minmax(200px, 240px) auto minmax(180px, 1fr) auto auto auto;
 }
-.line-toolbar.is-keyboard-open {
+.app-workspace.keyboard-open .line-toolbar {
 	display: none;
 }
 .line-toolbar .receive-target {

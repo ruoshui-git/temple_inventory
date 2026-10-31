@@ -71,6 +71,19 @@ function preserveInputFocus(event: MouseEvent) {
 		return;
 	event.preventDefault();
 }
+function revealOption(option: Element | null | undefined) {
+	const menu = popup.value;
+	if (!menu || !option) return;
+	const menuRect = menu.getBoundingClientRect();
+	const optionRect = option.getBoundingClientRect();
+	if (optionRect.top < menuRect.top) menu.scrollTop -= menuRect.top - optionRect.top;
+	else if (optionRect.bottom > menuRect.bottom)
+		menu.scrollTop += optionRect.bottom - menuRect.bottom;
+}
+function selectForFinePointer() {
+	if (!(globalThis.window.matchMedia?.("(pointer: coarse)").matches ?? false))
+		input.value?.select();
+}
 function outside(event: PointerEvent) {
 	if (
 		event.target instanceof Node &&
@@ -148,10 +161,7 @@ watch(open, (value) => {
 	if (props.remote) emit("search", query.value);
 	void nextTick(() => {
 		if (virtual.value && active.value >= 0) virtualList.value?.scrollToIndex(active.value);
-		else
-			root.value
-				?.querySelector("[role=option][aria-selected=true]")
-				?.scrollIntoView?.({ block: "nearest" });
+		else revealOption(root.value?.querySelector("[role=option][aria-selected=true]"));
 	});
 });
 watch(
@@ -201,11 +211,7 @@ function key(event: KeyboardEvent) {
 					)
 				] ?? -1;
 		if (virtual.value) virtualList.value?.scrollToIndex(active.value);
-		nextTick(() =>
-			root.value
-				?.querySelector("[role=option].active")
-				?.scrollIntoView?.({ block: "nearest" }),
-		);
+		nextTick(() => revealOption(root.value?.querySelector("[role=option].active")));
 	}
 	if (event.key === "Enter" && open.value) {
 		event.preventDefault();
@@ -261,7 +267,7 @@ defineExpose({
 					open = true;
 					typed = false;
 					query = '';
-					nextTick(() => input?.select());
+					nextTick(selectForFinePointer);
 				"
 				@click="!open && (open = true)"
 				@input="

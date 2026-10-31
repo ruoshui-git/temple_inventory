@@ -6,6 +6,9 @@ import PopupMenu from "../src/components/ui/PopupMenu.vue";
 import SearchSelect from "../src/components/ui/SearchSelect.vue";
 
 const wrappers: VueWrapper[] = [];
+async function nextFrame() {
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+}
 function rect(left: number, top: number, width = 40, height = 30) {
   return {
     x: left,
@@ -60,6 +63,7 @@ describe("PopupMenu", () => {
       value: 120,
     });
     window.dispatchEvent(new Event("resize"));
+    await nextFrame();
     await flushPromises();
     expect(Number.parseFloat(panel.style.top)).toBe(134);
     expect(panel.getAttribute("role")).toBe("menu");
@@ -75,6 +79,7 @@ describe("PopupMenu", () => {
       value: 160,
     });
     window.dispatchEvent(new Event("resize"));
+    await nextFrame();
     await flushPromises();
     expect(Number.parseFloat(panel.style.top)).toBeLessThan(700);
   });
@@ -86,6 +91,7 @@ describe("PopupMenu", () => {
     const panel = await open(wrapper);
     panel.getBoundingClientRect = () => rect(0, 0, 220);
     window.dispatchEvent(new Event("resize"));
+    await nextFrame();
     await flushPromises();
     expect(Number.parseFloat(panel.style.left)).toBeLessThanOrEqual(
       window.innerWidth - 228,

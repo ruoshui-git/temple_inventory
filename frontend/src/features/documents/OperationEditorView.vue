@@ -23,7 +23,6 @@ import Overlay from "../../components/ui/Overlay.vue";
 import FormField from "../../components/ui/FormField.vue";
 import { useFormValidation } from "../../composables/useFormValidation";
 import { useConfirm } from "../../services/confirm";
-import { useVirtualKeyboard } from "../../composables/useVirtualKeyboard";
 import { useExpandedEditor } from "../../composables/useExpandedEditor";
 import { useFocusVisibility } from "../../composables/useFocusVisibility";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
@@ -37,6 +36,8 @@ import { warehouseLabel } from "../../lib/warehouseLabel";
 import DocumentLoadingState from "../../components/ui/DocumentLoadingState.vue";
 import { showToast } from "../../services/toast";
 import PopupMenu from "../../components/ui/PopupMenu.vue";
+import { router } from "../../router";
+import { duplicateOperationTarget } from "./operationRoutes";
 import {
 	borrowerLoanPageState,
 	type BorrowerLoanPageState,
@@ -88,6 +89,7 @@ const formRoot = ref<HTMLElement>(),
 	reviewBar = ref<HTMLElement>(),
 	lineEditor = ref<InstanceType<typeof OperationLines>>();
 const visualViewport = window.visualViewport;
+let viewportSyncFrame = 0;
 function syncOperationViewport() {
 	const root = formRoot.value;
 	if (!root || !visualViewport) return;
@@ -96,18 +98,25 @@ function syncOperationViewport() {
 	root.style.setProperty("--operation-visual-left", `${visualViewport.offsetLeft}px`);
 	root.style.setProperty("--operation-visual-top", `${visualViewport.offsetTop}px`);
 }
+function scheduleOperationViewportSync() {
+	if (viewportSyncFrame) return;
+	viewportSyncFrame = requestAnimationFrame(() => {
+		viewportSyncFrame = 0;
+		syncOperationViewport();
+	});
+}
 onMounted(() => {
 	syncOperationViewport();
-	visualViewport?.addEventListener("resize", syncOperationViewport);
-	visualViewport?.addEventListener("scroll", syncOperationViewport);
+	visualViewport?.addEventListener("resize", scheduleOperationViewportSync);
+	visualViewport?.addEventListener("scroll", scheduleOperationViewportSync);
 });
 onBeforeUnmount(() => {
-	visualViewport?.removeEventListener("resize", syncOperationViewport);
-	visualViewport?.removeEventListener("scroll", syncOperationViewport);
+	visualViewport?.removeEventListener("resize", scheduleOperationViewportSync);
+	visualViewport?.removeEventListener("scroll", scheduleOperationViewportSync);
+	cancelAnimationFrame(viewportSyncFrame);
 });
 const { expanded, toggle } = useExpandedEditor(formRoot, () => props.active !== false);
 const { isDesktop, isMobile } = useResponsiveLayout();
-const { keyboardOpen } = useVirtualKeyboard();
 const previewCollapsed = ref(false);
 const mobileReviewOpen = ref(false);
 let previousPreviewCollapsed = false;
@@ -569,7 +578,17 @@ async function confirm() {
 }
 async function lifecycle() {
 	const selected = action.value;
+	const priorIdentity = state.identity?.name;
 	await c.lifecycle();
+	const target =
+		selected === "duplicate" && router.currentRoute.value.name === "movement-detail"
+			? duplicateOperationTarget(
+					priorIdentity,
+					state.identity?.name,
+					router.currentRoute.value.query,
+				)
+			: undefined;
+	if (target) await router.replace(target);
 	if (action.value || state.error) {
 		if (state.error) showToast(`操作失败：${state.error}`, "danger");
 		return;
@@ -1143,7 +1162,6 @@ async function lifecycle() {
 					v-if="writable || state.confirmationVersion"
 					ref="reviewBar"
 					class="form-actions document-actions"
-					:class="{ 'is-keyboard-open': keyboardOpen }"
 				>
 					<p class="muted">{{ draft.items.length }} 行</p>
 					<UiButton
@@ -1299,7 +1317,10 @@ async function lifecycle() {
 				未填写：{{ reviewContext.missing.map((field) => field.label).join("、") }}
 			</p>
 			<div class="content-long-text">{{ draft.note }}</div>
-			<p>{{ files.files.length }} 份附件。确认后此记录及附件不可直接修改。</p>
+			<p>
+				{{ files.files.length }}
+				份附件。确认后单据内容不可直接修改；附件仍可增删（已取消单据只读）。
+			</p>
 			<p v-if="state.error" class="notice-bar danger" role="alert">{{ state.error }}</p>
 			<template #footer
 				><UiButton :disabled="busy" @click="reviewOpen = false">返回检查</UiButton
@@ -1417,7 +1438,7 @@ async function lifecycle() {
 		box-sizing: border-box;
 	}
 
-	.document-actions.is-keyboard-open {
+	.app-workspace.keyboard-open .document-actions {
 		display: none !important;
 	}
 

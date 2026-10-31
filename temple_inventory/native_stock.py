@@ -185,14 +185,23 @@ def _validate_batch(row, item, posting_date):
 				frappe.throw("到期日期不能早于生产日期")
 
 
-def validate_availability(doc):
+def validate_availability(doc, *, visible=None, settings=None):
 	from temple_inventory.native_balances import batch_balances, stock_balance
+	from temple_inventory.native_topology import present_locations
 
 	if doc.docstatus == 2 or getattr(doc, "_action", None) == "cancel":
 		return
 	if doc.docstatus == 1 and getattr(doc, "_action", None) != "submit":
 		return
 	posting = str(get_datetime(f"{doc.posting_date} {doc.posting_time or '00:00:00'}"))
+	if visible is None:
+		settings, visible, *_ = warehouse_scopes()
+	location_labels = {row["name"]: row["label"] for row in present_locations(visible, settings=settings)}
+	item_labels = {}
+	for row in doc.items:
+		if row.item_code not in item_labels:
+			name = frappe.get_cached_value("Item", row.item_code, "item_name") or row.item_code
+			item_labels[row.item_code] = f"{name}（{row.item_code}）" if name != row.item_code else name
 	requested, requested_batches = defaultdict(Decimal), defaultdict(Decimal)
 	for row in doc.items:
 		if not row.s_warehouse:
@@ -204,7 +213,10 @@ def validate_availability(doc):
 	for (code, warehouse), quantity in sorted(requested.items()):
 		available = Decimal(str(stock_balance(code, warehouse, posting, lock=True)))
 		if quantity > available:
-			frappe.throw(f"{code} 在 {warehouse} 的合计数量超过入账时点可用数量，请刷新后核对")
+			frappe.throw(
+				f"{item_labels[code]}在 {location_labels.get(warehouse, '所选位置')} 的合计数量"
+				"超过入账时点可用数量，请刷新后核对"
+			)
 	batches_by_pair = {}
 	for (code, warehouse, batch), quantity in sorted(requested_batches.items()):
 		pair = (code, warehouse)
@@ -214,7 +226,10 @@ def validate_availability(doc):
 				for row in batch_balances(code, warehouse, posting, lock=True)
 			}
 		if quantity > batches_by_pair[pair].get(batch, Decimal(0)):
-			frappe.throw(f"{code} 的批次 {batch} 在 {warehouse} 数量不足，请刷新后核对")
+			frappe.throw(
+				f"{item_labels[code]}的批次 {batch} 在 "
+				f"{location_labels.get(warehouse, '所选位置')} 数量不足，请刷新后核对"
+			)
 
 
 def validate_settlement_metadata(doc):
@@ -294,7 +309,7 @@ def before_validate(doc, method=None):
 		if kind == "Loan":
 			row.ti_origin_warehouse = row.s_warehouse
 	validate_settlements(doc)
-	validate_availability(doc)
+	validate_availability(doc, visible=visible, settings=_settings)
 	validate_assignment(doc)
 
 

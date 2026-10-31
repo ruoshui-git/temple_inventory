@@ -3,8 +3,11 @@
 Each case uses a savepoint and rolls back stock, settings, users and metadata.
 """
 
+# ruff: noqa: RUF001 — Chinese UI punctuation is intentional.
+
 import copy
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -19,12 +22,87 @@ from temple_inventory import (
 	native_api,
 	native_balances,
 	native_files,
+	native_stock,
 	preferences,
 	session,
 )
 
 
 class NativeDocumentTests(unittest.TestCase):
+	def test_availability_errors_use_presenter_item_and_location_labels(self):
+		settings = frappe._dict()
+		visible = {
+			"WAREHOUSE-NATIVE": frappe._dict(
+				name="WAREHOUSE-NATIVE",
+				warehouse_name="Area / Room - direct",
+				ti_label="Room",
+			)
+		}
+		doc = SimpleNamespace(
+			docstatus=0,
+			posting_date="2026-10-31",
+			posting_time="00:00:00",
+			items=[
+				frappe._dict(
+					item_code="ITEM-NATIVE",
+					s_warehouse="WAREHOUSE-NATIVE",
+					transfer_qty=5,
+				)
+			],
+		)
+		with (
+			patch.object(
+				native_stock,
+				"warehouse_scopes",
+				return_value=(settings, visible, set(), set(), set()),
+			),
+			patch(
+				"temple_inventory.native_topology.present_locations",
+				return_value=[{"name": "WAREHOUSE-NATIVE", "label": "Room"}],
+			),
+			patch.object(frappe, "get_cached_value", return_value="礼堂椅"),
+			patch("temple_inventory.native_balances.stock_balance", return_value=2),
+			self.assertRaisesRegex(frappe.ValidationError, "礼堂椅（ITEM-NATIVE）在 Room 的合计数量"),
+		):
+			native_stock.validate_availability(doc)
+
+	def test_batch_availability_error_does_not_expose_native_batch_name(self):
+		settings = frappe._dict()
+		visible = {"WAREHOUSE-NATIVE": frappe._dict(name="WAREHOUSE-NATIVE")}
+		doc = SimpleNamespace(
+			docstatus=0,
+			posting_date="2026-10-31",
+			posting_time="00:00:00",
+			items=[
+				frappe._dict(
+					item_code="ITEM-NATIVE",
+					s_warehouse="WAREHOUSE-NATIVE",
+					transfer_qty=5,
+					batch_no="BATCH-NATIVE",
+				)
+			],
+		)
+		with (
+			patch.object(
+				native_stock,
+				"warehouse_scopes",
+				return_value=(settings, visible, set(), set(), set()),
+			),
+			patch(
+				"temple_inventory.native_topology.present_locations",
+				return_value=[{"name": "WAREHOUSE-NATIVE", "label": "Room"}],
+			),
+			patch.object(frappe, "get_cached_value", return_value="礼堂椅"),
+			patch("temple_inventory.native_balances.stock_balance", return_value=5),
+			patch("temple_inventory.native_balances.batch_balances", return_value=[]),
+			patch.object(native_stock, "batch_quantities", return_value={"BATCH-NATIVE": 5}),
+			self.assertRaisesRegex(
+				frappe.ValidationError,
+				"礼堂椅（ITEM-NATIVE）的批次 BATCH-NATIVE 在 Room 数量不足",
+			),
+		):
+			native_stock.validate_availability(doc)
+
 	def test_stock_reconciliation_rejects_borrower_field(self):
 		doc = frappe.new_doc("Stock Reconciliation")
 		with self.assertRaises(frappe.ValidationError):
@@ -704,8 +782,12 @@ class NativeDocumentTests(unittest.TestCase):
 		# Deliberately back-date another native movement into the selected baseline.
 		self.receipt(2)
 		data["ti_count_review"][0]["baseline_qty"] -= 1
-		with self.assertRaisesRegex(frappe.ValidationError, "基准已变化"):
+		with self.assertRaisesRegex(frappe.ValidationError, "基准已变化") as error:
 			counts.save_count(str(uuid4()), data)
+		self.assertIn("Native test item", str(error.exception))
+		self.assertIn("TI-NATIVE-", str(error.exception))
+		self.assertIn("Native Test A Room", str(error.exception))
+		self.assertNotIn("@", str(error.exception))
 		refreshed = counts.count_baseline(str(now_datetime()), data["ti_count_review"])
 		self.assertEqual(refreshed["rows"][0]["actual_qty"], 8)
 		self.assertEqual(refreshed["rows"][0]["review_state"], "Unreviewed")

@@ -587,6 +587,9 @@ input[list]::-webkit-calendar-picker-indicator {
 }
 .operation-row-cell input[type="date"] {
 	padding-inline: 4px;
+	box-sizing: border-box;
+	min-width: 0;
+	max-width: 100%;
 }
 .operation-row-cell .search-select .search-select-input input {
 	min-height: 36px;
@@ -760,8 +763,18 @@ input[list]::-webkit-calendar-picker-indicator {
 		min-width: 100px;
 	}
 	.operation-row-cell input[type="date"] {
-		padding-inline: 2px;
-		font-size: 0.72rem;
+		appearance: auto;
+		-webkit-appearance: auto;
+		box-sizing: border-box;
+		width: 100%;
+		min-width: 0;
+		max-width: 100%;
+		min-height: 44px;
+		padding-inline: 4px;
+		font-size: 16px;
+	}
+	.operation-row-batch input[data-field="batch"]::placeholder {
+		font-size: 0.66rem;
 	}
 	.operation-row-cell input,
 	.operation-row-cell .search-select .search-select-input input {
@@ -967,6 +980,8 @@ input[list]::-webkit-calendar-picker-indicator {
 	color: var(--p-muted);
 }
 .shared-file-picker {
+	/* Contains the visually hidden input so it can't widen the page. */
+	position: relative;
 	display: inline-flex;
 	align-items: center;
 	gap: var(--p-space-2);

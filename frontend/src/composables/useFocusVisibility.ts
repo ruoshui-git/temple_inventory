@@ -20,26 +20,29 @@ export function useFocusVisibility(
   let frame = 0;
   let listening = false;
   let generation = 0;
+  let viewport: VisualViewport | null = null;
+  function syncLayoutVariables() {
+    const editor = root.value;
+    if (!editor) return;
+    const editorRect = editor.getBoundingClientRect();
+    editor.style.setProperty(
+      "--form-editor-left",
+      `${Math.max(12, editorRect.left)}px`,
+    );
+    editor.style.setProperty(
+      "--form-editor-right",
+      `${Math.max(12, window.innerWidth - editorRect.right)}px`,
+    );
+    editor.style.setProperty(
+      "--form-review-height",
+      `${review.value?.getBoundingClientRect().height || 0}px`,
+    );
+  }
   function reveal() {
     frame = 0;
     if (!listening || !root.value) return;
     const nav = document.querySelector<HTMLElement>(".app-mobile-nav");
     const navRect = nav?.getBoundingClientRect();
-    const navHeight = navRect?.height || 0;
-    const editorRect = root.value.getBoundingClientRect();
-    root.value.style.setProperty(
-      "--form-editor-left",
-      `${Math.max(12, editorRect.left)}px`,
-    );
-    root.value.style.setProperty(
-      "--form-editor-right",
-      `${Math.max(12, window.innerWidth - editorRect.right)}px`,
-    );
-    root.value.style.setProperty("--app-nav-height", `${navHeight}px`);
-    root.value.style.setProperty(
-      "--form-review-height",
-      `${review.value?.getBoundingClientRect().height || 0}px`,
-    );
     const field = document.activeElement;
     if (
       !(field instanceof HTMLElement) ||
@@ -49,22 +52,17 @@ export function useFocusVisibility(
       return;
     if (topChrome?.value?.contains(field) && field.matches("h1, h2")) {
       const chromeRect = field.getBoundingClientRect();
-      if (chromeRect.top >= 0 && chromeRect.bottom <= window.innerHeight)
+      if (
+        chromeRect.top >= 0 &&
+        chromeRect.bottom <= (viewport?.height ?? window.innerHeight)
+      )
         return;
     }
     const rect = field.getBoundingClientRect();
     const reviewRect = review.value?.getBoundingClientRect();
-    let bottom =
-      Math.min(
-        window.innerHeight,
-        navRect?.top ?? window.innerHeight,
-        fixedReview() &&
-          reviewRect &&
-          rect.right > reviewRect.left &&
-          rect.left < reviewRect.right
-          ? reviewRect.top
-          : window.innerHeight,
-      ) - 12;
+    const obstructions: DOMRect[] = [];
+    if (navRect) obstructions.push(navRect);
+    if (fixedReview() && reviewRect) obstructions.push(reviewRect);
     for (const action of Array.from(
       document.querySelectorAll<HTMLElement>(
         ".current-fab > button, .browse-mobile-fab-trigger, .return-top",
@@ -72,21 +70,23 @@ export function useFocusVisibility(
     )) {
       if (action === field || !action.getClientRects().length) continue;
       const actionRect = action.getBoundingClientRect();
-      if (rect.right > actionRect.left && rect.left < actionRect.right)
-        bottom = Math.min(bottom, actionRect.top - 12);
+      obstructions.push(actionRect);
     }
     const owner = scrollOwner(field);
-    let edge =
-      owner === window
-        ? 12
-        : (owner as HTMLElement).getBoundingClientRect().top + 12;
     if (topChrome?.value && !topChrome.value.contains(field))
-      edge = Math.max(
-        edge,
-        topChrome.value.getBoundingClientRect().bottom + 12,
-      );
-    if (rect.bottom > bottom) scrollBy(owner, rect.bottom - bottom);
-    else if (rect.top < edge) scrollBy(owner, rect.top - edge);
+      obstructions.push(topChrome.value.getBoundingClientRect());
+    const obstruction = obstructions.find(
+      (edge) =>
+        rect.right > edge.left &&
+        rect.left < edge.right &&
+        rect.bottom > edge.top &&
+        rect.top < edge.bottom,
+    );
+    if (!obstruction) return;
+    const topCover = obstruction.bottom - rect.top;
+    const bottomCover = rect.bottom - obstruction.top;
+    // Safari handles viewport reveal. Move only when fixed chrome overlaps the field.
+    scrollBy(owner, topCover < bottomCover ? -topCover - 12 : bottomCover + 12);
   }
   function schedule() {
     cancelAnimationFrame(frame);
@@ -100,7 +100,10 @@ export function useFocusVisibility(
     observer = undefined;
     root.value?.removeEventListener("focusin", schedule);
     window.removeEventListener("resize", schedule);
+    window.removeEventListener("resize", syncLayoutVariables);
     window.removeEventListener("inventory-text-scale", schedule);
+    window.removeEventListener("inventory-text-scale", syncLayoutVariables);
+    viewport?.removeEventListener("resize", schedule);
   }
   async function start() {
     stop();
@@ -114,9 +117,14 @@ export function useFocusVisibility(
     )
       return;
     listening = true;
+    viewport = window.visualViewport;
     root.value.addEventListener("focusin", schedule);
     window.addEventListener("resize", schedule);
+    window.addEventListener("resize", syncLayoutVariables);
+    viewport?.addEventListener("resize", schedule);
     window.addEventListener("inventory-text-scale", schedule);
+    window.addEventListener("inventory-text-scale", syncLayoutVariables);
+    syncLayoutVariables();
     if (typeof ResizeObserver !== "undefined") {
       observer = new ResizeObserver(schedule);
       observer.observe(root.value);

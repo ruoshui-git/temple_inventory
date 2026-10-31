@@ -46,6 +46,8 @@ const indices = computed(() => {
 });
 let observer: ResizeObserver | undefined;
 let lastWidth = 0;
+let scrollSettle: ReturnType<typeof setTimeout> | undefined;
+let userScrolling = false;
 const observed = new Set<HTMLElement>();
 function measure() {
 	for (const row of observed)
@@ -70,7 +72,7 @@ function measure() {
 	});
 	if (changed) {
 		revision.value++;
-		if (viewport.value && enabled.value)
+		if (viewport.value && enabled.value && !userScrolling)
 			viewport.value.scrollTop += (offsets.value[index] || 0) - before;
 	}
 }
@@ -98,7 +100,10 @@ onMounted(() => {
 	}
 	measure();
 });
-onBeforeUnmount(() => observer?.disconnect());
+onBeforeUnmount(() => {
+	observer?.disconnect();
+	clearTimeout(scrollSettle);
+});
 watch(indices, () => nextTick(measure));
 watch(
 	() => [...props.keys],
@@ -146,6 +151,12 @@ function key(event: KeyboardEvent) {
 					);
 	scrollToIndex(target, true);
 }
+function onScroll(event: Event) {
+	top.value = (event.target as HTMLElement).scrollTop;
+	userScrolling = true;
+	clearTimeout(scrollSettle);
+	scrollSettle = setTimeout(() => (userScrolling = false), 140);
+}
 defineExpose({ scrollToIndex });
 </script>
 <template>
@@ -154,7 +165,7 @@ defineExpose({ scrollToIndex });
 		class="virtual-list"
 		:class="{ 'is-virtual': enabled }"
 		:data-total="keys.length"
-		@scroll="top = ($event.target as HTMLElement).scrollTop"
+		@scroll="onScroll"
 		@keydown="key"
 		@focusin="
 			pinned = Number(

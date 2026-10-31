@@ -82,7 +82,7 @@ function measureNavigation() {
 	);
 }
 watch(
-	() => [props.active, isMobile.value, taskEditor.value, keyboardOpen.value],
+	() => [props.active, isMobile.value, taskEditor.value],
 	async () => {
 		await nextTick();
 		if (!isMobile.value) return;

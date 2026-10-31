@@ -34,6 +34,7 @@ async function showAt(top: number) {
     value: 280,
   });
   window.dispatchEvent(new Event("resize"));
+  await new Promise((resolve) => requestAnimationFrame(resolve));
   await flushPromises();
   wrapper && wrappers.push(wrapper);
   return { wrapper, list };

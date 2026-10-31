@@ -66,8 +66,8 @@ test("save, reload and amendment keep the current native identity in the URL", a
             stock_uom: "Nos",
             description: "",
             version: "item-v1",
-            has_batch_no: false,
-            has_expiry_date: false,
+            has_batch_no: true,
+            has_expiry_date: true,
             can_edit: false,
             barcodes: [],
             uoms: [{ uom: "Nos", conversion_factor: 1 }],
@@ -191,6 +191,27 @@ test("save, reload and amendment keep the current native identity in the URL", a
       message = { Receive: "A02-DIRECT" };
     else if (method === "temple_inventory.preferences.save_creation_location")
       message = {};
+    else if (method === "temple_inventory.catalog.receipt_batches")
+      message = {
+        batches: args.rows.map(
+          (row: { local_id: string; batch_id: string }) => ({
+            local_id: row.local_id,
+            name: row.batch_id,
+          }),
+        ),
+      };
+    else if (method === "temple_inventory.catalog.batch_metadata_many")
+      message = Object.fromEntries(
+        (args.names as string[]).map((name, index) => [
+          name,
+          {
+            name,
+            item_code: "ITEM-A",
+            expiry_date: index === 0 ? "2027-02-01" : "2027-03-01",
+            manufacturing_date: index === 0 ? "2026-01-01" : "2026-02-01",
+          },
+        ]),
+      );
     else {
       unexpected.push(method);
       await route.fulfill({
@@ -204,6 +225,68 @@ test("save, reload and amendment keep the current native identity in the URL", a
   await page.goto(
     `/inventory/movements/new/Receive?warehouse=A02-DIRECT&items=${encodeURIComponent(JSON.stringify(["ITEM-A"]))}`,
   );
+  await page.setViewportSize({ width: 430, height: 932 });
+  const location = page.getByRole("combobox", { name: "入库位置" }).first();
+  await location.focus();
+  const locationPopup = page.locator(".search-select-menu").last();
+  await expect(locationPopup).toBeVisible();
+  await expect(locationPopup).toContainText("演示室甲");
+  await page.waitForTimeout(1000);
+  const stableSamples = await page.evaluate(async () => {
+    const popup = document.querySelector<HTMLElement>(".search-select-menu")!;
+    const samples: Array<{ scrollY: number; top: number; left: number }> = [];
+    for (let index = 0; index < 6; index++) {
+      const rect = popup.getBoundingClientRect();
+      samples.push({ scrollY: window.scrollY, top: rect.top, left: rect.left });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    return {
+      samples,
+      viewport: {
+        top: window.visualViewport?.offsetTop ?? 0,
+        bottom:
+          (window.visualViewport?.offsetTop ?? 0) +
+          (window.visualViewport?.height ?? window.innerHeight),
+      },
+      height: popup.getBoundingClientRect().height,
+    };
+  });
+  expect(
+    Math.max(...stableSamples.samples.map((sample) => sample.scrollY)) -
+      Math.min(...stableSamples.samples.map((sample) => sample.scrollY)),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    Math.max(...stableSamples.samples.map((sample) => sample.top)) -
+      Math.min(...stableSamples.samples.map((sample) => sample.top)),
+  ).toBeLessThanOrEqual(1);
+  expect(stableSamples.samples[0]!.top).toBeGreaterThanOrEqual(
+    stableSamples.viewport.top,
+  );
+  expect(
+    stableSamples.samples[0]!.top + stableSamples.height,
+  ).toBeLessThanOrEqual(stableSamples.viewport.bottom + 1);
+  await page.keyboard.press("Escape");
+  await page.locator('[data-field="batch"]').first().fill("BATCH-TEST");
+  await page.locator('[data-field="expiry"]').first().fill("2027-02-01");
+  await page
+    .locator('[data-field="manufacturingDate"]')
+    .first()
+    .fill("2026-01-01");
+  await expect(page.locator('[data-field="expiry"]').first()).toHaveValue(
+    "2027-02-01",
+  );
+  const priorDateStyle = await page.addStyleTag({
+    content: `@media (max-width: 1023px) {
+      .operation-row-cell input[type="date"] { min-height: 38px; padding-inline: 2px; font-size: 0.72rem; }
+    }`,
+  });
+  await page.screenshot({
+    path: test.info().outputPath("phone-inbound-dates-before.png"),
+  });
+  await priorDateStyle.evaluate((element) => element.remove());
+  await page.screenshot({
+    path: test.info().outputPath("phone-inbound-dates.png"),
+  });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByRole("button", { name: "添加物品", exact: true }).click();
   const addPicker = page.getByRole("dialog", { name: "选择物品", exact: true });
@@ -216,10 +299,33 @@ test("save, reload and amendment keep the current native identity in the URL", a
     .first()
     .check();
   await addPicker.getByRole("button", { name: /添加所选/ }).click();
+  await page.locator('[data-field="batch"]').nth(1).fill("BATCH-TEST-2");
+  await page.locator('[data-field="expiry"]').nth(1).fill("2027-03-01");
+  await page
+    .locator('[data-field="manufacturingDate"]')
+    .nth(1)
+    .fill("2026-02-01");
   await page.getByRole("button", { name: "明细操作" }).first().click();
   await page.getByRole("menuitem", { name: "更换物品", exact: true }).click();
   const picker = page.getByRole("dialog", { name: "选择物品", exact: true });
   await expect(picker).toBeVisible();
+  await page.setViewportSize({ width: 430, height: 932 });
+  const createItem = picker.getByRole("button", {
+    name: "新建物品",
+    exact: true,
+  });
+  await expect(createItem).toBeVisible();
+  const resultsScroll = picker.locator(".picker-results-scroll");
+  await resultsScroll.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  await expect
+    .poll(async () => {
+      const box = await createItem.boundingBox();
+      return box && box.y >= 0 && box.y + box.height <= 932;
+    })
+    .toBe(true);
+  await page.setViewportSize({ width: 1440, height: 1000 });
   const chooseButton = picker.getByRole("button", {
     name: "选择",
     exact: true,

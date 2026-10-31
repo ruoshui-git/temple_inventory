@@ -484,9 +484,6 @@ async function selectExisting(code: string, warehouse: string) {
 					:show-sidebar-toggle="false"
 					@scan="openScanner"
 				>
-					<template #persistent>
-						<UiButton v-if="allowCreate" @click="showCreate(true)">新建物品</UiButton>
-					</template>
 					<template #filters>
 						<div class="browse-filter-mega picker-filter-panel">
 							<BrowseFilters
@@ -708,6 +705,11 @@ async function selectExisting(code: string, warehouse: string) {
 								load(true);
 						"
 					>
+						<div v-if="allowCreate" class="picker-create-sticky">
+							<UiButton variant="secondary" @click="showCreate(true)"
+								>新建物品</UiButton
+							>
+						</div>
 						<section
 							v-if="createdPreview && multiple"
 							class="picker-created-preview"
@@ -1013,6 +1015,16 @@ async function selectExisting(code: string, warehouse: string) {
 </template>
 
 <style scoped>
+.picker-create-sticky {
+	position: sticky;
+	top: 0;
+	z-index: var(--p-z-sticky-content, 10);
+	display: flex;
+	justify-content: flex-end;
+	padding: var(--p-space-2);
+	background: var(--p-surface);
+}
+
 .picker-data-table :deep(table) {
 	min-width: 780px;
 }
