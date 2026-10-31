@@ -65,6 +65,7 @@ const emit = defineEmits<{
 }>();
 const {
 	appliedChips,
+	atDefaults,
 	reference,
 	data,
 	loadingMore,
@@ -336,8 +337,8 @@ watch([() => props.active, isMobile], () => {
 					@edit="editFilter(chip.field)"
 					@remove="chip.remove()"
 				/>
-				<UiButton v-if="appliedChips.length" variant="ghost" @click="controller.reset"
-					>清除全部</UiButton
+				<UiButton v-if="!atDefaults" variant="ghost" @click="controller.reset"
+					>恢复默认</UiButton
 				>
 			</template>
 			<template #filters>

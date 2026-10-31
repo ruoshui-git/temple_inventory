@@ -75,12 +75,15 @@ test("loan scope, movement effects and multi-location records render at desktop 
   page,
 }) => {
   await settled(page, "/inventory/loans");
-  await page.getByRole("button", { name: "筛选", exact: true }).click();
+  await page.getByRole("button", { name: /^筛选(，|$)/ }).click();
   await page.locator('[data-filter-field="loanStatus"] > summary').click();
   await page
     .getByRole("combobox", { name: "借用状态", exact: true })
     .selectOption("all");
-  await expect(page.getByText("借用状态：全部", { exact: true })).toBeVisible();
+  // 全部 is unrestricted: the loan status restricts nothing, so no chip remains.
+  await expect(
+    page.locator(".browse-active-chip-label", { hasText: "借用状态" }),
+  ).toHaveCount(0);
   await capture(page, "loans-all-scope-filters", 1440, 900);
   await capture(page, "loans-all-scope-filters", 390, 844);
 

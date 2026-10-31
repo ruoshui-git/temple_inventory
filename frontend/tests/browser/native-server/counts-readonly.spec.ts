@@ -117,7 +117,12 @@ async function capture(page: Page, route: string, label: string) {
       await expect(
         page.getByRole("combobox", { name: "分组方式" }),
       ).toHaveValue("location");
-      await expect(page.getByText("确认时自动记录当前时间。")).toBeVisible();
+      // Seeded drafts keep their historical posting time; either mode shows the time control.
+      await expect(
+        page
+          .getByText("确认时自动记录当前时间。")
+          .or(page.getByRole("combobox", { name: "时间方式" })),
+      ).toBeVisible();
     } else {
       await expect(page.locator(".count-readonly")).toBeVisible();
       await expect(page.locator(".count-readonly th")).toHaveCount(8);

@@ -16,6 +16,7 @@ import { dismissUpdate, isUpdateDismissed, updateAvailable, updateVersion } from
 import { showToast } from "./services/toast";
 import { createBrowseMemory, provideBrowseMemory } from "./lib/browseMemory";
 import { routeViewIdentity } from "./lib/routeRegistry";
+import { configurePreferenceSave } from "./lib/uiPreferences";
 const route = useRoute(),
 	reference = createReferenceData();
 const pageIdentity = computed(() => {
@@ -34,6 +35,10 @@ watch(pageIdentity, () => browseMemory.activate(), { immediate: true });
 const services = browseMemory.wrap(frappeServices);
 provideInventoryServices(services, reference);
 provideBrowseMemory(browseMemory);
+// Display preferences save from any page (for example a date filter's 设为默认), not only from 设置.
+configurePreferenceSave((values) =>
+	services.call("preferences.save_display_preferences", { ...values }),
+);
 const c = useApplication(reference, services),
 	{ state, resuming, sessionExpired } = c;
 const announcedUpdateVersion = ref("");

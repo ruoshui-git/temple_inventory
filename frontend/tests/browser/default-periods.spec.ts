@@ -51,9 +51,13 @@ test("a fresh movements page requests the account default month", async ({
   );
   await page.goto("/inventory/movements");
   await expect.poll(() => requestedPeriod).toBe("this_month");
-  // The account default is the baseline: no date chip, the filter shows 本月.
-  await expect(page.getByText(/^日期：/)).toHaveCount(0);
-  await page.getByRole("button", { name: "筛选", exact: true }).click();
+  // The account default still shows as a chip, so the list is visibly date-filtered.
+  await expect(
+    page
+      .locator(".browse-active-chip-label", { hasText: "日期：本月" })
+      .first(),
+  ).toBeVisible();
+  await page.getByRole("button", { name: /^筛选(，|$)/ }).click();
   await expect(
     page.locator('[data-filter-field="period"]').first(),
   ).toContainText("本月");

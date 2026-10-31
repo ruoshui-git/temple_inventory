@@ -25,22 +25,32 @@ it("presents the shared settled loan status as a removable chip", () => {
       key: "loanStatus",
       label: "借用状态：已结清",
       field: "status",
-      reset: { loanStatus: "outstanding" },
+      reset: { loanStatus: "all" },
     }),
   );
 });
 
-it("presents the all-loans status as a readable chip", () => {
+it("shows the default outstanding-loans status as a chip that lifts to all loans", () => {
   const query = newReportQuery("loans");
   query.view = "records";
-  query.loanStatus = "all";
   expect(reportFilterChips(query, createReferenceData())).toContainEqual(
     expect.objectContaining({
       key: "loanStatus",
-      label: "借用状态：全部",
-      reset: { loanStatus: "outstanding" },
+      label: "借用状态：未结清",
+      reset: { loanStatus: "all" },
     }),
   );
+});
+
+it("shows no chip for the unrestricted all-loans status", () => {
+  const query = newReportQuery("loans");
+  query.view = "records";
+  query.loanStatus = "all";
+  expect(
+    reportFilterChips(query, createReferenceData()).some(
+      (chip) => chip.key === "loanStatus",
+    ),
+  ).toBe(false);
 });
 
 it("translates every non-default report select value in its chip", () => {
@@ -100,7 +110,7 @@ it("translates every non-default report select value in its chip", () => {
       field: "itemStatus",
       values: [
         ["disabled", "停用"],
-        ["all", "全部"],
+        ["enabled", "启用"],
       ],
     },
   ];

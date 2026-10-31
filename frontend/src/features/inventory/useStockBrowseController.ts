@@ -5,7 +5,11 @@ import {
   type ReportQuery,
   type ReportRow,
 } from "../../lib/reportContract";
-import { browseDefaults } from "../../lib/browseDefaults";
+import {
+  browseDefaults,
+  filtersAtDefaults,
+  linkedConstraintFields,
+} from "../../lib/browseDefaults";
 import {
   clearScopeField,
   scopeFilterFieldChips,
@@ -297,6 +301,14 @@ export function useStockBrowseController(
   function setItemStatus(value: ReportQuery["itemStatus"]) {
     constraints.value.itemStatus = value;
   }
+  // 恢复默认 keeps link-provided constraints, so they do not count as a difference.
+  const atDefaults = computed(() =>
+    filtersAtDefaults(
+      query.value,
+      browseDefaults("inventory", "summary"),
+      linkedConstraintFields,
+    ),
+  );
   const appliedChips = computed(() => [
     ...scopeFilterFieldChips(query.value.scope, reference).map((chip) => ({
       ...chip,
@@ -415,6 +427,7 @@ export function useStockBrowseController(
     rowAction,
     scopeError,
     appliedChips,
+    atDefaults,
     reference,
     data,
     loadingMore,

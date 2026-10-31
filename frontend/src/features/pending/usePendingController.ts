@@ -5,7 +5,7 @@ import {
   type ReportRow,
 } from "../../lib/reportContract";
 import { decodeReportQuery } from "../../lib/reportQuery";
-import { browseDefaults } from "../../lib/browseDefaults";
+import { browseDefaults, filtersAtDefaults } from "../../lib/browseDefaults";
 import {
   clearScopeField,
   scopeFilterFieldChips,
@@ -105,10 +105,17 @@ export function usePendingController(
   const scopeChips = computed(() =>
     scopeFilterFieldChips(scope.value, reference),
   );
+  // The damaged-stock scope itself (damageOnly, forced includeZero) has no control, so it has no chip.
   const chips = computed(() =>
     reportFilterChips(query.value, reference).filter(
       (chip) => !["damageOnly", "includeZero"].includes(chip.key),
     ),
+  );
+  const atDefaults = computed(() =>
+    filtersAtDefaults(query.value, browseDefaults("inventory", "locations"), [
+      "damageOnly",
+      "includeZero",
+    ]),
   );
   const metrics = computed(() => [
     {
@@ -134,7 +141,10 @@ export function usePendingController(
     });
   }
   function clear() {
-    clearReportSecondaryFilters(query.value, reference);
+    clearReportSecondaryFilters(
+      query.value,
+      browseDefaults("inventory", "locations"),
+    );
     scope.value = {
       ...newReportQuery("inventory").scope,
       period: scope.value.period,
@@ -185,6 +195,7 @@ export function usePendingController(
     scope,
     scopeChips,
     chips,
+    atDefaults,
     routeError,
     report,
     analysis,

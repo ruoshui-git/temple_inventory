@@ -282,7 +282,7 @@ for (const [width, scale, density] of [
     await expect(page.locator(".browse-chrome h1")).toBeInViewport();
     await page.screenshot({ path: info.outputPath("expanded-header.png") });
     await page.getByRole("button", { name: /^筛选/ }).click();
-    const filterPanel = page.getByRole("dialog", { name: "筛选", exact: true });
+    const filterPanel = page.getByRole("dialog", { name: /^筛选(，|$)/ });
     await expect(filterPanel).toBeVisible();
     if (width < 1024) {
       await filterPanel

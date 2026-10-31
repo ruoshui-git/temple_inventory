@@ -715,6 +715,7 @@ function datasetChanged(dataset: ReportDataset) {
 							v-model="filters.period"
 							:today="reference.siteDate"
 							label="流动日期"
+							default-area="dashboard"
 						/><small>日期仅影响本卡片</small></template
 					>
 					<div class="movement-summary">

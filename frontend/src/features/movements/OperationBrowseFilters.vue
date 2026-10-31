@@ -87,6 +87,7 @@ watch(
 						:today="controller.reference.siteDate"
 						v-model="scope.period"
 						:label="family === 'movements' ? '流动日期' : '借出日期'"
+						:default-area="family"
 						embedded
 					/>
 				</FilterDisclosure>
@@ -177,8 +178,11 @@ watch(
 						</select>
 					</label>
 				</FilterDisclosure>
-				<UiButton class="browse-filter-clear" @click="controller.clearFilters"
-					>清空筛选</UiButton
+				<UiButton
+					v-if="!controller.atPanelDefaults.value"
+					class="browse-filter-clear"
+					@click="controller.clearFilters"
+					>恢复默认</UiButton
 				>
 			</section>
 			<section class="browse-filter-mega-section browse-filter-grouping">

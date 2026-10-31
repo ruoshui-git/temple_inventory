@@ -9,7 +9,7 @@ import {
 import { type ReportQuery, type ReportRow } from "../../lib/reportContract";
 import type { DatePeriod } from "../../lib/browseQuery";
 import { decodeReportQuery } from "../../lib/reportQuery";
-import { browseDefaults } from "../../lib/browseDefaults";
+import { browseDefaults, filtersAtDefaults } from "../../lib/browseDefaults";
 import {
   clearScopeField,
   scopeFilterFieldChips,
@@ -228,6 +228,22 @@ export function useActivitiesController(
   const activityTypeLabel = (id: string) =>
     reference.activityTypes.find((row) => row.value === id)?.label || id;
   const secondaryChips = computed(() => [
+    ...(state.status !== "all"
+      ? [
+          {
+            key: "status",
+            label: `活动状态：${state.status === "active" ? "进行中" : "已归档"}`,
+          },
+        ]
+      : []),
+    ...(state.typeId
+      ? [
+          {
+            key: "typeId",
+            label: `活动类型：${activityTypeLabel(state.typeId)}`,
+          },
+        ]
+      : []),
     ...(state.kind
       ? [
           {
@@ -253,6 +269,15 @@ export function useActivitiesController(
     state.presence = "all";
     state.outstanding = false;
   }
+  // The account's activity default is 进行中, not the unrestricted 全部.
+  function activityDefaults(): ReportQuery {
+    const value = browseDefaults("activities", "metadata");
+    value.activityStatus = "active";
+    return value;
+  }
+  const atDefaults = computed(() =>
+    filtersAtDefaults(report.value, activityDefaults()),
+  );
   function clear() {
     clearSecondary();
     inherited.value = browseDefaults("activities", "metadata");
@@ -368,6 +393,7 @@ export function useActivitiesController(
       scopeError.value = "";
     },
     clearSecondary,
+    atDefaults,
     secondaryChips,
     activityMovementCounts,
     activityTypeLabel,
@@ -385,6 +411,8 @@ export function useActivitiesController(
         createMovement(kind, detail.value.name);
     },
     removeSecondary: (key: string) => {
+      if (key === "status") state.status = "all";
+      if (key === "typeId") state.typeId = "";
       if (key === "kind") state.kind = "";
       if (key === "presence") state.presence = "all";
       if (key === "outstanding") state.outstanding = false;

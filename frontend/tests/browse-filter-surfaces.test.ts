@@ -743,20 +743,17 @@ it("limits browse grouping to two ordered fields and preserves category-to-item 
   wrapper.unmount();
 });
 
-it("shows the date chip only when the period differs from the page default and clears back to it", () => {
+it("shows the date chip whenever the period restricts rows, even at the page default, and lifts to 全部时间", () => {
   const scope = emptyScope();
   scope.period = { key: "this_month", from: "", to: "" };
-  expect(
-    scopeFilterFieldChips(scope, undefined, "this_month").some(
-      (chip) => chip.field === "period",
-    ),
-  ).toBe(false);
+  expect(scopeFilterFieldChips(scope)).toContainEqual(
+    expect.objectContaining({ field: "period", label: "日期：本月" }),
+  );
   scope.period = { key: "all", from: "", to: "" };
   expect(
-    scopeFilterFieldChips(scope, undefined, "this_month").find(
-      (chip) => chip.field === "period",
-    )?.label,
-  ).toBe("日期：全部时间");
-  clearScopeField(scope, "period", "this_month");
-  expect(scope.period.key).toBe("this_month");
+    scopeFilterFieldChips(scope).some((chip) => chip.field === "period"),
+  ).toBe(false);
+  scope.period = { key: "this_month", from: "", to: "" };
+  clearScopeField(scope, "period");
+  expect(scope.period).toEqual({ key: "all", from: "", to: "" });
 });

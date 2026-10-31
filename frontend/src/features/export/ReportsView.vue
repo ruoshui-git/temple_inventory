@@ -120,13 +120,12 @@ const availableSecondGroups = computed(() =>
 		.map((sequence) => sequence[1]),
 );
 const scopeChips = computed(() => scopeFilterFieldChips(query.value.scope, reference));
-const periodChip = computed(() => {
-	const period = query.value.scope.period;
-	if (period.key === "all") return undefined;
-	return {
-		label: `${definition.value.dateLabel}：${sitePeriodSummary(period, reference.siteDate)}`,
-	};
-});
+// The dataset's date label names the scope chip; scopeChips is the only date chip.
+function scopeChipLabel(chip: { field?: string; label: string }) {
+	return chip.field === "period"
+		? chip.label.replace(/^日期：/, `${definition.value.dateLabel}：`)
+		: chip.label;
+}
 const relatedPeriodChip = computed(() => {
 	if (
 		dataset.value !== "activities" ||
@@ -211,7 +210,6 @@ function setGroup(index: number, value: string) {
 			:filter-count="
 				scopeChips.length +
 				chips.filter((chip) => !chip.fixed).length +
-				Number(Boolean(periodChip)) +
 				Number(Boolean(relatedPeriodChip))
 			"
 			:sidebar-open="sidebarOpen"
@@ -629,12 +627,6 @@ function setGroup(index: number, value: string) {
 			</template>
 			<template #chips="{ openFilters, editFilter }">
 				<BrowseChip
-					v-if="periodChip"
-					:label="periodChip.label"
-					@edit="editFilter('period')"
-					@remove="query.scope.period = { key: 'all', from: '', to: '' }"
-				/>
-				<BrowseChip
 					v-if="relatedPeriodChip"
 					:label="relatedPeriodChip.label"
 					@edit="editFilter('relatedPeriod')"
@@ -643,7 +635,7 @@ function setGroup(index: number, value: string) {
 				<BrowseChip
 					v-for="chip in scopeChips"
 					:key="chip.key"
-					:label="chip.label"
+					:label="scopeChipLabel(chip)"
 					@edit="editFilter(chip.field)"
 					@remove="clearScopeField(query.scope, chip.field)"
 				/>

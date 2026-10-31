@@ -11,11 +11,14 @@ import {
   type ReportRow,
 } from "../../lib/reportContract";
 import { decodeReportQuery } from "../../lib/reportQuery";
-import { browseDefaults } from "../../lib/browseDefaults";
+import {
+  browseDefaults,
+  filtersAtDefaults,
+  linkedConstraintFields,
+} from "../../lib/browseDefaults";
 import { reportFilterChips } from "../../lib/reportFilters";
 import type { CatalogItem } from "../../lib/catalogPresentation";
 import { presentCatalogItem } from "../../lib/catalogPresentation";
-import { scopeFilterChips } from "../../lib/filterPresentation";
 import { isUnavailableError } from "../../lib/serviceFailure";
 import { useBrowseState } from "../../lib/browseMemory";
 import { sortableColumnsForView } from "../../lib/reportContract";
@@ -640,14 +643,20 @@ export function useOperationBrowse(
       query.value.search = value;
     },
   });
-  const primaryChip = (key: string) =>
-    props.family === "movements" && props.records && key === "statuses";
-  const extraChips = computed(() => [
-    ...reportFilterChips(query.value, reference).filter(
-      (chip) => !chip.fixed && !primaryChip(chip.key),
+  // Only movement records expose a 状态 control; other statuses are not page filters.
+  const statusControlled = computed(
+    () => props.family === "movements" && props.records,
+  );
+  const extraChips = computed(() =>
+    reportFilterChips(query.value, reference).filter(
+      (chip) => chip.key !== "statuses" || statusControlled.value,
     ),
-  ]);
-  const scopeChips = computed(() => scopeFilterChips(scope.value, reference));
+  );
+  // 恢复默认 in the panel keeps link-provided constraints; the chip bar's 恢复默认 resets all.
+  const atPanelDefaults = computed(() =>
+    filtersAtDefaults(query.value, defaults(), linkedConstraintFields),
+  );
+  const atDefaults = computed(() => filtersAtDefaults(query.value, defaults()));
   function clearFilters() {
     const routeScope = {
       restrictItems: query.value.restrictItems,
@@ -749,7 +758,8 @@ export function useOperationBrowse(
     status,
     statusChoices,
     extraChips,
-    scopeChips,
+    atDefaults,
+    atPanelDefaults,
     clearFilters,
     reset,
     load,

@@ -9,7 +9,11 @@ import {
   type ReportRow,
 } from "../../lib/reportContract";
 import { decodeReportQuery } from "../../lib/reportQuery";
-import { browseDefaults } from "../../lib/browseDefaults";
+import {
+  browseDefaults,
+  filtersAtDefaults,
+  linkedConstraintFields,
+} from "../../lib/browseDefaults";
 import {
   reportFilterChips,
   clearReportSecondaryFilters,
@@ -316,7 +320,7 @@ export function useExpiryBrowse(
       sort: query.value.sort,
       view: query.value.view,
     };
-    clearReportSecondaryFilters(query.value, reference);
+    clearReportSecondaryFilters(query.value, newReportQuery("expiry"));
     Object.assign(query.value, newReportQuery("expiry"), routeScope);
     scope.value = newReportQuery("expiry").scope;
   }
@@ -326,6 +330,14 @@ export function useExpiryBrowse(
     scope.value = value.scope;
     routeError.value = "";
   }
+  const atDefaults = computed(() => filtersAtDefaults(query.value, defaults()));
+  const atPanelDefaults = computed(() =>
+    filtersAtDefaults(
+      query.value,
+      newReportQuery("expiry"),
+      linkedConstraintFields,
+    ),
+  );
   function item(row: ReportRow): StockItem {
     const cached = itemByRow.get(row);
     if (cached) return cached;
@@ -388,6 +400,8 @@ export function useExpiryBrowse(
     retry: () => load(retryMore, true),
     moreAnalysis,
     clearSecondary,
+    atDefaults,
+    atPanelDefaults,
     reset,
     item,
     batchQuery,

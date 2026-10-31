@@ -474,7 +474,7 @@ for (const width of [1440, 390]) {
           `loans-records-select-${loanWidth}.png`,
         ),
       });
-      await page.getByRole("button", { name: "筛选", exact: true }).click();
+      await page.getByRole("button", { name: /^筛选(，|$)/ }).click();
       const loanStatusDisclosure = page.locator(
         '[data-filter-field="loanStatus"] > summary',
       );
@@ -505,14 +505,14 @@ for (const width of [1440, 390]) {
         path: info.outputPath("loan-records.png"),
         fullPage: true,
       });
-      await page.getByRole("button", { name: "筛选", exact: true }).click();
+      await page.getByRole("button", { name: /^筛选(，|$)/ }).click();
       await loanStatusDisclosure.click();
       await page
         .getByRole("combobox", { name: "借用状态", exact: true })
         .selectOption("all");
       await expect(
-        page.getByText("借用状态：全部", { exact: true }),
-      ).toBeVisible();
+        page.locator(".browse-active-chip-label", { hasText: "借用状态" }),
+      ).toHaveCount(0);
       await expect(page.locator("td .record-ref-chip")).toHaveCount(2);
       // Reference chips must not make a row taller than chip-free rows.
       const heights = await loanRows.evaluateAll((rows) =>
@@ -725,9 +725,7 @@ test("large text and adaptive filter density", async ({ page }, info) => {
   });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: /^筛选/ }).click();
-  await expect(
-    page.getByRole("dialog", { name: "筛选", exact: true }),
-  ).toBeVisible();
+  await expect(page.getByRole("dialog", { name: /^筛选(，|$)/ })).toBeVisible();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth + 1,

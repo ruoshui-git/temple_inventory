@@ -3,13 +3,9 @@ import {
   useInventoryServices,
   useReferenceData,
 } from "../../services/contracts";
-import {
-  newReportQuery,
-  type ReportQuery,
-  type ReportRow,
-} from "../../lib/reportContract";
+import type { ReportQuery, ReportRow } from "../../lib/reportContract";
 import { decodeReportQuery } from "../../lib/reportQuery";
-import { browseDefaults } from "../../lib/browseDefaults";
+import { browseDefaults, filtersAtDefaults } from "../../lib/browseDefaults";
 import { sortableColumnsForView } from "../../lib/reportContract";
 import {
   createRecoveryStore,
@@ -254,23 +250,31 @@ export function useNativeRecords(
       ? chips.filter((chip) => chip.key !== "statuses")
       : chips;
   });
-  function clear() {
-    clearReportSecondaryFilters(query.value, reference);
-    query.value.scope =
-      props.mode === "counts"
-        ? browseDefaults("counts", "records").scope
-        : newReportQuery(query.value.dataset).scope;
-  }
-  function reset() {
-    const dataset = props.mode === "counts" ? "counts" : "movements";
-    query.value = browseDefaults(
-      dataset,
+  function pageDefaults() {
+    return browseDefaults(
+      props.mode === "counts" ? "counts" : "movements",
       "records",
       props.mode === "drafts" ? "drafts" : "browse",
     );
+  }
+  // 恢复默认 restores the page's own defaults (for counts: 全部状态 and the account's date).
+  function clear() {
+    const defaults = pageDefaults();
+    clearReportSecondaryFilters(query.value, defaults);
+    query.value.scope = defaults.scope;
+  }
+  function reset() {
+    query.value = pageDefaults();
     query.value.view = "records";
     routeError.value = "";
   }
+  const atDefaults = computed(() =>
+    filtersAtDefaults(query.value, pageDefaults()),
+  );
+  // The panel's 恢复默认 leaves grouping to the grouping controls.
+  const atPanelDefaults = computed(() =>
+    filtersAtDefaults(query.value, pageDefaults(), ["groupBy"]),
+  );
   function canDelete(row: NativeRecord) {
     return active() && !loading.value && !stale.value && row.docstatus === 0;
   }
@@ -339,6 +343,8 @@ export function useNativeRecords(
     error,
     snapshot,
     extraChips,
+    atDefaults,
+    atPanelDefaults,
     clear,
     reset,
     load,

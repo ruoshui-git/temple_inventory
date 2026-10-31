@@ -401,7 +401,7 @@ for (const surface of [
       }
       await chrome.getByRole("button", { name: /^筛选/ }).click();
       const filterPanel = page.getByRole("dialog", {
-        name: "筛选",
+        name: /^筛选(，|$)/,
         exact: true,
       });
       await expect(filterPanel).toBeVisible();

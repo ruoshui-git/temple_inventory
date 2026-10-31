@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed, watchEffect } from "vue";
+
 const props = withDefaults(defineProps<{ name: string; strokeWidth?: number }>(), {
 	strokeWidth: 2,
 });
@@ -61,9 +63,13 @@ const paths: Record<string, string> = {
 	info: "M12 11v5m0-8h.01M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z",
 };
 const aliases: Record<string, string> = { trash: "disposal" };
-const resolvedName = aliases[props.name] || props.name;
-if (import.meta.env.DEV && !paths[resolvedName])
-	console.warn(`[InventoryIcon] Unknown icon name: ${props.name}`);
+const resolvedName = computed(() => aliases[props.name] || props.name);
+const glyph = computed(() => paths[resolvedName.value] || paths.box);
+if (import.meta.env.DEV)
+	watchEffect(() => {
+		if (!paths[resolvedName.value])
+			console.warn(`[InventoryIcon] Unknown icon name: ${props.name}`);
+	});
 </script>
 <template>
 	<svg
@@ -75,7 +81,7 @@ if (import.meta.env.DEV && !paths[resolvedName])
 		stroke-linecap="round"
 		stroke-linejoin="round"
 	>
-		<path :d="paths[resolvedName] || paths.box" />
+		<path :d="glyph" />
 	</svg>
 </template>
 <style scoped>

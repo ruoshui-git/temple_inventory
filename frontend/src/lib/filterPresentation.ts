@@ -81,12 +81,14 @@ export function scopeFilterChips(scope: BrowseScope, reference: ReferenceData) {
   return chips;
 }
 
-/** Compact toolbar chips summarize each field; individual values stay editable in the filter form. */
-/** `defaultPeriod` is the page's own default (users may choose one per page). */
+/**
+ * Compact toolbar chips summarize each field; individual values stay editable in the filter form.
+ * A date chip shows whenever the period restricts rows, including the page's default period;
+ * 全部时间 is unrestricted and has no chip.
+ */
 export function scopeFilterFieldChips(
   scope: BrowseScope,
   reference?: ReferenceData,
-  defaultPeriod: BrowseScope["period"]["key"] = "all",
 ) {
   const chips: Array<{
     key: string;
@@ -132,7 +134,7 @@ export function scopeFilterFieldChips(
       ];
     },
   );
-  if (scope.period.key !== defaultPeriod) {
+  if (scope.period.key !== "all") {
     const value = reference
       ? sitePeriodSummary(scope.period, reference.siteDate)
       : scope.period.key === "custom"
@@ -148,13 +150,13 @@ export function scopeFilterFieldChips(
   return chips;
 }
 
+/** Removing a chip lifts its restriction: a date chip returns to 全部时间, not the page default. */
 export function clearScopeField(
   scope: BrowseScope,
   field: ScopeFilterField | "period",
-  defaultPeriod: BrowseScope["period"]["key"] = "all",
 ) {
   if (field === "period") {
-    scope.period = { key: defaultPeriod, from: "", to: "" };
+    scope.period = { key: "all", from: "", to: "" };
     return;
   }
   if (field === "tracking") {

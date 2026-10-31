@@ -12,7 +12,6 @@ import type { OperationBrowse, OperationGroup } from "./useOperationBrowse";
 import { operationColumnsFor, operationItemColumnsFor } from "./operationColumns";
 import type { ReportQuery } from "../../lib/reportContract";
 import { clearScopeField, scopeFilterFieldChips } from "../../lib/filterPresentation";
-import { defaultPeriods } from "../../lib/uiPreferences";
 import { sortableColumnLabels, sortableColumnsForView } from "../../lib/reportContract";
 import { groupLabels } from "../../lib/reportContract";
 import { removeGroupByField } from "../../lib/groupBy";
@@ -94,6 +93,7 @@ const {
 	scope,
 	search,
 	extraChips,
+	atDefaults,
 	dimension,
 	analysis,
 	details,
@@ -795,10 +795,7 @@ const dimensions: Record<string, string> = {
 	borrower: "借用方",
 	month: "月份",
 };
-const defaultPeriod = computed(() => defaultPeriods.value[props.family]);
-const scopeChips = computed(() =>
-	scopeFilterFieldChips(scope.value, reference, defaultPeriod.value),
-);
+const scopeChips = computed(() => scopeFilterFieldChips(scope.value, reference));
 // Activity filters usually arrive by link, before anyone opens the activity
 // picker, so resolve the title the chip shows instead of the immutable ID.
 watch(
@@ -821,7 +818,7 @@ watch(
 	{ immediate: true },
 );
 function removeScopeChip(chip: (typeof scopeChips.value)[number]) {
-	clearScopeField(scope.value, chip.field, defaultPeriod.value);
+	clearScopeField(scope.value, chip.field);
 }
 const analysisFields: Record<string, string> = {
 	category: "category",
@@ -1103,11 +1100,8 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						@edit="editFilter(chip.field)"
 						@remove="Object.assign(query, chip.reset)"
 					/>
-					<UiButton
-						v-if="query.groupBy.length || scopeChips.length || extraChips.length"
-						variant="ghost"
-						@click="c.reset"
-						>清除全部</UiButton
+					<UiButton v-if="!atDefaults" variant="ghost" @click="c.reset"
+						>恢复默认</UiButton
 					>
 				</template>
 				<p v-if="routeError" role="alert">{{ routeError }}</p>
@@ -1485,7 +1479,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 									: undefined
 						"
 						empty-text="没有匹配的物品"
-						empty-action="清空筛选"
+						:empty-action="atDefaults ? '' : '恢复默认'"
 						@empty-action="c.reset"
 						:sort-by="c.detailSortBy(flatHistoryItem)"
 						:sort-direction="c.detailSortDirection(flatHistoryItem)"
@@ -1990,7 +1984,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						"
 						:row-attributes="(row) => ({ 'data-browse-row': String(row.id) })"
 						empty-text="没有匹配的记录"
-						empty-action="清空筛选"
+						:empty-action="atDefaults ? '' : '恢复默认'"
 						@empty-action="c.reset"
 						@sort="sortTable"
 						@toggle-group="c.groups.toggleGroup"

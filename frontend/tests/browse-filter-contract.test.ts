@@ -55,6 +55,7 @@ describe("browse filter contracts", () => {
       (row) => row.key === "stockState",
     );
     expect(chip?.label).toBe("库存状态：无可用");
-    expect(chip?.reset.stockState).toBe("in_stock");
+    // Removing a stock-state chip lifts the restriction to 全部, not the page default.
+    expect(chip?.reset.stockState).toBe("all");
   });
 });

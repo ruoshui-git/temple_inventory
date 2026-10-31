@@ -351,7 +351,7 @@ for (const [width, scale, density] of [
     expect(headerAfter!.height).toBeGreaterThan(0);
     await page.screenshot({ path: info.outputPath("persistent-toolbar.png") });
     await page.getByRole("button", { name: /^筛选/ }).click();
-    const filterSheet = page.getByRole("dialog", { name: "筛选", exact: true });
+    const filterSheet = page.getByRole("dialog", { name: /^筛选(，|$)/ });
     if (width < 1024) {
       await filterSheet
         .locator('details[data-filter-field="categories"] > summary')
@@ -641,7 +641,7 @@ test("stock state and open filter survive the shared breakpoint", async ({
   await page.getByRole("menuitem", { name: "选择", exact: true }).click();
   await page.locator(".card-checkbox input").first().check();
   await page.getByRole("button", { name: /^筛选/ }).click();
-  const mobileFilters = page.getByRole("dialog", { name: "筛选", exact: true });
+  const mobileFilters = page.getByRole("dialog", { name: /^筛选(，|$)/ });
   await mobileFilters
     .locator('details[data-filter-field="warehouses"] > summary')
     .click();
@@ -655,7 +655,7 @@ test("stock state and open filter survive the shared breakpoint", async ({
   await page.setViewportSize({ width: 390, height: 1000 });
   // The open filter survives the breakpoint in both directions (controller state is retained).
   const reopenedFilters = page.getByRole("dialog", {
-    name: "筛选",
+    name: /^筛选(，|$)/,
     exact: true,
   });
   await expect(reopenedFilters).toBeVisible();
@@ -692,7 +692,7 @@ test("open movement filter follows the breakpoint without losing selection", asy
   });
   await desktopChoice.check();
   await page.setViewportSize({ width: 390, height: 1000 });
-  const mobileFilters = page.getByRole("dialog", { name: "筛选", exact: true });
+  const mobileFilters = page.getByRole("dialog", { name: /^筛选(，|$)/ });
   await expect(mobileFilters).toBeVisible();
   await mobileFilters
     .locator('details[data-filter-field="warehouses"]:not([open]) > summary')
@@ -726,7 +726,7 @@ for (const width of [390, 1440]) {
     await page.getByRole("button", { name: /^筛选/ }).click();
     const panel =
       width < 1024
-        ? page.getByRole("dialog", { name: "筛选", exact: true })
+        ? page.getByRole("dialog", { name: /^筛选(，|$)/ })
         : page.locator(".browse-filter-popover");
     await panel
       .locator('details[data-filter-field="person"] > summary')

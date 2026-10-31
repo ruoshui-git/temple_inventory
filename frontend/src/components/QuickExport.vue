@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { siteDateTime } from "../lib/nativeTime";
-import { scopeFilterChips } from "../lib/filterPresentation";
+import { scopeFilterChips, scopeFilterFieldChips } from "../lib/filterPresentation";
 import { reportFilterChips } from "../lib/reportFilters";
 import { reportDefinitions, type ReportDataset, type ReportQuery } from "../lib/reportContract";
 import { markExportWatched } from "../features/export/watchedExport";
@@ -52,6 +52,9 @@ const sortBy = computed(() => props.sortBy);
 const sort = computed(() => props.sort);
 const filterLabels = computed(() =>
 	[
+		...scopeFilterFieldChips(query.value.scope, reference).filter(
+			(chip) => chip.field === "period",
+		),
 		...scopeFilterChips(query.value.scope, reference),
 		...reportFilterChips(query.value, reference),
 	].map((chip) => chip.label),

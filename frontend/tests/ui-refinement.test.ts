@@ -180,7 +180,7 @@ it("surfaces the settled loan status as a removable filter", () => {
     (row) => row.key === "loanStatus",
   );
   expect(chip?.label).toBe("借用状态：已结清");
-  expect(chip?.reset.loanStatus).toBe("outstanding");
+  expect(chip?.reset.loanStatus).toBe("all");
   query.view = "records";
   expect(
     reportFilterChips(query, createReferenceData()).some(

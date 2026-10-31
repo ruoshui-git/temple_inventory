@@ -406,6 +406,10 @@ export function useExportWorkspaceController(
       if (await report.manageView("delete", "", chosenView.value))
         selectedPreset.value = "";
     },
-    clearSecondary: () => clearReportSecondaryFilters(query.value, reference),
+    clearSecondary: () =>
+      clearReportSecondaryFilters(
+        query.value,
+        browseDefaults(query.value.dataset, query.value.view),
+      ),
   };
 }

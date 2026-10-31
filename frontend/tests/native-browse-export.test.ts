@@ -386,7 +386,52 @@ describe("background quick export", () => {
         table: "locations",
         columns: ["item_code", "stock_qty"],
         include_files: "none",
-        summary: { title: "库存列表", filters: [] },
+        // Default restrictions are real filters, so the export names them too.
+        summary: {
+          title: "库存列表",
+          filters: ["库存状态：有库存", "物品状态：启用"],
+        },
+      }),
+    );
+  });
+
+  it("names the active date period in the export label", async () => {
+    const service = services();
+    vi.mocked(service.call).mockResolvedValue(job());
+    const dated = query();
+    dated.scope.period = { key: "last_30_days", from: "", to: "" };
+    const child = defineComponent({
+      setup() {
+        provideInventoryServices(service, createReferenceData());
+        return () =>
+          h(QuickExport, {
+            query: dated,
+            title: "库存列表",
+            table: "locations",
+            columns: ["item_code", "stock_qty"],
+          });
+      },
+    });
+    const wrapper = mount(child);
+    wrappers.push(wrapper);
+    await wrapper.get(".quick-report").trigger("click");
+    await flushPromises();
+    const dialog = document.body.querySelector(".quick-export-dialog")!;
+    Array.from(dialog.querySelectorAll("button"))
+      .find((button) => button.textContent?.trim() === "开始导出")!
+      .click();
+    await flushPromises();
+    expect(vi.mocked(service.call)).toHaveBeenCalledWith(
+      "exports.request_export",
+      expect.objectContaining({
+        summary: {
+          title: "库存列表",
+          filters: [
+            expect.stringContaining("日期：近30天"),
+            "库存状态：有库存",
+            "物品状态：启用",
+          ],
+        },
       }),
     );
   });

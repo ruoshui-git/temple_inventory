@@ -24,6 +24,8 @@ import BrowseRefreshNotice from "../../components/ui/BrowseRefreshNotice.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import { kindIcons } from "../../lib/kindIcons";
 import { reportExportColumns } from "../../lib/reportExportColumns";
+import { pendingColumns } from "./pendingColumns";
+import ItemImage from "../../components/ItemImage.vue";
 import { useOptionalInventoryServices } from "../../services/contracts";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import { exportFields } from "../../lib/exportColumns";
@@ -47,13 +49,12 @@ const table = c.report.mainTable,
 	analysisTable = c.analysis.mainTable;
 const reportColumns = computed<DataColumn[]>(() =>
 	table.value
-		? reportExportColumns(table.value, query.value.dataset, [
-				"warehouse_label",
-				"warehouse",
-			]).map((column) => ({
-				...column,
-				pinned: column.id === "item_name" ? "start" : column.pinned,
-			}))
+		? pendingColumns(
+				reportExportColumns(table.value, query.value.dataset, [
+					"warehouse_label",
+					"warehouse",
+				]),
+			)
 		: [],
 );
 const exportServices = useOptionalInventoryServices();
@@ -102,6 +103,13 @@ const pendingRows = computed<DataTableEntry[]>(() =>
 const selectedAllocations = computed(() =>
 	(table.value?.rows || []).filter((row) => c.selected.value.includes(String(row.id))),
 );
+function pendingIdentity(row: Record<string, unknown>) {
+	return {
+		code: String(row.item_code || ""),
+		name: String(row.item_name || ""),
+		image: String(row.image || ""),
+	};
+}
 function bulkOperation(kind: "Repair" | "Disposal") {
 	emit(
 		"operation",
@@ -213,7 +221,7 @@ watch([() => props.active, isMobile], () => {
 						:view="query.view"
 					/>
 				</div>
-				<UiButton @click="c.clear">清空筛选</UiButton>
+				<UiButton v-if="!c.atDefaults.value" @click="c.clear">恢复默认</UiButton>
 			</template>
 			<div class="notice-bar">
 				<InventoryIcon name="info" />
@@ -250,11 +258,8 @@ watch([() => props.active, isMobile], () => {
 					@edit="editFilter(chip.field)"
 					@remove="Object.assign(query, chip.reset)"
 				/>
-				<UiButton
-					v-if="query.groupBy.length || scopeChips.length || chips.length"
-					variant="ghost"
-					@click="c.reset"
-					>清除全部</UiButton
+				<UiButton v-if="!c.atDefaults.value" variant="ghost" @click="c.reset"
+					>恢复默认</UiButton
 				>
 			</template>
 		</BrowseToolbar>
@@ -316,12 +321,7 @@ watch([() => props.active, isMobile], () => {
 					data-browse-scroll="damaged-table"
 					ariaLabel="损坏待处理明细"
 					table-class="browse-table"
-					:columns="
-						reportColumns.filter(
-							(column) =>
-								!['warehouse_label', 'warehouse'].includes(String(column.id)),
-						)
-					"
+					:columns="reportColumns"
 					:rows="pendingRows"
 					:column-preferences="reportPrefs"
 					:selection-enabled="c.selecting.value"
@@ -348,17 +348,16 @@ watch([() => props.active, isMobile], () => {
 				>
 					<template #group-label="{ group }">{{ group.label }}</template>
 					<template #cell="{ column, row, value }">
+						<div v-if="column.id === 'image'" class="table-item-image">
+							<ItemImage :item="pendingIdentity(row)" />
+						</div>
 						<RouterLink
-							v-if="column.id === 'item_name' && row.item_code"
+							v-else-if="column.id === 'item_name' && row.item_code"
 							class="browse-row-link"
 							:to="routeTarget('item-detail', { code: String(row.item_code) })"
 							>{{ value }}</RouterLink
 						>
-						<UnitText
-							v-else-if="column.kind === 'unit'"
-							:name="row.stock_uom"
-							:qty="Number(value || 0)"
-						/>
+						<UnitText v-else-if="column.id === 'stock_uom'" :name="row.stock_uom" />
 						<template v-else>{{ value }}</template>
 					</template>
 				</DataTable>

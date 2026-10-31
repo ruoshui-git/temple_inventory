@@ -2931,8 +2931,8 @@
 	box-shadow: var(--p-shadow);
 }
 @media (max-width: 1023px) {
-	/* The selection bar takes the floating action's place above the bottom navigation. */
-	.browse-controls:has(.stock-selection-actions) .browse-split-button {
+	/* The FAB is teleported to <body> on phones, so the selection bar must hide it from there. */
+	body:has(.stock-selection-actions) .browse-split-button {
 		display: none;
 	}
 	.stock-selection-actions {

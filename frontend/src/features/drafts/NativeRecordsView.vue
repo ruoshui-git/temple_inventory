@@ -32,7 +32,6 @@ import { removeGroupByField } from "../../lib/groupBy";
 import { groupLabels } from "../../lib/reportContract";
 import { sitePeriodSummary } from "../../lib/sitePeriod";
 import { clearScopeField, scopeFilterFieldChips } from "../../lib/filterPresentation";
-import { defaultPeriods } from "../../lib/uiPreferences";
 import { useFilterRailPreference } from "../../composables/useFilterRailPreference";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import DataTable from "../../components/ui/DataTable.vue";
@@ -101,12 +100,7 @@ const {
 	localTarget,
 	extraChips,
 } = c;
-const defaultPeriod = computed(() =>
-	props.mode === "drafts" ? "all" : defaultPeriods.value.counts,
-);
-const scopeChips = computed(() =>
-	scopeFilterFieldChips(scope.value, c.reference, defaultPeriod.value),
-);
+const scopeChips = computed(() => scopeFilterFieldChips(scope.value, c.reference));
 const {
 	open: sidebarOpen,
 	toggle: toggleSidebar,
@@ -116,7 +110,7 @@ const {
 const { isMobile } = useResponsiveLayout();
 const filterSheetOpen = ref(false);
 function removeScopeChip(chip: (typeof scopeChips.value)[number]) {
-	clearScopeField(scope.value, chip.field, defaultPeriod.value);
+	clearScopeField(scope.value, chip.field);
 }
 watch(
 	() => props.active,
@@ -414,8 +408,11 @@ function activityLabel(row: Record<string, unknown>) {
 							</select></label
 						>
 					</div>
-					<UiButton @click="resetDraftFilters()" class="browse-filter-clear"
-						>清空筛选</UiButton
+					<UiButton
+						v-if="kindFilter || typeFilter !== 'all' || draftSort !== 'recent'"
+						@click="resetDraftFilters()"
+						class="browse-filter-clear"
+						>恢复默认</UiButton
 					>
 				</div>
 			</template>
@@ -451,7 +448,7 @@ function activityLabel(row: Record<string, unknown>) {
 					"
 					variant="ghost"
 					@click="resetDraftFilters(true)"
-					>清除全部</UiButton
+					>恢复默认</UiButton
 				>
 			</template>
 		</BrowseToolbar>
@@ -547,6 +544,7 @@ function activityLabel(row: Record<string, unknown>) {
 				>
 					<PeriodFilter
 						v-model="scope.period"
+						:default-area="mode === 'counts' ? 'counts' : undefined"
 						:today="c.reference.siteDate"
 						label="记账日期"
 						embedded
@@ -571,7 +569,12 @@ function activityLabel(row: Record<string, unknown>) {
 						</select></label
 					>
 				</FilterDisclosure>
-				<UiButton class="browse-filter-clear" @click="c.clear">清空筛选</UiButton>
+				<UiButton
+					v-if="!c.atPanelDefaults.value"
+					class="browse-filter-clear"
+					@click="c.clear"
+					>恢复默认</UiButton
+				>
 			</template>
 			<template #chips="{ editFilter }">
 				<BrowseChip
@@ -603,11 +606,8 @@ function activityLabel(row: Record<string, unknown>) {
 					@edit="editFilter(chip.field)"
 					@remove="Object.assign(query, chip.reset)"
 				/>
-				<UiButton
-					v-if="query.groupBy.length || scopeChips.length || extraChips.length"
-					variant="ghost"
-					@click="c.reset"
-					>清除全部</UiButton
+				<UiButton v-if="!c.atDefaults.value" variant="ghost" @click="c.reset"
+					>恢复默认</UiButton
 				>
 			</template>
 		</BrowseToolbar>

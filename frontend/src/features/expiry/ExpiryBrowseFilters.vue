@@ -62,6 +62,8 @@ const periodSummary = () =>
 				/>全部日期中包含无效期</label
 			>
 		</FilterDisclosure>
-		<UiButton @click="controller.clearSecondary">清空筛选</UiButton>
+		<UiButton v-if="!controller.atPanelDefaults.value" @click="controller.clearSecondary"
+			>恢复默认</UiButton
+		>
 	</div>
 </template>

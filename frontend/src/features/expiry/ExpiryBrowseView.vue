@@ -233,13 +233,6 @@ function headerSort(column: string) {
 	)
 		sortBy(column);
 }
-function sortState(field: string) {
-	return query.value.sortBy === field
-		? query.value.sort === "asc"
-			? "ascending"
-			: "descending"
-		: "none";
-}
 const sortFields = [
 	{ value: "expiry_date", label: "到期日期", kind: "expiry" },
 	{ value: "item_name", label: "物品名称", kind: "text" },
@@ -454,11 +447,8 @@ function canExpiryAction() {
 					@edit="editFilter(chip.field)"
 					@remove="Object.assign(query, chip.reset)"
 				/>
-				<UiButton
-					v-if="query.groupBy.length || c.scopeChips.value.length || chips.length"
-					variant="ghost"
-					@click="c.reset"
-					>清除全部</UiButton
+				<UiButton v-if="!c.atDefaults.value" variant="ghost" @click="c.reset"
+					>恢复默认</UiButton
 				>
 			</template>
 		</BrowseToolbar>
@@ -641,7 +631,7 @@ function canExpiryAction() {
 							: result.loading && result.rows.length > 0
 					"
 					empty-text="没有符合条件的批次"
-					empty-action="清空筛选"
+					:empty-action="c.atDefaults.value ? '' : '恢复默认'"
 					@empty-action="clearExpiryFilters"
 					:row-attributes="(row) => ({ 'data-browse-row': String(row.id) })"
 					@sort="headerSort"

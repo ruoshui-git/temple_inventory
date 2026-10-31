@@ -287,7 +287,7 @@
 	.data-table-scroll .data-table-sort {
 		width: 100%;
 		min-width: 0;
-		flex-wrap: wrap;
+		flex-wrap: nowrap;
 	}
 	.data-table-scroll .data-table-sort-label {
 		flex: 1 1 auto;
@@ -767,7 +767,8 @@
 	color: var(--p-muted);
 	text-align: center;
 }
-.data-table-sort-indicator svg {
+/* Scoped InventoryIcon sets a 19px box; this selector must outrank it. */
+.data-table-sort > .data-table-sort-indicator > svg {
 	width: 1em;
 	height: 1em;
 }
@@ -798,7 +799,7 @@
 	inset: -5px;
 	content: "";
 }
-.data-table-header-hint svg {
+.detail-popover > .data-table-header-hint > svg {
 	width: 14px;
 	height: 14px;
 }

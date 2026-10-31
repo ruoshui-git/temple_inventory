@@ -83,6 +83,7 @@ const {
 	archive,
 	remove,
 	clear,
+	atDefaults,
 	secondaryChips,
 	activityMovementCounts,
 	activityTypeLabel,
@@ -244,7 +245,7 @@ const activityExportColumns = computed(() => {
 			search-label="搜索活动"
 			:active="active"
 			@filter-open="filterSheetOpen = $event"
-			:filter-count="secondaryChips.length + 3"
+			:filter-count="secondaryChips.length + inheritedChips.length"
 		>
 			<template #actions>
 				<BrowseOverflowMenu>
@@ -311,7 +312,7 @@ const activityExportColumns = computed(() => {
 					<label class="form-choice-label"
 						><input type="checkbox" v-model="state.outstanding" />有未归还借用</label
 					>
-					<UiButton @click="clear">清空筛选</UiButton>
+					<UiButton v-if="!atDefaults" @click="clear">恢复默认</UiButton>
 				</div>
 			</template>
 			<template #chips="{ editFilter }">
@@ -343,15 +344,8 @@ const activityExportColumns = computed(() => {
 					@edit="editFilter()"
 					@remove="removeSecondary(chip.key)"
 				/>
-				<UiButton
-					v-if="
-						(mode === 'list' && report.groupBy.length) ||
-						inheritedChips.length ||
-						secondaryChips.length
-					"
-					variant="ghost"
-					@click="resetActivityFilters"
-					>清除全部</UiButton
+				<UiButton v-if="!atDefaults" variant="ghost" @click="resetActivityFilters"
+					>恢复默认</UiButton
 				>
 			</template>
 		</BrowseToolbar>
@@ -416,7 +410,7 @@ const activityExportColumns = computed(() => {
 							: Boolean(projection.mainTable.value?.loading && filtered.length)
 					"
 					:row-attributes="(row) => ({ 'data-browse-row': String(row.id) })"
-					empty-text="没有符合条件的活动。可清空筛选或新建活动。"
+					empty-text="没有符合条件的活动。可恢复默认筛选或新建活动。"
 					@retry="
 						report.groupBy.length
 							? projection.groups.retry()

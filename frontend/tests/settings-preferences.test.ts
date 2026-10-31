@@ -8,6 +8,7 @@ import {
   provideInventoryServices,
 } from "../src/services/contracts";
 import {
+  configurePreferenceSave,
   density,
   theme,
   textScale,
@@ -43,6 +44,10 @@ function setup(
 ) {
   const reference = createReferenceData();
   Object.assign(reference, { user: "alice", site: "site" });
+  // App.vue configures saving once for every page; mirror that bootstrap here.
+  configurePreferenceSave((values) =>
+    call("preferences.save_display_preferences", { ...values }),
+  );
   const root = defineComponent({
     setup() {
       provideInventoryServices(

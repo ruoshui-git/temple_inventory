@@ -5,7 +5,6 @@ import {
 } from "../../services/contracts";
 import {
   capturePreferenceRevision,
-  configurePreferenceSave,
   density,
   theme,
   textScale,
@@ -28,9 +27,6 @@ export function useDisplaySettings() {
   let generation = 0,
     disposed = false;
   const active = () => !disposed && reference.user === account;
-  configurePreferenceSave((values) =>
-    services.call("preferences.save_display_preferences", { ...values }),
-  );
   async function refresh() {
     const current = ++generation,
       revision = capturePreferenceRevision();

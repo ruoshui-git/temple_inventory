@@ -371,6 +371,7 @@ it("exposes every movement filter in the shared panel content", async () => {
     status: ref("completed"),
     statusChoices: ref(["completed", "draft"].map((value) => [value, value])),
     extraChips: ref([]),
+    atPanelDefaults: ref(true),
     reset: vi.fn(),
   } as unknown as OperationBrowse;
   const wrapper = mount(

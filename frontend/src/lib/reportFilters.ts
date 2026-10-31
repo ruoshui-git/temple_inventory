@@ -6,7 +6,7 @@ import {
   reportOutcomeLabels,
 } from "./presentationLabels";
 import { warehouseLabel } from "./warehouseLabel";
-import { newReportQuery, type ReportQuery } from "./reportContract";
+import type { ReportQuery } from "./reportContract";
 interface ReportFilterChip {
   key: string;
   label: string;
@@ -20,6 +20,16 @@ export function hasReportStatuses(query: ReportQuery) {
     ["movements", "counts"].includes(query.dataset) ||
     (query.dataset === "loans" && query.view !== "items") ||
     (query.dataset === "activities" && query.view === "records")
+  );
+}
+
+const allReportStatusCodes = [0, 1, 2] as const;
+
+/** 全部状态 is the unrestricted choice: draft, submitted and cancelled. */
+function allReportStatuses(statuses: number[]) {
+  return (
+    statuses.length === allReportStatusCodes.length &&
+    allReportStatusCodes.every((status) => statuses.includes(status))
   );
 }
 // Presentation only: preserve enable flags, even when an inherited restriction is empty.
@@ -124,37 +134,31 @@ export function reportFilterChips(
       summary,
     });
   };
-  if (hasReportStatuses(query)) {
-    const isDefault = query.statuses.length === 1 && query.statuses[0] === 1;
+  // Every chip restricts rows: its default value shows too, and × lifts it to the unrestricted value.
+  if (hasReportStatuses(query) && !allReportStatuses(query.statuses))
     add(
       "statuses",
       `单据状态：${query.statuses.map((status) => ["草稿", "已提交", "已取消"][status]).join("、") || "未选择（无结果）"}`,
-      { statuses: [1] },
-      isDefault,
+      { statuses: [...allReportStatusCodes] },
     );
-  }
   if (query.dataset === "expiry" && query.includeZero)
     add("includeZero", "包含零库存", { includeZero: false });
   if (
     query.dataset === "inventory" &&
     query.view !== "historical" &&
-    query.stockState !== "in_stock"
+    query.stockState !== "all"
   ) {
     add("stockState", `库存状态：${stockStateLabels[query.stockState]}`, {
-      stockState: "in_stock",
+      stockState: "all",
     });
   }
   if (
     query.dataset === "expiry" &&
     query.expiryWindow === "period" &&
-    query.scope.period.key === "all"
+    query.scope.period.key === "all" &&
+    query.includeUndated === false
   )
-    add(
-      "includeUndated",
-      query.includeUndated ? "全部日期中包含无效期" : "全部日期中不包含无效期",
-      { includeUndated: true },
-      query.includeUndated,
-    );
+    add("includeUndated", "全部日期中不包含无效期", { includeUndated: true });
   if (query.activityStatus !== "all")
     add(
       "activityStatus",
@@ -212,11 +216,11 @@ export function reportFilterChips(
       { person: { name: "", role: "any" } },
     );
   }
-  if (query.itemStatus !== "enabled")
+  if (query.itemStatus !== "all")
     add(
       "itemStatus",
-      `物品状态：${query.itemStatus === "disabled" ? "停用" : "全部"}`,
-      { itemStatus: "enabled" },
+      `物品状态：${query.itemStatus === "disabled" ? "停用" : "启用"}`,
+      { itemStatus: "all" },
     );
   if (query.restrictItems || query.itemCodes.length)
     add(
@@ -248,11 +252,11 @@ export function reportFilterChips(
         ? `物品 / 库位（${query.itemLocationKeys.length}）`
         : undefined,
     );
-  if (query.dataset === "loans" && query.loanStatus !== "outstanding")
+  if (query.dataset === "loans" && query.loanStatus !== "all")
     add(
       "loanStatus",
       `借用状态：${reportLoanStatusLabels[query.loanStatus] || query.loanStatus}`,
-      { loanStatus: "outstanding" },
+      { loanStatus: "all" },
     );
   if (query.loanOutcome !== "all")
     add(
@@ -278,13 +282,44 @@ export function reportFilterChips(
     add("outstandingOnly", "仅有未归还借用", { outstandingOnly: false });
   return chips;
 }
+// Every field that a filter chip or panel control can restrict. Date, search,
+// dataset/view and result presentation keep their own controls.
+const secondaryFilterFields = [
+  "statuses",
+  "stockState",
+  "includeZero",
+  "includeUndated",
+  "activityStatus",
+  "typeId",
+  "countReviewed",
+  "record",
+  "recordDoctype",
+  "batchNo",
+  "loan",
+  "borrower",
+  "person",
+  "itemStatus",
+  "restrictItems",
+  "itemCodes",
+  "restrictAllocations",
+  "allocationKeys",
+  "itemLocationKeys",
+  "loanStatus",
+  "loanOutcome",
+  "expiryWindow",
+  "damageOnly",
+  "activityKind",
+  "relatedPresence",
+  "outstandingOnly",
+] as const satisfies readonly (keyof ReportQuery)[];
+
+/** 恢复默认 for the secondary filters: copies the page's own defaults, not the unrestricted values. */
 export function clearReportSecondaryFilters(
   query: ReportQuery,
-  reference: ReferenceData,
+  defaults: ReportQuery,
 ) {
-  // Date/window, primary search, dataset/view and result presentation have their own controls.
-  const defaults = newReportQuery(query.dataset);
-  for (const chip of reportFilterChips(query, reference))
-    Object.assign(query, chip.reset);
-  query.includeUndated = defaults.includeUndated;
+  for (const field of secondaryFilterFields)
+    Object.assign(query, {
+      [field]: JSON.parse(JSON.stringify(defaults[field])),
+    });
 }

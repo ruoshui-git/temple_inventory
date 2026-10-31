@@ -19,6 +19,17 @@ import PeriodEditor from "./PeriodEditor.vue";
 import UiButton from "./UiButton.vue";
 import { chooseFilterPopoverPlacement } from "../../lib/filterPopoverPlacement";
 import { useAnchoredPopup } from "../../composables/useAnchoredPopup";
+import {
+	defaultPeriodOptions,
+	type DefaultPeriod,
+	type DefaultPeriods,
+} from "../../lib/displayPreferences";
+import {
+	defaultPeriods,
+	preferenceError,
+	preferenceSaveQueue,
+	preferenceSaveState,
+} from "../../lib/uiPreferences";
 
 const props = withDefaults(
 	defineProps<{
@@ -29,6 +40,8 @@ const props = withDefaults(
 		active?: boolean;
 		embedded?: boolean;
 		today: string;
+		/** Set where the account's default range for this area can be changed from the filter. */
+		defaultArea?: keyof DefaultPeriods;
 	}>(),
 	{ active: true, embedded: false },
 );
@@ -85,6 +98,35 @@ useAnchoredPopup({
 	onClose: () => cancel(),
 });
 const summary = computed(() => sitePeriodSummary(props.modelValue, props.today));
+// The draft is what the editor shows, so 设为默认 saves the preset chosen there.
+const savedDefault = computed(() =>
+	props.defaultArea ? defaultPeriods.value[props.defaultArea] : undefined,
+);
+const draftPreset = computed(() =>
+	(defaultPeriodOptions as readonly string[]).includes(draft.value.key)
+		? (draft.value.key as DefaultPeriod)
+		: undefined,
+);
+const defaultButtonTitle = computed(() => {
+	if (draft.value.key === "custom") return "自定义日期不会随时间更新，只能将预设范围设为默认";
+	if (draftPreset.value === savedDefault.value) return "已是默认范围";
+	return "";
+});
+const canSaveDefault = computed(
+	() =>
+		Boolean(props.defaultArea) &&
+		draftPreset.value !== undefined &&
+		draftPreset.value !== savedDefault.value,
+);
+const defaultSaveFailed = computed(
+	() => Boolean(props.defaultArea) && preferenceSaveState.value === "error",
+);
+function saveDefault() {
+	if (!props.defaultArea || !draftPreset.value || !canSaveDefault.value) return;
+	preferenceSaveQueue.enqueue({
+		default_periods: { ...defaultPeriods.value, [props.defaultArea]: draftPreset.value },
+	});
+}
 function reposition() {
 	if (!open.value || isMobile.value) return;
 	const rect = trigger.value?.getBoundingClientRect();
@@ -153,10 +195,18 @@ function cancel() {
 		</form>
 		<div class="period-filter-actions">
 			<UiButton @click="cancel">撤销日期</UiButton>
+			<UiButton
+				v-if="defaultArea"
+				:disabled="!canSaveDefault"
+				:title="defaultButtonTitle"
+				@click="saveDefault"
+				>设为默认</UiButton
+			>
 			<UiButton variant="primary" type="submit" :form="`${formId}-embedded`"
 				>应用日期</UiButton
 			>
 		</div>
+		<p v-if="defaultSaveFailed" role="alert">{{ preferenceError }}</p>
 	</div>
 	<template v-else>
 		<button
@@ -196,7 +246,15 @@ function cancel() {
 			</form>
 			<template #footer>
 				<UiButton @click="cancel">取消</UiButton>
+				<UiButton
+					v-if="defaultArea"
+					:disabled="!canSaveDefault"
+					:title="defaultButtonTitle"
+					@click="saveDefault"
+					>设为默认</UiButton
+				>
 				<UiButton variant="primary" :form="`${formId}-range`" type="submit">应用</UiButton>
+				<p v-if="defaultSaveFailed" role="alert">{{ preferenceError }}</p>
 			</template>
 		</Overlay>
 	</template>
