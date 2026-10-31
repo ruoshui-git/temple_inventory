@@ -8,6 +8,7 @@ Shared Codex/Claude guide; follow repository instructions.
 - Do not edit Frappe/ERPNext core, generated `temple_inventory/public/` or `www/inventory.html`, or unrelated working-tree changes. Report out-of-scope failures; do not fix other tasks’ changes.
 - Prefer clean breaking changes to compatibility shims. Avoid abstractions without concrete behavior.
 - Add focused regression tests for changed behavior and invariants; update schemas, fixtures, patches and tests with DocType/hook changes.
+- Browse, table and form fixes cover every page of that kind, not only primary-nav pages: include 盘点记录, 活动, 草稿, 仓库, 损坏待处理 and the 盘点 editor. Every browse filter must change the rows of every view that shows it; merge duplicate filters.
 
 ## Documentation map
 

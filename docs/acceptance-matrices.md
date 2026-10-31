@@ -53,7 +53,7 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 | 字段 | 页面 | 导出 | 说明 |
 |---|---|---|---|
 | 图片 / 物品名称 / 物品编号 | ✅ | ✅ | 🔁 Thumbnails load on every 明细 row (were placeholders) |
-| 数量（未归还） | ✅ | ✅ | 🔁 筛选 → 范围: 记录范围 仅未归还借出 (default, the 借出清单) or 借出与归还全部记录 (every loan line plus its return / damage / loss lines); 包括已结清物品 adds fully returned loans. Both are in the URL and the export follows them. Quantity is signed: loan +, return − |
+| 数量（未归还） | ✅ | ✅ | 2026-10-31: one 借用状态 filter — 未结清 (default, the 借出清单), 已结清, 全部 (adds return / damage / loss lines); replaces 记录范围 and 包括已结清物品. In the URL; the export follows it. 借还数量 is signed: loan +, return − |
 | 来源位置 | ✅ | ✅ | 🔁 Neutral labels (日期 / 编号 / 来源位置) because 明细 may list returns; 完整位置 / ERPNext 库位 optional |
 | 借用方 | ✅ | ✅ | 🔄 One term on forms, columns, filters and files |
 | 借出活动 | ✅ | ✅ | |
@@ -65,7 +65,7 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 
 | 字段 | 页面 | 导出 | 说明 |
 |---|---|---|---|
-| 范围 | ✅ | ✅ | 仅未归还借出 (default) lists open loan documents; 借出与归还全部记录 adds 归还 / 损坏 / 遗失 documents. Non-default 范围 shows a chip |
+| 借用状态 | ✅ | ✅ | 2026-10-31: same filter as 明细 — 未结清 (default) lists open loan documents (settled MAT-STE-2026-00009 is hidden), 已结清 settled ones, 全部 adds 归还 / 损坏 / 遗失 documents. Non-default status shows a chip |
 | 编号 / 类型 / 日期 | ✅ | ✅ | Neutral headers because returns are listed too |
 | 结算记录 / 原借出 | ✅ | ✅ | Loan rows link their settlements; settlement rows link their loans. Visible by default |
 | 登记归还 | ✅ | — | Only on open loan rows |
@@ -104,7 +104,7 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 
 | 字段 | 页面 | 导出 | 说明 |
 |---|---|---|---|
-| 盘点编号 / 日期 / 状态 / 盘点范围 | ✅ | ✅ | 🔁 One value per column (编号, 类型, 状态, 盘点范围, 行数, 物品种数, 日期, 活动); 期初库存 records listed; no 借用人 |
+| 盘点编号 / 日期 / 状态 | ✅ | ✅ | 🔁 One value per column (编号, 类型, 状态, 行数, 物品种数, 日期, 活动); 期初库存 records listed; no 借用人. 2026-10-31: 盘点范围 retired — every count covers all authorized physical leaves |
 | 🔁 增加 / 减少 / 净差异 | ✅ | ✅ | Per unit; 净差异 is the offset net (MAT-RECO-2026-00021: +1 / −1 / 0). 🔄 Files keep them numeric, one row per unit |
 | 账面 / 实点 / 差异 | ✅ | ✅ | 🔁 Submitted counts show changed lines only, with "另有 N 个物品核对无变化"; no filters or baseline controls |
 
@@ -140,11 +140,19 @@ Submitted stock records follow ERPNext: drafts can be edited or deleted; submitt
 | 出库记录 | ✅ | ✅ | ✅ draft | ✅ draft | ✅ 取消 / 修订 | Expired goods leave stock through 出库 |
 | 调拨记录 | ✅ | ✅ | ✅ draft | ✅ draft | ✅ 取消 / 修订 | |
 | 借出记录 | ✅ | ✅ | ✅ draft | ✅ draft | ✅ 取消 / 修订 | |
-| 归还记录 | ✅ | ✅ | ✅ draft | ✅ draft | ✅ 取消 / 修订 | Starts from the outstanding loan |
+| 归还记录 | ✅ | ✅ | ✅ draft | ✅ draft | ✅ 取消 / 修订 | Starts from the outstanding loan, or in bulk from 库存/借用 选择. 2026-10-31: one 归还 may settle loans of several 借用方 and 活动 (per-loan context; header shows 多个借用方 when they differ) |
 | 库房盘点记录 | ✅ | ✅ | ✅ draft | ✅ draft | ✅ 取消 / 修订 | Matching counts create no record |
 | 活动 | ✅ | ✅ | ✅ | ✅ | ✅ 归档 | Delete only if unreferenced |
 | 🆕 批次 | via 入库 | ✅ | ✅ | — | — | Fix 过期日期 / 生产日期 |
 | 🆕 草稿 | autosave | ✅ | ✅ | ✅ | — | 更多 → 草稿 lists server drafts and browser recovery |
+
+### 🆕 Notifications
+
+| 要求 | 结果 | 说明 |
+|---|---|---|
+| In-app inbox for new movements, cancel/amend, counts and finished exports | ✅ | 更多 → 通知 |
+| Push to another account's device, app closed | ✅ | Verified 2026-10-31 on the sample site: a movement added in Edge (desktop) pushed to an iOS Safari home-screen app that was closed |
+| Per-account settings and test push | ✅ | 更多 → 通知设置 → 发送测试通知 |
 
 ### Process items (no app feature)
 
@@ -156,6 +164,5 @@ Submitted stock records follow ERPNext: drafts can be edited or deleted; submitt
 
 ## Open items
 
-- Push notifications cannot be verified on `development.localhost`; verify on the sample site after deploy with 通知设置 → 发送测试通知.
 - 明细 can group only by 物品 or 类别 + 物品, so per-type subtotals in a file come from 单据 grouped by 类型; the 明细 page header already shows per-type totals and 可用净变化.
 - XLSX image links are relative paths that resolve after the ZIP is extracted.
