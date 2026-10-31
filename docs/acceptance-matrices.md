@@ -120,6 +120,7 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 | Readable filename: page–period–time | ✅ | e.g. `货物流动 · 明细-2026-10-01至2026-10-29-20261029-0019.xlsx` |
 | Grouped XLSX: grey "[group] (N)" rows, subtotals, collapsible outline | ✅ | Opens expanded; CSV stays flat |
 | 附带文件: images / images + attachments as ZIP, de-duplicated by reference | ✅ | `images/<物品编号>.*`, `attachments/items/<物品编号>/`, `attachments/records/<编号>/` |
+| Default filters visible as chips; × lifts them; 恢复默认 restores defaults; date 设为默认 saves the account default | ✅ | 2026-10-31. The export 导出说明 lists the same restrictions, including the date range |
 | 🔁 Progress and download feedback | ✅ | Stages 读取数据 / 写入文件 / 打包附件 with a progress bar; 下载 shows 正在准备下载… then byte progress. Permission check for a 2,285-line movements download: 7.3s → 1.7s |
 
 ## Data entry
