@@ -1,14 +1,19 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
+import BrowseChip from "../../components/ui/BrowseChip.vue";
+import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
 import DataTable from "../../components/ui/DataTable.vue";
 import FormField from "../../components/ui/FormField.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import PopupMenu from "../../components/ui/PopupMenu.vue";
+import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import UiButton from "../../components/ui/UiButton.vue";
-import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
+import type { DataColumn, DataTableEntry, DataTableRecord } from "../../lib/dataTable";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
+import { useArrayTableSort } from "../../composables/useArrayTableSort";
 import type { useUnitsController } from "./useUnitsController";
+import type { UnitRow } from "../../services/units";
 
 const props = defineProps<{ controller: ReturnType<typeof useUnitsController> }>();
 const c = props.controller;
@@ -30,13 +35,70 @@ const columns: DataColumn[] = [
 	{ id: "conversion_count", label: "换算", kind: "number", align: "end" },
 	{ id: "actions", label: "操作", kind: "actions" },
 ];
-const tableRows = computed<DataTableRecord[]>(() =>
+const recordRows = computed<DataTableRecord[]>(() =>
 	c.visible.value.map((row) => ({
 		kind: "record",
 		id: row.name,
-		value: row as unknown as Record<string, unknown>,
+		value: row,
 	})),
 );
+const sorting = useArrayTableSort(recordRows, "category", [
+	"label",
+	"name",
+	"category",
+	"must_be_whole_number",
+	"enabled",
+	"item_count",
+	"conversion_count",
+]);
+const collapsed = ref(new Set<string>());
+const groupedRows = computed<DataTableEntry[]>(() => {
+	const groups = new Map<string, DataTableRecord[]>();
+	for (const row of sorting.rows.value) {
+		const category = String(row.value.category || "未分类");
+		const entries = groups.get(category) || [];
+		entries.push(row);
+		groups.set(category, entries);
+	}
+	const result: DataTableEntry[] = [];
+	for (const category of [...groups.keys()].sort((a, b) => a.localeCompare(b, "zh-CN"))) {
+		const rows = groups.get(category) || [];
+		const id = `category:${category}`;
+		const expanded = !collapsed.value.has(id);
+		result.push({
+			kind: "group",
+			id,
+			label: category,
+			labelColumn: "label",
+			countColumn: "label",
+			depth: 0,
+			count: rows.length,
+			countLabel: "个单位",
+			expanded,
+			hasChildren: rows.length > 0,
+			value: { category },
+		});
+		if (expanded) result.push(...rows);
+	}
+	return result;
+});
+function toggleGroup(id: string) {
+	const next = new Set(collapsed.value);
+	if (next.has(id)) next.delete(id);
+	else next.add(id);
+	collapsed.value = next;
+}
+const filterCount = computed(
+	() =>
+		Number(Boolean(c.categoryFilter.value)) +
+		Number(c.wholeFilter.value !== "all") +
+		Number(c.statusFilter.value !== "all"),
+);
+const filterLabels = computed(() => ({
+	category: c.categoryFilter.value === "__uncategorized" ? "无分类" : c.categoryFilter.value,
+	whole: c.wholeFilter.value === "whole" ? "整数" : "可小数",
+	status: c.statusFilter.value === "enabled" ? "启用" : "停用",
+}));
 </script>
 
 <template>
@@ -46,10 +108,72 @@ const tableRows = computed<DataTableRecord[]>(() =>
 			summary="管理计量单位与显示名称"
 			v-model:search="c.search.value"
 			search-label="搜索单位名称或显示名称"
+			:filter-count="filterCount"
 		>
-			<template #actions
-				><UiButton variant="primary" @click="c.openCreate">新建单位</UiButton></template
-			>
+			<template #actions>
+				<UiButton v-if="!isMobile" variant="primary" @click="c.openCreate"
+					>新建单位</UiButton
+				>
+				<BrowseSplitButton
+					v-else
+					label="新建单位"
+					kind="Unit"
+					icon="box"
+					:options="[]"
+					@select="c.openCreate"
+				/>
+			</template>
+			<template #chips="{ editFilter }">
+				<BrowseChip
+					v-if="c.categoryFilter.value"
+					:label="`单位类别：${filterLabels.category}`"
+					@edit="editFilter('category')"
+					@remove="c.categoryFilter.value = ''"
+				/>
+				<BrowseChip
+					v-if="c.wholeFilter.value !== 'all'"
+					:label="`整数：${filterLabels.whole}`"
+					@edit="editFilter('whole')"
+					@remove="c.wholeFilter.value = 'all'"
+				/>
+				<BrowseChip
+					v-if="c.statusFilter.value !== 'all'"
+					:label="`状态：${filterLabels.status}`"
+					@edit="editFilter('status')"
+					@remove="c.statusFilter.value = 'all'"
+				/>
+			</template>
+			<template #filters>
+				<div class="browse-filter-fields units-filter-fields">
+					<label class="form-field"
+						>单位类别<select v-model="c.categoryFilter.value">
+							<option value="">全部类别</option>
+							<option value="__uncategorized">无分类</option>
+							<option
+								v-for="row in c.categories.value"
+								:key="row.name"
+								:value="row.name"
+							>
+								{{ row.name }}
+							</option>
+						</select></label
+					>
+					<label class="form-field"
+						>整数<select v-model="c.wholeFilter.value">
+							<option value="all">全部</option>
+							<option value="whole">整数</option>
+							<option value="fractional">可小数</option>
+						</select></label
+					>
+					<label class="form-field"
+						>状态<select v-model="c.statusFilter.value">
+							<option value="all">全部</option>
+							<option value="enabled">启用</option>
+							<option value="disabled">停用</option>
+						</select></label
+					>
+				</div>
+			</template>
 		</BrowseToolbar>
 		<p v-if="c.refreshError.value" class="notice-bar danger" role="alert">
 			{{ c.refreshError.value }}
@@ -59,11 +183,15 @@ const tableRows = computed<DataTableRecord[]>(() =>
 			v-if="!isMobile"
 			ariaLabel="计量单位"
 			:columns="columns"
-			:rows="tableRows"
+			:rows="groupedRows"
 			:loading="c.loading.value"
 			:initialized="c.initialized.value"
+			:sort-by="sorting.sortBy.value"
+			:sort-direction="sorting.sortDirection.value"
 			empty-text="没有匹配的单位"
 			@retry="c.refresh"
+			@sort="sorting.setSort"
+			@toggle-group="toggleGroup"
 		>
 			<template #cell="{ column, row }">
 				<template v-if="column.id === 'must_be_whole_number'">{{
@@ -106,40 +234,70 @@ const tableRows = computed<DataTableRecord[]>(() =>
 			</template>
 		</DataTable>
 		<div v-else class="units-phone-rows" aria-label="计量单位">
-			<article v-for="row in c.visible.value" :key="row.name" class="units-phone-row">
-				<div class="units-phone-identity">
-					<strong>{{ row.label }}</strong>
-					<code>{{ row.name }}</code>
-				</div>
-				<div class="units-phone-details">
-					<span>{{ row.must_be_whole_number ? "整数" : "可小数" }}</span>
-					<span>{{ row.enabled ? "启用" : "停用" }}</span>
-					<span>单位类别 {{ row.category || "—" }}</span>
-					<span>使用物品 {{ row.item_count }}</span>
-					<span>换算 {{ row.conversion_count }}</span>
-				</div>
-				<PopupMenu label="单位操作" variant="icon" align="end" class="units-phone-actions">
-					<UiButton icon="settings" @click="c.openEdit(row)">编辑</UiButton>
-					<UiButton icon="warning" :disabled="inUse(row)" @click="c.toggleEnabled(row)">
-						<span class="menu-item-label">{{ row.enabled ? "停用" : "启用" }}</span
-						><small v-if="inUse(row)" class="unit-delete-reason"
-							>正在使用：{{ usage(row) }}</small
+			<template v-for="entry in groupedRows" :key="entry.id">
+				<button
+					v-if="entry.kind === 'group'"
+					type="button"
+					class="units-phone-group"
+					:aria-expanded="entry.expanded"
+					@click="toggleGroup(entry.id)"
+				>
+					<DisclosureIcon
+						variant="inline"
+						:style="{ transform: entry.expanded ? 'rotate(90deg)' : undefined }"
+					/>
+					{{ entry.label }} <small>{{ entry.count }} 个单位</small>
+				</button>
+				<article v-else :key="entry.id" class="units-phone-row">
+					<template v-for="row in [entry.value]" :key="String(row.name)">
+						<div class="units-phone-identity">
+							<strong>{{ row.label }}</strong>
+							<code>{{ row.name }}</code>
+						</div>
+						<div class="units-phone-details">
+							<span>{{ row.must_be_whole_number ? "整数" : "可小数" }}</span>
+							<span>{{ row.enabled ? "启用" : "停用" }}</span>
+							<span>单位类别 {{ row.category || "—" }}</span>
+							<span>使用物品 {{ row.item_count }}</span>
+							<span>换算 {{ row.conversion_count }}</span>
+						</div>
+						<PopupMenu
+							label="单位操作"
+							variant="icon"
+							align="end"
+							class="units-phone-actions"
 						>
-					</UiButton>
-					<UiButton
-						icon="disposal"
-						variant="danger"
-						:disabled="!row.deletable"
-						:title="row.deletable ? undefined : row.delete_reason"
-						@click="c.remove(row)"
-					>
-						<span class="menu-item-label">删除</span
-						><small v-if="!row.deletable" class="unit-delete-reason">{{
-							row.delete_reason
-						}}</small>
-					</UiButton>
-				</PopupMenu>
-			</article>
+							<UiButton icon="settings" @click="c.openEdit(row as never)"
+								>编辑</UiButton
+							>
+							<UiButton
+								icon="warning"
+								:disabled="inUse(row)"
+								@click="c.toggleEnabled(row as never)"
+							>
+								<span class="menu-item-label">{{
+									row.enabled ? "停用" : "启用"
+								}}</span
+								><small v-if="inUse(row)" class="unit-delete-reason"
+									>正在使用：{{ usage(row) }}</small
+								>
+							</UiButton>
+							<UiButton
+								icon="disposal"
+								variant="danger"
+								:disabled="!row.deletable"
+								:title="row.deletable ? undefined : String(row.delete_reason)"
+								@click="c.remove(row as never)"
+							>
+								<span class="menu-item-label">删除</span
+								><small v-if="!row.deletable" class="unit-delete-reason">{{
+									row.delete_reason
+								}}</small>
+							</UiButton>
+						</PopupMenu>
+					</template>
+				</article>
+			</template>
 			<p v-if="!c.visible.value.length && c.initialized.value" class="muted">
 				没有匹配的单位。
 			</p>
@@ -256,6 +414,22 @@ const tableRows = computed<DataTableRecord[]>(() =>
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-card);
 	background: var(--p-surface);
+}
+.units-phone-group {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 44px;
+	padding-inline: 8px;
+	border: 0;
+	background: transparent;
+	color: var(--p-ink);
+	text-align: left;
+	font-weight: 650;
+}
+.units-phone-group small {
+	color: var(--p-muted);
+	font-weight: 400;
 }
 .units-phone-identity {
 	display: grid;

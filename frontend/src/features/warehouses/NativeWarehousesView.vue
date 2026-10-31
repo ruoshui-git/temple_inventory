@@ -3,18 +3,11 @@ import PageHeader from "../../components/ui/PageHeader.vue";
 import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
 import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
 import BackButton from "../../components/ui/BackButton.vue";
+import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
 import type { NativeWarehouses } from "./useNativeWarehouses";
 import type { ReportQuery } from "../../lib/reportContract";
 import UiButton from "../../components/ui/UiButton.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
-import ItemLine from "../../components/ui/ItemLine.vue";
-import ItemImage from "../../components/ItemImage.vue";
-import DataTable from "../../components/ui/DataTable.vue";
-import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
-import { useColumnPreferences } from "../../composables/useColumnPreferences";
-import { exportFields } from "../../lib/exportColumns";
-import { useOptionalInventoryServices } from "../../services/contracts";
-import AsyncRegion from "../../components/ui/AsyncRegion.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import PopupMenu from "../../components/ui/PopupMenu.vue";
@@ -22,17 +15,10 @@ import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import QuantitySummary from "../../components/ui/QuantitySummary.vue";
-import QuickExport from "../../components/QuickExport.vue";
-import ReportTable from "../../components/ui/ReportTable.vue";
 import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
-import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import FormField from "../../components/ui/FormField.vue";
-import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
-import { unitLabel } from "../../lib/units";
-import { computed, ref } from "vue";
-import { compareTableValues, nextTableSort } from "../../composables/useArrayTableSort";
-import { warehouseColumnDefinitions } from "./warehouseColumns";
+import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 const props = withDefaults(
 	defineProps<{ controller: NativeWarehouses; detail?: boolean; active?: boolean }>(),
 	{ active: true },
@@ -49,6 +35,7 @@ const emit = defineEmits<{
 	newOperation: [kind: string, warehouse: string];
 }>();
 const c = props.controller;
+const { isMobile } = useResponsiveLayout();
 const {
 	tree,
 	selected,
@@ -66,48 +53,6 @@ const {
 	deleteBusy,
 	deleteError,
 } = c;
-const stockTable = c.stock.mainTable;
-const services = useOptionalInventoryServices();
-const stockSort = ref({ field: "item_name", direction: "asc" as "asc" | "desc" });
-const stockColumns = warehouseColumnDefinitions;
-const stockPreferences = services
-	? useColumnPreferences(
-			"warehouse.detail.stock",
-			computed(() => stockColumns),
-			c.reference,
-			services,
-		)
-	: undefined;
-const warehouseExportVisible = computed(() =>
-	stockPreferences?.visible.value.length
-		? stockPreferences.visible.value
-		: stockColumns
-				.filter((column) => column.defaultVisible !== false || column.required)
-				.map((column) => String(column.id)),
-);
-const warehouseExportOrder = computed(() =>
-	stockPreferences?.order.value.length
-		? stockPreferences.order.value
-		: stockColumns.map((column) => String(column.id)),
-);
-const warehouseExportColumns = computed(() =>
-	exportFields(stockColumns, warehouseExportOrder.value, warehouseExportVisible.value),
-);
-const warehouseExportTitle = computed(
-	() => `库房清单 · ${selected.value?.full_label || selected.value?.label || "实体仓库"}`,
-);
-const stockRows = computed<DataTableRecord[]>(() => {
-	const values = [...(stockTable.value?.rows || [])].sort((a, b) => {
-		const left = a[stockSort.value.field],
-			right = b[stockSort.value.field];
-		const comparison = compareTableValues(left, right);
-		return stockSort.value.direction === "asc" ? comparison : -comparison;
-	});
-	return values.map((row) => ({ kind: "record", id: String(row.id), value: row }));
-});
-function sortStock(field: string) {
-	stockSort.value = nextTableSort(field, stockSort.value.field, stockSort.value.direction);
-}
 function physicalType(value: string) {
 	return (
 		({ area: "区域", room: "房间", shelf: "货位", system: "系统" } as Record<string, string>)[
@@ -153,16 +98,9 @@ function parentLabel(name?: string) {
 					loading-label="正在刷新仓库…"
 					@click="c.load"
 					>刷新</UiButton
-				>
-				<QuickExport
-					v-if="c.canUseSelection.value"
-					:query="c.stockQuery.value"
-					:title="warehouseExportTitle"
-					table="locations"
-					:columns="warehouseExportColumns"
-					:active="active"
-				/> </template
-		></PageHeader>
+				></template
+			></PageHeader
+		>
 		<BrowseToolbar
 			v-if="!detail"
 			title="仓库"
@@ -174,18 +112,12 @@ function parentLabel(name?: string) {
 			<template #subtitle>{{ visibleRows.length }} 个节点</template>
 			<template #actions>
 				<BrowseOverflowMenu>
-					<UiButton :disabled="busy" :loading="loading" @click="c.load">刷新</UiButton>
-					<QuickExport
-						v-if="c.canUseSelection.value"
-						:query="c.stockQuery.value"
-						:title="warehouseExportTitle"
-						table="locations"
-						:columns="warehouseExportColumns"
-						:active="active"
-					/>
+					<UiButton icon="refresh" :disabled="busy" :loading="loading" @click="c.load"
+						>刷新</UiButton
+					>
 				</BrowseOverflowMenu>
 				<UiButton
-					v-if="tree?.can_create"
+					v-if="tree?.can_create && !isMobile"
 					variant="primary"
 					@click="
 						c.select(tree.physical_root);
@@ -193,6 +125,14 @@ function parentLabel(name?: string) {
 					"
 					>添加区域</UiButton
 				>
+				<BrowseSplitButton
+					v-if="tree?.can_create && isMobile"
+					label="添加区域"
+					kind="Warehouse"
+					icon="warehouse"
+					:options="[]"
+					@select="c.openEditor(undefined, 'create', 'area')"
+				/>
 			</template>
 		</BrowseToolbar>
 		<div v-if="loading && !tree" class="browse-warehouse-layout" aria-hidden="true">
@@ -245,7 +185,7 @@ function parentLabel(name?: string) {
 							class="browse-grow browse-link"
 							type="button"
 							:aria-pressed="selected?.name === row.name"
-							@click="c.select(row.name)"
+							@click="isMobile ? emit('warehouse', row.name) : c.select(row.name)"
 						>
 							<strong :title="row.full_label">{{
 								row.local_label || row.label
@@ -273,7 +213,10 @@ function parentLabel(name?: string) {
 						没有符合搜索的位置。
 					</p>
 				</div>
-				<article v-if="selected" :class="detail ? 'browse-detail-card' : 'browse-card'">
+				<article
+					v-if="selected && (detail || !isMobile)"
+					:class="detail ? 'browse-detail-card' : 'browse-card'"
+				>
 					<div class="browse-card-heading">
 						<div>
 							<h2>{{ selected.full_label }}</h2>
@@ -383,229 +326,35 @@ function parentLabel(name?: string) {
 							<dd>{{ selected.disabled ? "停用" : "启用" }}</dd>
 						</div>
 					</dl>
-					<p v-if="c.stock.result.error" role="alert">
-						{{ c.stock.result.error }}
-						<UiButton @click="c.stock.refresh">重试库存</UiButton>
-					</p>
-					<AsyncRegion
-						:loading="c.stock.result.loading"
-						:initialized="Boolean(stockTable?.initialized)"
-						:stale="Boolean(stockTable?.initialized)"
-						:error="c.stock.result.error"
-						label="此范围库存刷新中。"
-					>
-						<template #skeleton><SkeletonBlock variant="lines" :count="3" /></template>
+					<div class="warehouse-stock-summary">
+						<h3>库存合计</h3>
+						<p v-if="c.stockSummaryError.value" role="alert">
+							{{ c.stockSummaryError.value }}
+							<UiButton @click="c.loadStockSummary(selected.name)">重试</UiButton>
+						</p>
+						<SkeletonBlock
+							v-else-if="c.stockSummaryLoading.value"
+							variant="lines"
+							:count="2"
+						/>
+						<p v-else-if="!c.stockSummary.value.length" class="muted">暂无库存</p>
 						<QuantitySummary
-							v-if="stockTable?.initialized"
+							v-else-if="c.stockSummary.value.length"
 							:metrics="[
 								{
 									key: 'stock',
-									label: '当前范围库存',
-									quantities: c.stock.result.summary.map((row) => ({
-										uom: String(row.stock_uom),
-										qty: Number(row.stock_qty),
+									label: '此位置及下级位置',
+									quantities: c.stockSummary.value.map((row) => ({
+										uom: row.stock_uom,
+										qty: row.stock_qty,
 									})),
 								},
 							]"
 						/>
-						<div
-							v-if="stockTable?.rows.length"
-							class="browse-rank-list warehouse-stock-cards"
-						>
-							<button
-								v-for="row in stockTable.rows"
-								:key="String(row.id)"
-								:data-browse-row="'stock:' + String(row.id)"
-								class="browse-rank-row"
-								@click="emit('item', String(row.item_code))"
-							>
-								<div class="browse-grow">
-									<ItemLine
-										:item="{
-											code: String(row.item_code),
-											name: String(row.item_name || row.item_code),
-											image: String(row.image || ''),
-										}"
-									/>
-									<dl class="ti-fields">
-										<div>
-											<dt>编号</dt>
-											<dd>{{ row.item_code }}</dd>
-										</div>
-										<div>
-											<dt>库位</dt>
-											<dd
-												:title="
-													warehousePath(
-														row.warehouse,
-														c.reference.warehouses,
-														row.warehouse_label,
-													)
-												"
-											>
-												{{
-													warehouseLabel(
-														row.warehouse,
-														c.reference.warehouses,
-														row.warehouse_label,
-													)
-												}}
-											</dd>
-										</div>
-										<div v-if="row.batch_no">
-											<dt>批次</dt>
-											<dd>{{ row.batch_no }}</dd>
-										</div>
-									</dl>
-								</div>
-								<b
-									>{{ row.stock_qty }}
-									<small>{{ unitLabel(String(row.stock_uom || "")) }}</small></b
-								>
-							</button>
-						</div>
-						<BrowseResultSummary
-							v-if="stockTable?.rows.length"
-							:label="`${stockRows.length} 项物品库存`"
-							:metrics="[]"
-						/>
-						<DataTable
-							v-if="stockTable?.rows.length"
-							ariaLabel="仓库物品库存"
-							:columns="stockColumns"
-							:rows="stockRows"
-							:column-preferences="stockPreferences"
-							:sort-by="stockSort.field"
-							:sort-direction="stockSort.direction"
-							class="warehouse-stock-table"
-							@sort="sortStock"
-						>
-							<template #cell="{ column, row }">
-								<ItemImage
-									v-if="column.id === 'image'"
-									:item="{
-										code: String(row.item_code),
-										name: String(row.item_name || row.item_code),
-										image: String(row.image || ''),
-									}"
-									:thumbnail-size="24"
-									:target-size="24"
-								/>
-								<button
-									v-else-if="column.id === 'item_name'"
-									class="browse-link warehouse-item-name"
-									@click="emit('item', String(row.item_code))"
-								>
-									<strong>{{ row.item_name || row.item_code }}</strong>
-								</button>
-								<span
-									v-else-if="column.id === 'item_code'"
-									class="warehouse-nowrap"
-									>{{ row.item_code }}</span
-								>
-								<span
-									v-else-if="column.id === 'warehouse_label'"
-									:title="
-										String(
-											row.warehouse_path ||
-												warehousePath(
-													row.warehouse,
-													c.reference.warehouses,
-													row.warehouse_label,
-												),
-										)
-									"
-									>{{
-										warehouseLabel(
-											row.warehouse,
-											c.reference.warehouses,
-											row.warehouse_label,
-										)
-									}}</span
-								>
-								<span v-else-if="column.id === 'warehouse_path'">{{
-									row.warehouse_path || "—"
-								}}</span>
-								<span v-else-if="column.id === 'warehouse_native_name'">{{
-									row.warehouse_native_name || "—"
-								}}</span>
-								<span v-else-if="column.id === 'batch_no'">{{
-									row.batch_no || "—"
-								}}</span>
-								<span
-									v-else-if="column.id === 'stock_qty'"
-									class="warehouse-nowrap tabular-nums"
-									>{{
-										`${row.stock_qty} ${unitLabel(String(row.stock_uom || ""))}`
-									}}</span
-								>
-								<span v-else-if="column.id === 'stock_uom'">{{
-									unitLabel(String(row.stock_uom || ""))
-								}}</span>
-							</template>
-						</DataTable>
-						<p
-							v-else-if="
-								stockTable?.initialized &&
-								!c.stock.result.loading &&
-								!c.stock.result.error
-							"
-							class="browse-empty compact"
-						>
-							此范围暂无库存。
-						</p>
-						<p v-if="stockTable?.error" role="alert">{{ stockTable.error }}</p>
-						<UiButton
-							v-if="stockTable?.next !== null && stockTable?.next !== undefined"
-							:disabled="stockTable.loading || c.stock.result.stale"
-							:loading="stockTable.loading"
-							loading-label="正在加载库存…"
-							@click="c.stock.loadTable(stockTable, true)"
-							>加载更多库存 · {{ stockTable.rows.length }} /
-							{{ stockTable.total }}</UiButton
-						>
-					</AsyncRegion>
-					<div class="browse-actions">
-						<UiButton
-							v-for="action in c.operationActions.value"
-							:key="action.kind"
-							:icon="action.icon"
-							@click="emit('newOperation', action.kind, selected.name)"
-							>{{ action.label }}</UiButton
-						>
-						<UiButton
-							:disabled="!c.canUseSelection.value"
-							icon="box"
-							@click="emit('browse', c.stockQuery.value)"
-							>查看完整库存范围</UiButton
-						><UiButton
-							v-if="c.canCount.value"
-							icon="count"
-							@click="emit('newCount', selected.name)"
-							>盘点此库位</UiButton
-						>
 					</div>
-					<template v-if="detail"
-						><h2>最近流动</h2>
-						<MovementHistoryTable
-							:show-status="false"
-							:rows="c.history.result.rows"
-							:total="c.history.result.total"
-							:next="c.history.result.next"
-							:loading="c.history.result.loading"
-							:initialized="c.history.result.initialized"
-							:error="c.history.result.error"
-							:stale="c.history.result.stale"
-							:sort-by="c.history.sortBy.value"
-							:sort-direction="c.history.sortDirection.value"
-							include-item
-							@load-more="c.history.loadMore"
-							@retry="c.history.refresh"
-							@sort="c.history.setSort"
-							@open-document="(doctype, name) => emit('openDocument', doctype, name)"
-							@open-loan="emit('openLoan', $event)"
-							@open-item="emit('item', $event)"
-					/></template>
+					<UiButton icon="box" @click="emit('browse', c.stockQuery.value)"
+						>查看库存</UiButton
+					>
 				</article>
 			</div>
 		</template>

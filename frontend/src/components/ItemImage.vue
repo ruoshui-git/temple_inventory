@@ -40,6 +40,11 @@ const derivativeSource = computed(() => {
 	const size = cssWidth * pixelRatio.value > 160 ? 640 : 160;
 	return `/api/method/temple_inventory.item_images.thumbnail?item=${encodeURIComponent(props.item.code)}&size=${size}&v=${imageVersion(source.value)}`;
 });
+const originalSource = computed(() => {
+	if (!source.value) return "";
+	if (source.value.startsWith("data:image/")) return source.value;
+	return `/api/method/temple_inventory.item_images.original?item=${encodeURIComponent(props.item.code)}&v=${imageVersion(source.value)}`;
+});
 onMounted(() => {
 	pixelRatio.value = window.devicePixelRatio || 1;
 	renderedWidth.value =
@@ -147,12 +152,13 @@ onDeactivated(() => {
 			><AsyncImage
 				natural
 				v-else
-				:src="source"
+				:src="originalSource"
 				:alt="item.name"
 				fit="contain"
 				width="100%"
 				height="100%"
-			/>
+				><template #fallback>图片加载失败，请稍后重试</template></AsyncImage
+			>
 		</div>
 		<p class="muted">{{ item.code }}</p></Overlay
 	>
@@ -206,6 +212,12 @@ onDeactivated(() => {
 	object-fit: contain;
 }
 .lightbox-image :deep(.async-image) {
+	width: 100%;
+	height: 100%;
 	max-height: none;
+}
+.lightbox-image {
+	height: min(70dvh, 720px);
+	min-height: 160px;
 }
 </style>

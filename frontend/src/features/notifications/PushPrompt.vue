@@ -98,7 +98,7 @@ function closeFailure() {
 
 <template>
 	<aside v-if="visible" class="push-prompt" role="region" aria-label="系统通知">
-		<span>开启系统通知，及时收到导出完成、过期提醒等消息</span>
+		<span>开启此浏览器和设备的系统通知；电脑和 Android 浏览器无需安装即可使用。</span>
 		<UiButton variant="primary" :loading="busy" @click="enable">开启</UiButton>
 		<UiButton :disabled="busy" @click="dismiss">不再提示</UiButton>
 		<UiButton v-if="showFailure" :disabled="busy" @click="closeFailure">关闭</UiButton>

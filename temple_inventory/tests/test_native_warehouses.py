@@ -8,6 +8,30 @@ from temple_inventory.warehouse_names import DIRECT_STORAGE_SUFFIX
 
 
 class NativeWarehouseTests(NativeDocumentTests):
+	def test_stock_summary_uses_only_the_authorized_physical_subtree(self):
+		from unittest.mock import patch
+
+		area = self._create("Area", "Summary area " + self.token, self.physical)
+		room = self._create("Room", "Summary room " + self.token, area)
+		original = frappe.db.sql
+		bin_queries = []
+
+		def sql(query, *args, **kwargs):
+			if "from `tabBin`" not in str(query):
+				return original(query, *args, **kwargs)
+			bin_queries.append(query)
+			return [frappe._dict(stock_uom="Nos", stock_qty=4)]
+
+		with patch.object(frappe.db, "sql", side_effect=sql):
+			result = warehouses.stock_summary(area)
+		self.assertEqual(result["rows"], [frappe._dict(stock_uom="Nos", stock_qty=4)])
+		self.assertEqual(len(bin_queries), 1)
+		query = bin_queries[0]
+		self.assertIn(frappe.db.escape(room), query)
+		self.assertIn(frappe.db.escape(area), query)
+		with self.assertRaises(frappe.PermissionError):
+			warehouses.stock_summary(self.loan_leaf)
+
 	def test_warehouse_name_and_presenter_characterization(self):
 		"""Pin warehouse names and presenter output for generated and mutated trees."""
 		from unittest.mock import patch

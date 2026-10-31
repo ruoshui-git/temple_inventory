@@ -22,6 +22,9 @@ export function useUnitsController() {
   const { confirm } = useConfirm();
   const rows = ref<UnitRow[]>([]);
   const search = ref("");
+  const categoryFilter = ref("");
+  const wholeFilter = ref<"all" | "whole" | "fractional">("all");
+  const statusFilter = ref<"all" | "enabled" | "disabled">("all");
   const loading = ref(false);
   const saving = ref(false);
   const initialized = ref(false);
@@ -46,7 +49,18 @@ export function useUnitsController() {
     const term = search.value.trim().toLocaleLowerCase();
     return rows.value.filter(
       (row) =>
-        !term || `${row.name} ${row.label}`.toLocaleLowerCase().includes(term),
+        (!term ||
+          `${row.name} ${row.label} ${row.category}`
+            .toLocaleLowerCase()
+            .includes(term)) &&
+        (!categoryFilter.value ||
+          (categoryFilter.value === "__uncategorized"
+            ? !row.category
+            : row.category === categoryFilter.value)) &&
+        (wholeFilter.value === "all" ||
+          row.must_be_whole_number === (wholeFilter.value === "whole")) &&
+        (statusFilter.value === "all" ||
+          row.enabled === (statusFilter.value === "enabled")),
     );
   });
   async function refresh() {
@@ -177,6 +191,9 @@ export function useUnitsController() {
     rows,
     visible,
     search,
+    categoryFilter,
+    wholeFilter,
+    statusFilter,
     loading,
     initialized,
     dialog,

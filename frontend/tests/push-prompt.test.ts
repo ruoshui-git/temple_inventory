@@ -70,6 +70,8 @@ describe("push prompt failure flow", () => {
     const wrapper = mount(Root);
     wrappers.push(wrapper);
     await flushPromises();
+    expect(wrapper.text()).toContain("此浏览器和设备的系统通知");
+    expect(wrapper.text()).toContain("无需安装即可使用");
     await wrapper.get("button").trigger("click");
     await flushPromises();
     expect(wrapper.get('[role="alert"]').text()).toContain(

@@ -58,7 +58,7 @@ function handleError() {
 		]"
 		:style="{
 			width: dimension(width ?? height) || '100%',
-			height: 'auto',
+			height: natural ? dimension(height) || 'auto' : '100%',
 			aspectRatio: natural ? undefined : '1',
 		}"
 		role="img"
@@ -76,7 +76,7 @@ function handleError() {
 			:decoding="decoding"
 			:style="{
 				objectFit: fit,
-				height: natural ? 'auto' : '100%',
+				height: natural && !height ? 'auto' : '100%',
 				position: natural ? 'static' : 'absolute',
 				inset: natural ? undefined : '0',
 			}"

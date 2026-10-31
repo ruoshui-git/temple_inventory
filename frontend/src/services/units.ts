@@ -1,6 +1,7 @@
 import type { InventoryServices, ReferenceData } from "./contracts";
 
 export interface UnitRow {
+  [key: string]: string | number | boolean;
   name: string;
   label: string;
   category: string;
@@ -44,23 +45,15 @@ export async function refreshUnitReference(
   services: InventoryServices,
   reference: ReferenceData,
 ) {
-  const result = await services.call<{
-    uoms: {
-      name: string;
-      label: string;
-      must_be_whole_number: boolean;
-      category: string | null;
-      enabled: boolean;
-    }[];
-  }>("browse.bootstrap");
+  const result = await listUnits(services);
   reference.units.splice(
     0,
     reference.units.length,
-    ...result.uoms.map((row) => ({
+    ...result.map((row) => ({
       name: row.name,
       label: row.label || row.name,
       whole: Boolean(row.must_be_whole_number),
-      category: row.category,
+      category: row.category || null,
       enabled: Boolean(row.enabled),
     })),
   );

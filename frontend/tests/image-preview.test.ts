@@ -54,7 +54,12 @@ describe("shared native Item artwork", () => {
     const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
     expect(dialog).not.toBeNull();
     expect(dialog.textContent).toContain(item.name);
-    expect(dialog.querySelector("img")?.getAttribute("src")).toBe(item.image);
+    expect(dialog.querySelector("img")?.getAttribute("src")).toMatch(
+      /^\/api\/method\/temple_inventory\.item_images\.original\?item=ITEM-1&v=/,
+    );
+    expect(
+      dialog.querySelector(".async-image--loading .async-image__skeleton"),
+    ).not.toBeNull();
     expect(document.activeElement).toBe(dialog);
     dialog.dispatchEvent(
       new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
@@ -62,6 +67,14 @@ describe("shared native Item artwork", () => {
     await flushPromises();
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(document.activeElement).toBe(trigger.element);
+  });
+  it("keeps an already-inline image as the lightbox original", async () => {
+    const inline = "data:image/svg+xml,%3Csvg/%3E";
+    const wrapper = setup({ item: { ...item, image: inline } });
+    await wrapper.get("button.item-image-button").trigger("click");
+    await flushPromises();
+    const image = document.querySelector('[role="dialog"] img');
+    expect(image?.getAttribute("src")).toBe(inline);
   });
   it("keeps the lightbox open when the item object is replaced with equal values", async () => {
     const wrapper = setup({});

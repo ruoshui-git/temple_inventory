@@ -113,6 +113,17 @@ class ItemImageTests(NativeDocumentTests):
 		with self.assertRaises(frappe.DoesNotExistError):
 			item_images.thumbnail(self.item, 160, "stale-version")
 
+	def test_lightbox_original_uses_authorized_private_file_and_version(self):
+		original, _item = self._set_image("green")
+		version = item_images.image_version(original.file_url)
+		response = item_images.original(self.item, version)
+		self.assertEqual(response.mimetype, "image/png")
+		self.assertEqual(response.headers["Cache-Control"], "private,max-age=31536000,immutable")
+		response.direct_passthrough = False
+		self.assertEqual(response.get_data(), original.get_content(encodings=[]))
+		with self.assertRaises(frappe.DoesNotExistError):
+			item_images.original(self.item, "stale-version")
+
 	def test_derivative_failure_does_not_block_item_save(self):
 		file = self._source_file("yellow")
 		item = frappe.get_doc("Item", self.item)

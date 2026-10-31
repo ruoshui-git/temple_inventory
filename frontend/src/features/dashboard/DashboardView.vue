@@ -31,7 +31,11 @@ import { emptyScope, type BrowseScope } from "../../lib/browseQuery";
 import type { AppRouteTarget } from "../../lib/routeRegistry";
 import { movementLabels } from "../../lib/presentationLabels";
 import { kindIcons } from "../../lib/kindIcons";
-import { quantityText, type useDashboardController } from "./useDashboardController";
+import {
+	inventoryMetricEmptyText,
+	quantityText,
+	type useDashboardController,
+} from "./useDashboardController";
 const props = withDefaults(
 	defineProps<{
 		controller: ReturnType<typeof useDashboardController>;
@@ -430,6 +434,11 @@ function datasetChanged(dataset: ReportDataset) {
 								<strong v-for="quantity in metric.quantities" :key="quantity.uom">
 									<UnitText :name="quantity.uom" :qty="quantity.qty" />
 								</strong>
+								<strong
+									v-if="inventoryMetricEmptyText(metric.quantities)"
+									class="muted"
+									>{{ inventoryMetricEmptyText(metric.quantities) }}</strong
+								>
 							</div>
 							<button
 								v-if="metric.rest"

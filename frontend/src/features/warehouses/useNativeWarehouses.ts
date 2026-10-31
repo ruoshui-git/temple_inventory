@@ -11,9 +11,6 @@ import {
   type RecoverySnapshot,
 } from "../../lib/browserRecovery";
 import { useUpdateBlocker } from "../../lib/updateSafety";
-import { useReportController } from "../export/useReportController";
-import { useMovementHistory } from "../movements/useMovementHistory";
-import { kindIcons } from "../../lib/kindIcons";
 import { useBrowseState } from "../../lib/browseMemory";
 import { showToast } from "../../services/toast";
 import { useFormValidation } from "../../composables/useFormValidation";
@@ -107,40 +104,6 @@ export function useNativeWarehouses(
         .querySelector<HTMLElement>("[data-warehouse-parent] input")
         ?.focus(),
   );
-  const canUseSelection = computed(
-    () => active() && !loading.value && !error.value && !!selected.value,
-  );
-  const physicalSelection = computed(
-    () =>
-      canUseSelection.value &&
-      !!selected.value?.storable &&
-      !selected.value.disabled &&
-      reference.physicalLeaves.includes(selected.value.name),
-  );
-  const operationActions = computed(() =>
-    physicalSelection.value
-      ? [
-          {
-            kind: "Receive",
-            label: "入库到此库位",
-            icon: kindIcons.Receive.icon,
-          },
-          {
-            kind: "Issue",
-            label: `从此库位${kindIcons.Issue.label}`,
-            icon: kindIcons.Issue.icon,
-          },
-          {
-            kind: "Transfer",
-            label: `从此库位${kindIcons.Transfer.label}`,
-            icon: kindIcons.Transfer.icon,
-          },
-        ].filter((item) => reference.operations[item.kind] === true)
-      : [],
-  );
-  const canCount = computed(
-    () => physicalSelection.value && reference.operations.Reconcile === true,
-  );
   const stockQuery = computed(() => {
     const query = newReportQuery("inventory");
     query.view = "locations";
@@ -148,26 +111,9 @@ export function useNativeWarehouses(
     query.scope.warehouses = selected.value ? [selected.value.name] : [];
     return query;
   });
-  const historyQuery = computed(() => {
-    const query = newReportQuery("movements");
-    query.view = "records";
-    query.sortBy = "date";
-    query.sort = "desc";
-    query.statuses = [1];
-    query.scope.warehouses = selected.value ? [selected.value.name] : [];
-    return query;
-  });
-  const enabled = computed(
-    () => canUseSelection.value && props.active !== false,
-  );
-  const stock = useReportController(stockQuery, {
-    personalViews: false,
-    enabled,
-  });
-  const history = useMovementHistory(historyQuery, {
-    warehouse: () => props.name || "",
-    enabled: () => enabled.value && !!props.name,
-  });
+  const stockSummary = ref<{ stock_uom: string; stock_qty: number }[]>([]);
+  const stockSummaryLoading = ref(false);
+  const stockSummaryError = ref("");
   const browseState = useBrowseState(
     "warehouses",
     () => props.name || "tree",
@@ -181,11 +127,7 @@ export function useNativeWarehouses(
       selectedName.value = String(value.selectedName || "");
       search.value = String(value.search || "");
     },
-    () =>
-      !loading.value &&
-      !stock.result.loading &&
-      !history.result.loading &&
-      !!stock.mainTable.value?.initialized,
+    () => !loading.value,
   );
   function inside(row: NativeWarehouse, root?: NativeWarehouse) {
     return !!root && row.lft > root.lft && row.rgt < root.rgt;
@@ -362,6 +304,30 @@ export function useNativeWarehouses(
       if (active() && current === generation) loading.value = false;
     }
   }
+  async function loadStockSummary(name: string, signal?: AbortSignal) {
+    if (!active()) return;
+    stockSummaryLoading.value = true;
+    stockSummaryError.value = "";
+    try {
+      const value = await services.call<{
+        rows: { stock_uom: string; stock_qty: number }[];
+      }>("warehouses.stock_summary", { warehouse: name }, signal);
+      if (active() && (props.name || selected.value?.name) === name)
+        stockSummary.value = Array.isArray(value?.rows) ? value.rows : [];
+    } catch (reason) {
+      if (active() && !signal?.aborted)
+        stockSummaryError.value =
+          reason instanceof Error ? reason.message : "库存汇总读取失败";
+    } finally {
+      if (active()) stockSummaryLoading.value = false;
+    }
+  }
+  watch(
+    () => selected.value?.name,
+    (name) => {
+      if (name && tree.value) void loadStockSummary(name);
+    },
+  );
   async function invoke(
     endpoint: string,
     args: Record<string, unknown>,
@@ -579,6 +545,7 @@ export function useNativeWarehouses(
       selectedName.value =
         props.name || props.initialWarehouse || tree.value?.physical_root || "";
       search.value = props.initialSearch || "";
+      if (props.name) void loadStockSummary(props.name);
     },
   );
   watch(
@@ -632,13 +599,11 @@ export function useNativeWarehouses(
     visibleRows,
     expanded,
     select,
-    stock,
     stockQuery,
-    history,
-    historyQuery,
-    canUseSelection,
-    operationActions,
-    canCount,
+    stockSummary,
+    stockSummaryLoading,
+    stockSummaryError,
+    loadStockSummary,
     parentOptions,
     dialogOpen,
     busy,

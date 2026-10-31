@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defineComponent, h } from "vue";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import NativeWarehousesPage from "../src/features/warehouses/NativeWarehousesPage.vue";
-import QuickExport from "../src/components/QuickExport.vue";
 import {
   createReferenceData,
   provideInventoryServices,
@@ -21,6 +20,7 @@ afterEach(() => {
   wrappers.splice(0).forEach((wrapper) => wrapper.unmount());
   localStorage.clear();
   document.body.innerHTML = "";
+  delete (window as Partial<Window>).matchMedia;
 });
 const node = (overrides: Partial<LocationNode>): LocationNode => ({
   name: "ROOT",
@@ -205,24 +205,17 @@ function setup(
   };
 }
 describe("native location workspace", () => {
-  it("exports a selected warehouse stock table using its page column order", async () => {
-    const { wrapper } = setup(undefined, { initialWarehouse: "SHELF" });
+  it("opens warehouse details from the phone tree and contains no stock table", async () => {
+    const { wrapper, c } = setup();
     await flushPromises();
-    const quickExport = wrapper.getComponent(QuickExport);
-    expect(quickExport.props()).toMatchObject({ table: "locations" });
-    expect(quickExport.props("title")).toContain("库房清单 ·");
-    expect(quickExport.props("columns")).toEqual([
-      "item_name",
-      "item_code",
-      "warehouse_label",
-      "batch_no",
-      "stock_qty",
-      "stock_uom",
-    ]);
-    expect(quickExport.props("columns")).not.toContain("image_file");
-    await quickExport.get("button.quick-report").trigger("click");
+    expect(wrapper.find("table").exists()).toBe(false);
+    await wrapper.get(".browse-grow").trigger("click");
     await flushPromises();
-    expect(document.body.textContent).toContain("物品图片");
+    expect(
+      wrapper.findComponent(NativeWarehousesPage).emitted("warehouse")?.[0],
+    ).toEqual(["ROOT"]);
+    expect(c.stockQuery.value.view).toBe("locations");
+    expect(c.stockQuery.value.scope.warehouses).toEqual(["ROOT"]);
   });
   it("reads the presenter labels and hides direct-storage leaves from the selectable tree", async () => {
     const { c } = setup();
@@ -289,41 +282,26 @@ describe("native location workspace", () => {
     });
   });
 
-  it("loads metadata before querying an exact warehouse scope and retains full unit totals", async () => {
-    const report = vi.fn(async (query: ReportQuery) => ({
-      query,
-      table: query.view,
-      rows: [],
-      columns: [],
-      matched_count: 205,
-      next_start: null,
-      snapshot: "now",
-      summary: [
-        { stock_uom: "Kg", stock_qty: 12.5 },
-        { stock_uom: "Nos", stock_qty: 7626 },
-      ],
-      period: { date_from: "", date_to: "" },
-      tables: [{ id: query.view, label: query.view, count: 205 }],
-    }));
+  it("loads the cheap subtree quantity summary without bootstrapping an inventory report", async () => {
     const call = vi.fn(async (endpoint: string) =>
-      endpoint === "configuration.status" ? { needs_first_room: false } : tree,
+      endpoint === "configuration.status"
+        ? { needs_first_room: false }
+        : endpoint === "warehouses.stock_summary"
+          ? { rows: [{ stock_uom: "Nos", stock_qty: 4 }] }
+          : tree,
     );
-    const { c } = setup(call, {}, report);
+    const report = vi.fn();
+    const { c, wrapper } = setup(call, { name: "ROOM" }, report);
     await flushPromises();
-    expect(call.mock.calls.map(([endpoint]) => endpoint).slice(0, 2)).toEqual([
-      "warehouses.tree",
-      "configuration.status",
-    ]);
-    expect(report.mock.calls[0]?.[0]).toEqual(
-      expect.objectContaining({
-        scope: expect.objectContaining({ warehouses: ["ROOT"] }),
-      }),
+    expect(call).toHaveBeenCalledWith(
+      "warehouses.stock_summary",
+      { warehouse: "ROOM" },
+      undefined,
     );
-    expect(c.stock.result.summary).toEqual([
-      { stock_uom: "Kg", stock_qty: 12.5 },
-      { stock_uom: "Nos", stock_qty: 7626 },
-    ]);
-    expect(c.stock.result.total).toBe(205);
+    expect(report).not.toHaveBeenCalled();
+    expect(c.stockSummary.value).toEqual([{ stock_uom: "Nos", stock_qty: 4 }]);
+    expect(wrapper.text()).toContain("查看库存");
+    expect(wrapper.text()).toContain("4");
   });
 
   it("never substitutes a different warehouse or queries all stock for an unavailable deep link", async () => {
@@ -340,7 +318,6 @@ describe("native location workspace", () => {
     await flushPromises();
     expect(c.selected.value).toBeUndefined();
     expect(wrapper.text()).toContain("此位置不存在或当前账户无权读取");
-    expect(report).not.toHaveBeenCalled();
     expect(c.stockQuery.value.scope.warehouses).toEqual([]);
   });
 
@@ -357,6 +334,11 @@ describe("native location workspace", () => {
   });
 
   it("shows delete only for editable locations and confirms before deleting", async () => {
+    window.matchMedia = vi.fn(() => ({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })) as unknown as typeof window.matchMedia;
     const call = vi.fn(async (endpoint: string) =>
       endpoint === "configuration.status" ? { needs_first_room: false } : tree,
     );
@@ -493,63 +475,18 @@ describe("native location workspace", () => {
     expect(fixtureServices).toBeTruthy();
   });
 
-  it("uses DataTable columns with centered artwork, nowrap codes, and end-aligned quantities", async () => {
-    const report = vi.fn(async (query: ReportQuery) => ({
-      query,
-      table: "locations",
-      rows: [
-        {
-          id: "item-1",
-          item_code: "ITM-000123",
-          item_name: "测试物品",
-          image: "/test.webp",
-          warehouse: "SHELF",
-          warehouse_label: "演示架1",
-          warehouse_path: "T2 / A02 / 演示架1",
-          batch_no: "BATCH-1",
-          stock_qty: 12,
-          stock_uom: "Nos",
-        },
-      ],
-      matched_count: 1,
-      next_start: null,
-      snapshot: "now",
-      summary: [],
-      period: { date_from: "", date_to: "" },
-      tables: [
-        {
-          id: "locations",
-          label: "位置",
-          count: 1,
-          columns: [
-            "item_code",
-            "item_name",
-            "warehouse_label",
-            "batch_no",
-            "stock_qty",
-          ],
-        },
-      ],
-    }));
-    const { wrapper } = setup(undefined, { initialWarehouse: "SHELF" }, report);
+  it("keeps warehouse details free of item rows and retains native location scope for inventory", async () => {
+    const report = vi.fn();
+    const { wrapper, c } = setup(
+      undefined,
+      { initialWarehouse: "SHELF" },
+      report,
+    );
     await flushPromises();
-    expect(wrapper.findComponent({ name: "BrowseToolbar" }).exists()).toBe(
-      true,
-    );
-    expect(wrapper.text()).toContain("节点");
-    const table = wrapper.get(".warehouse-stock-table");
-    expect(table.get("th.align-center").exists()).toBe(true);
-    expect(table.get("th.align-end").exists()).toBe(true);
-    expect(table.get('th button[aria-label^="物品名称排序"]').exists()).toBe(
-      true,
-    );
-    // The column settings trigger lives in the result summary above the table.
-    expect(
-      wrapper.get('.browse-summary-copy button[aria-label="设置列"]').exists(),
-    ).toBe(true);
-    expect(table.get("td.warehouse-code").classes()).toContain("align-start");
-    expect(table.text()).toContain("ITM-000123");
-    expect(table.text()).toContain("12 Nos");
-    expect(table.find("[title='T2 / A02 / 演示架1']").exists()).toBe(true);
+    expect(wrapper.find(".warehouse-stock-table").exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("ITM-000123");
+    expect(report).not.toHaveBeenCalled();
+    expect(c.stockQuery.value.view).toBe("locations");
+    expect(c.stockQuery.value.scope.warehouses).toEqual(["SHELF"]);
   });
 });

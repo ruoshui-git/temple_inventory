@@ -59,6 +59,27 @@ def tree():
 	}
 
 
+@frappe.whitelist()
+def stock_summary(warehouse):
+	"""Return native Bin totals for one authorized physical node and its subtree."""
+	_, visible, physical = _context()
+	if warehouse not in visible or warehouse not in physical:
+		frappe.throw("此位置不存在或当前账户无权读取", frappe.PermissionError)
+	selected = visible[warehouse]
+	frappe.get_doc("Warehouse", warehouse).check_permission("read")
+	names = [name for name, row in physical.items() if selected.lft <= row.lft and row.rgt <= selected.rgt]
+	if not names:
+		return {"rows": []}
+	warehouse_values = ", ".join(frappe.db.escape(name) for name in sorted(names))
+	rows = frappe.db.sql(
+		"select stock_uom, sum(actual_qty) as stock_qty from `tabBin` "
+		f"where warehouse in ({warehouse_values}) group by stock_uom having sum(actual_qty) != 0 "
+		"order by stock_uom",
+		as_dict=True,
+	)
+	return {"rows": rows}
+
+
 def _referenced(names):
 	values = ["in", sorted(names)]
 	return any(

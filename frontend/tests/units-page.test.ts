@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { defineComponent, h, ref } from "vue";
+import { computed, defineComponent, h, ref } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 import UnitsView from "../src/features/units/UnitsView.vue";
 import { useFormValidation } from "../src/composables/useFormValidation";
@@ -53,9 +53,9 @@ const stubs = {
   }),
 };
 
-function fixture() {
+function fixture(isMobile = true) {
   window.matchMedia = vi.fn(() => ({
-    matches: true,
+    matches: !isMobile,
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
   })) as unknown as typeof window.matchMedia;
@@ -64,21 +64,51 @@ function fixture() {
   validation.register("unit-name", () => name.value, [
     (value) => (value.trim() ? true : "请输入单位名称"),
   ]);
+  const sourceRows = ref([
+    {
+      name: "Nos",
+      label: "个",
+      category: "Count",
+      must_be_whole_number: true,
+      enabled: true,
+      item_count: 3,
+      conversion_count: 1,
+      deletable: false,
+      delete_reason: "已被物品引用，不能删除",
+    },
+    {
+      name: "Kg",
+      label: "公斤",
+      category: "Weight",
+      must_be_whole_number: false,
+      enabled: false,
+      item_count: 0,
+      conversion_count: 0,
+      deletable: true,
+      delete_reason: "",
+    },
+  ]);
+  const categoryFilter = ref("");
+  const wholeFilter = ref<"all" | "whole" | "fractional">("all");
+  const statusFilter = ref<"all" | "enabled" | "disabled">("all");
   const controller = {
-    visible: ref([
-      {
-        name: "Nos",
-        label: "个",
-        category: "Count",
-        must_be_whole_number: true,
-        enabled: true,
-        item_count: 3,
-        conversion_count: 1,
-        deletable: false,
-        delete_reason: "已被物品引用，不能删除",
-      },
-    ]),
+    visible: computed(() =>
+      sourceRows.value.filter(
+        (row) =>
+          (!categoryFilter.value ||
+            (categoryFilter.value === "__uncategorized"
+              ? !row.category
+              : row.category === categoryFilter.value)) &&
+          (wholeFilter.value === "all" ||
+            row.must_be_whole_number === (wholeFilter.value === "whole")) &&
+          (statusFilter.value === "all" ||
+            row.enabled === (statusFilter.value === "enabled")),
+      ),
+    ),
     search: ref(""),
+    categoryFilter,
+    wholeFilter,
+    statusFilter,
     loading: ref(false),
     initialized: ref(true),
     dialog: ref(false),
@@ -149,5 +179,39 @@ describe("units management page", () => {
     await flushPromises();
     expect(wrapper.text()).toContain("请输入单位名称");
     expect(controller.save).toHaveBeenCalledOnce();
+  });
+
+  it("filters phone rows and collapses category groups", async () => {
+    const { wrapper, controller } = fixture();
+    expect(wrapper.findAll(".units-phone-row")).toHaveLength(2);
+    controller.categoryFilter.value = "Count";
+    await wrapper.vm.$nextTick();
+    expect(wrapper.findAll(".units-phone-row")).toHaveLength(1);
+    expect(wrapper.find(".units-phone-row").text()).toContain("个");
+    await wrapper.get(".units-phone-group").trigger("click");
+    expect(wrapper.findAll(".units-phone-row")).toHaveLength(0);
+    controller.categoryFilter.value = "";
+    controller.wholeFilter.value = "fractional";
+    await wrapper.vm.$nextTick();
+    expect(wrapper.findAll(".units-phone-row")).toHaveLength(1);
+    expect(wrapper.find(".units-phone-row").text()).toContain("公斤");
+    controller.wholeFilter.value = "all";
+    controller.statusFilter.value = "enabled";
+    await wrapper.vm.$nextTick();
+    expect(wrapper.findAll(".units-phone-row")).toHaveLength(0);
+    await wrapper.get(".units-phone-group").trigger("click");
+    expect(wrapper.findAll(".units-phone-row")).toHaveLength(1);
+    expect(wrapper.find(".units-phone-row").text()).toContain("个");
+  });
+
+  it("applies unit filters to the grouped desktop table too", async () => {
+    const { wrapper, controller } = fixture(false);
+    await flushPromises();
+    expect(wrapper.findAll("tr")).toHaveLength(4);
+    controller.categoryFilter.value = "Weight";
+    await wrapper.vm.$nextTick();
+    expect(wrapper.findAll("tr")).toHaveLength(2);
+    expect(wrapper.text()).toContain("公斤");
+    expect(wrapper.text()).not.toContain("个");
   });
 });

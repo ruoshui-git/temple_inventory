@@ -99,6 +99,9 @@ export function quantityText(rows: { qty: number; uom: string }[]) {
       .join(" · ") || "0"
   );
 }
+export function inventoryMetricEmptyText(quantities: unknown[]) {
+  return quantities.length ? "" : "暂无库存";
+}
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
 export function useDashboardController(navigate: (query: ReportQuery) => void) {
