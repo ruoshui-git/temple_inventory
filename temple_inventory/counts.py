@@ -54,12 +54,16 @@ def _baseline(timestamp, *, lock=False, previous_rows=None):
 	previous = {_key(row): row for row in (previous_rows or [])}
 	added = {key[0] for key in previous}
 	where_args = {"warehouses": tuple(warehouses), "posting": posting}
+	# The native balance is the latest entry's running qty (get_previous_sle's order), not a sum:
+	# a Stock Reconciliation entry sets qty_after_transaction with actual_qty 0.
 	ledger_rows = frappe.db.sql(
-		"""select item_code, warehouse, sum(actual_qty) as qty
-		from `tabStock Ledger Entry`
-		where warehouse in %(warehouses)s and is_cancelled = 0 and docstatus = 1
-		and posting_datetime <= %(posting)s and serial_and_batch_bundle is null
-		and batch_no is null group by item_code, warehouse""",
+		"""select item_code, warehouse, qty_after_transaction as qty from (
+			select item_code, warehouse, qty_after_transaction, row_number() over (
+				partition by item_code, warehouse order by posting_datetime desc, creation desc
+			) as position
+			from `tabStock Ledger Entry`
+			where warehouse in %(warehouses)s and is_cancelled = 0 and posting_datetime <= %(posting)s
+		) latest where position = 1""",
 		where_args,
 		as_dict=True,
 	)

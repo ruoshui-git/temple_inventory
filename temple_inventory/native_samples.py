@@ -1344,7 +1344,16 @@ def _volume_counts(company, rooms, items, *, count_item=None, submitted=17, draf
 		posting_date = _date(days)
 		posting_time = "23:00:00"
 		stamp = posting_date + " " + posting_time
-		baseline = counts.count_baseline(stamp)
+		# Add the counted item at DEMO_A like 添加物品, so its +1 line exists even at zero stock.
+		counted = {
+			"item_code": selected_items[0],
+			"warehouse": rooms["DEMO_A"],
+			"batch_no": None,
+			"baseline_qty": 0,
+			"actual_qty": None,
+			"review_state": "Unreviewed",
+		}
+		baseline = counts.count_baseline(stamp, [counted])
 		rows = []
 		for row in baseline["rows"]:
 			copy = dict(row)

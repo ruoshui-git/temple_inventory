@@ -580,6 +580,21 @@ class NativeDocumentTests(unittest.TestCase):
 		self.assertEqual(quantities[self.a], 5)
 		self.assertEqual(quantities[self.b], 4)
 
+	def test_count_baseline_follows_a_reconciled_quantity_like_the_native_balance(self):
+		# A reconciliation sets qty_after_transaction directly; summing actual_qty would ignore it.
+		self.receipt(10)
+		saved = counts.save_count(str(uuid4()), self.count_data(7, "Reviewed"))
+		native_api.submit_document("Stock Reconciliation", saved["name"], saved["version"])
+		self.receipt(3)
+		timestamp = str(now_datetime())
+		quantities = {
+			row["warehouse"]: row["baseline_qty"]
+			for row in counts.count_baseline(timestamp)["rows"]
+			if row["item_code"] == self.item and not row["batch_no"]
+		}
+		self.assertEqual(quantities[self.a], native_balances.stock_balance(self.item, self.a, timestamp))
+		self.assertEqual(quantities[self.a], 10)
+
 	def test_document_display_names_use_current_readable_item_metadata(self):
 		entry = self.receipt(10)
 		old_name = entry.get("items")[0].item_name
