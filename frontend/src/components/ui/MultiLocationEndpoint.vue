@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import DetailPopover from "../../components/ui/DetailPopover.vue";
-import LocationEndpoint from "../../components/ui/LocationEndpoint.vue";
+import DetailPopover from "./DetailPopover.vue";
+import LocationEndpoint from "./LocationEndpoint.vue";
 
 const props = defineProps<{
 	locations: string[];
@@ -9,7 +9,7 @@ const props = defineProps<{
 	borrower?: string;
 	role: "来源位置" | "去向位置";
 }>();
-const locations = computed(() => [...new Set(props.locations)]);
+const locations = computed(() => [...new Set(props.locations.filter(Boolean))]);
 </script>
 
 <template>

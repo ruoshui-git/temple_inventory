@@ -794,6 +794,7 @@ def whole_operation(context, doctype, name):
 	if not doc:
 		frappe.throw("原生记录不存在或无权访问", frappe.PermissionError)
 	quantities = defaultdict(float)
+	flow_quantities = defaultdict(float)
 	gains = defaultdict(float)
 	losses = defaultdict(float)
 	available_effects = defaultdict(float)
@@ -807,17 +808,19 @@ def whole_operation(context, doctype, name):
 		items.add(item.name)
 		if not first_item_name:
 			first_item_name = item.item_name or item.name
-		quantity = (
-			float(row.get("transfer_qty") or 0)
-			if doctype == "Stock Entry"
-			else float(row.qty) - (float(row.current_qty or 0) if doc.purpose != "Opening Stock" else 0)
+		difference = (
+			float(row.qty) - (float(row.current_qty or 0) if doc.purpose != "Opening Stock" else 0)
+			if doctype == "Stock Reconciliation"
+			else 0
 		)
+		quantity = float(row.get("transfer_qty") or 0) if doctype == "Stock Entry" else difference
 		quantities[item.stock_uom] += quantity
+		flow_quantities[item.stock_uom] += abs(quantity)
 		if doctype == "Stock Reconciliation":
-			if quantity > 0:
-				gains[item.stock_uom] += quantity
-			elif quantity < 0:
-				losses[item.stock_uom] += quantity
+			if difference > 0:
+				gains[item.stock_uom] += difference
+			elif difference < 0:
+				losses[item.stock_uom] += difference
 		if doctype == "Stock Entry":
 			available_effects[item.stock_uom] += available_stock_effect(
 				context,
@@ -832,7 +835,7 @@ def whole_operation(context, doctype, name):
 				context,
 				docstatus=doc.docstatus,
 				kind=kind,
-				quantity=quantity,
+				quantity=difference,
 				warehouse=row.get("warehouse") or "",
 			)
 		branches.add((row.get("s_warehouse") or row.get("warehouse") or "", row.get("t_warehouse") or ""))
@@ -849,6 +852,9 @@ def whole_operation(context, doctype, name):
 			)
 		),
 		"quantities": [{"uom": unit, "qty": quantity} for unit, quantity in sorted(quantities.items())],
+		"flow_quantities": [
+			{"uom": unit, "qty": quantity} for unit, quantity in sorted(flow_quantities.items())
+		],
 		"available_effects": [
 			{"uom": unit, "qty": quantity} for unit, quantity in sorted(available_effects.items())
 		],
@@ -1154,6 +1160,7 @@ def movement_rows(
 						row.update(allocation)
 						row["entered_qty"] = quantity
 						row["stock_qty"] = row["difference"] if header["kind"] != "Opening" else quantity
+					row["flow_qty"] = abs(float(row["stock_qty"] or 0))
 					available_effect = available_stock_effect(
 						context,
 						docstatus=doc.docstatus,
@@ -1238,7 +1245,7 @@ def loan_rows(context, item_codes=None, activity_names=None):
 					"line_name": line.name,
 					"original_loan": loan.name,
 					"original_loan_line": line.name,
-					"source_warehouse": line.s_warehouse,
+					"source_warehouse": line.s_warehouse or "",
 					"destination_warehouse": line.t_warehouse,
 					**context.location_fields(line.s_warehouse or "", "source_"),
 					**context.location_fields(line.t_warehouse or "", "destination_"),

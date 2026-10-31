@@ -19,6 +19,7 @@ const numberColumns = new Set([
   "whole",
   "transfer_qty",
   "stock_qty",
+  "flow_qty",
   "available",
   "loaned",
   "borrowed",

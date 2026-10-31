@@ -139,7 +139,7 @@ export function groupsForView(dataset: ReportDataset, view: string): string[] {
     "inventory:locations": ["category", "item", "location"],
     "inventory:historical": ["category", "item", "location", "month"],
     "expiry:batches": ["category", "item", "location"],
-    "movements:summary": ["item", "category"],
+    "movements:summary": ["item", "category", "kind"],
     "movements:records": ["kind", "status", "activity", "month"],
     "movements:lines": [
       "item",
@@ -170,7 +170,9 @@ export function groupSequencesForView(
     (dataset === "movements" && view === "summary") ||
     (dataset === "loans" && view === "items")
   )
-    return [[], ["item"], ["category", "item"]];
+    return dataset === "movements"
+      ? [[], ["item"], ["category", "item"], ["kind"], ["kind", "item"]]
+      : [[], ["item"], ["category", "item"]];
   const fields = groupsForView(dataset, view);
   return [
     [],
@@ -256,6 +258,8 @@ const sortableColumnsByView: Record<string, string[]> = {
     "modified",
     "item_count",
     "stock_uom",
+    "activity_title",
+    "borrower",
   ],
   "movements:lines": [
     "identity",
@@ -413,6 +417,7 @@ export const sortableColumnLabels: Record<string, string> = {
   loaned: "借用量",
   damaged: "损坏量",
   stock_qty: "库存数量",
+  flow_qty: "流动数量",
   opening: "期初余额",
   incoming: "入库量",
   outgoing: "出库量",

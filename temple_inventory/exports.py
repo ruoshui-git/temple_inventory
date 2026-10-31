@@ -997,7 +997,9 @@ def _sum_fields(table, query):
 		)
 	if table in ("records", "lines"):
 		return (
-			("available_effect", "stock_qty")
+			("available_effect", "flow_qty")
+			if dataset == "movements" and table == "records"
+			else ("available_effect", "stock_qty")
 			if dataset == "movements"
 			else (*LOAN_SUMS, "quantity")
 			if dataset == "loans" and table == "records"

@@ -49,9 +49,9 @@ describe("DataTable column presentation metadata", () => {
       column(operationItemColumnsFor("loans", "history", false), "document")
         .pinned,
     ).toBeUndefined();
-    expect(column(nativeRecordColumns("counts"), "document").pinned).toBe(
-      "start",
-    );
+    expect(
+      column(nativeRecordColumns("counts"), "document").pinned,
+    ).toBeUndefined();
     expect(column(countEditorColumns, "item_name").pinned).toBe("start");
     expect(column(warehouseColumnDefinitions, "warehouse_label").pinned).toBe(
       "start",

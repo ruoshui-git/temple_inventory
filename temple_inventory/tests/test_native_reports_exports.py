@@ -252,6 +252,9 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			},
 			("movements", "records"): {
 				"document": "编号",
+				"flow_qty": "流动数量",
+				"activity_title": "活动",
+				"borrower": "借用方",
 				"source": "来源位置",
 				"destination": "去向位置",
 				"source_warehouse_path": "来源完整位置",
@@ -293,6 +296,55 @@ class NativeReportsExportsTests(NativeReportTestCase):
 		for (dataset, table), fields in contracts.items():
 			for field, expected in fields.items():
 				self.assertEqual(export_label(dataset, field, table), expected)
+
+	def test_count_record_export_matches_every_page_column(self):
+		self.receipt(10)
+		draft = counts.save_count(str(uuid4()), self.count_data(8, "Reviewed"))
+		completed = native_api.submit_document("Stock Reconciliation", draft.name, draft.version)
+		query = self.query("counts", "records", record=completed.name, statuses=[1])
+		columns = [
+			"document",
+			"kind",
+			"docstatus",
+			"item_count",
+			"gains",
+			"losses",
+			"net",
+			"date",
+			"activity_title",
+			"time",
+			"baseline_qty",
+			"actual_qty",
+			"difference",
+			"stock_uom",
+		]
+		page_labels = [
+			"盘点编号",
+			"类型",
+			"状态",
+			"物品种数",
+			"增加",
+			"减少",
+			"净差异",
+			"日期",
+			"活动",
+			"时间",
+			"账面数量",
+			"已核对实点",
+			"差异量",
+			"单位",
+		]
+		with patch("temple_inventory.exports._enqueue"):
+			export = exports.request_export(query, "records", columns=columns, export_format="csv")
+		request = frappe.get_doc("Inventory Export Request", export["name"])
+		with Projection(query, refresh=True) as projection, tempfile.TemporaryDirectory() as directory:
+			projection.build()
+			path = Path(directory) / "counts-records.csv"
+			exports._write(projection, request, path)
+			with path.open(encoding="utf-8-sig", newline="") as stream:
+				rows = list(csv.reader(stream))
+		self.assertEqual(rows[0], page_labels)
+		self.assertEqual([export_label("counts", field, "records") for field in columns], page_labels)
 
 	def test_stock_browse_returns_total_for_rows_and_location_summaries(self):
 		self.receipt(12)
@@ -583,17 +635,40 @@ class NativeReportsExportsTests(NativeReportTestCase):
 				rows = list(csv.reader(stream))
 			self.assertEqual(count, 1)
 			self.assertEqual(rows[0], ["类型", "状态", "去向位置", "数量", "单位", "可用变化"])
-			self.assertEqual(rows[1][0], "入库")
-			self.assertEqual(rows[1][1], "已提交")
-			self.assertEqual(rows[1][2], projection.context.label(self.a))
-			self.assertNotEqual(rows[1][2], self.a)
-			self.assertEqual(rows[1][4], "个")
-			# Quantity stays separate; per-unit totals sum the available-effect column.
-			self.assertEqual(rows[1][3], "12")
-			self.assertEqual(rows[-1][0], f"合计可用变化（{uom_label('Nos')}） · 1 行")
-			self.assertEqual(rows[-1][3], "")
-			self.assertEqual(rows[-1][5], "12")
-			self.assertTrue(all(not any(isinstance(cell, (list, dict)) for cell in row) for row in rows))
+
+		self.assertEqual(rows[1][0], "入库")
+		self.assertEqual(rows[1][1], "已提交")
+		self.assertEqual(rows[1][2], projection.context.label(self.a))
+		self.assertNotEqual(rows[1][2], self.a)
+		self.assertEqual(rows[1][4], "个")
+		# Quantity stays separate; per-unit totals sum the available-effect column.
+		self.assertEqual(rows[1][3], "12")
+		self.assertEqual(rows[-1][0], f"合计可用变化（{uom_label('Nos')}） · 1 行")
+		self.assertEqual(rows[-1][3], "")
+		self.assertEqual(rows[-1][5], "12")
+		self.assertTrue(all(not any(isinstance(cell, (list, dict)) for cell in row) for row in rows))
+
+	def test_grouped_movement_kind_xlsx_has_labeled_subtotal_rows(self):
+		self.receipt(12)
+		query = self.query("movements", "summary", groupBy=["kind"])
+		with Projection(query, refresh=True) as projection, tempfile.TemporaryDirectory() as directory:
+			projection.build()
+			path = Path(directory) / "movement-kind.xlsx"
+			exports._write(
+				projection,
+				frappe._dict(
+					tables_json='["history"]',
+					columns_json=json.dumps(["kind", "available_effect", "stock_uom"]),
+					export_format="xlsx",
+					grouped=True,
+				),
+				path,
+			)
+			book = load_workbook(path, data_only=True)
+			rows = list(book["流动明细"].values)
+		self.assertEqual(rows[0], ("类型", "可用变化", "单位"))
+		self.assertEqual(rows[1], ("入库 (1)", 12, "个"))
+		self.assertEqual(rows[2][1:], (12, "个"))
 
 	def test_loan_history_export_lists_only_outstanding_submitted_loans(self):
 		partly = self.loan(5, borrower="部分归还")
@@ -658,6 +733,30 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			{row[0] for row in inclusive_rows[1:-1]},
 			{partly.name, partly_return.name, settled.name, settled_return.name},
 		)
+
+	def test_loan_history_export_normalizes_missing_source_to_external(self):
+		loan = self.loan(5)
+		line_name = loan["items"][0]["name"]
+		frappe.db.set_value("Stock Entry Detail", line_name, "s_warehouse", None)
+		frappe.clear_document_cache("Stock Entry", loan.name)
+		query = self.query("loans", "items")
+		with Projection(query, refresh=True) as projection, tempfile.TemporaryDirectory() as directory:
+			projection.build()
+			rows = list(projection.rows("loan_history"))
+			self.assertEqual(rows[0]["source_warehouse"], "")
+			path = Path(directory) / "loan-external-source.csv"
+			exports._write(
+				projection,
+				frappe._dict(
+					tables_json='["loan_history"]',
+					columns_json=json.dumps(["document", "source_warehouse"]),
+					export_format="csv",
+				),
+				path,
+			)
+			with path.open(encoding="utf-8-sig", newline="") as stream:
+				export_rows = list(csv.reader(stream))
+		self.assertEqual(export_rows[1], [loan.name, "外部"])
 
 	def test_all_scope_loan_export_contains_loan_and_settlement_lines(self):
 		partly = self.loan(5, borrower="部分归还")
@@ -762,15 +861,64 @@ class NativeReportsExportsTests(NativeReportTestCase):
 		self.assertEqual(rows[0], ["盘点编号", "增加", "减少", "净差异", "单位"])
 		self.assertEqual(rows[1], [completed.name, "0", "-2", "-2", "个"])
 		self.assertEqual(rows[2][1:], ["0", "-2", "-2", "个"])
+		with Projection(query, refresh=True) as projection:
+			projection.build()
+			from temple_inventory.report_sources import whole_operation
+
+			whole = whole_operation(projection.context, "Stock Reconciliation", completed.name)
+		self.assertEqual(whole["quantities"], [{"uom": "Nos", "qty": -2.0}])
+		self.assertEqual(whole["flow_quantities"], [{"uom": "Nos", "qty": 2.0}])
+		self.assertEqual(whole["losses"], [{"uom": "Nos", "qty": -2.0}])
+
+	def test_movement_record_export_sums_flow_quantity_and_signed_available_effect(self):
+		unit_rows = [
+			{
+				"doctype": "Stock Reconciliation",
+				"document": "SR-FLOW",
+				"stock_uom": "Nos",
+				"stock_qty": -1,
+				"flow_qty": 1,
+				"available_effect": -1,
+				"kind": "Reconcile",
+			},
+			{
+				"doctype": "Stock Reconciliation",
+				"document": "SR-FLOW",
+				"stock_uom": "Nos",
+				"stock_qty": 1,
+				"flow_qty": 1,
+				"available_effect": 1,
+				"kind": "Reconcile",
+			},
+		]
+		projection = frappe._dict(
+			query={"dataset": "movements"},
+			context=Mock(),
+			rows=lambda _table: iter(unit_rows),
+		)
+		with patch.object(exports, "_export_record_row", side_effect=lambda *args: args[3]):
+			rows = list(exports._export_rows(projection, "records"))
+		self.assertEqual(rows[0]["_units"]["Nos"]["flow_qty"], 2)
+		self.assertEqual(rows[0]["_units"]["Nos"]["available_effect"], 0)
 
 	def test_records_export_collapses_units_to_one_native_document_row_with_locations(self):
 		doc = self.submit(self.create(self.movement(quantity=2)))
 		query = self.query("movements", "records", record=doc.name, statuses=[1])
-		with Projection(query, refresh=True) as projection:
+		columns = ["document", "flow_qty", "stock_uom", "available_effect"]
+		with patch("temple_inventory.exports._enqueue"):
+			export = exports.request_export(query, "records", columns=columns, export_format="csv")
+		request = frappe.get_doc("Inventory Export Request", export["name"])
+		with Projection(query, refresh=True) as projection, tempfile.TemporaryDirectory() as directory:
 			projection.build()
 			rows = list(exports._export_rows(projection, "records"))
+			path = Path(directory) / "movement-record.csv"
+			exports._write(projection, request, path)
+			with path.open(encoding="utf-8-sig", newline="") as stream:
+				csv_rows = list(csv.reader(stream))
 		self.assertEqual(len(rows), 1)
 		self.assertEqual(rows[0]["document"], doc.name)
+		self.assertEqual(csv_rows[0], ["编号", "流动数量", "库存单位", "可用变化"])
+		self.assertEqual(csv_rows[1], [doc.name, "2", "个", "2"])
 		self.assertTrue(rows[0]["source"])
 		self.assertTrue(rows[0]["destination"])
 		self.assertNotIn(self.a, rows[0]["source"] + rows[0]["destination"])

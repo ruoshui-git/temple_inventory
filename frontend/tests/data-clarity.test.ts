@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { computed, defineComponent, h, reactive, ref } from "vue";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import LocationEndpoint from "../src/components/ui/LocationEndpoint.vue";
+import MultiLocationEndpoint from "../src/components/ui/MultiLocationEndpoint.vue";
 import RecordRef from "../src/components/ui/RecordRef.vue";
 import RelatedLoanPreview from "../src/features/loans/RelatedLoanPreview.vue";
 import { loanReferenceIdentity } from "../src/lib/relatedLoanPresentation";
@@ -118,7 +119,7 @@ describe("data clarity components", () => {
     ).toContain("演出团队");
   });
 
-  it("shows unique counted locations in the source cell and an empty destination", () => {
+  it("shows the first counted location and lists the remaining locations", async () => {
     const reference = createReferenceData();
     reference.warehouses = [
       {
@@ -170,7 +171,7 @@ describe("data clarity components", () => {
       defineComponent({
         setup: () => () =>
           h("div", [
-            h(LocationEndpoint, {
+            h(MultiLocationEndpoint, {
               locations: ["ROOM", "ROOM-2", "ROOM"],
               kind: "Reconcile",
               role: "来源位置",
@@ -180,12 +181,13 @@ describe("data clarity components", () => {
       }),
       reference,
     );
-    expect(wrapper.text()).toContain("A02 · B01");
+    expect(wrapper.text()).toContain("A02");
+    expect(wrapper.text()).toContain("等 2 处");
     expect(wrapper.text()).toContain("—");
     expect(wrapper.text()).not.toContain("外部");
-    expect(
-      wrapper.findAll(".location-endpoint")[0]?.attributes("title"),
-    ).toContain("剧场 / A02、剧场 / B01");
+    await wrapper.get("button").trigger("click");
+    await flushPromises();
+    expect(document.body.textContent).toContain("B01");
   });
 
   it("formats the original loan chip identity as borrower and month-day", () => {

@@ -8,6 +8,7 @@ LABELS = {
 	"loaned": "借出",
 	"damaged": "损坏",
 	"stock_qty": "库存数量",
+	"flow_qty": "流动数量",
 	"quantity": "数量",
 	"stock_uom": "库存单位",
 	"uom": "单位",
@@ -98,7 +99,23 @@ TABLE_LABELS = {
 		"original_loan": "原借出",
 		"warehouse": "位置",
 	},
-	("counts", "records"): {"stock_uom": "单位"},
+	("counts", "records"): {
+		"document": "盘点编号",
+		"kind": "类型",
+		"docstatus": "状态",
+		"item_count": "物品种数",
+		"gains": "增加",
+		"losses": "减少",
+		"net": "净差异",
+		"date": "日期",
+		"activity_title": "活动",
+		"time": "时间",
+		"baseline_qty": "账面数量",
+		"actual_qty": "已核对实点",
+		"difference": "差异量",
+		"stock_uom": "单位",
+	},
+	("movements", "records"): {"flow_qty": "流动数量"},
 	("counts", "lines"): {"stock_uom": "单位"},
 	("loans", "loan_history"): {
 		"date": "日期",
@@ -324,6 +341,22 @@ DEFAULT_COLUMNS = {
 }
 
 DATASET_DEFAULT_COLUMNS = {
+	("movements", "records"): [
+		"document",
+		"kind",
+		"date",
+		"time",
+		"available_effect",
+		"flow_qty",
+		"stock_uom",
+		"item_count",
+		"source",
+		"destination",
+		"docstatus",
+		"activity_title",
+		"borrower",
+		"original_loan",
+	],
 	("loans", "records"): [
 		"document",
 		"kind",
@@ -358,6 +391,8 @@ DATASET_DEFAULT_COLUMNS = {
 		"actual_qty",
 		"difference",
 		"stock_uom",
+		"kind",
+		"activity_title",
 	],
 	("counts", "lines"): [
 		"item_name",
@@ -505,6 +540,9 @@ def allowed_columns(dataset, table):
 		columns.update({"quantity", "settlement_records"})
 	if dataset == "counts" and table == "records":
 		columns.update({"gains", "losses", "net"})
+	if dataset == "movements" and table == "records":
+		columns.discard("stock_qty")
+		columns.add("flow_qty")
 	return columns
 
 

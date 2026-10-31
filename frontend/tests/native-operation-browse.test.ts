@@ -696,6 +696,10 @@ describe("native operation browsing", () => {
               { uom: "Nos", qty: 12 },
               { uom: "Box", qty: 3 },
             ],
+            flow_quantities: [
+              { uom: "Nos", qty: 12 },
+              { uom: "Box", qty: 3 },
+            ],
             available_effects: [
               { uom: "Nos", qty: -12 },
               { uom: "Box", qty: 3 },

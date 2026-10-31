@@ -20,8 +20,19 @@ describe("view-specific ordered grouping", () => {
     ).toEqual(["location"]);
   });
 
-  it("restricts movement and loan item grains to the canonical Item sequence", () => {
-    for (const dataset of ["movements", "loans"] as const) {
+  it("offers movement kind groups and preserves the loan item sequence", () => {
+    expect(groupByFieldOptions("movements", "summary")).toEqual([
+      "item",
+      "category",
+      "kind",
+    ]);
+    expect(
+      nextGroupByField("movements", "summary", ["kind"], 1, "item"),
+    ).toEqual(["kind", "item"]);
+    expect(
+      nextGroupByField("movements", "summary", ["kind", "item"], 0, "item"),
+    ).toEqual(["item"]);
+    for (const dataset of ["loans"] as const) {
       const view = dataset === "movements" ? "summary" : "items";
       expect(groupByFieldOptions(dataset, view)).toEqual(["item", "category"]);
       expect(nextGroupByField(dataset, view, [], 0, "category")).toEqual([

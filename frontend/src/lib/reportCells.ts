@@ -14,6 +14,7 @@ export const reportColumnLabels: Record<string, string> = {
   has_expiry_date: "效期管理",
   disabled: "已停用",
   stock_qty: "库存数量",
+  flow_qty: "流动数量",
   available_effect: "可用库存变化",
   stock_uom: "库存单位",
   entered_qty: "填写数量",

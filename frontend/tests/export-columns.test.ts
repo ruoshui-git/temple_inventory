@@ -97,6 +97,28 @@ const reportTables = [
 ] as const;
 
 describe("exportFields", () => {
+  it("exports movement flow quantity and optional activity and borrower fields", () => {
+    const columns = operationColumnsFor("movements");
+    expect(columns.find((column) => column.id === "quantities")?.label).toBe(
+      "流动数量",
+    );
+    expect(
+      columns.find((column) => column.id === "quantities")?.export,
+    ).toEqual(["flow_qty", "stock_uom"]);
+    for (const id of ["activity_title", "borrower"]) {
+      const column = columns.find((entry) => entry.id === id);
+      expect(column?.defaultVisible).toBe(false);
+      expect(column?.export).toContain(id);
+      expect(column?.sortable).toBe(true);
+    }
+    const exported = exportFields(
+      columns,
+      ["activity_title", "borrower"],
+      ["activity_title", "borrower"],
+    );
+    expect(exported).toEqual(["activity_title", "borrower"]);
+  });
+
   it("preserves visible screen order, de-duplicates fields, and ignores unknown ids", () => {
     expect(
       exportFields(

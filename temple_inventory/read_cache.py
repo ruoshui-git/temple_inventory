@@ -13,7 +13,7 @@ from frappe.utils import now_datetime
 
 CACHE_TTL = 300
 MAX_ENTRY_BYTES = 16 * 1024 * 1024
-IMPLEMENTATION_VERSION = "browse-v5"
+IMPLEMENTATION_VERSION = "browse-v6"
 GENERATION_KEY = "temple_inventory:browse:generation"
 LOCK_WAIT_SECONDS = 3
 CACHEABLE_METHODS = {

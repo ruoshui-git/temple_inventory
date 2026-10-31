@@ -7,16 +7,12 @@ import { kindIcons } from "../../lib/kindIcons";
 
 const props = defineProps<{
 	warehouse?: string | null;
-	locations?: string[];
 	kind: string;
 	borrower?: string;
 	role?: "来源位置" | "去向位置";
 }>();
 const reference = useOptionalReferenceData();
 const node = computed(() => reference?.warehouses.find((entry) => entry.name === props.warehouse));
-const countAdjustmentLocations = computed(() => [
-	...new Set([...(props.locations || []), props.warehouse || ""].filter(Boolean)),
-]);
 const endpoint = computed(() => {
 	if (props.kind === "Reconcile" || props.kind === "Stock Reconciliation") {
 		if (props.role === "去向位置")
@@ -26,8 +22,7 @@ const endpoint = computed(() => {
 				className: "is-location",
 				detail: "盘点调整不表示库外去向",
 			};
-		const warehouses = countAdjustmentLocations.value;
-		if (!warehouses.length)
+		if (!props.warehouse)
 			return {
 				label: "—",
 				icon: "",
@@ -35,14 +30,10 @@ const endpoint = computed(() => {
 				detail: "没有盘点位置",
 			};
 		return {
-			label: warehouses
-				.map((name) => warehouseLabel(name, reference?.warehouses || [], name))
-				.join(" · "),
+			label: warehouseLabel(props.warehouse, reference?.warehouses || [], props.warehouse),
 			icon: "",
 			className: "is-location",
-			detail: warehouses
-				.map((name) => warehousePath(name, reference?.warehouses || [], name))
-				.join("、"),
+			detail: warehousePath(props.warehouse, reference?.warehouses || [], props.warehouse),
 		};
 	}
 	const settings = reference?.settings || {};

@@ -89,6 +89,7 @@ async function setup(
               item_count: 2,
               line_count: 36,
               quantities: [{ qty: 20, uom: "个" }],
+              flow_quantities: [{ qty: 20, uom: "个" }],
               available_effects: [{ qty: 20, uom: "个" }],
               branches: [{ source: "ROOM-A", destination: "ROOM-B" }],
               original_loans: ["L1", "L2"],
@@ -401,6 +402,10 @@ for (const width of [390, 1440]) {
       .getByRole("group", { name: "设置表格列" })
       .getByRole("checkbox", { name: "原借出" })
       .check();
+    await page
+      .getByRole("group", { name: "设置表格列" })
+      .getByRole("checkbox", { name: "流动数量" })
+      .check();
     await page.keyboard.press("Escape");
     const record = page.locator(".browse-table tbody tr").first();
     await expect(record).toContainText("+20 个");
@@ -409,8 +414,22 @@ for (const width of [390, 1440]) {
       .filter({ hasText: /可用变化/ })
       .first();
     await expect(quantityHeader).toHaveClass(/align-end/);
-    const quantityCell = record.locator("td").nth(3);
+    const quantityColumn = await quantityHeader.evaluate((header) =>
+      Array.from(header.parentElement?.children || []).indexOf(header),
+    );
+    const quantityCell = record.locator("td").nth(quantityColumn);
     await expect(quantityCell).toContainText("+20 个");
+    const flowHeader = page
+      .locator(".browse-table thead th")
+      .filter({ hasText: "流动数量" })
+      .first();
+    const flowColumn = await flowHeader.evaluate((header) =>
+      Array.from(header.parentElement?.children || []).indexOf(header),
+    );
+    const flowCell = record.locator("td").nth(flowColumn);
+    await expect(flowCell).toContainText("20 个");
+    await expect(flowCell).not.toContainText("+20 个");
+    await expect(flowCell.locator(".stock-effect")).toHaveCount(0);
     await expect(quantityCell).toBeVisible();
     expect(
       await quantityCell.evaluate(

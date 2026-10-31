@@ -49,6 +49,7 @@ export interface OperationGroup {
   totals?: ReportRow[];
   whole?: {
     quantities: { uom: string; qty: number }[];
+    flow_quantities: { uom: string; qty: number }[];
     available_effects: { uom: string; qty: number }[];
     outstanding?: { uom: string; qty: number }[];
     item_count: number;

@@ -49,10 +49,10 @@ export function operationColumnsFor(
         {
           id: "quantities",
           quantity: true,
-          label: "库存数量",
+          label: "流动数量",
           defaultVisible: false,
           align: "end",
-          export: ["stock_qty", "stock_uom"],
+          export: ["flow_qty", "stock_uom"],
         },
         {
           id: "item_count",
@@ -109,6 +109,22 @@ export function operationColumnsFor(
           label: "原借出",
           defaultVisible: false,
           export: ["original_loan"],
+        },
+        {
+          id: "activity_title",
+          label: "活动",
+          defaultVisible: false,
+          export: ["activity_title"],
+          sortable: true,
+          sortField: "activity_title",
+        },
+        {
+          id: "borrower",
+          label: "借用方",
+          defaultVisible: false,
+          export: ["borrower"],
+          sortable: true,
+          sortField: "borrower",
         },
       ]
     : [

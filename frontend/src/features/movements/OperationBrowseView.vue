@@ -53,7 +53,7 @@ import ItemImage from "../../components/ItemImage.vue";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 import RecordRef from "../../components/ui/RecordRef.vue";
 import LocationEndpoint from "../../components/ui/LocationEndpoint.vue";
-import MultiLocationEndpoint from "./MultiLocationEndpoint.vue";
+import MultiLocationEndpoint from "../../components/ui/MultiLocationEndpoint.vue";
 import { loanReferenceIdentity } from "../../lib/relatedLoanPresentation";
 import { formatQuantity } from "../../lib/formatQuantity";
 import { createRecoveryStore } from "../../lib/browserRecovery";
@@ -325,30 +325,48 @@ const flatHistoryItem = computed<OperationGroup>(() => ({
 }));
 const groupRoot = computed(() => c.groups.pages.value["[[],null]"]);
 const mobileItemGroups = computed(() => {
-	const rows = (groupRoot.value?.rows || []).filter((row) => row.row_grain === "group");
-	return rows.map((row) => {
-		const field = String(row.group_field || query.value.groupBy[0] || "");
-		const rawLabel = String(row.group_label || "未分类");
+	const useExpandedGroups = props.family === "movements" && query.value.groupBy.includes("kind");
+	const rows: DataTableGroup[] = useExpandedGroups
+		? c.groups.entries.value.filter((entry): entry is DataTableGroup => entry.kind === "group")
+		: (groupRoot.value?.rows || [])
+				.filter((row) => row.row_grain === "group")
+				.map((row) => ({
+					kind: "group" as const,
+					id: row.id,
+					parentId: row.parent_group_id || undefined,
+					label: String(row.group_label || "未分类"),
+					depth: row.group_depth || 1,
+					count: Number(row.display_count ?? row.row_count ?? 0),
+					countLabel: "明细条数",
+					expanded: false,
+					hasChildren: Boolean(row.has_children),
+					loading: false,
+					error: "",
+					value: row,
+				}));
+	return rows.map((entry) => {
+		const row = entry.value || {};
+		const field = String(row.group_field || query.value.groupBy[entry.depth - 1] || "");
+		const rawLabel = String(row.group_label || entry.label || "未分类");
 		const group: DataTableGroup = {
-			kind: "group" as const,
-			id: row.id,
-			parentId: row.parent_group_id || undefined,
+			...entry,
 			label: ["kind", "status", "docstatus", "outcome", "outcome_key"].includes(field)
 				? enumPresentationLabel(field, rawLabel, query.value)
 				: rawLabel,
-			depth: row.group_depth || 1,
-			count: Number(row.display_count ?? row.row_count ?? 0),
+			count: Number(row.display_count ?? row.row_count ?? entry.count),
 			countLabel: "明细条数",
-			expanded: false,
-			hasChildren: Boolean(row.has_children),
-			value: row as Record<string, unknown>,
+			value: row,
 		};
 		const item = groupItem(group);
 		return {
 			...group,
-			expanded: c.expanded.has(item.id),
-			loading: details[item.id]?.loading,
-			error: details[item.id]?.error,
+			expanded: isItemGroup(group)
+				? c.expanded.has(item.id)
+				: useExpandedGroups && "expanded" in entry
+					? entry.expanded
+					: false,
+			loading: isItemGroup(group) ? details[item.id]?.loading : entry.loading,
+			error: isItemGroup(group) ? details[item.id]?.error : entry.error,
 		};
 	});
 });
@@ -373,7 +391,8 @@ const selectedReturnItemRows = computed(() => [
 		.map((group) => groupItem(group)),
 ]);
 function toggleMobileItemGroup(group: DataTableGroup, open: boolean) {
-	c.toggle(groupItem(group), open);
+	if (isItemGroup(group)) c.toggle(groupItem(group), open);
+	else void c.groups.toggleGroup(group.id);
 }
 function operationRow(row: Record<string, unknown>): OperationGroup {
 	const rawWhole = row.whole;
@@ -436,6 +455,7 @@ function operationRow(row: Record<string, unknown>): OperationGroup {
 			allocation_count: Number(row.allocation_count || 0),
 			whole: {
 				quantities: quantities(whole.quantities),
+				flow_quantities: quantities(whole.flow_quantities),
 				available_effects: quantities(whole.available_effects),
 				outstanding: quantities(whole.outstanding),
 				item_count: Number(whole.item_count || 0),
@@ -574,9 +594,16 @@ function groupMetricEntries(group: DataTableGroup, column: string) {
 			: column === "quantities"
 				? props.family === "loans"
 					? "borrowed"
-					: "stock_qty"
+					: "flow_qty"
 				: column;
-	const raw = row[column === "available_effect" ? "available_effects" : column];
+	const raw =
+		row[
+			column === "available_effect"
+				? "available_effects"
+				: column === "quantities" && props.family === "movements"
+					? "flow_quantities"
+					: column
+		];
 	const values = unitTotals.length
 		? unitTotals.map((entry) => ({
 				...entry,
@@ -613,11 +640,13 @@ function groupMetricRows(group: DataTableGroup, column: string) {
 function groupMetricText(group: DataTableGroup, column: string, includeDisclosure = true) {
 	const values = groupMetricRows(group, column);
 	const label =
-		column === "borrowed" || column === "quantities"
-			? "借出"
-			: column === "outstanding"
-				? "未归还"
-				: "可用变化";
+		column === "quantities" && props.family === "movements"
+			? "流动数量"
+			: column === "borrowed" || column === "quantities"
+				? "借出"
+				: column === "outstanding"
+					? "未归还"
+					: "可用变化";
 	return values.length
 		? `${label} ${values.slice(0, 2).join("；")}${includeDisclosure && values.length > 2 ? `；+${values.length - 2} 单位` : ""}`
 		: "";
@@ -874,18 +903,18 @@ function quantities(rows?: { uom: string; qty: number }[]) {
 }
 function recordUnitRows(
 	row: Record<string, unknown>,
-	key: "quantities" | "available_effects" | "outstanding",
+	key: "flow_quantities" | "available_effects" | "outstanding",
 ) {
 	const values = operationRow(row).whole?.[key] || [];
 	return sortByUnit(values, (entry) => entry.uom).map((entry) => ({
 		uom: entry.uom,
 		qty: Number(entry.qty),
 		tone:
-			key === "available_effects" || (key === "quantities" && props.family === "movements")
+			key === "available_effects"
 				? recordEffectTone(operationRow(row), entry.uom)
 				: undefined,
 		title:
-			key === "available_effects" || (key === "quantities" && props.family === "movements")
+			key === "available_effects"
 				? recordEffectLabel(operationRow(row), entry.uom)
 				: undefined,
 	}));
@@ -1253,7 +1282,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							</label>
 							<div class="browse-group-heading mobile-operation-group-heading">
 								<div
-									v-if="c.stockItem(groupItem(group))"
+									v-if="isItemGroup(group) && c.stockItem(groupItem(group))"
 									class="browse-group-thumbnail"
 								>
 									<ItemImage :item="c.stockItem(groupItem(group))!" />
@@ -1285,7 +1314,21 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								:id="`mobile-operation-group-${group.id}`"
 								class="browse-group-content"
 							>
+								<template v-if="!isItemGroup(group)">
+									<UiButton v-if="group.error" @click="c.groups.retry(group.id)"
+										>重试</UiButton
+									>
+									<UiButton
+										v-if="c.groups.hasMore(group.id)"
+										:loading="group.loading"
+										@click="c.groups.loadMore(group.id)"
+										>加载更多此分组 ·
+										{{ c.groups.progress(group.id).loaded }} /
+										{{ c.groups.progress(group.id).total }}</UiButton
+									>
+								</template>
 								<RouterLink
+									v-if="isItemGroup(group)"
 									class="browse-row-link mobile-operation-item-link"
 									:to="
 										routeTarget('item-detail', {
@@ -1862,18 +1905,25 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 										['borrowed', 'quantities', 'outstanding'].includes(
 											String(column.id),
 										)) ||
-									(family === 'movements' && column.id === 'available_effect')
+									(family === 'movements' &&
+										['available_effect', 'quantities'].includes(
+											String(column.id),
+										))
 								"
 								:entries="groupMetricEntries(group, String(column.id))"
 								:label="
 									column.id === 'outstanding'
 										? '未归还数量'
 										: family === 'movements'
-											? '可用变化'
+											? column.id === 'quantities'
+												? '流动数量'
+												: '可用变化'
 											: '借出数量'
 								"
 								:title="groupSummary(group)"
-								:signed="family === 'movements'"
+								:signed="
+									family === 'movements' && column.id === 'available_effect'
+								"
 								class="operation-group-metrics"
 							/>
 						</template>
@@ -1939,7 +1989,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							() =>
 								family === 'loans'
 									? ['borrowed', 'quantities', 'outstanding']
-									: ['available_effect']
+									: ['available_effect', 'quantities']
 						"
 						:rows="operationTableRows"
 						:selection-enabled="family === 'loans' && c.selecting.value"
@@ -2134,6 +2184,9 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							<template v-else-if="column.id === 'activity'">{{
 								row.activity_title || ""
 							}}</template>
+							<template v-else-if="column.id === 'activity_title'">{{
+								row.activity_title || ""
+							}}</template>
 							<template v-else-if="column.id === 'date'">{{ row.date }}</template>
 							<UnitValues
 								v-else-if="column.id === 'available_effect'"
@@ -2145,7 +2198,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							<template v-else-if="column.id === 'item_count'">{{
 								row.item_count ?? ""
 							}}</template>
-							<LocationEndpoint
+							<MultiLocationEndpoint
 								v-else-if="column.id === 'source' && row.kind === 'Reconcile'"
 								:locations="countedLocations(row)"
 								kind="Reconcile"
@@ -2180,9 +2233,8 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							/>
 							<UnitValues
 								v-else-if="column.id === 'quantities'"
-								:entries="recordUnitRows(row, 'quantities')"
-								label="库存数量"
-								:signed="family === 'movements'"
+								:entries="recordUnitRows(row, 'flow_quantities')"
+								label="流动数量"
 								class="operation-unit-summary"
 							/>
 							<UnitValues

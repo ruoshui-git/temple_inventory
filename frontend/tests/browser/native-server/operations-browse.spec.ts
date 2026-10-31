@@ -164,6 +164,15 @@ test("loan scope, movement effects and multi-location records render at desktop 
   await expect(page.locator(".data-table-group-row").first()).toBeVisible();
   await capture(page, "movements-grouped-item-summaries", 1440, 900);
   await capture(page, "movements-grouped-item-summaries", 390, 844);
+
+  const groupedByKind = { ...grouped, groupBy: ["kind"] };
+  await settled(
+    page,
+    `/inventory/movements?view=items&query=${encodeURIComponent(JSON.stringify(groupedByKind))}`,
+  );
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(page.locator(".data-table-group-row").first()).toBeVisible();
+  await capture(page, "movements-grouped-by-kind", 1440, 900);
 });
 
 test("live XLSX exports include loan scopes and movement available-effect totals", async ({

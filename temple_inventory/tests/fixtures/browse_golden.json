@@ -1074,6 +1074,12 @@
               "qty": 3.0
             }
           ],
+          "flow_quantities": [
+            {
+              "uom": "Nos",
+              "qty": 3.0
+            }
+          ],
           "available_effects": [
             {
               "uom": "Nos",
@@ -1191,6 +1197,12 @@
           "version": "<volatile>",
           "editable": false,
           "quantities": [
+            {
+              "uom": "Nos",
+              "qty": 5.0
+            }
+          ],
+          "flow_quantities": [
             {
               "uom": "Nos",
               "qty": 5.0
@@ -1605,6 +1617,7 @@
         "doctype": "Stock Reconciliation",
         "document": "<document-8>",
         "document_id": "Stock Reconciliation:<document-8>",
+        "flow_qty": 5.0,
         "handler": "",
         "id": "<generated-id>",
         "item_codes": [
@@ -1649,6 +1662,7 @@
         "doctype": "Stock Entry",
         "document": "<document-7>",
         "document_id": "Stock Entry:<document-7>",
+        "flow_qty": 1.0,
         "handler": "",
         "id": "<generated-id>",
         "item_codes": [
@@ -1693,6 +1707,7 @@
         "doctype": "Stock Entry",
         "document": "<document-6>",
         "document_id": "Stock Entry:<document-6>",
+        "flow_qty": 1.0,
         "handler": "",
         "id": "<generated-id>",
         "item_codes": [
@@ -1737,6 +1752,7 @@
         "doctype": "Stock Entry",
         "document": "<document-5>",
         "document_id": "Stock Entry:<document-5>",
+        "flow_qty": 1.0,
         "handler": "",
         "id": "<generated-id>",
         "item_codes": [
@@ -1781,6 +1797,7 @@
         "doctype": "Stock Entry",
         "document": "<document-4>",
         "document_id": "Stock Entry:<document-4>",
+        "flow_qty": 4.0,
         "handler": "",
         "id": "<generated-id>",
         "item_codes": [
@@ -4382,7 +4399,9 @@
       "time",
       "modified",
       "item_count",
-      "stock_uom"
+      "stock_uom",
+      "activity_title",
+      "borrower"
     ],
     "columns": [
       "document",
@@ -4414,6 +4433,7 @@
         "doctype": "Stock Entry",
         "document": "<document-1>",
         "document_id": "Stock Entry:<document-1>",
+        "flow_qty": 12.0,
         "handler": "",
         "id": "<generated-id>",
         "item_codes": [
@@ -4448,6 +4468,7 @@
         "doctype": "Stock Entry",
         "document": "<document-2>",
         "document_id": "Stock Entry:<document-2>",
+        "flow_qty": 1.0,
         "handler": "",
         "id": "<generated-id>",
         "item_codes": [
@@ -4482,6 +4503,7 @@
         "doctype": "Stock Entry",
         "document": "<document-3>",
         "document_id": "Stock Entry:<document-3>",
+        "flow_qty": 2.0,
         "handler": "",
         "id": "<generated-id>",
         "item_codes": [
@@ -4516,6 +4538,7 @@
         "doctype": "Stock Entry",
         "document": "<document-4>",
         "document_id": "Stock Entry:<document-4>",
+        "flow_qty": 4.0,
         "handler": "",
         "id": "<generated-id>",
         "item_codes": [
@@ -4550,6 +4573,7 @@
         "doctype": "Stock Entry",
         "document": "<document-5>",
         "document_id": "Stock Entry:<document-5>",
+        "flow_qty": 1.0,
         "handler": "",
         "id": "<generated-id>",
         "item_codes": [
@@ -4584,6 +4608,7 @@
         "doctype": "Stock Entry",
         "document": "<document-6>",
         "document_id": "Stock Entry:<document-6>",
+        "flow_qty": 1.0,
         "handler": "",
         "id": "<generated-id>",
         "item_codes": [
@@ -4618,6 +4643,7 @@
         "doctype": "Stock Entry",
         "document": "<document-7>",
         "document_id": "Stock Entry:<document-7>",
+        "flow_qty": 1.0,
         "handler": "",
         "id": "<generated-id>",
         "item_codes": [
@@ -4652,6 +4678,7 @@
         "doctype": "Stock Reconciliation",
         "document": "<document-8>",
         "document_id": "Stock Reconciliation:<document-8>",
+        "flow_qty": 5.0,
         "handler": "",
         "id": "<generated-id>",
         "item_codes": [
@@ -4824,6 +4851,7 @@
         "count_label": "原生单据",
         "display_count": 1,
         "document_count": 1,
+        "flow_qty": 1.0,
         "group_depth": 1,
         "group_label": "Damage",
         "group_path": [
@@ -4851,6 +4879,7 @@
         "unit_totals": [
           {
             "available_effect": 0.0,
+            "flow_qty": 1.0,
             "stock_qty": 1.0,
             "stock_uom": "Nos"
           }
@@ -4863,6 +4892,7 @@
         "count_label": "原生单据",
         "display_count": 1,
         "document_count": 1,
+        "flow_qty": 1.0,
         "group_depth": 1,
         "group_label": "Issue",
         "group_path": [
@@ -4890,6 +4920,7 @@
         "unit_totals": [
           {
             "available_effect": -1.0,
+            "flow_qty": 1.0,
             "stock_qty": 1.0,
             "stock_uom": "Nos"
           }
@@ -4902,6 +4933,7 @@
         "count_label": "原生单据",
         "display_count": 1,
         "document_count": 1,
+        "flow_qty": 4.0,
         "group_depth": 1,
         "group_label": "Loan",
         "group_path": [
@@ -4929,6 +4961,7 @@
         "unit_totals": [
           {
             "available_effect": 0.0,
+            "flow_qty": 4.0,
             "stock_qty": 4.0,
             "stock_uom": "Nos"
           }
@@ -4941,6 +4974,7 @@
         "count_label": "原生单据",
         "display_count": 1,
         "document_count": 1,
+        "flow_qty": 1.0,
         "group_depth": 1,
         "group_label": "Loss",
         "group_path": [
@@ -4968,6 +5002,7 @@
         "unit_totals": [
           {
             "available_effect": -1.0,
+            "flow_qty": 1.0,
             "stock_qty": 1.0,
             "stock_uom": "Nos"
           }
@@ -4980,6 +5015,7 @@
         "count_label": "原生单据",
         "display_count": 1,
         "document_count": 1,
+        "flow_qty": 12.0,
         "group_depth": 1,
         "group_label": "Receive",
         "group_path": [
@@ -5007,6 +5043,7 @@
         "unit_totals": [
           {
             "available_effect": 12.0,
+            "flow_qty": 12.0,
             "stock_qty": 12.0,
             "stock_uom": "Nos"
           }
@@ -5019,6 +5056,7 @@
         "count_label": "原生单据",
         "display_count": 1,
         "document_count": 1,
+        "flow_qty": 5.0,
         "group_depth": 1,
         "group_label": "Reconcile",
         "group_path": [
@@ -5046,6 +5084,7 @@
         "unit_totals": [
           {
             "available_effect": 5.0,
+            "flow_qty": 5.0,
             "stock_qty": 5.0,
             "stock_uom": "Nos"
           }
@@ -5058,6 +5097,7 @@
         "count_label": "原生单据",
         "display_count": 1,
         "document_count": 1,
+        "flow_qty": 1.0,
         "group_depth": 1,
         "group_label": "Return",
         "group_path": [
@@ -5085,6 +5125,7 @@
         "unit_totals": [
           {
             "available_effect": 0.0,
+            "flow_qty": 1.0,
             "stock_qty": 1.0,
             "stock_uom": "Nos"
           }
@@ -5097,6 +5138,7 @@
         "count_label": "原生单据",
         "display_count": 1,
         "document_count": 1,
+        "flow_qty": 2.0,
         "group_depth": 1,
         "group_label": "Transfer",
         "group_path": [
@@ -5124,6 +5166,7 @@
         "unit_totals": [
           {
             "available_effect": 0.0,
+            "flow_qty": 2.0,
             "stock_qty": 2.0,
             "stock_uom": "Nos"
           }
@@ -5384,6 +5427,7 @@
         "entered_uom": "Nos",
         "entered_uom_label": "个",
         "expiry_tracked": true,
+        "flow_qty": 12.0,
         "handler": "",
         "id": "<generated-id>",
         "image": "",
@@ -5444,6 +5488,7 @@
         "entered_uom": "Nos",
         "entered_uom_label": "个",
         "expiry_tracked": true,
+        "flow_qty": 1.0,
         "handler": "",
         "id": "<generated-id>",
         "image": "",
@@ -5506,6 +5551,7 @@
         "entered_uom": "Nos",
         "entered_uom_label": "个",
         "expiry_tracked": true,
+        "flow_qty": 2.0,
         "handler": "",
         "id": "<generated-id>",
         "image": "",
@@ -5568,6 +5614,7 @@
         "entered_uom": "Nos",
         "entered_uom_label": "个",
         "expiry_tracked": true,
+        "flow_qty": 4.0,
         "handler": "",
         "id": "<generated-id>",
         "image": "",
@@ -5631,6 +5678,7 @@
         "entered_uom": "Nos",
         "entered_uom_label": "个",
         "expiry_tracked": true,
+        "flow_qty": 1.0,
         "handler": "",
         "id": "<generated-id>",
         "image": "",
@@ -5694,6 +5742,7 @@
         "entered_uom": "Nos",
         "entered_uom_label": "个",
         "expiry_tracked": true,
+        "flow_qty": 1.0,
         "handler": "",
         "id": "<generated-id>",
         "image": "",
@@ -5756,6 +5805,7 @@
         "entered_uom": "Nos",
         "entered_uom_label": "个",
         "expiry_tracked": true,
+        "flow_qty": 1.0,
         "handler": "",
         "id": "<generated-id>",
         "image": "",
@@ -5822,6 +5872,7 @@
         "entered_uom": "Nos",
         "entered_uom_label": "个",
         "expiry_tracked": true,
+        "flow_qty": 5.0,
         "handler": "",
         "id": "<generated-id>",
         "image": "",
@@ -7411,6 +7462,7 @@
         "entered_uom": "Nos",
         "entered_uom_label": "个",
         "expiry_tracked": true,
+        "flow_qty": 1.0,
         "handler": "",
         "id": "<generated-id>",
         "image": "",
@@ -7477,6 +7529,7 @@
         "entered_uom": "Nos",
         "entered_uom_label": "个",
         "expiry_tracked": true,
+        "flow_qty": 1.0,
         "handler": "",
         "id": "<generated-id>",
         "image": "",
@@ -7542,6 +7595,7 @@
         "entered_uom": "Nos",
         "entered_uom_label": "个",
         "expiry_tracked": true,
+        "flow_qty": 1.0,
         "handler": "",
         "id": "<generated-id>",
         "image": "",
@@ -8199,6 +8253,7 @@
         "entered_uom": "Nos",
         "entered_uom_label": "个",
         "expiry_tracked": true,
+        "flow_qty": 4.0,
         "handler": "",
         "id": "<generated-id>",
         "image": "",
@@ -8264,6 +8319,7 @@
         "entered_uom": "Nos",
         "entered_uom_label": "个",
         "expiry_tracked": true,
+        "flow_qty": 1.0,
         "handler": "",
         "id": "<generated-id>",
         "image": "",
@@ -8329,6 +8385,7 @@
         "entered_uom": "Nos",
         "entered_uom_label": "个",
         "expiry_tracked": true,
+        "flow_qty": 1.0,
         "handler": "",
         "id": "<generated-id>",
         "image": "",
@@ -8393,6 +8450,7 @@
         "entered_uom": "Nos",
         "entered_uom_label": "个",
         "expiry_tracked": true,
+        "flow_qty": 1.0,
         "handler": "",
         "id": "<generated-id>",
         "image": "",
@@ -9191,12 +9249,14 @@
       "document",
       "date",
       "time",
+      "kind",
       "docstatus",
       "baseline_qty",
       "actual_qty",
       "difference",
       "stock_qty",
       "stock_uom",
+      "activity_title",
       "doctype",
       "item_count",
       "allocation_count"
@@ -9204,6 +9264,7 @@
     "leaf_columns": [],
     "rows": [
       {
+        "activity_title": "",
         "actual_qty": 10.0,
         "allocation_count": 2,
         "baseline_qty": 8.0,
@@ -9217,6 +9278,7 @@
         "document_id": "Stock Reconciliation:<document-8>",
         "id": "<generated-id>",
         "item_count": 1,
+        "kind": "Reconcile",
         "row_count": 2,
         "stock_qty": 5.0,
         "stock_uom": "Nos",
@@ -9237,7 +9299,7 @@
         "document_count": 1,
         "id": "<generated-id>",
         "item_count": 0,
-        "kind": null,
+        "kind": "Reconcile",
         "outcome": null,
         "row_count": 1,
         "stock_qty": 5.0,
@@ -9270,14 +9332,14 @@
         "display_count": 1,
         "document_count": 1,
         "group_depth": 1,
-        "group_label": "未指定",
+        "group_label": "Reconcile",
         "group_path": [
-          ""
+          "Reconcile"
         ],
         "has_children": true,
         "id": "<generated-id>",
         "item_count": 0,
-        "kind": null,
+        "kind": "Reconcile",
         "parent_group_id": null,
         "row_count": 1,
         "row_grain": "group",
@@ -9369,9 +9431,11 @@
       "document",
       "date",
       "time",
+      "kind",
       "docstatus",
       "doctype",
       "stock_uom",
+      "activity_title",
       "baseline_qty",
       "actual_qty",
       "difference",

@@ -284,14 +284,14 @@ test("browse table chips stay single-line and browse pages retain their phone la
   await page.getByRole("button", { name: "设置列" }).first().click();
   const unitQuantityColumn = page
     .getByRole("group", { name: "设置表格列" })
-    .getByRole("checkbox", { name: "库存数量" });
+    .getByRole("checkbox", { name: "流动数量" });
   await unitQuantityColumn.check();
   await page.keyboard.press("Escape");
   await assertSingleLineCells(page);
   await page.getByRole("button", { name: "设置列" }).first().click();
   await page
     .getByRole("group", { name: "设置表格列" })
-    .getByRole("checkbox", { name: "库存数量" })
+    .getByRole("checkbox", { name: "流动数量" })
     .uncheck();
   await page
     .getByRole("group", { name: "设置表格列" })

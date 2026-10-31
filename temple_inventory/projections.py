@@ -572,7 +572,7 @@ DISPLAY_COLUMNS = {
 
 def display_columns(table, columns):
 	if table in ("grouped", "group_roots"):
-		metrics = (*STOCK_SUMS, *LOAN_SUMS, *HISTORY_SUMS, *COUNT_SUMS)
+		metrics = (*STOCK_SUMS, "flow_qty", *LOAN_SUMS, *HISTORY_SUMS, *COUNT_SUMS)
 		return list(
 			dict.fromkeys(
 				field
@@ -1094,8 +1094,9 @@ class Projection(AbstractContextManager):
 				"activity_title",
 				"borrower",
 				"stock_uom",
+				"flow_qty",
 			)
-			sums = ("stock_qty", "available_effect")
+			sums = ("stock_qty", "available_effect", "flow_qty")
 		else:
 			source, table = loan_rows(self.context), "outcomes"
 			fields = (
@@ -1164,7 +1165,7 @@ class Projection(AbstractContextManager):
 		elif not restored and dataset == "movements":
 			if view == "records" and not complete_records:
 				self._add_dashboard_record_rows("movements")
-				sums = ("stock_qty", "available_effect")
+				sums = ("stock_qty", "available_effect", "flow_qty")
 			else:
 				self.add("lines", movement_rows(context))
 				self.add("history", _movement_history_rows(self))
@@ -1184,7 +1185,7 @@ class Projection(AbstractContextManager):
 						"borrower",
 						"stock_uom",
 					),
-					("stock_qty", "available_effect"),
+					("stock_qty", "available_effect", "flow_qty"),
 				)
 				if view == "records" and complete_records:
 					self.complete_native_records("movements")
@@ -1194,7 +1195,8 @@ class Projection(AbstractContextManager):
 					("item_code", "item_name", "category", "docstatus", "kind", "stock_uom"),
 					("stock_qty", "available_effect"),
 				)
-				self.main_table, sums = view, ("stock_qty", "available_effect")
+				self.main_table = view
+				sums = ("stock_qty", "available_effect", *(("flow_qty",) if view == "records" else ()))
 		elif not restored and dataset == "loans":
 			if view == "records" and not complete_records:
 				self._add_dashboard_record_rows("loans")
@@ -1308,6 +1310,8 @@ class Projection(AbstractContextManager):
 					"date",
 					"time",
 					"docstatus",
+					"kind",
+					"activity_title",
 					"stock_uom",
 				),
 				COUNT_SUMS,
@@ -1512,12 +1516,14 @@ class Projection(AbstractContextManager):
 							item.stock_uom,
 							{
 								"stock_qty": 0,
+								"flow_qty": 0,
 								"available_effect": 0,
 								"item_codes": set(),
 								"allocation_count": 0,
 							},
 						)
 						group["stock_qty"] += quantity
+						group["flow_qty"] += abs(quantity)
 						group["available_effect"] += effect
 						group["item_codes"].add(item.name)
 						group["allocation_count"] += 1

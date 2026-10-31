@@ -160,6 +160,20 @@ describe("canonical routed report queries", () => {
     ).not.toBe("");
     expect(
       decodeReportQuery({
+        dataset: "movements",
+        view: "summary",
+        groupBy: ["kind"],
+      }).error,
+    ).toBe("");
+    expect(
+      decodeReportQuery({
+        dataset: "movements",
+        view: "summary",
+        groupBy: ["kind", "item"],
+      }).error,
+    ).toBe("");
+    expect(
+      decodeReportQuery({
         dataset: "loans",
         view: "items",
         groupBy: ["item", "category"],
@@ -179,6 +193,12 @@ describe("canonical routed report queries", () => {
     );
     expect(sortableColumnsForView("movements", "records")).toContain(
       "document",
+    );
+    expect(sortableColumnsForView("movements", "records")).toContain(
+      "activity_title",
+    );
+    expect(sortableColumnsForView("movements", "records")).toContain(
+      "borrower",
     );
     expect(sortableColumnsForView("movements", "records")).not.toContain(
       "stock_qty",

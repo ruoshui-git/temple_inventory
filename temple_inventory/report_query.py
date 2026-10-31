@@ -110,6 +110,8 @@ SORTABLE_COLUMNS = {
 		"modified",
 		"item_count",
 		"stock_uom",
+		"activity_title",
+		"borrower",
 	),
 	("movements", "lines"): (
 		"identity",
@@ -261,7 +263,7 @@ def group_sequences_for_view(dataset, view):
 		("inventory", "locations"): ("category", "item", "location"),
 		("inventory", "historical"): ("category", "item", "location", "month"),
 		("expiry", "batches"): ("category", "item", "location"),
-		("movements", "summary"): ("item", "category"),
+		("movements", "summary"): ("item", "category", "kind"),
 		("movements", "records"): ("kind", "status", "activity", "month"),
 		("movements", "lines"): (
 			"item",
@@ -282,7 +284,9 @@ def group_sequences_for_view(dataset, view):
 		("counts", "records"): ("kind", "status", "month"),
 		("counts", "lines"): ("item", "location", "month"),
 	}.get((dataset, view), ())
-	if (dataset, view) in (("movements", "summary"), ("loans", "items")):
+	if (dataset, view) == ("movements", "summary"):
+		return [[], ["item"], ["category", "item"], ["kind"], ["kind", "item"]]
+	if (dataset, view) == ("loans", "items"):
 		return [[], ["item"], ["category", "item"]]
 	return [
 		[],
@@ -419,7 +423,7 @@ def validate_query(value):
 		("inventory", "locations"): ("category", "item", "location"),
 		("inventory", "historical"): ("category", "item", "location", "month"),
 		("expiry", "batches"): ("category", "item", "location"),
-		("movements", "summary"): ("item", "category"),
+		("movements", "summary"): ("item", "category", "kind"),
 		("movements", "records"): ("kind", "status", "activity", "month"),
 		("movements", "lines"): (
 			"item",

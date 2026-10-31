@@ -216,6 +216,21 @@ class NativeReportsProjectionsTests(NativeReportTestCase):
 		self.assertEqual(by_kind["Issue"]["available_effect"], -3)
 		self.assertEqual(page["summary"], report_page({**query, "groupBy": []})["summary"])
 
+	def test_movement_item_summary_accepts_top_level_kind_and_kind_then_item_groups(self):
+		self.receipt(8)
+		query = self.query("movements", "summary", groupBy=["kind"])
+		page = report_page(query)
+		self.assertEqual(page["matched_count"], 1)
+		self.assertEqual(page["rows"][0]["kind"], "Receive")
+		self.assertEqual(page["rows"][0]["group_label"], "Receive")
+		nested = validate_query(self.query("movements", "summary", groupBy=["kind", "item"]))
+		self.assertEqual(nested["groupBy"], ["kind", "item"])
+
+	def test_movement_records_accept_activity_and_borrower_sorts(self):
+		for field in ("activity_title", "borrower"):
+			query = validate_query(self.query("movements", "records", sortBy=field, sort="asc"))
+			self.assertEqual(query["sortBy"], field)
+
 	def test_group_details_use_constant_queries_for_any_group_count(self):
 		def grouped(group_count):
 			with Projection(self.query("movements", "lines")) as projection:
