@@ -2,6 +2,8 @@
 
 Launch acceptance for viewing, exporting and editing inventory data. Browse pages are the reports: each page shows one line table, grouping only changes presentation, and 导出 writes that table with the page's filters and visible columns (all matching rows, Chinese headers, display labels, per-unit 合计 rows, a 导出说明 sheet and a readable filename). Mobile viewing is required; mobile export and mobile editing are not.
 
+A Chinese, plain-language version for non-technical readers is [feature-overview.zh-CN.md](feature-overview.zh-CN.md) (Excel via `scripts/build-feature-overview`); mirror status changes there.
+
 Legend: ✅ verified · ⚠️ works with a caveat (see 说明) · ❌ missing · 🆕 added after the first matrix · 🔁 changed in the 2026-10-29 feedback round · 🔄 changed in the 2026-10-30 feedback round · — not applicable.
 
 Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 390×844, from generated XLSX/CSV/ZIP files, and by the backend, unit, browser and live acceptance suites; re-verified the same day after the feedback round (rows marked 🔁), and again on 2026-10-30 after the second feedback round (rows marked 🔄). Column visibility follows each account's saved column choices; the statuses below describe the defaults, and the column menu’s 恢复默认 returns a table to them.

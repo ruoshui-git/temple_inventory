@@ -75,3 +75,4 @@ temple_inventory/setup/sample_images/
 
 # Ad hoc visual evidence (see docs/agents/visual-review.md)
 notes/evidence/
+docs/*.xlsx

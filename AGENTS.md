@@ -14,6 +14,7 @@ Shared Codex/Claude guide; follow repository instructions.
 - [UI_UX_DECISIONS.md](UI_UX_DECISIONS.md): durable behavior, interaction and language.
 - [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md): tokens, geometry and shared components.
 - [docs/acceptance-matrices.md](docs/acceptance-matrices.md): launch acceptance matrices for reports, exports and data entry, with verified status.
+- [docs/feature-overview.zh-CN.md](docs/feature-overview.zh-CN.md): Chinese feature overview and acceptance matrix for non-technical readers; `scripts/build-feature-overview` builds the Excel file.
 - Before user-facing changes, read the relevant decision doc; update it and add one changelog line.
 - [docs/agents/](docs/agents/) has procedures. Git history holds retired proposals.
 
