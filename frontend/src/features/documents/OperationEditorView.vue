@@ -1177,7 +1177,7 @@ async function lifecycle() {
 				{{ draft.timeMode === "current" ? "确认时的当前时间" : draft.postingTime }}
 			</p>
 			<p>{{ itemCount }} 种物品 · {{ draft.items.length }} 条明细 · {{ totals }}</p>
-			<AllocationSummary :draft="draft" />
+			<AllocationSummary :draft="draft" :link-items="false" />
 			<dl v-if="reviewContext.filled.length" class="info-grid">
 				<div v-for="field in reviewContext.filled" :key="field.label">
 					<dt>{{ field.label }}</dt>

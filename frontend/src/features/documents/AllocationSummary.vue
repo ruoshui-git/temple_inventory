@@ -24,7 +24,10 @@ import { useReferenceData } from "../../services/contracts";
 const context = useOperationContext();
 const reference = useReferenceData();
 const { isMobile } = useResponsiveLayout();
-const props = defineProps<{ draft: OperationDraft; collapsible?: boolean }>();
+const props = withDefaults(
+	defineProps<{ draft: OperationDraft; collapsible?: boolean; linkItems?: boolean }>(),
+	{ linkItems: true },
+);
 type AllocationRow = Record<string, unknown> & {
 	line?: AllocationLine;
 	place?: string;
@@ -262,12 +265,19 @@ function itemFor(row: Record<string, unknown>) {
 					<div class="allocation-phone-copy">
 						<div class="allocation-phone-primary">
 							<RouterLink
+								v-if="linkItems"
 								class="allocation-item-link"
 								:title="item(line.code)?.name || line.displayName || line.code"
 								:to="routeTarget('item-detail', { code: line.code })"
 								>{{
 									item(line.code)?.name || line.displayName || line.code
 								}}</RouterLink
+							>
+							<span
+								v-else
+								class="allocation-item-name"
+								:title="item(line.code)?.name || line.displayName || line.code"
+								>{{ item(line.code)?.name || line.displayName || line.code }}</span
 							>
 							<strong class="allocation-phone-quantity">{{
 								quantityText(line)
@@ -340,12 +350,15 @@ function itemFor(row: Record<string, unknown>) {
 				/>
 			</template>
 			<RouterLink
-				v-else-if="column.id === 'item_name'"
+				v-else-if="column.id === 'item_name' && linkItems"
 				class="allocation-item-link"
 				:title="String(row.item_name || '')"
 				:to="routeTarget('item-detail', { code: String(row.code || '') })"
 				>{{ String(row.item_name || "") }}</RouterLink
 			>
+			<span v-else-if="column.id === 'item_name'" class="allocation-item-name">{{
+				String(row.item_name || "")
+			}}</span>
 			<template v-else-if="column.id === 'batch'">
 				<template v-if="lineFor(row).batchAllocations?.length">
 					<span
@@ -436,7 +449,8 @@ function itemFor(row: Record<string, unknown>) {
 .allocation-summary-table.is-collapsible :deep(.data-table-group-identity) {
 	flex-wrap: wrap;
 }
-.allocation-item-link {
+.allocation-item-link,
+.allocation-item-name {
 	display: -webkit-box;
 	max-width: 28rem;
 	overflow: hidden;
@@ -533,7 +547,8 @@ function itemFor(row: Record<string, unknown>) {
 	justify-content: space-between;
 	gap: var(--p-space-2);
 }
-.allocation-phone-primary .allocation-item-link {
+.allocation-phone-primary .allocation-item-link,
+.allocation-phone-primary .allocation-item-name {
 	display: -webkit-box;
 	min-width: 0;
 	flex: 1 1 auto;

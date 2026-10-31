@@ -7,6 +7,9 @@ select {
 	background-repeat: no-repeat;
 	background-size: 16px 16px;
 }
+input[list]::-webkit-calendar-picker-indicator {
+	display: none;
+}
 @media (forced-colors: active) {
 	select {
 		appearance: auto;
@@ -148,7 +151,7 @@ select {
 		padding: var(--p-space-2) var(--p-space-3);
 		box-shadow: var(--p-shadow);
 	}
-	
+
 	.form-page .form-review > .muted {
 		display: none;
 	}
@@ -803,9 +806,7 @@ select {
 .workspace-expanded .form-page-heading,
 .workspace-expanded .form-date-section,
 .workspace-expanded .form-review,
-.workspace-expanded
-	.form-main
-	> .form-section:not(.operation-section):not(.document-actions) {
+.workspace-expanded .form-main > .form-section:not(.operation-section):not(.document-actions) {
 	display: none;
 }
 .workspace-expanded .form-layout {
@@ -848,9 +849,7 @@ select {
 	border-radius: var(--p-radius-control);
 }
 .workspace-expanded {
-	padding-bottom: calc(
-		var(--form-review-height, 180px) + var(--app-nav-height, 0px) + 24px
-	);
+	padding-bottom: calc(var(--form-review-height, 180px) + var(--app-nav-height, 0px) + 24px);
 }
 @media (max-width: 1023px) {
 	:root .form-page.form-page .form-review {
@@ -903,9 +902,7 @@ select {
 		display: grid;
 	}
 	.form-page {
-		padding-bottom: calc(
-			var(--app-action-bar-height) + var(--app-nav-height, 80px) + 24px
-		);
+		padding-bottom: calc(var(--app-action-bar-height) + var(--app-nav-height, 80px) + 24px);
 	}
 	.form-page .form-page-heading {
 		align-items: flex-start;
@@ -1290,7 +1287,7 @@ select {
 	.form-review > .form-review-edge-rail {
 		position: absolute;
 		width: 12px;
-	min-width: 0;
+		min-width: 0;
 	}
 	.form-review-edge-rail::before {
 		position: absolute;

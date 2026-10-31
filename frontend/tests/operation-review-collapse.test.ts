@@ -2,13 +2,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h, reactive, ref } from "vue";
+import { createMemoryHistory, createRouter } from "vue-router";
 import {
   createReferenceData,
   provideInventoryServices,
 } from "../src/services/contracts";
 import { newOperation } from "../src/features/documents/operationCodec";
 import OperationEditorView from "../src/features/documents/OperationEditorView.vue";
+import AllocationSummary from "../src/features/documents/AllocationSummary.vue";
 import type { OperationEditor } from "../src/features/documents/useOperationEditor";
+import { provideOperationContext } from "../src/features/documents/operationModel";
+import type { OperationDraft } from "../src/features/documents/operationModel";
 
 const wrappers: VueWrapper[] = [];
 afterEach(() => wrappers.splice(0).forEach((wrapper) => wrapper.unmount()));
@@ -37,6 +41,11 @@ const PageHeaderStub = defineComponent({
 });
 const OverlayStub = defineComponent({
   template: '<div class="overlay-stub"><slot /><slot name="footer" /></div>',
+});
+const AllocationSummaryStub = defineComponent({
+  props: ["draft", "linkItems"],
+  template:
+    '<div class="allocation-summary-stub" :data-link-items="linkItems">{{ draft.items[0]?.code }}</div>',
 });
 
 function setDesktop(matches: boolean) {
@@ -137,10 +146,10 @@ function setup(matches: boolean, attach = false) {
         PageHeader: PageHeaderStub,
         OperationLines: OperationLinesStub,
         QuickExport: true,
-        AllocationSummary: true,
         TransactionContext: true,
         Attachments: true,
         RecoverySummary: true,
+        AllocationSummary: AllocationSummaryStub,
         Overlay: OverlayStub,
         SearchSelect: true,
         RemoteSelect: true,
@@ -222,6 +231,7 @@ describe("operation review rail collapse", () => {
 
   it("summarizes only relevant empty review fields and omits empty irrelevant fields", async () => {
     const { wrapper, draft, controller } = setup(true);
+    controller.reviewOpen.value = true;
     draft.items.push({
       id: "LINE-A",
       localId: "LINE-A",
@@ -230,13 +240,72 @@ describe("operation review rail collapse", () => {
       uom: "Nos",
       location: "ROOM-A",
     });
-    controller.reviewOpen.value = true;
     await flushPromises();
     expect(wrapper.text()).toContain(
       "未填写：关联活动、来源、记录人、经手人、鉴证人",
     );
     expect(wrapper.text()).not.toContain("借用方");
     expect(wrapper.text()).not.toContain("未填写来源");
+  });
+
+  it("renders confirmation item names as plain text while document summaries link items", async () => {
+    const { wrapper, draft, controller } = setup(true, false, true);
+    controller.reviewOpen.value = true;
+    draft.items.push({
+      id: "LINE-A",
+      localId: "LINE-A",
+      code: "ITEM-A",
+      qty: 1,
+      uom: "Nos",
+      location: "ROOM-A",
+    });
+    await flushPromises();
+
+    expect(
+      wrapper.get(".allocation-summary-stub").attributes("data-link-items"),
+    ).toBe("false");
+    expect(wrapper.text()).toContain("ITEM-A");
+
+    const reference = createReferenceData();
+    reference.warehouses = [
+      { name: "ROOM-A", label: "房间甲", is_group: false },
+    ];
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        {
+          path: "/items/:code",
+          name: "item-detail",
+          component: { template: "<div />" },
+        },
+      ],
+    });
+    const linkHost = defineComponent({
+      setup() {
+        provideOperationContext({
+          stock: [],
+          remember: vi.fn(),
+          ensure: vi.fn(async () => {
+            throw new Error("missing item");
+          }),
+          ensureMany: vi.fn(async () => new Map()),
+          timestamp: () => undefined,
+          issues: () => [],
+          lineStock: () => undefined,
+          lineCapacity: () => 0,
+        });
+        provideInventoryServices(
+          { call: vi.fn(), upload: vi.fn(), report: vi.fn() },
+          reference,
+        );
+        return () =>
+          h(AllocationSummary, { draft: draft as unknown as OperationDraft });
+      },
+    });
+    const linkedSummary = mount(linkHost, { global: { plugins: [router] } });
+    wrappers.push(linkedSummary);
+    await flushPromises();
+    expect(linkedSummary.find("a.allocation-item-link").exists()).toBe(true);
   });
 
   it("uses 操作汇总 in the read-only phone summary", async () => {
