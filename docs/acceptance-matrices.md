@@ -85,7 +85,7 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 | 🆕 单位 | ✅ | ✅ | |
 | 可选：状态 | ✅ | ✅ | |
 | 🆕 次数 | ✅ | ✅ | 按物品汇总 grouping shows record counts per item; grouped XLSX keeps "物品 (N)" |
-| 汇总 | ✅ | ⚠️ | 🆕 Page: per-type totals + 可用净变化 per unit. 🔁 Group rows and export 合计 rows sum 可用变化 (合计可用变化（单位）). 🔄 Mixed-unit groups write one numeric "小计 · 单位" row per unit. Per-type subtotals in a file need 单据 grouped by 类型 (明细 groups only by 物品 / 类别) |
+| 汇总 | ✅ | ✅ | 🆕 Page: per-type totals + 可用净变化 per unit. 🔁 Group rows and export 合计 rows sum 可用变化 (合计可用变化（单位）). 🔄 Mixed-unit groups write one numeric "小计 · 单位" row per unit. 2026-10-31: 明细 groups by 流动类型 (and 流动类型 → 物品) on the page and in grouped XLSX, with per-unit 可用变化 subtotals |
 
 ### 流动记录（记录） — 货物流动 → 单据
 
@@ -94,11 +94,11 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 | 流动编号 | ✅ | ✅ | |
 | 类型 | ✅ | ✅ | |
 | 物品类数 | ✅ | ✅ | 物品种数 (🔁 fixed: a mixed-unit record exported the first unit's count) |
-| 具体数量 | ✅ | ✅ | 🔁 可用变化 by default (盘点调整 included); 库存数量 optional. Cells show two units plus "+N 单位". 🔄 Files write one numeric row per unit with a 单位 column instead of "12 个；3 箱" |
+| 具体数量 | ✅ | ✅ | 🔁 可用变化 by default (盘点调整 included). 2026-10-31: optional 库存数量 became 流动数量 — unsigned and neutral, the stock the record touched; a 盘点调整 sums absolute differences (+1 / −1 → 2). Cells show two units plus "+N 单位". 🔄 Files write one numeric row per unit with a 单位 column instead of "12 个；3 箱" |
 | 日期 | ✅ | ✅ | |
-| 来源位置 / 去向位置 | ✅ | ✅ | A 盘点调整 names the checked locations only. 🔁 Many locations show the first plus "等 N 处" with a list (e.g. MAT-STE-2026-00056: 25 destinations); files join all with "；" |
+| 来源位置 / 去向位置 | ✅ | ✅ | A 盘点调整 names the checked locations only. 🔁 Many locations show the first plus "等 N 处" with a list (e.g. MAT-STE-2026-00056: 25 destinations); 2026-10-31: count adjustments use the same component instead of listing every location; files join all with "；" |
 | 状态 | ✅ | ✅ | 草稿 / 已提交 / 已取消 |
-| 🆕 活动 / 借用方 | ❌ | ❌ | 2026-10-31: not on this view (only 借用 and 草稿); being added as optional columns |
+| 🆕 活动 / 借用方 | ✅ | ✅ | 2026-10-31: optional columns, hidden by default, sortable, exported when shown |
 
 ### 🆕 盘点记录 — 更多 → 盘点调整
 
@@ -112,7 +112,7 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 
 | 要求 | 结果 | 说明 |
 |---|---|---|
-| Columns follow the page's visible columns, in screen order | ✅ | 🔄 Every exported field is a browse column (export-only data hidden by default); pending, activities, counts, reports and item detail follow the same rule. 🔄 Fixed: 借用 明细 export always failed with 请选择有效的导出列 |
+| Columns follow the page's visible columns, in screen order | ✅ | 🔄 Every exported field is a browse column (export-only data hidden by default); pending, activities, counts, reports and item detail follow the same rule. 🔄 Fixed: 借用 明细 export always failed with 请选择有效的导出列. 2026-10-31 fixed: 盘点调整 export failed the same way (类型 and 活动 were missing from the count projection); a parity test now exports every count-list column |
 | All matching rows, not only loaded rows | ✅ | e.g. 2,651 movement lines from a page showing 30 |
 | Chinese headers and display labels (no ERPNext names, `Receive`, `1`) | ✅ | 🔁 Headers equal the page's column labels (checked per page by a parity test) |
 | Per-unit 合计 rows | ✅ | |
