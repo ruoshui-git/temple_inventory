@@ -98,7 +98,7 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 | 日期 | ✅ | ✅ | |
 | 来源位置 / 去向位置 | ✅ | ✅ | A 盘点调整 names the checked locations only. 🔁 Many locations show the first plus "等 N 处" with a list (e.g. MAT-STE-2026-00056: 25 destinations); files join all with "；" |
 | 状态 | ✅ | ✅ | 草稿 / 已提交 / 已取消 |
-| 🆕 活动 / 借用方 | ✅ | ✅ | |
+| 🆕 活动 / 借用方 | ❌ | ❌ | 2026-10-31: not on this view (only 借用 and 草稿); being added as optional columns |
 
 ### 🆕 盘点记录 — 更多 → 盘点调整
 
