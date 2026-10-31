@@ -344,4 +344,5 @@ extend_doctype_class = {
 page_renderer = [
 	"temple_inventory.manifest.ManifestPage",
 	"temple_inventory.pwa.ServiceWorkerPage",
+	"temple_inventory.maintenance.MaintenancePage",
 ]

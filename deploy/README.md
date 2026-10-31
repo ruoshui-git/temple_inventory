@@ -340,7 +340,9 @@ Deployments validate and pull the exact digest, back up the site, enable
 maintenance mode, stop workers/scheduler, migrate with the new image (Sample
 reinstalls and reseeds instead), recreate
 services and check the image, Traefik HTTPS ping (using `curl --resolve`) and a
-database query. Only a healthy deployment records a successful history entry.
+database query. While maintenance is on, visitors see the app's Chinese 系统正在更新 page
+(`temple_inventory/maintenance.py`), which retries every 30 seconds.
+Only a healthy deployment records a successful history entry.
 Images are pruned while retaining current and previous images, including those
 recorded by the other local environment. Persistent volumes are never pruned.
 

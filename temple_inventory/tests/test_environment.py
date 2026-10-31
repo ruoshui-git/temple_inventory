@@ -5,7 +5,10 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import frappe
+
 from temple_inventory import environment
+from temple_inventory.maintenance import MaintenancePage
 from temple_inventory.manifest import ManifestPage
 
 
@@ -42,6 +45,33 @@ class EnvironmentTests(unittest.TestCase):
 		self.assertEqual(response.mimetype, "application/manifest+json")
 		self.assertEqual(response.headers["Cache-Control"], "no-cache")
 		self.assertEqual(json.loads(response.get_data(as_text=True))["id"], "/")
+
+	def test_maintenance_page_replaces_only_the_maintenance_message(self):
+		def page(path="message", status=503):
+			value = object.__new__(MaintenancePage)
+			value.path = path
+			value.http_status_code = status
+			return value
+
+		with patch.object(frappe.local, "conf", frappe._dict(maintenance_mode=1)):
+			self.assertTrue(page().can_render())
+			self.assertFalse(page(status=500).can_render())
+			self.assertFalse(page(path="inventory").can_render())
+		with patch.object(frappe.local, "conf", frappe._dict()):
+			self.assertFalse(page().can_render())
+
+	def test_maintenance_page_is_chinese_and_environment_branded(self):
+		page = object.__new__(MaintenancePage)
+		with patch("frappe.conf", {"temple_inventory_environment": "sample"}):
+			response = page.render()
+		body = response.get_data(as_text=True)
+		self.assertEqual(response.status_code, 503)
+		self.assertEqual(response.headers["Retry-After"], "30")
+		self.assertIn('lang="zh-CN"', body)
+		self.assertIn("系统正在更新", body)
+		self.assertIn("物资管理·演示", body)
+		self.assertIn("#8a4b08", body)
+		self.assertIn("The system is being updated.", body)
 
 	def test_manifest_preserves_install_identity_and_uses_environment_names_and_icons(self):
 		labels = {
