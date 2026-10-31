@@ -23,27 +23,40 @@ mit
 
 ### Development sample reset
 
-For a disposable development site only, rebuild the complete site database and load
-the Temple Inventory catalog, opening stock, images, and representative inventory
-movements. The costume catalog and its opening stock are real data and go into
-`第2寺院 (T2) / A02`. All general demonstration items and movements use only the
-`演示区` area (`演示室甲` with shelf `演示架1`, and `演示室乙`). ERPNext's default
-warehouses are removed.
+For a disposable development site only, rebuild the complete site database, run
+the ERPNext setup (company `Org`, site time zone `America/New_York`, batch tracking
+on), remove ERPNext's default warehouses and records, and load the Temple Inventory
+samples ([temple_inventory/native_samples.py](temple_inventory/native_samples.py)).
 
 ```bash
 ./apps/temple_inventory/scripts/reset-development-samples --site development.localhost
 ```
 
-The command requires `developer_mode=1`, the MariaDB root password, and an exact
-`RESET <site>` confirmation.
+`--data` chooses what is seeded:
+
+| Mode | Contents |
+|---|---|
+| `full` (default) | The real costume catalog with images, opening stock in `第2寺院 (T2) / A02`, plus generated test volume: general catalog items, batches, locations in `第1寺院`, `第2寺院`, `东山寺区` (with subdivided shelves and a disabled room) and `活动现场`, a workflow of receipts, issues, transfers, loans, returns, damage, counts and activities, and a large generated record history. Use it for UI, performance and acceptance work |
+| `real` | Only the real costume catalog, its images and its opening stock in `第2寺院 / A02`, with the `第1寺院` and `第2寺院` rooms. Use it to see the launch data alone |
+
+After seeding, the script runs `sample_install.verify_development_sample`, which
+checks the warehouse contract, stocked leaves and image coverage.
+
+The command requires the MariaDB root password and an exact `RESET <site>`
+confirmation. It accepts only `development.localhost` (or a site whose config sets
+`temple_inventory_sample_site=1`, such as CI and the public sample site) and refuses
+a site without `developer_mode=1` unless you pass `--allow-non-developer` together
+with `--yes-i-understand-this-is-destructive`. The existing `Administrator` password
+is preserved. Run `--help` for company, currency and fiscal-year options.
 
 Seeding takes several minutes, so the reset saves the seeded site (database and
 files) under `development/.sample-snapshots/` and restores it on later resets
-instead of seeding again. [scripts/sample-snapshot](scripts/sample-snapshot) keys a
-snapshot by the app's backend source (tests excluded), the Frappe and ERPNext
-commits and the seed arguments. A snapshot is used only on the day, in the site's
-time zone, it was seeded, because sample dates are relative to that day. Pass
-`--no-snapshot` to seed from scratch. CI caches the same snapshot between runs.
+instead of seeding again; the three newest snapshots are kept.
+[scripts/sample-snapshot](scripts/sample-snapshot) keys a snapshot by the app's
+backend source (tests excluded), the Frappe and ERPNext commits and the seed
+arguments. A snapshot is used only on the day, in the site's time zone, it was
+seeded, because sample dates are relative to that day. Pass `--no-snapshot` to
+seed from scratch. CI caches the same snapshot between runs.
 
 #### Development database credentials
 
