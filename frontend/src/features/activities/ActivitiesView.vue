@@ -23,6 +23,7 @@ import { groupLabels } from "../../lib/reportContract";
 import { useConfirm } from "../../services/confirm";
 import type { useActivitiesController } from "./useActivitiesController";
 import DataTable from "../../components/ui/DataTable.vue";
+import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import type {
 	DataColumn,
@@ -364,9 +365,11 @@ const activityExportColumns = computed(() => {
 			@cancel="cancel"
 		/>
 		<template v-else-if="page === 'activity-list'">
-			<p v-if="projection.result.snapshot" role="status">
-				{{ projection.result.total }} 个活动 · 流动标签为终身已提交单据数
-			</p>
+			<BrowseResultSummary
+				v-if="projection.result.snapshot"
+				:label="`${projection.result.total} 个活动 · 标签数字为全部已提交单据，不随日期筛选`"
+				:metrics="[]"
+			/>
 			<div class="activity-list-scroll" data-browse-scroll="activities">
 				<DataTable
 					ariaLabel="活动列表"

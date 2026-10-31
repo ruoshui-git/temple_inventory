@@ -48,8 +48,11 @@ const props = withDefaults(defineProps<{ controller: ExpiryBrowse; active?: bool
 const emit = defineEmits<{
 	item: [code: string];
 	openBatch: [name: string];
-	newOperation: [kind: string];
 	openExport: [query: ReportQuery];
+	newOperation: [
+		kind: "Receive" | "Issue" | "Transfer" | "Damage",
+		allocations?: { item_code: string; warehouse: string; batch_no: string; qty: number }[],
+	];
 }>();
 const c = props.controller,
 	{ query, scope, routeError, result, reference, chips, metrics, dimension, analysis } = c;
@@ -248,8 +251,29 @@ const sortFields = [
 	{ value: "warehouse", label: "位置", kind: "text" },
 	{ value: "remaining_days", label: "剩余天数", kind: "expiry" },
 ] as const;
-function sortGlyph(field: ReportQuery["sortBy"]) {
-	return query.value.sortBy === field ? (query.value.sort === "asc" ? "↑" : "↓") : "↕";
+const selectedExpiryRows = computed(() =>
+	result.rows.filter((row) => c.selected.value.includes(String(row.id))),
+);
+function expiryAllocation(row: ReportRow) {
+	return {
+		item_code: String(row.item_code || ""),
+		warehouse: String(row.warehouse || ""),
+		batch_no: String(row.batch_no || ""),
+		qty: Number(row.stock_qty || 0),
+	};
+}
+function expiryAction(kind: "Issue" | "Transfer" | "Damage") {
+	emit("newOperation", kind, selectedExpiryRows.value.map(expiryAllocation));
+}
+function canExpiryAction() {
+	return (
+		!result.stale &&
+		!result.loading &&
+		selectedExpiryRows.value.length > 0 &&
+		selectedExpiryRows.value.every(
+			(row) => row.item_code && row.warehouse && Number(row.stock_qty) > 0,
+		)
+	);
 }
 </script>
 <template>
@@ -295,6 +319,13 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 			</template>
 			<template #actions>
 				<BrowseOverflowMenu>
+					<UiButton
+						v-if="isMobile"
+						icon="select"
+						:aria-pressed="c.selecting.value"
+						@click="c.selecting.value ? c.exitSelection() : c.enterSelection()"
+						>{{ c.selecting.value ? "取消选择" : "选择" }}</UiButton
+					>
 					<QuickExport
 						v-if="!routeError"
 						:query="query"
@@ -309,6 +340,44 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 						>入库</UiButton
 					>
 				</BrowseOverflowMenu>
+				<UiButton
+					v-if="!isMobile"
+					icon="select"
+					:aria-pressed="c.selecting.value"
+					@click="c.selecting.value ? c.exitSelection() : c.enterSelection()"
+					>{{ c.selecting.value ? "取消选择" : "选择" }}</UiButton
+				>
+			</template>
+			<template #selection>
+				<div
+					v-if="c.selecting.value"
+					class="selection-bar stock-selection-actions"
+					role="region"
+					aria-label="批次批量操作"
+				>
+					<span role="status">已选择 {{ c.selected.value.length }} 项</span>
+					<UiButton
+						v-for="action in [
+							{ kind: 'Issue', label: '出库' },
+							{ kind: 'Transfer', label: '调拨' },
+							{ kind: 'Damage', label: '报损' },
+						]"
+						:key="action.kind"
+						:disabled="
+							!canExpiryAction() || reference.operations[action.kind] !== true
+						"
+						:title="
+							!canExpiryAction()
+								? '所选批次位置或数量不完整'
+								: reference.operations[action.kind] !== true
+									? '当前账户不可执行此操作'
+									: ''
+						"
+						@click="expiryAction(action.kind as 'Issue' | 'Transfer' | 'Damage')"
+						>{{ action.label }}</UiButton
+					>
+					<UiButton variant="ghost" @click="c.exitSelection()">取消</UiButton>
+				</div>
 			</template>
 			<template #filters>
 				<div class="browse-filter-mega">
@@ -477,6 +546,19 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 						:data-browse-row="String(row.id)"
 						class="browse-card expiry-phone-card"
 					>
+						<label v-if="c.selecting.value" class="stock-list-checkbox" @click.stop>
+							<input
+								type="checkbox"
+								:checked="c.selected.value.includes(String(row.id))"
+								:aria-label="`选择批次 ${row.batch_no || ''}`"
+								@change="
+									c.setSelected(
+										String(row.id),
+										($event.target as HTMLInputElement).checked,
+									)
+								"
+							/>
+						</label>
 						<div class="expiry-phone-identity">
 							<div class="browse-group-thumbnail">
 								<ItemImage :item="c.item(row)" />
@@ -525,6 +607,12 @@ function sortGlyph(field: ReportQuery["sortBy"]) {
 					table-class="browse-table"
 					:columns="expiryColumns"
 					:rows="displayedRows"
+					:selection-enabled="c.selecting.value"
+					:selected-keys="c.selected.value"
+					@select="c.setSelected"
+					@select-visible="
+						(keys, checked) => keys.forEach((key) => c.setSelected(key, checked))
+					"
 					:group-summary-columns="() => ['available', 'loaned', 'damaged', 'stock_qty']"
 					:column-preferences="tablePreferences"
 					:sort-by="tableSortBy"

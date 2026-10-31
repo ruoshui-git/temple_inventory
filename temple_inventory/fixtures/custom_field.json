@@ -195,27 +195,6 @@
   {
     "doctype": "Custom Field",
     "dt": "Stock Reconciliation",
-    "fieldname": "ti_count_scope",
-    "fieldtype": "Select",
-    "label": "盘点范围",
-    "insert_after": "purpose",
-    "module": "Temple Inventory",
-    "name": "Stock Reconciliation-ti_count_scope",
-    "options": "\nSelected\nFull Location"
-  },
-  {
-    "doctype": "Custom Field",
-    "dt": "Stock Reconciliation",
-    "fieldname": "ti_baseline_timestamp",
-    "fieldtype": "Datetime",
-    "label": "账面基准时间",
-    "insert_after": "ti_count_scope",
-    "module": "Temple Inventory",
-    "name": "Stock Reconciliation-ti_baseline_timestamp"
-  },
-  {
-    "doctype": "Custom Field",
-    "dt": "Stock Reconciliation",
     "fieldname": "ti_count_review",
     "fieldtype": "Table",
     "label": "盘点核对明细",
@@ -230,7 +209,7 @@
     "fieldname": "ti_activity",
     "fieldtype": "Link",
     "label": "关联活动",
-    "insert_after": "ti_baseline_timestamp",
+    "insert_after": "ti_time_mode",
     "module": "Temple Inventory",
     "name": "Stock Reconciliation-ti_activity",
     "options": "Inventory Activity"
@@ -241,7 +220,7 @@
     "fieldname": "ti_recorder_name",
     "fieldtype": "Data",
     "label": "记录人",
-    "insert_after": "ti_baseline_timestamp",
+    "insert_after": "ti_time_mode",
     "module": "Temple Inventory",
     "name": "Stock Reconciliation-ti_recorder_name"
   },
@@ -251,7 +230,7 @@
     "fieldname": "ti_handler_name",
     "fieldtype": "Data",
     "label": "经手人",
-    "insert_after": "ti_baseline_timestamp",
+    "insert_after": "ti_recorder_name",
     "module": "Temple Inventory",
     "name": "Stock Reconciliation-ti_handler_name"
   },
@@ -261,7 +240,7 @@
     "fieldname": "ti_reviewer_name",
     "fieldtype": "Data",
     "label": "鉴证人",
-    "insert_after": "ti_baseline_timestamp",
+    "insert_after": "ti_handler_name",
     "module": "Temple Inventory",
     "name": "Stock Reconciliation-ti_reviewer_name"
   },
@@ -290,27 +269,6 @@
     "hidden": 1,
     "read_only": 1,
     "no_copy": 1
-  },
-  {
-    "doctype": "Custom Field",
-    "dt": "Stock Reconciliation",
-    "fieldname": "ti_count_items",
-    "fieldtype": "JSON",
-    "label": "选定物品",
-    "insert_after": "ti_count_scope",
-    "module": "Temple Inventory",
-    "name": "Stock Reconciliation-ti_count_items"
-  },
-  {
-    "doctype": "Custom Field",
-    "dt": "Stock Reconciliation",
-    "fieldname": "ti_baseline_fingerprint",
-    "fieldtype": "Data",
-    "label": "账面基准版本",
-    "insert_after": "ti_count_scope",
-    "module": "Temple Inventory",
-    "name": "Stock Reconciliation-ti_baseline_fingerprint",
-    "hidden": 1
   },
   {
     "doctype": "Custom Field",
@@ -380,16 +338,6 @@
   {
     "doctype": "Custom Field",
     "dt": "Stock Reconciliation",
-    "fieldname": "ti_count_warehouses",
-    "fieldtype": "JSON",
-    "label": "盘点位置范围",
-    "insert_after": "ti_count_scope",
-    "module": "Temple Inventory",
-    "name": "Stock Reconciliation-ti_count_warehouses"
-  },
-  {
-    "doctype": "Custom Field",
-    "dt": "Stock Reconciliation",
     "fieldname": "ti_notes",
     "fieldtype": "Long Text",
     "label": "盘点备注",
@@ -418,5 +366,17 @@
     "module": "Temple Inventory",
     "hidden": 1,
     "name": "Batch-ti_request_user"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Stock Reconciliation",
+    "fieldname": "ti_time_mode",
+    "fieldtype": "Select",
+    "label": "操作时间方式",
+    "insert_after": "posting_time",
+    "module": "Temple Inventory",
+    "name": "Stock Reconciliation-ti_time_mode",
+    "options": "Current\nHistorical",
+    "default": "Current"
   }
 ]

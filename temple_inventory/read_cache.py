@@ -17,6 +17,7 @@ IMPLEMENTATION_VERSION = "browse-v5"
 GENERATION_KEY = "temple_inventory:browse:generation"
 LOCK_WAIT_SECONDS = 3
 CACHEABLE_METHODS = {
+	"temple_inventory.activities.load_activity",
 	"temple_inventory.projections.report_page",
 	"temple_inventory.projections.group_page",
 	"temple_inventory.browse.dashboard_card",

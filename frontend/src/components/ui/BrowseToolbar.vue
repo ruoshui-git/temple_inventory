@@ -148,6 +148,8 @@ function filterPanelChanged(open: boolean) {
 		);
 }
 const { top } = useScrollSurface(root, () => props.active);
+// A stuck phone header hides its title row, so page actions (with 选择) move into the search bar.
+const stuck = computed(() => top.value > 0);
 let headerObserver: ResizeObserver | undefined;
 let chipObserver: ResizeObserver | undefined;
 let chipMutationObserver: MutationObserver | undefined;
@@ -215,7 +217,7 @@ defineExpose({ editFilter });
 			<template #title-tools>
 				<div class="browse-title-tools">
 					<slot name="persistent" />
-					<div v-if="isMobile && $slots.actions" class="browse-mobile-actions">
+					<div v-if="isMobile && !stuck && $slots.actions" class="browse-mobile-actions">
 						<slot name="actions" />
 					</div>
 				</div>
@@ -270,6 +272,12 @@ defineExpose({ editFilter });
 					>
 						<slot name="filters" />
 					</FilterPanel>
+					<div
+						v-if="isMobile && stuck && $slots.actions"
+						class="browse-mobile-actions is-stuck-actions"
+					>
+						<slot name="actions" />
+					</div>
 				</div>
 			</div>
 			<UiButton

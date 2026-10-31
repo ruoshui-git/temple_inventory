@@ -60,6 +60,7 @@ export function createNativeEditor(options: {
   currentAccount(): string;
   valid(values: Record<string, unknown>): boolean;
   values: Record<string, unknown>;
+  recoveryDebounceMs?: number;
 }) {
   const state = reactive({
     editorId: crypto.randomUUID(),
@@ -82,6 +83,7 @@ export function createNativeEditor(options: {
   let running: Promise<void> | undefined;
   let pending = false;
   let epoch = 0;
+  let recoveryTimer: ReturnType<typeof setTimeout> | undefined;
   let disposed = false;
   function active(requestEpoch = epoch) {
     return (
@@ -92,6 +94,8 @@ export function createNativeEditor(options: {
   }
   function retain() {
     if (!active()) return;
+    clearTimeout(recoveryTimer);
+    recoveryTimer = undefined;
     const result = options.recovery.save({
       schema: 1,
       site: options.site,
@@ -110,6 +114,14 @@ export function createNativeEditor(options: {
     state.durable = result.durable;
     state.recoveryError = result.error;
   }
+  function scheduleRetain() {
+    if (!options.recoveryDebounceMs) {
+      retain();
+      return;
+    }
+    clearTimeout(recoveryTimer);
+    recoveryTimer = setTimeout(retain, options.recoveryDebounceMs);
+  }
   function retainIncomplete() {
     retain();
     state.status = state.durable ? "browser" : "local";
@@ -124,7 +136,7 @@ export function createNativeEditor(options: {
     state.revision += 1;
     if (!["conflict", "deleted", "forbidden"].includes(state.status))
       state.status = "local";
-    retain();
+    scheduleRetain();
   }
   function fail(error: unknown) {
     const kind =
@@ -189,6 +201,7 @@ export function createNativeEditor(options: {
       )
     )
       return;
+    retain();
     pending = true;
     if (running) return running;
     const requestEpoch = epoch;
@@ -406,6 +419,7 @@ export function createNativeEditor(options: {
     return true;
   }
   function dispose() {
+    clearTimeout(recoveryTimer);
     disposed = true;
     epoch += 1;
     pending = false;
@@ -414,6 +428,7 @@ export function createNativeEditor(options: {
     state,
     edited,
     retain,
+    flushRecovery: retain,
     retainIncomplete,
     save,
     confirm,

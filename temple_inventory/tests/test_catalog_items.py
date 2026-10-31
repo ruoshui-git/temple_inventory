@@ -159,17 +159,13 @@ class CatalogItemsTests(NativeDocumentTests):
 			}
 		)
 		loss = self.submit(self.create(loss_data))
-		query = {"dataset": "loans", "view": "items", "loan": loan.name}
-		history = browse.operation_contributions(
-			query, item_code=self.item, loan_scope="all", history_sort="asc"
-		)
+		query = {"dataset": "loans", "view": "items", "loan": loan.name, "loanStatus": "all"}
+		history = browse.operation_contributions(query, item_code=self.item, history_sort="asc")
 		self.assertTrue(history["history_complete"])
 		self.assertEqual([row["kind"] for row in history["rows"]], ["Loan", "Loss", "Damage"])
 		self.assertEqual([row["quantity"] for row in history["rows"]], [4.0, -1.0, -1.0])
 		frappe.get_doc("Stock Entry", loss.name).cancel()
-		updated = browse.operation_contributions(
-			query, item_code=self.item, loan_scope="all", history_sort="asc"
-		)
+		updated = browse.operation_contributions(query, item_code=self.item, history_sort="asc")
 		self.assertTrue(updated["history_complete"])
 		self.assertEqual([row["kind"] for row in updated["rows"]], ["Loan", "Damage"])
 		self.assertEqual([row["quantity"] for row in updated["rows"]], [4.0, -1.0])
@@ -213,7 +209,7 @@ class CatalogItemsTests(NativeDocumentTests):
 			return original_parent(context, doctype, name)
 
 		with patch.object(ReportContext, "parent", hide_damage):
-			incomplete = browse.operation_contributions(query, item_code=self.item, loan_scope="all")
+			incomplete = browse.operation_contributions(query, item_code=self.item)
 			incomplete_movement_history = browse.movement_history(
 				{
 					"dataset": "movements",
@@ -270,25 +266,25 @@ class CatalogItemsTests(NativeDocumentTests):
 		# keeping the inherited group total unchanged.
 		def reconcile(warehouse, delta):
 			posting = now_datetime()
-			baseline = counts.count_baseline([warehouse], str(posting), "Selected", [self.item])
+			baseline = counts.count_baseline(str(posting))
 			rows = copy.deepcopy(baseline["rows"])
 			for row in rows:
-				row.update(
-					{
-						"actual_qty": float(row["baseline_qty"]) + delta,
-						"review_state": "Reviewed",
-						"reason": "调整效果测试",
-					}
-				)
+				# Every physical leaf is part of the count; only this leaf is reviewed.
+				if row["warehouse"] == warehouse:
+					row.update(
+						{
+							"actual_qty": float(row["baseline_qty"]) + delta,
+							"review_state": "Reviewed",
+							"reason": "调整效果测试",
+						}
+					)
+				else:
+					row.update({"actual_qty": None, "review_state": "Unreviewed", "reason": ""})
 			data = {
 				"company": self.company,
 				"posting_date": str(posting.date()),
 				"posting_time": str(posting.time()),
-				"ti_count_warehouses": [warehouse],
-				"ti_count_scope": "Selected",
-				"ti_count_items": [self.item],
-				"ti_baseline_timestamp": baseline["timestamp"],
-				"ti_baseline_fingerprint": baseline["fingerprint"],
+				"ti_time_mode": "Historical",
 				"ti_count_review": rows,
 			}
 			draft = counts.save_count(str(uuid4()), data)

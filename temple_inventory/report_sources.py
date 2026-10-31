@@ -146,7 +146,7 @@ class ReportContext:
 
 	def item(self, code):
 		try:
-			item = getattr(self, "_preloaded_items", {}).get(code) or frappe.get_doc("Item", code)
+			item = getattr(self, "_preloaded_items", {}).get(code) or frappe.get_cached_doc("Item", code)
 			item.check_permission("read")
 		except frappe.PermissionError, frappe.DoesNotExistError:
 			return None
@@ -155,10 +155,11 @@ class ReportContext:
 	def activity(self, name):
 		if not name:
 			return None
+		preloaded = getattr(self, "_preloaded_activities", {}).get(name)
+		if preloaded:
+			return preloaded
 		try:
-			activity = getattr(self, "_preloaded_activities", {}).get(name) or frappe.get_doc(
-				"Inventory Activity", name
-			)
+			activity = frappe.get_doc("Inventory Activity", name)
 			activity.check_permission("read")
 		except frappe.PermissionError, frappe.DoesNotExistError:
 			return None
@@ -266,7 +267,7 @@ class ReportContext:
 		"""Batch-check attached private Files while preserving File read/privacy checks."""
 		if not self.load_item_attachments:
 			return
-		from temple_inventory.native_files import can_read
+		from temple_inventory.native_files import can_read, readable_parents
 
 		if self._permitted_item_images is None:
 			self._permitted_item_images = defaultdict(set)
@@ -274,34 +275,41 @@ class ReportContext:
 		codes = set(item_codes) - self._loaded_attachment_item_codes
 		if not codes:
 			return
-		for row in frappe.get_list(
-			"File",
-			filters={
-				"attached_to_doctype": "Item",
-				"attached_to_name": ["in", sorted(codes) or [""]],
-				"is_private": 1,
-			},
-			fields=[
-				"name",
-				"attached_to_name",
-				"file_name",
-				"file_url",
-				"file_size",
-				"file_type",
-				"creation",
-			],
-			order_by="creation asc, name asc",
-			limit_page_length=0,
-		):
-			file_doc = frappe.get_doc("File", row.name)
-			if file_doc.has_permission("read") and can_read(file_doc):
-				self._permitted_item_images[row.attached_to_name].add(row.file_url)
-				self._permitted_item_attachments[row.attached_to_name].append(dict(row))
+		# Items from a read-permission-filtered get_list need no per-File reload of their parent.
+		readable = frappe.get_list("Item", filters={"name": ["in", sorted(codes)]}, pluck="name")
+		permission_fields = ("owner", "is_private", "attached_to_doctype", "attached_to_field")
+		attachment_fields = (
+			"name",
+			"attached_to_name",
+			"file_name",
+			"file_url",
+			"file_size",
+			"file_type",
+			"creation",
+		)
+		with readable_parents("Item", readable):
+			for row in frappe.get_list(
+				"File",
+				filters={
+					"attached_to_doctype": "Item",
+					"attached_to_name": ["in", sorted(codes) or [""]],
+					"is_private": 1,
+				},
+				fields=[*attachment_fields, *permission_fields],
+				order_by="creation asc, name asc",
+				limit_page_length=0,
+			):
+				file_doc = frappe.get_doc({"doctype": "File", **row})
+				if file_doc.has_permission("read") and can_read(file_doc):
+					self._permitted_item_images[row.attached_to_name].add(row.file_url)
+					self._permitted_item_attachments[row.attached_to_name].append(
+						{field: row[field] for field in attachment_fields}
+					)
 		self._loaded_attachment_item_codes.update(codes)
 
 	def preload_primary_item_images(self, item_codes):
 		"""Permission-check only each selected Item's primary private image."""
-		from temple_inventory.native_files import can_read
+		from temple_inventory.native_files import FILE_PERMISSION_FIELDS, can_read, readable_parents
 
 		if self._permitted_item_images is None:
 			self._permitted_item_images = defaultdict(set)
@@ -318,22 +326,24 @@ class ReportContext:
 		}
 		if not images:
 			return
-		for row in frappe.get_list(
-			"File",
-			filters={
-				"attached_to_doctype": "Item",
-				"attached_to_name": ["in", sorted(images)],
-				"file_url": ["in", sorted(set(images.values()))],
-				"is_private": 1,
-			},
-			fields=["name", "attached_to_name", "file_url"],
-			limit_page_length=0,
-		):
-			if row.file_url != images.get(row.attached_to_name):
-				continue
-			file_doc = frappe.get_doc("File", row.name)
-			if file_doc.has_permission("read") and can_read(file_doc):
-				self._permitted_item_images[row.attached_to_name].add(row.file_url)
+		# `images` came from a read-permission-filtered get_list of these Items.
+		with readable_parents("Item", images):
+			for row in frappe.get_list(
+				"File",
+				filters={
+					"attached_to_doctype": "Item",
+					"attached_to_name": ["in", sorted(images)],
+					"file_url": ["in", sorted(set(images.values()))],
+					"is_private": 1,
+				},
+				fields=list(FILE_PERMISSION_FIELDS),
+				limit_page_length=0,
+			):
+				if row.file_url != images.get(row.attached_to_name):
+					continue
+				file_doc = frappe.get_doc({"doctype": "File", **row})
+				if file_doc.has_permission("read") and can_read(file_doc):
+					self._permitted_item_images[row.attached_to_name].add(row.file_url)
 
 	def preload_items(self, item_codes):
 		"""Load permission-visible Item fields in one query; checks still run per Item."""
@@ -896,18 +906,57 @@ def whole_operation(context, doctype, name):
 		# gains/losses are signed per-unit aggregates; losses stay negative.
 		result["gains"] = [{"uom": unit, "qty": quantity} for unit, quantity in sorted(gains.items())]
 		result["losses"] = [{"uom": unit, "qty": quantity} for unit, quantity in sorted(losses.items())]
-		warehouses = doc.get("ti_count_warehouses") or json.dumps(
-			sorted(
-				{str(row.get("warehouse")) for row in doc.items if row.get("warehouse") in context.physical}
-			),
-			ensure_ascii=False,
-		)
-		result["scope"] = warehouses
 	return result
 
 
+def _activity_fields(context, name):
+	activity = context.activity(name)
+	return {
+		"activity": activity.name if activity else "",
+		"activity_title": activity.title if activity else "",
+		"activity_type": activity.activity_type if activity else "",
+	}
+
+
+def settlement_loan_names(doc):
+	return sorted(
+		{line.get("ti_original_loan") for line in doc.get("items") or [] if line.get("ti_original_loan")}
+	)
+
+
+def document_attribution(context, doc):
+	"""Borrower and activity of a whole native document.
+
+	A settlement takes them from the original loans of its lines. Distinct borrowers
+	and activity titles are joined with 、; one activity keeps its id.
+	"""
+	loan_names = settlement_loan_names(doc)
+	if not loan_names:
+		return {"borrower": doc.get("ti_borrower") or "", **_activity_fields(context, doc.get("ti_activity"))}
+	loans = [loan for loan in (context.parent("Stock Entry", name) for name in loan_names) if loan]
+	borrowers = sorted({loan.get("ti_borrower") or "" for loan in loans} - {""})
+	activity_names = sorted({loan.get("ti_activity") or "" for loan in loans} - {""})
+	if len(activity_names) == 1:
+		activity_fields = _activity_fields(context, activity_names[0])
+	else:
+		titles = [context.activity(name) for name in activity_names]
+		activity_fields = {
+			"activity": "",
+			"activity_title": "、".join(activity.title for activity in titles if activity),
+			"activity_type": "",
+		}
+	return {"borrower": "、".join(borrowers), **activity_fields}
+
+
+def line_attribution(context, line):
+	"""A settlement line belongs to the borrower and activity of its original loan."""
+	loan = context.parent("Stock Entry", line.get("ti_original_loan"))
+	if not loan:
+		return {"borrower": "", "activity": "", "activity_title": "", "activity_type": ""}
+	return {"borrower": loan.get("ti_borrower") or "", **_activity_fields(context, loan.get("ti_activity"))}
+
+
 def document_fields(context, doc):
-	activity = context.activity(doc.get("ti_activity"))
 	return {
 		"doctype": doc.doctype,
 		"document": doc.name,
@@ -918,10 +967,7 @@ def document_fields(context, doc):
 		"time": str(doc.posting_time),
 		"posting_timestamp": str(get_datetime(f"{doc.posting_date} {doc.posting_time}")),
 		"modified": str(doc.modified),
-		"activity": activity.name if activity else "",
-		"activity_title": activity.title if activity else "",
-		"activity_type": activity.activity_type if activity else "",
-		"borrower": doc.get("ti_borrower") or "",
+		**document_attribution(context, doc),
 		"source": doc.get("ti_source_text") or "",
 		"purpose": doc.get("ti_purpose_text") or "",
 		"recorded_by": doc.owner,
@@ -1006,10 +1052,25 @@ def movement_rows(
 		lines = [
 			line for doc in parents for field in ("items", "ti_count_review") for line in doc.get(field) or []
 		]
+		context.preload_parents(
+			"Stock Entry", {name for doc in parents for name in settlement_loan_names(doc)}
+		)
 		context.preload_bundles(lines)
 		context.preload_batches(line.get("batch_no") for line in lines)
 		context.preload_items(line.item_code for doc in parents for line in doc.get("items") or [])
-		context.preload_activities(doc.get("ti_activity") for doc in parents if doc.get("ti_activity"))
+		context.preload_activities(
+			(
+				{doc.get("ti_activity") for doc in parents}
+				| {
+					loan.get("ti_activity")
+					for doc in parents
+					for name in settlement_loan_names(doc)
+					for loan in [context.parent("Stock Entry", name)]
+					if loan
+				}
+			)
+			- {None, ""}
+		)
 		context.preload_item_attachments(
 			line.item_code
 			for name in names
@@ -1043,6 +1104,7 @@ def movement_rows(
 					bundle_line = allocation["bundle_line"]
 					row = {
 						**header,
+						**(line_attribution(context, line) if line.get("ti_original_loan") else {}),
 						**context.item_fields(item),
 						"line_name": line.name,
 						"bundle_line": bundle_line,
@@ -1088,27 +1150,35 @@ def movement_rows(
 						yield row
 
 
-def loan_rows(context):
+def loan_rows(context, item_codes=None, activity_names=None):
 	query = context.query
+	loan_filters = {
+		"company": context.company,
+		"ti_movement_kind": "Loan",
+		"docstatus": ["in", [1] if query["view"] == "items" else query["statuses"]],
+	}
+	if activity_names is not None:
+		loan_filters["ti_activity"] = ["in", sorted(set(activity_names)) or [""]]
 	values = list(
 		paged(
 			"Stock Entry",
-			filters={
-				"company": context.company,
-				"ti_movement_kind": "Loan",
-				"docstatus": ["in", [1] if query["view"] == "items" else query["statuses"]],
-			},
+			filters=loan_filters,
 		)
 	)
 	names = [value.name for value in values]
 	context.preload_parents("Stock Entry", names)
 	parents = [context._preloaded_parents[("Stock Entry", name)] for name in names]
-	lines = [line for doc in parents for line in doc.get("items") or []]
+	lines = [
+		line
+		for doc in parents
+		for line in doc.get("items") or []
+		if item_codes is None or line.item_code in item_codes
+	]
 	context.preload_bundles(lines)
 	context.preload_batches(line.get("batch_no") for line in lines)
-	context.preload_items(line.item_code for doc in parents for line in doc.get("items") or [])
+	context.preload_items(line.item_code for line in lines)
 	context.preload_activities(doc.get("ti_activity") for doc in parents if doc.get("ti_activity"))
-	context.preload_item_attachments(line.item_code for doc in parents for line in doc.get("items") or [])
+	context.preload_item_attachments(line.item_code for line in lines)
 	for value in values:
 		loan = context.parent("Stock Entry", value.name)
 		if not loan or not in_period(loan.posting_date, context.period):
@@ -1121,24 +1191,15 @@ def loan_rows(context):
 		)
 		# Loan lifecycle belongs to the whole original document, before any
 		# selected Item, warehouse, batch or allocation filters are applied.
-		if query["view"] != "items" and query["loanStatus"] != "all" and loan.docstatus != 1:
+		if query["loanStatus"] != "all" and loan.docstatus != 1:
 			continue
-		if (
-			query["view"] != "items"
-			and query["loanStatus"] in ("outstanding", "open")
-			and not has_outstanding
-		):
+		if query["loanStatus"] == "outstanding" and not has_outstanding:
 			continue
-		if query["view"] != "items" and query["loanStatus"] == "settled" and has_outstanding:
-			continue
-		if (
-			query["view"] == "records"
-			and query["loanScope"] == "outstanding"
-			and loan.docstatus != 0
-			and (loan.docstatus != 1 or not has_outstanding)
-		):
+		if query["loanStatus"] == "settled" and has_outstanding:
 			continue
 		for line in loan.items:
+			if item_codes is not None and line.item_code not in item_codes:
+				continue
 			item = context.item(line.item_code)
 			if not item:
 				continue
@@ -1146,6 +1207,10 @@ def loan_rows(context):
 				outcomes = balances[(line.name, batch)]
 				borrowed = float(batch_quantity)
 				outstanding = borrowed - float(sum(outcomes.values())) if loan.docstatus == 1 else 0
+				if query["loanStatus"] == "outstanding" and outstanding <= 0:
+					continue
+				if query["loanStatus"] == "settled" and outstanding > 0:
+					continue
 				row = {
 					**document_fields(context, loan),
 					**context.item_fields(item),
@@ -1357,8 +1422,6 @@ def count_rows(context):
 				"warehouse": line.warehouse,
 				"review_state": state,
 				"reason": line.get("reason") or "",
-				"count_scope": doc.get("ti_count_scope") or "Native",
-				"baseline_timestamp": str(doc.get("ti_baseline_timestamp") or ""),
 			}
 			if custom:
 				baseline = float(line.baseline_qty or 0)
@@ -1548,25 +1611,52 @@ def activity_relations(context, activity_name, *, lifetime=False):
 	if cache is None:
 		all_relations = defaultdict(list)
 		lifetime_relations = defaultdict(list)
+		activity_names = getattr(context, "_activity_page_names", [])
+		document_names = []
+		loan_names = []
+		direct_names = {"Stock Entry": [], "Stock Reconciliation": []}
+		for doctype in ("Stock Entry", "Stock Reconciliation"):
+			documents = frappe.get_list(
+				doctype,
+				filters={"company": context.company, "ti_activity": ["in", activity_names or [""]]},
+				fields=["name", "ti_movement_kind"] if doctype == "Stock Entry" else ["name"],
+			)
+			document_names.extend(row.name for row in documents)
+			direct_names[doctype].extend(row.name for row in documents)
+			if doctype == "Stock Entry":
+				loan_names.extend(row.name for row in documents if row.get("ti_movement_kind") == "Loan")
+		if loan_names:
+			context.preload_parents("Stock Entry", loan_names)
+			loan_allocations = [
+				(loan.name, line.name, line.item_code)
+				for name in loan_names
+				for loan in [context.parent("Stock Entry", name)]
+				if loan
+				for line in loan.get("items") or []
+			]
+			document_names.extend(_settlement_document_names(loan_allocations))
+		context._activity_direct_counts = defaultdict(lambda: defaultdict(int))
+		# Settlements count once per activity they touch, through their original loans.
+		context._activity_settlement_counts = defaultdict(lambda: defaultdict(int))
+		counted_settlements = set()
+		authorized_direct_names = {doctype: set() for doctype in direct_names}
 		for row in movement_rows(
 			context,
 			include_all_dates=True,
 			apply_activity=False,
 			apply_search=False,
+			document_names=document_names,
 		):
-			direct_activity = row["activity"]
+			if row["document"] in direct_names.get(row["doctype"], ()):
+				authorized_direct_names[row["doctype"]].add(row["document"])
+			# A line's activity is its original loan's activity for settlements. It is
+			# direct only when the document's own activity is that same activity.
+			document = context.parent(row["doctype"], row["document"])
+			own_activity = (document.get("ti_activity") or "") if document else ""
 			activity_targets = []
-			if direct_activity:
-				activity_targets.append((direct_activity, "direct"))
-			if row["original_loan"]:
-				original = context.parent("Stock Entry", row["original_loan"])
-				if original and original.ti_activity:
-					if any(
-						line.name == row["original_loan_line"] and line.item_code == row["item_code"]
-						for line in original.get("items")
-					):
-						if original.ti_activity and original.ti_activity != direct_activity:
-							activity_targets.append((original.ti_activity, "original_loan"))
+			if row["activity"]:
+				relationship = "direct" if row["activity"] == own_activity else "original_loan"
+				activity_targets.append((row["activity"], relationship))
 			for activity_name_for_row, relationship in activity_targets:
 				relation = {
 					**row,
@@ -1576,6 +1666,33 @@ def activity_relations(context, activity_name, *, lifetime=False):
 				all_relations[activity_name_for_row].append(relation)
 				if row["docstatus"] == 1:
 					lifetime_relations[activity_name_for_row].append(relation)
+				if relationship == "original_loan" and row["docstatus"] == 1:
+					key = (activity_name_for_row, row["document_id"])
+					if key not in counted_settlements:
+						counted_settlements.add(key)
+						context._activity_settlement_counts[activity_name_for_row][row["kind"]] += 1
+		for doctype, expression in (
+			(
+				"Stock Entry",
+				"coalesce(ti_movement_kind, case purpose when 'Material Receipt' then 'Receive' "
+				"when 'Material Issue' then 'Issue' when 'Material Transfer' then 'Transfer' else purpose end)",
+			),
+			(
+				"Stock Reconciliation",
+				"case when purpose = 'Opening Stock' then 'Opening' else 'Reconcile' end",
+			),
+		):
+			names = authorized_direct_names[doctype]
+			if not names:
+				continue
+			for row in frappe.db.sql(
+				f"""select ti_activity as activity, {expression} as kind, count(*) as count
+				from `tab{doctype}` where name in %(names)s and docstatus = 1
+				group by ti_activity, kind""",
+				{"names": tuple(names)},
+				as_dict=True,
+			):
+				context._activity_direct_counts[row.activity][row.kind] += row.count
 		cache = (all_relations, lifetime_relations)
 		context._activity_relation_cache = cache
 	relations = cache[1 if lifetime else 0].get(activity_name, ())
@@ -1592,7 +1709,14 @@ def activity_relations(context, activity_name, *, lifetime=False):
 def activity_rows(context, *, metadata=True):
 	query = context.query
 	filters = {"name": context.scope["activity"]} if context.scope["activity"] else {}
-	for value in paged("Inventory Activity", filters=filters, fields=["name"]):
+	values = list(paged("Inventory Activity", filters=filters, fields=["name", "activity_type"]))
+	context.preload_activities(value.name for value in values)
+	context._activity_page_names = [value.name for value in values]
+	type_labels = {}
+	if metadata:
+		types = frappe.get_list("Inventory Activity Type", fields=["name", "label"])
+		type_labels = {row.name: row.label for row in types}
+	for value in values:
 		activity = context.activity(value.name)
 		if not activity:
 			continue
@@ -1627,25 +1751,25 @@ def activity_rows(context, *, metadata=True):
 		)
 		if related_scope and not has_relations:
 			continue
-		counts = defaultdict(int)
-		document_count = 0
-		previous_document = None
 		outstanding = False
-		# Native documents and their allocations are yielded contiguously. Count
-		# each direct document once without retaining every lifetime allocation.
+		# Native documents and their allocations are yielded contiguously; each
+		# document is inspected once without retaining every lifetime allocation.
+		previous_document = None
 		for row in activity_relations(context, activity.name, lifetime=True):
 			if row["document_id"] == previous_document:
 				continue
 			previous_document = row["document_id"]
-			if row["relationship"] == "direct":
-				counts[row["kind"]] += 1
-				document_count += 1
 			if row["kind"] == "Loan":
 				loan = context.parent("Stock Entry", row["document"])
 				balances = context.loan_balances(loan.name)
 				outstanding = outstanding or any(
 					float(line.transfer_qty) > float(sum(balances[line.name].values())) for line in loan.items
 				)
+		counts = defaultdict(int)
+		for source in (context._activity_direct_counts, context._activity_settlement_counts):
+			for kind, count in source.get(activity.name, {}).items():
+				counts[kind] += count
+		document_count = sum(counts.values())
 		if query["activityKind"] and not counts.get(query["activityKind"]):
 			continue
 		if (query["relatedPresence"] in ("yes", "with") and not has_relations) or (
@@ -1655,11 +1779,7 @@ def activity_rows(context, *, metadata=True):
 		if query["outstandingOnly"] and not outstanding:
 			continue
 		if metadata:
-			type_label = (
-				frappe.db.get_value("Inventory Activity Type", activity.activity_type, "label")
-				if frappe.has_permission("Inventory Activity Type", "read", doc=activity.activity_type)
-				else ""
-			)
+			type_label = type_labels.get(activity.activity_type, "")
 			yield {
 				"id": activity.name,
 				"activity": activity.name,

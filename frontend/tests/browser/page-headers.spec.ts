@@ -1,6 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { nativeUiSession } from "./fixtures/nativeUi";
+const selectionShots = "/tmp/codex-runs/browse-selection-shots";
+mkdirSync(selectionShots, { recursive: true });
 
 async function setup(page: Page, scale = 100, density = "balanced") {
   const font =
@@ -96,6 +98,7 @@ async function setup(page: Page, scale = 100, density = "balanced") {
         next_start: null,
         snapshot: "2026-10-18 10:00:00",
         table: "summary",
+        period: { key: "all", date_from: "", date_to: "" },
         columns: ["item_name", "damaged"],
         summary: [],
         tables: [{ id: "summary", label: "库存汇总", count: 0 }],
@@ -226,6 +229,22 @@ for (const width of [390, 1440]) {
   });
 }
 
+for (const width of [390, 1440]) {
+  test(`damaged browse screenshot ${width}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width < 1024 ? 844 : 900 });
+    await setup(page);
+    await page.goto("/inventory/stock/damaged");
+    await expect(page.locator("[data-browse-row]")).toHaveCount(1);
+    await expect(
+      page.locator(".notice-bar").filter({ hasText: "损坏物资待处理" }),
+    ).toBeVisible();
+    await page.screenshot({
+      path: `${selectionShots}/damaged-${width}.png`,
+      fullPage: true,
+    });
+  });
+}
+
 test("expiry window exposes its selected icon and page title on desktop and phone", async ({
   page,
 }, info) => {
@@ -309,6 +328,11 @@ for (const width of [390, 1440]) {
     await page.goto("/inventory/stock");
     await page.getByRole("button", { name: "卡片视图", exact: true }).click();
     await expect(page.locator(".stock-card")).toHaveCount(60);
+    if (width < 1024) {
+      await page.getByRole("button", { name: "更多操作", exact: true }).click();
+      await page.getByRole("menuitem", { name: "选择", exact: true }).click();
+    } else
+      await page.getByRole("button", { name: "选择", exact: true }).click();
     await page.locator(".card-checkbox input").first().check();
     const chrome = page.locator(".browse-chrome");
     await page.evaluate(() =>

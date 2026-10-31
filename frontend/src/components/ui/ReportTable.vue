@@ -215,7 +215,6 @@ function cell(column: string, value: unknown, row: Record<string, unknown>) {
 			"outcome_key",
 			"outcome",
 			"review_state",
-			"count_scope",
 			"relationship",
 		].includes(column)
 	)

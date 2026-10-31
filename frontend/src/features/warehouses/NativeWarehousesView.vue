@@ -24,6 +24,7 @@ import Overlay from "../../components/ui/Overlay.vue";
 import QuantitySummary from "../../components/ui/QuantitySummary.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import ReportTable from "../../components/ui/ReportTable.vue";
+import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
 import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import FormField from "../../components/ui/FormField.vue";
@@ -203,6 +204,11 @@ function parentLabel(name?: string) {
 			</div>
 		</div>
 		<p v-if="error" class="utility-error" role="alert">{{ error }}</p>
+		<BrowseResultSummary
+			v-if="!detail && tree"
+			:label="`${visibleRows.length} 个仓库节点`"
+			:metrics="[]"
+		/>
 		<p v-if="recoveryError" class="utility-error" role="alert">{{ recoveryError }}</p>
 		<p v-if="deleteError" class="notice-bar danger" role="alert">{{ deleteError }}</p>
 		<template v-if="tree && !error">
@@ -458,6 +464,11 @@ function parentLabel(name?: string) {
 								>
 							</button>
 						</div>
+						<BrowseResultSummary
+							v-if="stockTable?.rows.length"
+							:label="`${stockRows.length} 项物品库存`"
+							:metrics="[]"
+						/>
 						<DataTable
 							v-if="stockTable?.rows.length"
 							ariaLabel="仓库物品库存"

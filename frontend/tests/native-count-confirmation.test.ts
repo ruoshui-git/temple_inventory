@@ -151,9 +151,13 @@ describe("count confirmation summary", () => {
     expect(wrapper.findAll(".native-count-card-input")).toHaveLength(0);
     expect(wrapper.find(".count-readonly").text()).toContain("已提交物品");
     expect(
-      wrapper.find(".count-readonly tbody tr td:nth-child(5)").text(),
+      wrapper
+        .find(
+          ".count-readonly tbody tr[data-row-id]:not(.data-table-group-row) td:nth-child(5)",
+        )
+        .text(),
     ).toBe("3");
-    expect(wrapper.find(".count-readonly").text()).toContain("净差异：+1 个");
+    expect(wrapper.find(".count-readonly").text()).toContain("+1 个");
   });
 
   it("opens count review with Meta+Enter from a text field without submitting", async () => {
@@ -188,9 +192,12 @@ describe("count confirmation summary", () => {
     controller.input(controller.rows.value[175]!, "7");
     controller.input(controller.rows.value[176]!, "3");
     controller.values.value.ti_notes = "复核整批数量";
+    vi.useFakeTimers();
     await wrapper.find(".count-search input").setValue("CHECK-DIFF");
+    await vi.advanceTimersByTimeAsync(200);
     await flushPromises();
     expect(wrapper.findAll("tbody tr[data-count-key]")).toHaveLength(1);
+    vi.useRealTimers();
 
     controller.reviewOpen.value = true;
     await flushPromises();
@@ -206,9 +213,9 @@ describe("count confirmation summary", () => {
     expect(text).toContain("核对相同数量");
     expect(text).toContain("核对差异数量");
     expect(text).not.toContain("UNREVIEWED-000");
-    expect(text).toContain("实点 0 个 · 差异 -5");
+    expect(text).toContain("实点 0 个 · 差异 −5");
     expect(text).toContain("实点 7 个 · 差异 0");
-    expect(text).toContain("实点 3 个 · 差异 1");
+    expect(text).toContain("实点 3 个 · 差异 +1");
     expect(
       dialog!.querySelectorAll(".count-confirmation-rows > p"),
     ).toHaveLength(3);

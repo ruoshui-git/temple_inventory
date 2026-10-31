@@ -33,7 +33,6 @@ import { useMovementHistory } from "../movements/useMovementHistory";
 import { showToast } from "../../services/toast";
 export function useCountEditor(props: {
   name?: string;
-  initialItems?: string[];
   warehouse?: string;
   recoveryId?: string;
 }) {
@@ -61,6 +60,7 @@ export function useCountEditor(props: {
     disposed = false,
     suppressed = false,
     discarded = false,
+    baselineLoaded = false,
     epoch = 0,
     timer: ReturnType<typeof setTimeout> | undefined,
     leaveResolve: ((value: boolean) => void) | undefined,
@@ -77,13 +77,8 @@ export function useCountEditor(props: {
   const initial: CountValues = {
     posting_date: reference.siteDate,
     posting_time: reference.siteTime.split(" ")[1] || "00:00:00",
-    ti_count_warehouses: props.warehouse
-      ? [props.warehouse]
-      : [...reference.physicalLeaves],
-    ti_count_scope: props.initialItems?.length ? "Selected" : "Full Location",
-    ti_count_items: props.initialItems || [],
-    ti_baseline_timestamp: "",
-    ti_baseline_fingerprint: "",
+    ti_time_mode: "Current",
+    baselineTimestamp: "",
     ti_count_review: [],
     items: [],
     ti_activity: "",
@@ -93,18 +88,11 @@ export function useCountEditor(props: {
     ti_notes: "",
   };
   function decodeCount(doc: NativeDocument): NativeDocument {
-    const selected =
-      typeof doc.ti_count_items === "string"
-        ? JSON.parse(doc.ti_count_items || "[]")
-        : doc.ti_count_items;
-    const warehouses =
-      typeof doc.ti_count_warehouses === "string"
-        ? JSON.parse(doc.ti_count_warehouses || "[]")
-        : doc.ti_count_warehouses;
     return {
       ...doc,
       posting_time: postingTime(doc.posting_time),
-      ti_count_items: Array.isArray(selected) ? selected : [],
+      ti_time_mode: doc.ti_time_mode || "Current",
+      baselineTimestamp: "",
       ti_count_review: Array.isArray(doc.ti_count_review)
         ? doc.ti_count_review.map((value) => {
             if (!value || typeof value !== "object") return value;
@@ -117,8 +105,6 @@ export function useCountEditor(props: {
             };
           })
         : [],
-      ti_count_warehouses: Array.isArray(warehouses) ? warehouses : [],
-      ti_count_scope: doc.ti_count_scope,
     };
   }
   async function write(
@@ -127,6 +113,7 @@ export function useCountEditor(props: {
     name?: string,
     version?: string,
   ): Promise<NativeSaveResult> {
+    const { baselineTimestamp: _baselineTimestamp, ...countValues } = values;
     if (deskOrigin.value && name) {
       const result = await services.call<NativeDocument>(
         "native_api.save_document",
@@ -134,14 +121,14 @@ export function useCountEditor(props: {
           doctype: "Stock Reconciliation",
           name,
           version,
-          data: values,
+          data: countValues,
         },
       );
       return decodeCount(result);
     }
     const result = await services.call<NativeSaveResult>("counts.save_count", {
       request_id: requestId,
-      data: { ...values, company: reference.company },
+      data: { ...countValues, company: reference.company },
       ...(name ? { name, version } : {}),
     });
     return "no_adjustment" in result ? result : decodeCount(result);
@@ -155,6 +142,7 @@ export function useCountEditor(props: {
     doctype: "Stock Reconciliation",
     recovery,
     values: initial,
+    recoveryDebounceMs: 500,
     valid: () => valid.value && writable.value,
     services: {
       load: async (identity) =>
@@ -180,7 +168,9 @@ export function useCountEditor(props: {
     () => state.server,
   );
   const deskOrigin = computed(
-    () => !!state.server && !state.server.ti_count_scope,
+    () =>
+      !!state.server &&
+      !(state.server.ti_count_review as unknown[] | undefined)?.length,
   );
   const opening = computed(() => state.server?.purpose === "Opening Stock");
   const writable = computed(
@@ -230,19 +220,28 @@ export function useCountEditor(props: {
   const timestamp = computed(
     () => `${values.value.posting_date} ${values.value.posting_time}`,
   );
-  const baselineScope = () =>
-    JSON.stringify([
-      values.value.ti_count_warehouses,
-      values.value.ti_count_scope,
-      values.value.ti_count_items,
-    ]);
   const currentBaseline = computed(
     () =>
-      !!values.value.ti_baseline_fingerprint &&
-      values.value.ti_baseline_timestamp === timestamp.value &&
-      state.values.baselineScope === baselineScope() &&
+      values.value.baselineTimestamp === timestamp.value &&
       removalAcknowledged.value,
   );
+  const blockers = computed(() => {
+    const reasons: string[] = [];
+    if (baselineBusy.value) reasons.push("正在读取当前账面基准");
+    else if (!currentBaseline.value) reasons.push("请先读取当前账面基准");
+    if (!rows.value.length || !summary.value.reviewed)
+      reasons.push("请至少核对一行盘点物品");
+    if (rows.value.some((row) => row.needs_review && row.actual_qty !== null))
+      reasons.push("有账面已变化的行尚未确认仍按当前实点");
+    if (issues.value.length)
+      reasons.push(`${issues.value.length} 行实点数量需要修正`);
+    if (!removalAcknowledged.value)
+      reasons.push("请先确认已移出账面范围的输入");
+    if (files.incomplete.value || files.busy.value)
+      reasons.push("请完成附件上传");
+    if (supportingDirty.value) reasons.push("请先保存活动、人员或附件信息");
+    return reasons;
+  });
   const valid = computed(() =>
     deskOrigin.value
       ? values.value.items.length > 0 &&
@@ -256,7 +255,10 @@ export function useCountEditor(props: {
         !rows.value.some(
           (row) => row.needs_review && row.actual_qty !== null,
         ) &&
-        !baselineBusy.value,
+        !baselineBusy.value &&
+        !files.incomplete.value &&
+        !files.busy.value &&
+        !supportingDirty.value,
   );
   const canRefresh = computed(
     () =>
@@ -310,37 +312,7 @@ export function useCountEditor(props: {
     clearTimeout(timer);
     timer = setTimeout(() => void save(), 1000);
   }
-  watch(
-    () =>
-      JSON.stringify([
-        values.value.posting_date,
-        values.value.posting_time,
-        values.value.ti_count_warehouses,
-        values.value.ti_count_scope,
-        values.value.ti_count_items,
-        values.value.ti_count_review.map(
-          ({
-            ti_display_item_name: _displayName,
-            ti_display_image: _displayImage,
-            ...row
-          }) => row,
-        ),
-        values.value.items.map(
-          ({
-            ti_display_item_name: _displayName,
-            ti_display_image: _displayImage,
-            ...row
-          }) => row,
-        ),
-        values.value.ti_activity,
-        values.value.ti_recorder_name,
-        values.value.ti_handler_name,
-        values.value.ti_reviewer_name,
-        values.value.ti_notes,
-      ]),
-    changed,
-    { flush: "sync" },
-  );
+  watch(values, changed, { deep: true });
   async function loadNames() {
     const codes = [
       ...new Set([
@@ -366,18 +338,20 @@ export function useCountEditor(props: {
       displayRows.some(
         (row) =>
           String(row.item_code || "") === code &&
-          row.ti_display_item_name !== undefined &&
-          row.ti_display_image !== undefined,
+          (row.ti_display_item_name !== undefined ||
+            row.item_name !== undefined) &&
+          (row.ti_display_image !== undefined || row.image !== undefined),
       ),
     );
-    if (complete) return;
+    if (complete || baselineLoaded || deskOrigin.value) return;
     const missing = codes.filter(
       (code) =>
         !displayRows.some(
           (row) =>
             String(row.item_code || "") === code &&
-            row.ti_display_item_name !== undefined &&
-            row.ti_display_image !== undefined,
+            (row.ti_display_item_name !== undefined ||
+              row.item_name !== undefined) &&
+            (row.ti_display_image !== undefined || row.image !== undefined),
         ),
     );
     const result = await services.call<
@@ -403,8 +377,6 @@ export function useCountEditor(props: {
           discardDirty,
         );
       if (!active()) return;
-      state.values.baselineScope = baselineScope();
-      await loadNames();
       if (state.identity) await files.fetch();
       state.recoveryError = recovery.list().error;
     } catch (reason) {
@@ -416,39 +388,17 @@ export function useCountEditor(props: {
         ready = true;
       }
     }
-    if (
-      !state.identity &&
-      values.value.ti_count_warehouses.length &&
-      (values.value.ti_count_scope === "Full Location" ||
-        values.value.ti_count_items.length)
-    )
-      await refresh(false);
+    if (!deskOrigin.value) await refresh(false);
+    await loadNames();
   }
   async function refresh(markEdited = true) {
     if (!canRefresh.value || baselineBusy.value) return;
-    if (
-      !values.value.ti_count_warehouses.length ||
-      values.value.ti_count_warehouses.some(
-        (name) => !reference.physicalLeaves.includes(name),
-      )
-    ) {
-      baselineError.value = "盘点范围包含无权访问的实体末级位置";
-      return;
-    }
-    if (
-      values.value.ti_count_scope === "Selected" &&
-      !values.value.ti_count_items.length
-    ) {
-      baselineError.value = "请选择盘点物品";
+    if (!reference.physicalLeaves.length) {
+      baselineError.value = "没有可访问的实体末级位置";
       return;
     }
     const current = ++epoch,
-      sentScope = JSON.stringify([
-        values.value.ti_count_warehouses,
-        timestamp.value,
-        values.value.ti_count_scope,
-        values.value.ti_count_items,
-      ]);
+      sentScope = JSON.stringify([timestamp.value]);
     baselineBusy.value = true;
     baselineError.value = "";
     try {
@@ -466,15 +416,11 @@ export function useCountEditor(props: {
       }
       const result = await services.call<{
         rows: CountRow[];
-        fingerprint: string;
         timestamp: string;
         warehouses: string[];
         removed_rows: CountRow[];
       }>("counts.count_baseline", {
-        warehouses: values.value.ti_count_warehouses,
         timestamp: timestamp.value,
-        scope: values.value.ti_count_scope,
-        item_codes: values.value.ti_count_items,
         previous_rows: [
           ...rows.value,
           ...removed.value.filter(
@@ -485,13 +431,7 @@ export function useCountEditor(props: {
       if (
         !active() ||
         current !== epoch ||
-        sentScope !==
-          JSON.stringify([
-            values.value.ti_count_warehouses,
-            timestamp.value,
-            values.value.ti_count_scope,
-            values.value.ti_count_items,
-          ])
+        sentScope !== JSON.stringify([timestamp.value])
       )
         return;
       suppressed = true;
@@ -505,13 +445,14 @@ export function useCountEditor(props: {
       removed.value = [...removedByKey.values()];
       removalAcknowledged.value = !removed.value.length;
       values.value.ti_count_review = result.rows;
+      baselineLoaded = true;
       for (const row of result.rows) {
+        row.ti_display_item_name = row.item_name || "";
+        row.ti_display_image = row.image || "";
         if (row.item_name) names[row.item_code] = row.item_name;
         if (row.image !== undefined) images[row.item_code] = row.image || "";
       }
-      values.value.ti_baseline_timestamp = result.timestamp;
-      values.value.ti_baseline_fingerprint = result.fingerprint;
-      state.values.baselineScope = baselineScope();
+      values.value.baselineTimestamp = result.timestamp;
       if (state.status === "conflict") {
         state.status = "local";
         state.error = "";
@@ -530,11 +471,69 @@ export function useCountEditor(props: {
       if (active() && current === epoch) baselineBusy.value = false;
     }
   }
-  async function chooseItems(codes: string[]) {
-    values.value.ti_count_items = [
-      ...new Set([...values.value.ti_count_items, ...codes]),
-    ];
+  async function chooseItems(
+    selections: { code: string; warehouse: string }[],
+  ) {
+    const available = new Set(reference.physicalLeaves);
+    const rowsToAdd = selections.filter(
+      (selection) =>
+        available.has(selection.warehouse) &&
+        !rows.value.some(
+          (row) =>
+            row.item_code === selection.code &&
+            row.warehouse === selection.warehouse,
+        ),
+    );
+    if (rowsToAdd.length) {
+      const items = await services.call<
+        { name: string; item_name: string; image: string; stock_uom: string }[]
+      >("catalog.item_summaries", {
+        item_codes: [...new Set(rowsToAdd.map((row) => row.code))],
+      });
+      const byCode = new Map(items.map((item) => [item.name, item]));
+      const addedRows: CountRow[] = rowsToAdd.flatMap((selection) => {
+        const item = byCode.get(selection.code);
+        return item
+          ? [
+              {
+                item_code: item.name,
+                item_name: item.item_name,
+                image: item.image || "",
+                ti_display_item_name: item.item_name,
+                ti_display_image: item.image || "",
+                warehouse: selection.warehouse,
+                batch_no: null,
+                stock_uom: item.stock_uom,
+                baseline_qty: 0,
+                actual_qty: null,
+                review_state: "Unreviewed",
+                reason: "",
+              },
+            ]
+          : [];
+      });
+      values.value.ti_count_review.push(...addedRows);
+    }
     await refresh();
+  }
+  async function markServerStaleRows(message: string) {
+    const marker = "基准已变化的盘点行：";
+    if (!message.includes(marker)) return false;
+    state.confirmationVersion = undefined;
+    if (values.value.ti_time_mode === "Current") {
+      const clock = await services.call<{ timestamp: string }>(
+        "native_api.editor_clock",
+      );
+      values.value.posting_date =
+        clock.timestamp.split(" ")[0] || values.value.posting_date;
+      values.value.posting_time =
+        clock.timestamp.split(" ")[1] || values.value.posting_time;
+    }
+    await refresh(false);
+    state.error = rows.value.some((row) => row.needs_review)
+      ? blockers.value[0] || message
+      : message;
+    return true;
   }
   function input(row: CountRow, value: string) {
     row.actual_qty = value === "" ? null : Number(value);
@@ -558,16 +557,21 @@ export function useCountEditor(props: {
     historyTarget.value = undefined;
   }
   async function save(manual = false) {
+    state.error = "";
     if (!active() || !writable.value || busy.value) return;
     if (manual) showError.value = true;
     clearTimeout(timer);
     if (!valid.value || supportingDirty.value) {
+      // Autosave keeps incomplete input in recovery silently; only a manual save explains why.
+      if (manual) state.error = blockers.value[0] || "请完成盘点核对后再保存";
       editor.retainIncomplete();
       return;
     }
     savePending.value++;
     try {
       await editor.save();
+      if (state.error.includes("基准已变化的盘点行："))
+        await markServerStaleRows(state.error);
       if (state.status === "saved") {
         await files.finalize();
         if (files.incomplete.value) editor.retain();
@@ -578,11 +582,31 @@ export function useCountEditor(props: {
     }
   }
   async function review() {
+    state.error = "";
     showError.value = true;
-    if (!valid.value || !writable.value || supportingDirty.value) return;
-    reviewOpen.value = true;
+    try {
+      if (values.value.ti_time_mode === "Current") {
+        const clock = await services.call<{ timestamp: string }>(
+          "native_api.editor_clock",
+        );
+        values.value.posting_date =
+          clock.timestamp.split(" ")[0] || values.value.posting_date;
+        values.value.posting_time =
+          clock.timestamp.split(" ")[1] || values.value.posting_time;
+      }
+      if (!currentBaseline.value) await refresh(false);
+      if (!valid.value || !writable.value || supportingDirty.value) {
+        state.error = blockers.value[0] || "请完成盘点核对后再确认";
+        return;
+      }
+      reviewOpen.value = true;
+    } catch (reason) {
+      state.error =
+        reason instanceof Error ? reason.message : "盘点核对失败，请重试";
+    }
   }
   async function confirm() {
+    state.error = "";
     if (!active() || busy.value) return;
     if (!state.confirmationVersion) {
       await save(true);
@@ -595,9 +619,8 @@ export function useCountEditor(props: {
         files.incomplete.value ||
         files.busy.value
       ) {
-        state.error ||= files.incomplete.value
-          ? "请完成附件上传后确认"
-          : "请先核对并保存盘点";
+        const message = state.error || blockers.value[0] || "请先保存盘点草稿";
+        if (!(await markServerStaleRows(message))) state.error = message;
         return;
       }
     }
@@ -613,8 +636,11 @@ export function useCountEditor(props: {
         finished.value = true;
       }
     } catch (reason) {
-      if (active())
-        state.error = reason instanceof Error ? reason.message : "盘点确认失败";
+      if (active()) {
+        const message =
+          reason instanceof Error ? reason.message : "盘点确认失败";
+        if (!(await markServerStaleRows(message))) state.error = message;
+      }
     } finally {
       if (active()) busy.value = false;
     }
@@ -645,6 +671,7 @@ export function useCountEditor(props: {
       showToast("已恢复上次在此浏览器暂存的内容");
     }
     ready = true;
+    await refresh(false);
   }
   watch(
     removed,
@@ -728,10 +755,15 @@ export function useCountEditor(props: {
   }
   function beforeUnload(event: BeforeUnloadEvent) {
     if ((dirty.value || supportingDirty.value) && !discarded) {
-      editor.retain();
+      editor.flushRecovery();
       event.preventDefault();
     }
   }
+  const flushRecovery = () => editor.flushRecovery();
+  if (typeof window !== "undefined")
+    window.addEventListener("pagehide", flushRecovery);
+  if (typeof document !== "undefined")
+    document.addEventListener("visibilitychange", flushRecovery);
   if (typeof window !== "undefined")
     window.addEventListener("beforeunload", beforeUnload);
   const sessionRestored = () => {
@@ -746,6 +778,8 @@ export function useCountEditor(props: {
     epoch++;
     editor.dispose();
     window.removeEventListener("beforeunload", beforeUnload);
+    window.removeEventListener("pagehide", flushRecovery);
+    document.removeEventListener("visibilitychange", flushRecovery);
     document.removeEventListener("inventory-session-restored", sessionRestored);
   });
   void load().then(async () => {
@@ -767,6 +801,7 @@ export function useCountEditor(props: {
 
   return {
     existingDocument: computed(() => Boolean(props.name)),
+    warehouseFilter: props.warehouse || "",
     activityLabel,
     savedExportQuery: computed(() =>
       savedDocumentExport(state.server, state.status),
@@ -787,6 +822,7 @@ export function useCountEditor(props: {
     baselineError,
     writable,
     valid,
+    blockers,
     dirty,
     summary,
     issues,

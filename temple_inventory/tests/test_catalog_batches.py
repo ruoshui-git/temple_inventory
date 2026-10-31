@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import frappe
 from erpnext.stock.doctype.batch.batch import get_batch_qty
-from frappe.utils import add_days, getdate, nowdate
+from frappe.utils import add_days, getdate, now_datetime, nowdate
 
 from temple_inventory import (
 	browse,
@@ -248,7 +248,8 @@ class CatalogBatchesTests(NativeDocumentTests):
 		allocations = {row["batch_no"]: row for row in detail["items"][0]["allocations"]}
 		self.assertEqual(allocations[batches[0]]["outstanding_qty"], 0)
 		self.assertEqual(allocations[batches[1]]["outstanding_qty"], 2)
-		query = {"dataset": "loans", "view": "outcomes", "loan": loan.name}
+		# Settled batches keep their outcome rows only in the all-status view.
+		query = {"dataset": "loans", "view": "outcomes", "loan": loan.name, "loanStatus": "all"}
 		rows = report_page(query)["rows"]
 		self.assertEqual({row["original_loan_line"] for row in rows}, {original_line})
 		self.assertEqual(
@@ -291,26 +292,22 @@ class CatalogBatchesTests(NativeDocumentTests):
 		self.assertEqual(item_page["rows"][0]["stock_qty"], 2)
 		self.assertEqual(item_page["rows"][0]["document_count"], 1)
 		history = browse.operation_contributions(item_query, item_code=self.item, history_sort="asc")
-		self.assertEqual(history["matched_count"], 2)
+		self.assertEqual(history["matched_count"], 1)
 		self.assertTrue(history["history_complete"])
-		self.assertEqual([row["quantity"] for row in history["rows"]], [3.0, -1.0])
-		self.assertEqual([row["stock_uom"] for row in history["rows"]], ["Nos", "Nos"])
+		self.assertEqual([row["quantity"] for row in history["rows"]], [3.0])
+		self.assertEqual([row["stock_uom"] for row in history["rows"]], ["Nos"])
 		self.assertEqual(history["rows"][0]["signed"], True)
-		self.assertEqual([row["kind"] for row in history["rows"]], ["Loan", "Return"])
+		self.assertEqual([row["kind"] for row in history["rows"]], ["Loan"])
 		# The ungrouped outstanding list is the 借出清单: open loan lines only, with borrower.
 		loan_list = browse.operation_contributions(item_query, history_sort="asc")
 		self.assertTrue(loan_list["history_complete"])
 		self.assertEqual([row["kind"] for row in loan_list["rows"]], ["Loan"])
 		self.assertEqual(loan_list["rows"][0]["borrower"], loan.ti_borrower)
 		self.assertEqual(loan_list["rows"][0]["outstanding"], 2.0)
-		all_item_history = browse.operation_contributions(
-			item_query, item_code=self.item, loan_scope="all", history_sort="asc"
-		)
+		all_query = {**item_query, "loanStatus": "all"}
+		all_item_history = browse.operation_contributions(all_query, item_code=self.item, history_sort="asc")
 		self.assertEqual([row["quantity"] for row in all_item_history["rows"]], [5.0, -3.0])
-		all_query = {**item_query, "includeZero": True}
-		all_history = browse.operation_contributions(
-			all_query, item_code=self.item, loan_scope="all", history_sort="asc"
-		)
+		all_history = browse.operation_contributions(all_query, item_code=self.item, history_sort="asc")
 		self.assertEqual([row["quantity"] for row in all_history["rows"]], [5.0, -3.0])
 
 		settled_item = frappe.copy_doc(frappe.get_doc("Item", self.item))
@@ -336,7 +333,8 @@ class CatalogBatchesTests(NativeDocumentTests):
 		self.submit(self.create(settled_return))
 		settled_query = {"dataset": "loans", "view": "items", "scope": {"item": settled_item.name}}
 		self.assertEqual(browse.operation_page(settled_query)["matched_count"], 0)
-		settled_page = browse.operation_page({**settled_query, "includeZero": True})
+		settled_query = {**settled_query, "loanStatus": "settled"}
+		settled_page = browse.operation_page(settled_query)
 		self.assertEqual(settled_page["matched_count"], 1)
 		self.assertEqual(settled_page["rows"][0]["stock_qty"], 0)
 		canonical = projections.report_page(
@@ -350,7 +348,7 @@ class CatalogBatchesTests(NativeDocumentTests):
 		)
 		self.assertEqual(canonical["query"]["statuses"], [1])
 		self.assertEqual(canonical["query"]["loanOutcome"], "lost")
-		self.assertEqual(canonical["query"]["loanStatus"], "all")
+		self.assertEqual(canonical["query"]["loanStatus"], "settled")
 		self.assertFalse(canonical["query"]["outstandingOnly"])
 		self.assertEqual(canonical["table"], "loan_items")
 		self.assertIn("outstanding", canonical["columns"])
@@ -358,13 +356,11 @@ class CatalogBatchesTests(NativeDocumentTests):
 		self.assertNotIn("loan_item_page", {table["id"] for table in canonical["tables"]})
 		self.assertNotIn("linked_settlements", {table["id"] for table in canonical["tables"]})
 		self.assertEqual(projections.report_page(settled_query)["table"], "loan_items")
-		included_projection = projections.report_page({**settled_query, "includeZero": True})
-		self.assertEqual(included_projection["matched_count"], settled_page["matched_count"])
-		self.assertEqual(included_projection["rows"][0]["stock_qty"], settled_page["rows"][0]["stock_qty"])
+		settled_projection = projections.report_page(settled_query)
+		self.assertEqual(settled_projection["matched_count"], settled_page["matched_count"])
+		self.assertEqual(settled_projection["rows"][0]["stock_qty"], settled_page["rows"][0]["stock_qty"])
 		for grouping, expected in (("activity", ""), ("month", nowdate()[:7])):
-			grouped = projections.report_page(
-				{**settled_query, "view": "outcomes", "includeZero": True, "groupBy": [grouping]}
-			)
+			grouped = projections.report_page({**settled_query, "view": "outcomes", "groupBy": [grouping]})
 			self.assertEqual(grouped["table"], "grouped")
 			self.assertEqual(grouped["matched_count"], 1)
 			self.assertEqual(grouped["rows"][0][grouping], expected)
@@ -543,7 +539,7 @@ class CatalogBatchesTests(NativeDocumentTests):
 			0,
 		)
 
-	def test_selective_batch_count_can_review_historical_zero_without_losing_its_identity(self):
+	def test_explicit_zero_stock_batch_row_keeps_its_identity(self):
 		frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)
 		item = frappe.get_doc("Item", self.item)
 		item.has_batch_no = 1
@@ -555,15 +551,33 @@ class CatalogBatchesTests(NativeDocumentTests):
 		data = self.movement("Issue", 2, self.a)
 		data["items"][0].update({"batch_no": batch["name"], "use_serial_batch_fields": 1})
 		self.submit(self.create(data))
-		data = self.count_data(1, "Reviewed")
 		query = {"dataset": "expiry", "scope": {"item": self.item}}
 		self.assertEqual(browse.expiry_page(query)["batch_count"], 0)
 		zero = browse.expiry_page({**query, "includeZero": True})
 		self.assertEqual(zero["batch_count"], 1)
 		self.assertEqual(zero["rows"][0]["batch_no"], batch["name"])
 		self.assertEqual(zero["rows"][0]["stock_qty"], 0)
-		self.assertEqual(data["ti_count_review"][0]["batch_no"], batch["name"])
-		self.assertEqual(data["ti_count_review"][0]["baseline_qty"], 0)
+		posting = now_datetime()
+		baseline = counts.count_baseline(str(posting))
+		zero_row = {
+			"item_code": self.item,
+			"warehouse": self.a,
+			"batch_no": batch["name"],
+			"stock_uom": frappe.get_cached_value("Item", self.item, "stock_uom"),
+			"baseline_qty": 0,
+			"actual_qty": 1,
+			"review_state": "Reviewed",
+			"reason": "人工加入零库存批次",
+		}
+		self.assertNotIn(batch["name"], {row["batch_no"] for row in baseline["rows"]})
+		rows = [*baseline["rows"], zero_row]
+		data = {
+			"company": self.company,
+			"posting_date": str(posting.date()),
+			"posting_time": str(posting.time()),
+			"ti_time_mode": "Historical",
+			"ti_count_review": rows,
+		}
 		draft = counts.save_count(str(uuid4()), data)
 		completed = native_api.submit_document("Stock Reconciliation", draft.name, draft.version)
 		self.assertEqual(completed["items"][0].valuation_rate, 10)

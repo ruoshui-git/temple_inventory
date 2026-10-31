@@ -17,6 +17,7 @@ import { useBrowseState } from "../../lib/browseMemory";
 import { onCategoryRenamed } from "../../lib/categoryRename";
 import { useReportGroups } from "../../composables/useReportGroups";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
+import { useBrowseSelection } from "../../composables/useBrowseSelection";
 import {
   useInventoryServices,
   useReferenceData,
@@ -30,6 +31,11 @@ interface InventoryPage {
   query: ReportQuery;
   summary: ReportRow[];
   analysis: Record<"category" | "location", ReportRow[]>;
+}
+interface BulkAction {
+  name: string;
+  kind: string;
+  icon: string;
 }
 export function useStockBrowseController(
   props: { active?: boolean; initialQuery?: ReportQuery; queryError?: string },
@@ -62,7 +68,7 @@ export function useStockBrowseController(
     }),
     sort = ref("item_name"),
     descending = ref(false),
-    selected = ref<string[]>([]),
+    selection = useBrowseSelection(),
     stockState = ref<ReportQuery["stockState"]>("in_stock"),
     analysisDimension = ref<"category" | "location">("category");
   const scope = ref(browseDefaults("inventory", "summary").scope);
@@ -135,7 +141,8 @@ export function useStockBrowseController(
     () => ({
       phoneView: phoneView.value,
       desktopView: desktopView.value,
-      selected: selected.value,
+      selecting: selection.selecting.value,
+      selected: selection.selected.value,
       dimension: analysisDimension.value,
     }),
     (value) => {
@@ -144,7 +151,10 @@ export function useStockBrowseController(
         value.desktopView === "card" || value.view === "card"
           ? "card"
           : "table";
-      selected.value = (value.selected || []) as string[];
+      selection.selecting.value = value.selecting === true;
+      selection.selected.value = selection.selecting.value
+        ? ((value.selected || []) as string[])
+        : [];
       analysisDimension.value =
         value.dimension === "location" ? "location" : "category";
     },
@@ -202,6 +212,7 @@ export function useStockBrowseController(
             ),
           ]
         : result.rows;
+      if (!more) selection.retain(data.rows.map((row) => row.code));
       data.total = result.matched_count;
       data.next = result.next_start;
       data.summary = result.summary;
@@ -241,7 +252,7 @@ export function useStockBrowseController(
         request?.abort();
         clearData();
         data.loading = false;
-        selected.value = [];
+        selection.exit();
       }
     },
   );
@@ -329,8 +340,8 @@ export function useStockBrowseController(
         action.kind === "Item" || reference.operations[action.kind] === true,
     ),
   );
-  const selectedActions = computed(() =>
-    selected.value.length
+  const selectedActions = computed<BulkAction[]>(() =>
+    selection.selected.value.length
       ? [
           {
             name: kindIcons.Receive.label,
@@ -347,6 +358,18 @@ export function useStockBrowseController(
             kind: "Transfer",
             icon: kindIcons.Transfer.icon,
           },
+          ...(selection.selected.value.every((code) => {
+            const row = data.rows.find((item) => item.code === code);
+            return row && Number(row.loaned) > 0;
+          })
+            ? [
+                {
+                  name: kindIcons.Return.label,
+                  kind: "Return",
+                  icon: kindIcons.Return.icon,
+                },
+              ]
+            : []),
         ].filter((action) => reference.operations[action.kind] === true)
       : [],
   );
@@ -357,8 +380,8 @@ export function useStockBrowseController(
       props.active === false
     )
       return;
-    if (!selectedActions.value.some((action) => action.kind === kind)) return;
-    navigate(kind, [...new Set(selected.value)]);
+    if (!selectedActions.value.some((item) => item.kind === kind)) return;
+    navigate(kind, [...new Set(selection.selected.value)]);
   }
   function rowAction(kind: string, item: StockItem) {
     if (
@@ -399,7 +422,11 @@ export function useStockBrowseController(
     view,
     sort,
     descending,
-    selected,
+    selected: selection.selected,
+    selecting: selection.selecting,
+    enterSelection: selection.enter,
+    exitSelection: selection.exit,
+    setSelected: selection.set,
     stockState,
     setItemStatus,
     analysisDimension,
@@ -431,9 +458,7 @@ export function useStockBrowseController(
           : "ready",
     ),
     toggle: (code: string) => {
-      selected.value = selected.value.includes(code)
-        ? selected.value.filter((value) => value !== code)
-        : [...selected.value, code];
+      selection.toggle(code);
     },
     sortBy: (key: string) => {
       descending.value = sort.value === key ? !descending.value : false;

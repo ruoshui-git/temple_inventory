@@ -121,18 +121,15 @@ describe("canonical routed report queries", () => {
       }).error,
     ).not.toBe("");
   });
-  it("routes the loan history scope and rejects unknown scope values", () => {
-    const query = newReportQuery("loans");
-    query.view = "items";
-    query.loanScope = "all";
-    query.includeZero = true;
-    expect(decodeReportQuery(JSON.stringify(query))).toMatchObject({
-      error: "",
-      query,
+  it("drops removed loan filters and defaults the shared status to outstanding", () => {
+    const result = decodeReportQuery({
+      dataset: "loans",
+      view: "items",
+      loanScope: "all",
     });
-    expect(
-      decodeReportQuery({ ...query, loanScope: "settled" }).error,
-    ).not.toBe("");
+    expect(result.error).toBe("");
+    expect(result.query.loanStatus).toBe("outstanding");
+    expect("loanScope" in result.query).toBe(false);
   });
   it("validates ordered grouping fields by report grain and rejects the retired field", () => {
     const query = newReportQuery("inventory");

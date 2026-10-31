@@ -14,10 +14,10 @@ function changed(value: ReportQuery) {
 	if (route.query.query !== target.query?.query || route.query.view !== target.query?.view)
 		void router.replace(target);
 }
-function operation(kind: "Repair" | "Disposal", allocation: InitialAllocation) {
+function operation(kind: "Repair" | "Disposal", allocations: InitialAllocation[]) {
 	void router.push(
 		operationDestination(kind, {
-			allocations: JSON.stringify([allocation]),
+			allocations: JSON.stringify(allocations),
 			editor: crypto.randomUUID(),
 		}),
 	);

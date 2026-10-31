@@ -54,10 +54,7 @@ const labels: Record<string, string> = {
 	ti_recorder_name: "记录人",
 	ti_handler_name: "经办人",
 	ti_reviewer_name: "复核人",
-	ti_count_warehouses: "盘点位置范围",
-	ti_count_scope: "盘点范围",
 	ti_notes: "盘点备注",
-	ti_baseline_timestamp: "账面基准时间",
 	warehouse: "仓库 / 位置",
 	label: "名称",
 	parent: "上级位置",
@@ -98,8 +95,6 @@ const normalizedValues = computed(() => {
 		purpose: "ti_purpose_text",
 		activity: "ti_activity",
 		borrower: "ti_borrower",
-		warehouses: "ti_count_warehouses",
-		scope: "ti_count_scope",
 		notes: "ti_notes",
 	};
 	if (props.kind === "Item") aliases.name = "item_name";
@@ -111,6 +106,25 @@ const normalizedValues = computed(() => {
 	}
 	return values;
 });
+/** A Return's borrower and activity come from its settled loans, so the per-line loan column carries them. */
+const returnKind = computed(
+	() => String(props.values.kind || props.values.ti_movement_kind || "") === "Return",
+);
+function loanContext(row: Record<string, JsonValue>) {
+	const name = String(row.loanName || "");
+	if (!name) return "";
+	const borrower = String(row.loanBorrower || "");
+	const activity = String(row.loanActivityTitle || row.loanActivity || "");
+	const activityLabel =
+		reference?.activities.find((option) => option.value === activity)?.label || activity;
+	return [
+		`原借出 ${name}`,
+		borrower && `借用方 ${borrower}`,
+		activity && `活动 ${activityLabel}`,
+	]
+		.filter(Boolean)
+		.join(" · ");
+}
 const fields = computed(() => {
 	const referenceKeys =
 		props.kind === "UOM"
@@ -126,6 +140,7 @@ const fields = computed(() => {
 			(!referenceKeys || referenceKeys.has(key)),
 	);
 	const excluded = new Set(["items", "ti_count_review", "attachments"]);
+	if (returnKind.value) excluded.add("ti_borrower").add("ti_activity");
 	return known
 		.filter(([key]) => !excluded.has(key))
 		.map(([key, label]) => ({
@@ -160,6 +175,7 @@ const rows = computed(() => {
 			t_warehouse: row.t_warehouse ?? row.destination ?? row.targetLocation ?? row.location,
 			warehouse: row.warehouse ?? row.location,
 			batch_no: row.batch_no ?? row.batch,
+			loan_context: returnKind.value ? loanContext(row) : "",
 		} as Record<string, JsonValue>;
 	});
 });
@@ -186,6 +202,7 @@ const rowColumns = computed(() => {
 		["s_warehouse", "来源"],
 		["t_warehouse", "去向"],
 		["batch_no", "批次"],
+		...(returnKind.value ? [["loan_context", "原借出"]] : []),
 	];
 });
 const tableColumns = computed<DataColumn[]>(() =>
@@ -321,7 +338,7 @@ async function copy() {
 					v-else-if="['s_warehouse', 't_warehouse'].includes(String(column.id))"
 					:warehouse="String(row[column.id] || '')"
 					:kind="String(row.ti_movement_kind || row.kind || '')"
-					:borrower="String(row.ti_borrower || '')"
+					:borrower="String(row.loanBorrower || row.ti_borrower || '')"
 					:role="column.id === 's_warehouse' ? '来源位置' : '去向位置'"
 				/>
 				<span v-else class="content-long-text">{{

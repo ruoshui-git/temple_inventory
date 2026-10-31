@@ -319,7 +319,6 @@ QUERY_DEFAULT = {
 	"statuses": [1],
 	"stockState": "in_stock",
 	"includeZero": False,
-	"loanScope": "outstanding",
 	"includeUndated": True,
 	"activityStatus": "all",
 	"typeId": "",
@@ -446,8 +445,13 @@ def validate_query(value):
 	if group_by not in group_sequences_for_view(dataset, query["view"]):
 		frappe.throw("此数据集不支持所选视图或分组顺序")
 	query["groupBy"] = list(group_by)
-	if dataset == "loans" and query["view"] == "items":
-		query.update({"statuses": [1], "loanStatus": "all", "outstandingOnly": False})
+	if dataset == "loans":
+		if "loanStatus" not in value:
+			query["loanStatus"] = "outstanding"
+		query["outstandingOnly"] = False
+		if query["view"] == "items":
+			# Item histories only ever read submitted loan documents.
+			query["statuses"] = [1]
 	if dataset == "activities":
 		query["statuses"] = [1]
 	if (
@@ -458,8 +462,7 @@ def validate_query(value):
 	for field, allowed in {
 		"stockState": ("in_stock", "available", "no_available", "no_stock", "all"),
 		"activityStatus": ("all", "active", "archived"),
-		"loanStatus": ("all", "outstanding", "open", "settled"),
-		"loanScope": ("outstanding", "all"),
+		"loanStatus": ("all", "outstanding", "settled"),
 		"loanOutcome": ("all", "outstanding", "returned", "damaged", "lost"),
 		"itemStatus": ("enabled", "disabled", "all"),
 		"countReviewed": ("all", "reviewed", "unreviewed", "difference"),
@@ -515,12 +518,12 @@ def validate_query(value):
 	}:
 		query["scope"]["categories"] = []
 		query["scope"]["uncategorized"] = False
-	if dataset == "inventory":
-		query["includeZero"] = False
 	if dataset != "inventory":
 		query["stockState"] = "in_stock"
 	if dataset == "inventory" and query["view"] == "historical" and query["scope"]["period"]["key"] == "all":
 		frappe.throw("历史库存需要有起止日期的范围")
+	if dataset == "loans":
+		query.pop("includeZero", None)
 	return query
 
 

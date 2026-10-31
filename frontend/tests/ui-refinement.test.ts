@@ -171,22 +171,22 @@ it("formats allocation chips with authorized warehouse labels while preserving e
     )?.label,
   ).toContain("Stock Entry / MAT-1 / ROW-1");
 });
-it("surfaces the settled loan-item population as a removable filter", () => {
+it("surfaces the settled loan status as a removable filter", () => {
   const query = newReportQuery("loans");
   query.view = "items";
-  query.includeZero = true;
+  query.loanStatus = "settled";
   expect(hasReportStatuses(query)).toBe(false);
   const chip = reportFilterChips(query, createReferenceData()).find(
-    (row) => row.key === "includeZero",
+    (row) => row.key === "loanStatus",
   );
-  expect(chip?.label).toBe("显示已结清物品");
-  expect(chip?.reset.includeZero).toBe(false);
+  expect(chip?.label).toBe("借用状态：已结清");
+  expect(chip?.reset.loanStatus).toBe("outstanding");
   query.view = "records";
   expect(
     reportFilterChips(query, createReferenceData()).some(
-      (row) => row.key === "includeZero",
+      (row) => row.key === "loanStatus",
     ),
-  ).toBe(false);
+  ).toBe(true);
 });
 it("exposes exact batch scope in report filters with an explicit clear action", () => {
   const query = newReportQuery("movements");

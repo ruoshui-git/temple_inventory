@@ -24,7 +24,7 @@ import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 import ItemImage from "../../components/ItemImage.vue";
 import { useFocusVisibility } from "../../composables/useFocusVisibility";
 import DataTable from "../../components/ui/DataTable.vue";
-import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
+import type { DataColumn, DataTableEntry, DataTableRecord } from "../../lib/dataTable";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import { showToast } from "../../services/toast";
 import { useOptionalInventoryServices } from "../../services/contracts";
@@ -37,6 +37,7 @@ import { RouterLink } from "vue-router";
 import { personDestination } from "../../lib/nativeNavigation";
 import { exportFields } from "../../lib/exportColumns";
 import { countEditorColumns } from "./countEditorColumns";
+import { formatQuantity } from "../../lib/formatQuantity";
 const props = withDefaults(defineProps<{ controller: CountEditor; active?: boolean }>(), {
 	active: true,
 });
@@ -60,6 +61,7 @@ const {
 	busy,
 	writable,
 	valid,
+	blockers,
 	files,
 	deskOrigin,
 	opening,
@@ -207,28 +209,50 @@ const readOnlyColumns: DataColumn[] = [
 	{ id: "stock_uom", label: "单位", kind: "unit", defaultVisible: true },
 	{ id: "reason", label: "原因 / 备注", kind: "text", defaultVisible: true },
 ];
-const readOnlyTableRows = computed<DataTableRecord[]>(() =>
-	readOnlyLines.value.map((row, index) => ({
-		kind: "record",
-		id: String(row.name || index),
-		value: {
-			...row,
-			difference: Number(row.qty || 0) - Number(row.current_qty || 0),
-		},
-	})),
-);
+const readOnlyTableRows = computed<DataTableEntry[]>(() => {
+	const groups = new Map<string, Record<string, unknown>[]>();
+	for (const row of readOnlyLines.value) {
+		const location = String(row.warehouse || "");
+		groups.set(location, [...(groups.get(location) || []), row]);
+	}
+	const result: DataTableEntry[] = [];
+	for (const [location, locationRows] of groups) {
+		result.push({
+			kind: "group",
+			id: `count-detail:${location}`,
+			label: warehouseLabel(location, c.reference.warehouses),
+			labelColumn: "item_name",
+			countColumn: "item_name",
+			depth: 0,
+			count: locationRows.length,
+			countLabel: "行",
+			expanded: true,
+			hasChildren: locationRows.length > 0,
+		});
+		locationRows.forEach((row, index) =>
+			result.push({
+				kind: "record",
+				id: String(row.name || `${location}:${index}`),
+				value: { ...row, difference: Number(row.qty || 0) - Number(row.current_qty || 0) },
+			}),
+		);
+	}
+	return result;
+});
 const readOnlySummaryRows = computed<CountRow[]>(() =>
-	readOnlyLines.value.map((row) => ({
-		item_code: String(row.item_code || ""),
-		item_name: String(row.item_name || ""),
-		warehouse: String(row.warehouse || ""),
-		batch_no: row.batch_no ? String(row.batch_no) : null,
-		stock_uom: String(row.stock_uom || ""),
-		baseline_qty: Number(row.current_qty || 0),
-		actual_qty: Number(row.qty || 0),
-		review_state: "Reviewed",
-		reason: String(row.reason || ""),
-	})),
+	rows.value.length
+		? rows.value.filter((row) => row.review_state === "Reviewed")
+		: readOnlyLines.value.map((row) => ({
+				item_code: String(row.item_code || ""),
+				item_name: String(row.item_name || ""),
+				warehouse: String(row.warehouse || ""),
+				batch_no: row.batch_no ? String(row.batch_no) : null,
+				stock_uom: String(row.stock_uom || ""),
+				baseline_qty: Number(row.current_qty || 0),
+				actual_qty: Number(row.qty || 0),
+				review_state: "Reviewed",
+				reason: String(row.reason || ""),
+			})),
 );
 const status = computed(
 	() =>
@@ -482,24 +506,39 @@ async function back() {
 			:aria-busy="loading && state.server ? 'true' : undefined"
 		>
 			<form class="form-main surface count-form-main" novalidate @submit.prevent="review">
-				<DisclosureSection title="日期与时间" summary="账面基准使用的记录时间点">
-					<div class="form-date-section">
-						<label v-if="writable" class="form-field"
+				<section class="form-section form-date-section">
+					<template v-if="values.ti_time_mode === 'Current'">
+						<p class="muted">
+							确认时自动记录当前时间。<UiButton
+								variant="ghost"
+								@click="values.ti_time_mode = 'Historical'"
+								>指定历史时间</UiButton
+							>
+						</p>
+					</template>
+					<template v-else>
+						<label class="form-field"
+							>时间方式<select v-model="values.ti_time_mode" :disabled="busy">
+								<option value="Current">确认时的当前时间</option>
+								<option value="Historical">指定历史时间</option>
+							</select></label
+						>
+						<label class="form-field"
 							>操作日期<input
-								type="date"
 								v-model="values.posting_date"
-								:disabled="busy" /></label
-						><label v-if="writable" class="form-field"
-							>操作时间<input
-								type="time"
-								step="1"
-								v-model="values.posting_time"
+								type="date"
 								:disabled="busy"
 						/></label>
-						<p v-else>{{ values.posting_date }} {{ values.posting_time }}</p>
-						<p class="muted">账面基准使用这个明确时间点的库存记录。</p>
-					</div>
-				</DisclosureSection>
+						<label class="form-field"
+							>操作时间<input
+								v-model="values.posting_time"
+								type="time"
+								step="1"
+								:disabled="busy"
+						/></label>
+						<p class="muted">系统会按指定时间重新读取账面数量。</p>
+					</template>
+				</section>
 				<CountWorkspace
 					v-if="!deskOrigin"
 					:controller="c"
@@ -681,44 +720,6 @@ async function back() {
 						</template>
 					</DataTable>
 				</section>
-				<div
-					v-if="writable || state.confirmationVersion"
-					ref="actionBar"
-					class="count-desk-actions"
-				>
-					<p v-if="!state.confirmationVersion" class="count-action-summary">
-						{{ reviewedRows.length }}/{{ rows.length }} 行已核对
-					</p>
-					<UiButton
-						v-if="!state.confirmationVersion"
-						:disabled="busy || supportingDirty"
-						@click="saveDraft"
-						>保存草稿</UiButton
-					>
-					<UiButton
-						v-if="!state.confirmationVersion && c.canSubmit.value"
-						variant="primary"
-						data-review-action
-						:title="reviewShortcutTitle"
-						:disabled="busy || supportingDirty"
-						@click="review"
-						>核对并确认</UiButton
-					>
-					<UiButton
-						v-if="state.confirmationVersion"
-						variant="primary"
-						:loading="busy"
-						@click="confirm"
-						>检查上次确认结果</UiButton
-					>
-					<UiButton
-						v-if="state.identity && state.server?.docstatus === 0"
-						:disabled="busy || !writable"
-						variant="danger"
-						@click="requestLifecycle('delete')"
-						>删除草稿单据</UiButton
-					>
-				</div>
 				<DisclosureSection title="盘点备注" summary="填写盘点说明">
 					<label v-if="writable" class="form-field"
 						>盘点备注<textarea v-model="values.ti_notes" rows="3" :disabled="busy" />
@@ -768,14 +769,52 @@ async function back() {
 						</p>
 					</div>
 				</DisclosureSection>
-				<p v-if="showError && !valid" role="alert" class="notice-bar warning">
-					请先读取当前账面基准，并至少核对一行。输入已保留。
+				<p v-if="showError && blockers.length" role="alert" class="notice-bar warning">
+					{{ blockers.join("；") }}。输入已保留。
 				</p>
+				<div
+					v-if="writable || state.confirmationVersion"
+					ref="actionBar"
+					class="form-actions document-actions"
+				>
+					<p v-if="!state.confirmationVersion" class="count-action-summary">
+						{{ reviewedRows.length }}/{{ rows.length }} 行已核对
+					</p>
+					<UiButton
+						v-if="!state.confirmationVersion"
+						:disabled="busy || supportingDirty"
+						@click="saveDraft"
+						>保存草稿</UiButton
+					>
+					<UiButton
+						v-if="!state.confirmationVersion && c.canSubmit.value"
+						variant="primary"
+						data-review-action
+						:title="reviewShortcutTitle"
+						:disabled="busy || supportingDirty"
+						@click="review"
+						>核对并确认</UiButton
+					>
+					<UiButton
+						v-if="state.confirmationVersion"
+						variant="primary"
+						:loading="busy"
+						@click="confirm"
+						>检查上次确认结果</UiButton
+					>
+					<UiButton
+						v-if="state.identity && state.server?.docstatus === 0"
+						:disabled="busy || !writable"
+						variant="danger"
+						@click="requestLifecycle('delete')"
+						>删除草稿单据</UiButton
+					>
+				</div>
 			</form>
 		</div>
 		<section v-if="state.server && !writable" class="count-readonly surface">
 			<TransactionContext :draft="context" :activity-label="activityLabel" mode="display" />
-			<CountSummary :rows="readOnlySummaryRows" compact />
+			<CountSummary :rows="readOnlySummaryRows" />
 			<p v-if="unchangedReviewedCount" class="muted count-readonly-unchanged">
 				另有 {{ unchangedReviewedCount }} 个物品核对无变化
 			</p>
@@ -807,9 +846,23 @@ async function back() {
 						row.current_qty ?? 0
 					}}</template>
 					<template v-else-if="column.id === 'qty'">{{ row.qty ?? 0 }}</template>
-					<template v-else-if="column.id === 'difference'"
-						>{{ Number(row.difference) > 0 ? "+" : "−"
-						}}{{ Math.abs(Number(row.difference)) }}</template
+					<span
+						v-else-if="column.id === 'difference'"
+						:class="[
+							'stock-effect',
+							Number(row.difference) > 0
+								? 'is-increase'
+								: Number(row.difference) < 0
+									? 'is-decrease'
+									: 'is-neutral',
+						]"
+						>{{
+							Number(row.difference) > 0
+								? "+"
+								: Number(row.difference) < 0
+									? "−"
+									: ""
+						}}{{ formatQuantity(Math.abs(Number(row.difference))) }}</span
 					>
 					<template v-else-if="column.id === 'reason'">{{
 						row.reason || row.ti_notes || "—"
@@ -832,7 +885,24 @@ async function back() {
 					{{ warehouseLabel(row.warehouse, c.reference.warehouses) }} ·
 					{{ row.batch_no || "无批次" }} · 账面 {{ row.baseline_qty }} · 实点
 					{{ row.actual_qty ?? "待核对" }} {{ unitLabel(row.stock_uom) }} · 差异
-					{{ row.actual_qty === null ? "待核对" : row.actual_qty - row.baseline_qty }}
+					<span
+						v-if="row.actual_qty !== null"
+						:class="[
+							'stock-effect',
+							row.actual_qty > row.baseline_qty
+								? 'is-increase'
+								: row.actual_qty < row.baseline_qty
+									? 'is-decrease'
+									: 'is-neutral',
+						]"
+						>{{
+							row.actual_qty > row.baseline_qty
+								? "+"
+								: row.actual_qty < row.baseline_qty
+									? "−"
+									: ""
+						}}{{ formatQuantity(Math.abs(row.actual_qty - row.baseline_qty)) }}</span
+					><span v-else>待核对</span>
 					<span v-if="row.reason"> · 原因 {{ row.reason }}</span>
 				</p>
 				<p v-if="!reviewedRows.length" class="muted">尚无已核对行。</p>
@@ -972,16 +1042,6 @@ async function back() {
 	min-height: var(--p-control);
 	padding: 3px 7px;
 }
-.count-desk-actions {
-	display: flex;
-	justify-content: flex-end;
-	gap: 8px;
-}
-.count-desk-actions :deep(button) {
-	flex: 0 0 auto;
-	white-space: nowrap;
-	word-break: keep-all;
-}
 .count-item-thumbnail {
 	width: var(--p-table-thumbnail);
 	height: var(--p-table-thumbnail);
@@ -1065,19 +1125,6 @@ async function back() {
 		width: 112px;
 		min-height: 44px;
 	}
-	.count-desk-actions {
-		position: fixed;
-		left: 16px;
-		right: 16px;
-		bottom: calc(var(--app-nav-height, 84px) + 8px + env(safe-area-inset-bottom));
-		z-index: var(--p-z-sticky-content);
-		align-items: center;
-		padding: 8px;
-		border: 1px solid var(--p-border);
-		border-radius: 14px;
-		background: var(--p-surface);
-		box-shadow: 0 -4px 12px rgb(20 30 25 / 7%);
-	}
 	.count-action-summary {
 		flex: 1 1 auto;
 		min-width: 0;
@@ -1086,10 +1133,6 @@ async function back() {
 		text-overflow: ellipsis;
 		white-space: nowrap;
 		font-size: var(--p-small);
-	}
-	.count-desk-actions :deep(button) {
-		min-height: 44px;
-		flex: 1;
 	}
 	.count-item-thumbnail {
 		width: var(--p-table-thumbnail);

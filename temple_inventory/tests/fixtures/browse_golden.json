@@ -19,7 +19,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -128,7 +127,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -233,8 +231,6 @@
         1
       ],
       "stockState": "in_stock",
-      "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -341,8 +337,6 @@
         1
       ],
       "stockState": "in_stock",
-      "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -627,7 +621,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -904,7 +897,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -1120,7 +1112,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -1180,7 +1171,7 @@
       {
         "activity": "",
         "activity_title": "",
-        "allocation_count": 1,
+        "allocation_count": 2,
         "borrower": "",
         "date": "<today>",
         "docstatus": 1,
@@ -1193,7 +1184,7 @@
         "item_count": 1,
         "kind": "Reconcile",
         "modified": "<volatile>",
-        "row_count": 1,
+        "row_count": 2,
         "time": "<time>",
         "whole": {
           "kind": "Reconcile",
@@ -1231,8 +1222,7 @@
               "qty": 5.0
             }
           ],
-          "losses": [],
-          "scope": "[\n \"<fixture-7>\"\n]"
+          "losses": []
         },
         "item_name": "Native test item"
       }
@@ -1251,7 +1241,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -1340,7 +1329,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -1423,7 +1411,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -1548,7 +1535,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -1955,7 +1941,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -2092,8 +2077,6 @@
         1
       ],
       "stockState": "in_stock",
-      "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -2219,7 +2202,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -2289,7 +2271,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -2498,7 +2479,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -2580,7 +2560,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -2879,7 +2858,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -2961,7 +2939,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -3269,7 +3246,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -3350,7 +3326,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -3642,7 +3617,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -3724,7 +3698,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -4233,7 +4206,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -4323,7 +4295,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -5179,7 +5150,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -5258,7 +5228,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -6181,7 +6150,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -6270,8 +6238,6 @@
         1
       ],
       "stockState": "in_stock",
-      "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -6287,7 +6253,7 @@
         "to": ""
       },
       "relatedSearch": "",
-      "loanStatus": "all",
+      "loanStatus": "outstanding",
       "loanOutcome": "all",
       "expiryWindow": "period",
       "countReviewed": "all",
@@ -6529,8 +6495,6 @@
         1
       ],
       "stockState": "in_stock",
-      "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -6546,7 +6510,7 @@
         "to": ""
       },
       "relatedSearch": "",
-      "loanStatus": "all",
+      "loanStatus": "outstanding",
       "loanOutcome": "all",
       "expiryWindow": "period",
       "countReviewed": "all",
@@ -6613,8 +6577,6 @@
         1
       ],
       "stockState": "in_stock",
-      "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -6630,7 +6592,7 @@
         "to": ""
       },
       "relatedSearch": "",
-      "loanStatus": "all",
+      "loanStatus": "outstanding",
       "loanOutcome": "all",
       "expiryWindow": "period",
       "countReviewed": "all",
@@ -6845,8 +6807,6 @@
         1
       ],
       "stockState": "in_stock",
-      "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -6862,7 +6822,7 @@
         "to": ""
       },
       "relatedSearch": "",
-      "loanStatus": "all",
+      "loanStatus": "outstanding",
       "loanOutcome": "all",
       "expiryWindow": "period",
       "countReviewed": "all",
@@ -6936,8 +6896,6 @@
         1
       ],
       "stockState": "in_stock",
-      "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -6953,7 +6911,7 @@
         "to": ""
       },
       "relatedSearch": "",
-      "loanStatus": "all",
+      "loanStatus": "outstanding",
       "loanOutcome": "all",
       "expiryWindow": "period",
       "countReviewed": "all",
@@ -7225,8 +7183,6 @@
         1
       ],
       "stockState": "in_stock",
-      "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -7242,7 +7198,7 @@
         "to": ""
       },
       "relatedSearch": "",
-      "loanStatus": "all",
+      "loanStatus": "outstanding",
       "loanOutcome": "all",
       "expiryWindow": "period",
       "countReviewed": "all",
@@ -7316,8 +7272,6 @@
         1
       ],
       "stockState": "in_stock",
-      "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -7333,7 +7287,7 @@
         "to": ""
       },
       "relatedSearch": "",
-      "loanStatus": "all",
+      "loanStatus": "outstanding",
       "loanOutcome": "all",
       "expiryWindow": "period",
       "countReviewed": "all",
@@ -7749,8 +7703,6 @@
         1
       ],
       "stockState": "in_stock",
-      "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -7766,7 +7718,7 @@
         "to": ""
       },
       "relatedSearch": "",
-      "loanStatus": "all",
+      "loanStatus": "outstanding",
       "loanOutcome": "all",
       "expiryWindow": "period",
       "countReviewed": "all",
@@ -7836,7 +7788,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -7988,16 +7939,6 @@
         "id": "<generated-id>",
         "label": "活动资料",
         "count": 1
-      },
-      {
-        "id": "<generated-id>",
-        "label": "单据记录",
-        "count": 4
-      },
-      {
-        "id": "<generated-id>",
-        "label": "借用结余",
-        "count": 1
       }
     ]
   },
@@ -8051,7 +7992,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -8121,7 +8061,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -8579,18 +8518,8 @@
     "tables": [
       {
         "id": "<generated-id>",
-        "label": "活动资料",
-        "count": 1
-      },
-      {
-        "id": "<generated-id>",
         "label": "单据记录",
         "count": 4
-      },
-      {
-        "id": "<generated-id>",
-        "label": "借用结余",
-        "count": 1
       }
     ]
   },
@@ -8721,7 +8650,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -8807,7 +8735,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -9014,11 +8941,6 @@
       },
       {
         "id": "<generated-id>",
-        "label": "单据记录",
-        "count": 4
-      },
-      {
-        "id": "<generated-id>",
         "label": "借用结余",
         "count": 1
       }
@@ -9085,7 +9007,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -9176,7 +9097,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -9277,7 +9197,6 @@
       "difference",
       "stock_qty",
       "stock_uom",
-      "count_scope",
       "doctype",
       "item_count",
       "allocation_count"
@@ -9286,9 +9205,8 @@
     "rows": [
       {
         "actual_qty": 10.0,
-        "allocation_count": 1,
-        "baseline_qty": 5.0,
-        "count_scope": "Selected",
+        "allocation_count": 2,
+        "baseline_qty": 8.0,
         "date": "<today>",
         "difference": 5.0,
         "docstatus": 1,
@@ -9299,7 +9217,7 @@
         "document_id": "Stock Reconciliation:<document-8>",
         "id": "<generated-id>",
         "item_count": 1,
-        "row_count": 1,
+        "row_count": 2,
         "stock_qty": 5.0,
         "stock_uom": "Nos",
         "time": "<time>",
@@ -9311,8 +9229,8 @@
     "summary": [
       {
         "actual_qty": 10.0,
-        "allocation_count": 1,
-        "baseline_qty": 5.0,
+        "allocation_count": 2,
+        "baseline_qty": 8.0,
         "difference": 5.0,
         "docstatus": 1,
         "docstatus_label": "已提交",
@@ -9331,7 +9249,7 @@
       {
         "id": "<generated-id>",
         "label": "库存明细",
-        "count": 1
+        "count": 2
       },
       {
         "id": "<generated-id>",
@@ -9344,8 +9262,8 @@
     "rows": [
       {
         "actual_qty": 10.0,
-        "allocation_count": 1,
-        "baseline_qty": 5.0,
+        "allocation_count": 2,
+        "baseline_qty": 8.0,
         "count_grain": "native_document",
         "count_label": "原生单据",
         "difference": 5.0,
@@ -9367,7 +9285,7 @@
         "unit_totals": [
           {
             "actual_qty": 10.0,
-            "baseline_qty": 5.0,
+            "baseline_qty": 8.0,
             "difference": 5.0,
             "stock_qty": 5.0,
             "stock_uom": "Nos"
@@ -9395,7 +9313,6 @@
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -9468,13 +9385,12 @@
       "batchNoExact": false,
       "groupBy": [],
       "sort": "asc",
-      "sortBy": "identity",
+      "sortBy": "warehouse",
       "statuses": [
         1
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",
@@ -9605,13 +9521,11 @@
         "actual_qty": 10.0,
         "amended_from": "",
         "baseline_qty": 5.0,
-        "baseline_timestamp": "<volatile>",
         "batch_no": "<fixture-12>",
         "batch_tracked": true,
         "borrower": "",
         "category": "",
         "category_label": "无分类",
-        "count_scope": "Selected",
         "date": "<today>",
         "difference": 5.0,
         "disabled": false,
@@ -9644,16 +9558,61 @@
         "time": "<time>",
         "warehouse": "<fixture-7>",
         "warehouse_label": "Native Test A Room <fixture-token>"
+      },
+      {
+        "activity": "",
+        "activity_title": "",
+        "activity_type": "",
+        "actual_qty": null,
+        "amended_from": "",
+        "baseline_qty": 3.0,
+        "batch_no": "<fixture-12>",
+        "batch_tracked": true,
+        "borrower": "",
+        "category": "",
+        "category_label": "无分类",
+        "date": "<today>",
+        "difference": null,
+        "disabled": false,
+        "docstatus": 1,
+        "docstatus_label": "已提交",
+        "doctype": "Stock Reconciliation",
+        "document": "<document-8>",
+        "document_id": "Stock Reconciliation:<document-8>",
+        "expiry_tracked": true,
+        "handler": "",
+        "id": "<generated-id>",
+        "image": "",
+        "item_code": "<fixture-1>",
+        "item_name": "Native test item",
+        "kind": "Reconcile",
+        "line_name": "<generated-line-id>",
+        "modified": "<volatile>",
+        "notes": "盘点说明可持久保存",
+        "posting_timestamp": "<volatile>",
+        "purpose": "",
+        "reason": "",
+        "recorded_by": "Administrator",
+        "recorder": "",
+        "review_state": "Unreviewed",
+        "reviewer": "",
+        "source": "",
+        "stock_qty": 0,
+        "stock_uom": "Nos",
+        "stock_uom_label": "个",
+        "time": "<time>",
+        "warehouse": "<fixture-8>",
+        "warehouse_label": "Native Test B Room <fixture-token>"
       }
     ],
-    "matched_count": 1,
+    "matched_count": 2,
     "next_start": null,
     "summary": [
       {
         "actual_qty": 10.0,
-        "allocation_count": 1,
+        "allocation_count": 2,
         "available_effect": 0,
-        "baseline_qty": 5.0,
+        "baseline_qty": 8.0,
         "difference": 5.0,
         "docstatus": 1,
         "docstatus_label": "已提交",
@@ -9662,7 +9621,7 @@
         "item_count": 1,
         "kind": "Reconcile",
         "outcome": null,
-        "row_count": 1,
+        "row_count": 2,
         "stock_qty": 5.0,
         "stock_uom": "Nos",
         "stock_uom_label": "个"
@@ -9672,7 +9631,7 @@
       {
         "id": "<generated-id>",
         "label": "库存明细",
-        "count": 1
+        "count": 2
       },
       {
         "id": "<generated-id>",
@@ -9685,12 +9644,12 @@
     "rows": [
       {
         "actual_qty": 10.0,
-        "allocation_count": 1,
-        "baseline_qty": 5.0,
+        "allocation_count": 2,
+        "baseline_qty": 8.0,
         "count_grain": "allocation",
         "count_label": "分配行",
         "difference": 5.0,
-        "display_count": 1,
+        "display_count": 2,
         "document_count": 1,
         "group_depth": 1,
         "group_label": "Native test item",
@@ -9703,13 +9662,13 @@
         "item_count": 1,
         "item_name": "Native test item",
         "parent_group_id": null,
-        "row_count": 1,
+        "row_count": 2,
         "row_grain": "group",
         "stock_qty": 5.0,
         "unit_totals": [
           {
             "actual_qty": 10.0,
-            "baseline_qty": 5.0,
+            "baseline_qty": 8.0,
             "difference": 5.0,
             "stock_qty": 5.0,
             "stock_uom": "Nos"
@@ -9732,13 +9691,12 @@
         "item"
       ],
       "sort": "asc",
-      "sortBy": "identity",
+      "sortBy": "warehouse",
       "statuses": [
         1
       ],
       "stockState": "in_stock",
       "includeZero": false,
-      "loanScope": "outstanding",
       "includeUndated": true,
       "activityStatus": "all",
       "typeId": "",

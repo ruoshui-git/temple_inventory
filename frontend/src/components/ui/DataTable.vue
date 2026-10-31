@@ -700,13 +700,17 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 									@click="emit('sort', String(column.sortField || column.id))"
 								>
 									<span class="data-table-sort-label">{{ column.label }}</span>
-									<span class="data-table-sort-indicator" aria-hidden="true">{{
-										sortBy === String(column.sortField || column.id)
-											? sortDirection === "asc"
-												? "↑"
-												: "↓"
-											: "↕"
-									}}</span>
+									<span class="data-table-sort-indicator" aria-hidden="true">
+										<InventoryIcon
+											:name="
+												sortBy === String(column.sortField || column.id)
+													? sortDirection === 'asc'
+														? 'sort-asc'
+														: 'sort-desc'
+													: 'sort-none'
+											"
+										/>
+									</span>
 								</button>
 								<template v-else>{{ column.label }}</template>
 								<DetailPopover
@@ -714,7 +718,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 									:label="`${column.label}说明：${column.hint}`"
 									trigger-class="data-table-header-hint"
 								>
-									<template #trigger><span aria-hidden="true">i</span></template>
+									<template #trigger><InventoryIcon name="info" /></template>
 									{{ column.hint }}
 								</DetailPopover>
 								<span

@@ -167,11 +167,13 @@ describe("native quantity summaries and inventory cards", () => {
     expect(wrapper.get(".stock-number strong").text()).toBe("8");
     expect(wrapper.get(".stock-secondary").text()).toContain("借出 3");
     expect(wrapper.get(".stock-secondary").text()).toContain("损坏 1");
+    wrapper.findComponent(StockBrowsePage).vm.controller.enterSelection();
+    await flushPromises();
     await wrapper.get('input[aria-label="选择大米"]').setValue(true);
     expect(
       wrapper.findComponent(StockBrowsePage).vm.controller.selected.value,
     ).toEqual(["ITEM-A"]);
-    expect(wrapper.text()).toContain("已选择 1 项物品");
+    expect(wrapper.text()).toContain("已选择 1 项");
     await wrapper.get(".item-name").trigger("click");
     expect(
       wrapper.findComponent(StockBrowsePage).emitted("openItem")?.[0],
@@ -192,6 +194,8 @@ describe("native quantity summaries and inventory cards", () => {
     expect(
       wrapper.get('.stock-list-image [role="img"]').attributes("aria-label"),
     ).toBe("大米");
+    wrapper.findComponent(StockBrowsePage).vm.controller.enterSelection();
+    await flushPromises();
     await wrapper.get('input[aria-label="选择大米"]').setValue(true);
     expect(
       wrapper.findComponent(StockBrowsePage).vm.controller.selected.value,

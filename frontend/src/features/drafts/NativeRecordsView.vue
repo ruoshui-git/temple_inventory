@@ -36,6 +36,7 @@ import { defaultPeriods } from "../../lib/uiPreferences";
 import { useFilterRailPreference } from "../../composables/useFilterRailPreference";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import DataTable from "../../components/ui/DataTable.vue";
+import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
 import AsyncRegion from "../../components/ui/AsyncRegion.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import type {
@@ -201,11 +202,13 @@ function localSummary(entry: RecoverySnapshot) {
 		return `${summary}${location ? ` → ${warehouseLabel(location, c.reference.warehouses)}` : ""}`;
 	}
 	if (entry.editorKind === "Stock Reconciliation") {
-		const lines = Array.isArray(values.ti_count_review) ? values.ti_count_review : [];
-		const locations = Array.isArray(values.ti_count_warehouses)
-			? values.ti_count_warehouses
+		const lines = Array.isArray(values.ti_count_review)
+			? (values.ti_count_review as { warehouse?: unknown }[])
 			: [];
-		return `盘点 ${lines.length} 种物品 · ${locations.length} 个库位`;
+		const locations = new Set(
+			lines.map((line) => String(line?.warehouse || "")).filter(Boolean),
+		);
+		return `盘点 ${lines.length} 种物品 · ${locations.size} 个库位`;
 	}
 	if (entry.editorKind === "Item") return String(values.name || values.editingCode || "新物品");
 	if (entry.editorKind === "Inventory Activity")
@@ -287,15 +290,6 @@ const aggregateEntries = (row: NativeRecord, key: "gains" | "losses" | "quantiti
 		qty: Number(value.qty),
 	}));
 };
-const countScope = (row: NativeRecord) => {
-	const raw = (row.whole as typeof row.whole & { scope?: string }).scope || "";
-	try {
-		const names = JSON.parse(raw) as string[];
-		return names.map((name) => warehouseLabel(name, c.reference.warehouses)).join("、") || "—";
-	} catch {
-		return raw || "—";
-	}
-};
 const services = useOptionalInventoryServices();
 const tableColumns = computed<DataColumn[]>(() => nativeRecordColumns(props.mode));
 const tableRows = computed<DataTableRecord[]>(() =>
@@ -336,7 +330,10 @@ function nativeRow(row: Record<string, unknown>): NativeRecord {
 	return row as unknown as NativeRecord;
 }
 function activityLabel(row: Record<string, unknown>) {
-	return row.activity_title || (props.mode === "drafts" ? row.borrower : "") || "—";
+	const agreed = row.activity_title || (props.mode === "drafts" ? row.borrower : "");
+	// A Return's header holds only the borrower and activity its settled loans agree on.
+	if (!agreed && row.kind === "Return") return "见原借用记录";
+	return agreed || "—";
 }
 </script>
 <template>
@@ -613,8 +610,18 @@ function activityLabel(row: Record<string, unknown>) {
 					>清除全部</UiButton
 				>
 			</template>
-			<span v-if="initialized" class="browse-result-count">{{ total }} 份记录</span>
 		</BrowseToolbar>
+		<BrowseResultSummary
+			v-if="initialized"
+			:label="
+				mode === 'drafts'
+					? `${draftEntries.length} 份草稿`
+					: mode === 'counts'
+						? `${total} 条盘点记录`
+						: `${total} 份记录`
+			"
+			:metrics="[]"
+		/>
 		<p v-if="routeError" class="utility-error" role="alert">{{ routeError }}</p>
 		<div v-else-if="mode === 'drafts'" class="drafts-browser">
 			<p class="drafts-explainer">草稿单据已保存到系统；浏览器暂存只保存在当前设备。</p>
@@ -826,9 +833,6 @@ function activityLabel(row: Record<string, unknown>) {
 								v-else-if="column.id === 'status'"
 								:status="Number(row.docstatus)"
 							/>
-							<template v-else-if="column.id === 'count_scope'">{{
-								countScope(nativeRow(row))
-							}}</template>
 							<template v-else-if="column.id === 'line_count'">{{
 								nativeRow(row).whole.line_count
 							}}</template>

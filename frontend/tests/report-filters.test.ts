@@ -16,16 +16,29 @@ it("presents and clears a non-default expiry window chip", () => {
   });
 });
 
-it("presents the all-loan-records scope as a removable chip", () => {
+it("presents the shared settled loan status as a removable chip", () => {
   const query = newReportQuery("loans");
   query.view = "records";
-  query.loanScope = "all";
+  query.loanStatus = "settled";
   expect(reportFilterChips(query, createReferenceData())).toContainEqual(
     expect.objectContaining({
-      key: "loanScope",
-      label: "记录范围：借出与归还全部记录",
-      field: "loanScope",
-      reset: { loanScope: "outstanding" },
+      key: "loanStatus",
+      label: "借用状态：已结清",
+      field: "status",
+      reset: { loanStatus: "outstanding" },
+    }),
+  );
+});
+
+it("presents the all-loans status as a readable chip", () => {
+  const query = newReportQuery("loans");
+  query.view = "records";
+  query.loanStatus = "all";
+  expect(reportFilterChips(query, createReferenceData())).toContainEqual(
+    expect.objectContaining({
+      key: "loanStatus",
+      label: "借用状态：全部",
+      reset: { loanStatus: "outstanding" },
     }),
   );
 });

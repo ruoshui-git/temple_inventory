@@ -5,7 +5,7 @@ import StockBrowsePage from "../features/inventory/StockBrowsePage.vue";
 import { decodeReportQuery } from "../lib/reportQuery";
 import type { ReportQuery } from "../lib/reportContract";
 import { exportDestination } from "../lib/nativeNavigation";
-import { countDestination, operationDestination } from "../lib/nativeNavigation";
+import { operationDestination } from "../lib/nativeNavigation";
 import { browseRouteQuery, browseRouteTarget, routeTarget } from "../lib/routeRegistry";
 const route = useRoute(),
 	router = useRouter();
@@ -38,18 +38,12 @@ function changed(query: ReportQuery) {
 								codes?.length ? { items: JSON.stringify(codes) } : {},
 							),
 						)
-					: kind === 'Reconcile'
-						? router.push(
-								countDestination(
-									codes?.length ? { items: JSON.stringify(codes) } : {},
-								),
-							)
-						: router.push(
-								operationDestination(
-									kind,
-									codes?.length ? { items: JSON.stringify(codes) } : {},
-								),
-							)
+					: router.push(
+							operationDestination(
+								kind,
+								codes?.length ? { items: JSON.stringify(codes) } : {},
+							),
+						)
 		"
 		@open-item="(code) => router.push(routeTarget('item-detail', { code }))"
 		@open-export="router.push(exportDestination($event))"

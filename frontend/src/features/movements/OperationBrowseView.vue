@@ -79,7 +79,7 @@ const emit = defineEmits<{
 	switchView: [records: boolean, query: ReportQuery];
 	openDocument: [doctype: string, name: string];
 	openLoan: [name: string];
-	settle: [name: string];
+	settle: [selection: string];
 	openItem: [code: string];
 	browse: [query: ReportQuery];
 	openExport: [query: ReportQuery];
@@ -163,6 +163,68 @@ const operationRows = computed<DataTableRecord[]>(() =>
 const operationTableRows = computed<DataTableEntry[]>(() =>
 	query.value.groupBy.length ? c.groups.entries.value : operationRows.value,
 );
+const selectedReturnRows = computed(() => {
+	const source = props.records ? operationTableRows.value : itemTableRows.value;
+	return source.flatMap((entry) =>
+		entry.kind === "record" && entry.value && c.selected.value.includes(entry.id)
+			? [entry.value]
+			: [],
+	);
+});
+const canReturnSelected = computed(() => {
+	if (!props.records)
+		return (
+			selectedReturnItemRows.value.length > 0 &&
+			selectedReturnItemRows.value.every(hasOutstandingLoan)
+		);
+	if (!selectedReturnRows.value.length) return false;
+	const eligible = selectedReturnRows.value.filter(
+		(row) =>
+			row.kind === "Loan" &&
+			Number(row.docstatus) === 1 &&
+			Number(row.outstanding || row.loaned || 0) > 0,
+	);
+	if (eligible.length !== selectedReturnRows.value.length) return false;
+	return true;
+});
+const selectedReturnReason = computed(() => {
+	if (props.records) {
+		if (!selectedReturnRows.value.length) return "请先选择未归还借用记录";
+		if (canReturnSelected.value) return "";
+		const eligible = selectedReturnRows.value.filter(
+			(row) =>
+				row.kind === "Loan" &&
+				Number(row.docstatus) === 1 &&
+				Number(row.outstanding || row.loaned || 0) > 0,
+		);
+		return "所选记录没有未归还数量";
+	}
+	return selectedReturnItemRows.value.length
+		? "所选物品没有未归还数量"
+		: "请先选择有未归还数量的物品";
+});
+function beginSelectedReturn() {
+	if (props.records) {
+		const loans = selectedReturnRows.value
+			.filter(
+				(row) =>
+					row.kind === "Loan" &&
+					Number(row.docstatus) === 1 &&
+					Number(row.outstanding || row.loaned || 0) > 0,
+			)
+			.map((row) => String(row.document || ""))
+			.filter(Boolean);
+		if (loans.length) emit("settle", JSON.stringify({ loans: [...new Set(loans)] }));
+	} else {
+		const selectedGroups = mobileItemGroups.value
+			.filter((group) => c.selected.value.includes(group.id))
+			.map((group) => groupItem(group));
+		const items = (selectedGroups.length ? selectedGroups : selectedReturnRows.value)
+			.map((row) => String("code" in row ? row.code : row.item_code || ""))
+			.filter(Boolean);
+		if (items.length) emit("settle", JSON.stringify({ items: [...new Set(items)] }));
+	}
+}
 const itemColumns = computed<DataColumn[]>(() =>
 	operationItemColumnsFor(props.family, query.value.view, wideScreen.value),
 );
@@ -290,6 +352,26 @@ const mobileItemGroups = computed(() => {
 		};
 	});
 });
+function hasOutstandingLoan(row: Record<string, unknown> | OperationGroup) {
+	const value = row as Record<string, unknown>;
+	if (Number(value.outstanding ?? value.loaned ?? 0) > 0) return true;
+	const whole = value.whole as Record<string, unknown> | undefined;
+	return (
+		Array.isArray(whole?.outstanding) &&
+		whole.outstanding.some(
+			(value) =>
+				value &&
+				typeof value === "object" &&
+				Number((value as Record<string, unknown>).qty || 0) > 0,
+		)
+	);
+}
+const selectedReturnItemRows = computed(() => [
+	...selectedReturnRows.value,
+	...mobileItemGroups.value
+		.filter((group) => c.selected.value.includes(group.id))
+		.map((group) => groupItem(group)),
+]);
 function toggleMobileItemGroup(group: DataTableGroup, open: boolean) {
 	c.toggle(groupItem(group), open);
 }
@@ -888,6 +970,13 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 			>
 				<template #actions>
 					<BrowseOverflowMenu>
+						<UiButton
+							v-if="isMobile && family === 'loans'"
+							icon="select"
+							:aria-pressed="c.selecting.value"
+							@click="c.selecting.value ? c.exitSelection() : c.enterSelection()"
+							>{{ c.selecting.value ? "取消选择" : "选择" }}</UiButton
+						>
 						<QuickExport
 							:query="query"
 							:title="exportTitle"
@@ -906,6 +995,13 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							<span>草稿</span><span class="menu-item-meta">{{ draftCount }}</span>
 						</RouterLink>
 					</BrowseOverflowMenu>
+					<UiButton
+						v-if="!isMobile && family === 'loans'"
+						icon="select"
+						:aria-pressed="c.selecting.value"
+						@click="c.selecting.value ? c.exitSelection() : c.enterSelection()"
+						>{{ c.selecting.value ? "取消选择" : "选择" }}</UiButton
+					>
 					<BrowseSplitButton
 						v-if="family === 'movements' && reference.operations.Receive"
 						label="入库"
@@ -922,6 +1018,29 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						:options="createOptions"
 						@select="emit('newOperation', $event)"
 					/>
+				</template>
+				<template #selection>
+					<div
+						v-if="family === 'loans' && c.selecting.value"
+						class="selection-bar stock-selection-actions"
+						role="region"
+						aria-label="借用批量操作"
+					>
+						<span role="status">已选择 {{ c.selected.value.length }} 项</span>
+						<UiButton
+							:disabled="
+								!reference.operations.Return || !canReturnSelected || result.stale
+							"
+							:title="
+								!reference.operations.Return
+									? '当前账户不可执行归还'
+									: selectedReturnReason
+							"
+							@click="beginSelectedReturn"
+							>登记归还</UiButton
+						>
+						<UiButton variant="ghost" @click="c.exitSelection()">取消</UiButton>
+					</div>
 				</template>
 				<template #persistent
 					><nav
@@ -1121,6 +1240,23 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							class="browse-group browse-group--mobile-list browse-card"
 							:data-browse-row="group.id"
 						>
+							<label
+								v-if="family === 'loans' && c.selecting.value"
+								class="stock-list-checkbox"
+								@click.stop
+							>
+								<input
+									type="checkbox"
+									:checked="c.selected.value.includes(group.id)"
+									:aria-label="`选择物品 ${group.label}`"
+									@change="
+										c.setSelected(
+											group.id,
+											($event.target as HTMLInputElement).checked,
+										)
+									"
+								/>
+							</label>
 							<div class="browse-group-heading mobile-operation-group-heading">
 								<div
 									v-if="c.stockItem(groupItem(group))"
@@ -1204,7 +1340,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								<p
 									v-if="
 										family === 'loans' &&
-										query.loanScope === 'outstanding' &&
+										query.outstandingOnly &&
 										details[groupItem(group).id]?.initialized &&
 										!details[groupItem(group).id]?.rows.length
 									"
@@ -1239,21 +1375,6 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 									"
 									@open-loan="emit('openLoan', $event)"
 								>
-									<template #actions="{ row: contribution }">
-										<UiButton
-											v-if="
-												contribution.kind === 'Loan' &&
-												contribution.can_settle
-											"
-											:disabled="
-												result.stale ||
-												details[groupItem(group).id]!.loading ||
-												!reference.operations.Return
-											"
-											@click="emit('settle', String(contribution.document))"
-											>登记归还</UiButton
-										>
-									</template>
 								</MovementHistoryTable>
 							</div>
 						</article>
@@ -1264,7 +1385,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							!records &&
 							!query.groupBy.length &&
 							c.expanded.has(flatHistoryItem.id) &&
-							query.loanScope === 'outstanding' &&
+							query.outstandingOnly &&
 							details[flatHistoryItem.id]?.initialized &&
 							!details[flatHistoryItem.id]?.rows?.length
 						"
@@ -1279,6 +1400,12 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						table-class="browse-table"
 						:columns="itemColumns"
 						:rows="itemTableRows"
+						:selection-enabled="family === 'loans' && c.selecting.value"
+						:selected-keys="c.selected.value"
+						@select="c.setSelected"
+						@select-visible="
+							(keys, checked) => keys.forEach((key) => c.setSelected(key, checked))
+						"
 						:group-summary-columns="
 							() =>
 								family === 'loans'
@@ -1563,16 +1690,6 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 										}}</span
 									>
 								</div>
-								<UiButton
-									v-else-if="
-										column.id === 'actions' &&
-										row.kind === 'Loan' &&
-										row.can_settle
-									"
-									:disabled="result.stale || !reference.operations.Return"
-									@click="emit('settle', String(row.document))"
-									>登记归还</UiButton
-								>
 								<RecordRef
 									v-else-if="
 										column.id === 'related_loans' &&
@@ -1774,7 +1891,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								<p
 									v-if="
 										family === 'loans' &&
-										query.loanScope === 'outstanding' &&
+										query.outstandingOnly &&
 										details[groupItem(group).id]?.initialized &&
 										!details[groupItem(group).id]?.rows.length
 									"
@@ -1831,6 +1948,12 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 									: ['available_effect']
 						"
 						:rows="operationTableRows"
+						:selection-enabled="family === 'loans' && c.selecting.value"
+						:selected-keys="c.selected.value"
+						@select="c.setSelected"
+						@select-visible="
+							(keys, checked) => keys.forEach((key) => c.setSelected(key, checked))
+						"
 						:column-preferences="operationPreferences"
 						:sort-by="query.sortBy"
 						:sort-direction="query.sort"
@@ -2088,17 +2211,6 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 									}}</span
 								>
 							</div>
-							<UiButton
-								v-else-if="
-									column.id === 'actions' &&
-									row.docstatus === 1 &&
-									row.kind === 'Loan' &&
-									operationRow(row).whole?.loan_status === 'Open'
-								"
-								:disabled="result.stale || !reference.operations.Return"
-								@click="emit('settle', String(row.document))"
-								>登记归还</UiButton
-							>
 						</template>
 					</DataTable>
 				</div>

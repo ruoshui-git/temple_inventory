@@ -113,10 +113,21 @@ async function capture(page: Page, route: string, label: string) {
       await expect(page.locator(".form-page form")).toBeVisible();
       await expect(
         page.getByText("盘点范围与基准", { exact: true }),
-      ).toBeVisible();
+      ).toHaveCount(0);
+      await expect(
+        page.getByRole("combobox", { name: "分组方式" }),
+      ).toHaveValue("location");
+      await expect(page.getByText("确认时自动记录当前时间。")).toBeVisible();
     } else {
       await expect(page.locator(".count-readonly")).toBeVisible();
       await expect(page.locator(".count-readonly th")).toHaveCount(8);
+      await expect(page.locator(".count-summary-strip .metric")).toHaveCount(5);
+      await expect(
+        page.locator(".count-readonly-table .data-table-group-row").first(),
+      ).toBeVisible();
+      await expect(
+        page.locator(".count-readonly-table .stock-effect").first(),
+      ).toBeVisible();
       await expect(page.locator(".count-workspace")).toHaveCount(0);
     }
     if (width < 1024)
@@ -195,6 +206,44 @@ test("count read-only detail, browse columns, and writable draft at desktop and 
     `/inventory/counts/${encodeURIComponent(draft!.document)}`,
     "count-draft-workspace",
   );
+
+  for (const [width, height] of [
+    [1440, 900],
+    [390, 844],
+  ]) {
+    await page.setViewportSize({ width, height });
+    await page.goto("/inventory/counts/new");
+    const rows = page.locator("[data-count-key]");
+    await expect(rows.first()).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "分组方式" })).toHaveValue(
+      "location",
+    );
+    await expect(
+      page.getByRole("button", { name: "添加物品", exact: true }),
+    ).toBeVisible();
+    await expect(page.locator(".form-actions.document-actions")).toBeVisible();
+    await page.screenshot({
+      path: test.info().outputPath(`count-editor-${width}x${height}.png`),
+    });
+    if (width === 1440) {
+      const first = rows.first();
+      const baseline = Number(
+        (await first.locator("td").nth(6).innerText()).replaceAll(",", ""),
+      );
+      await first.locator('input[type="number"]').fill(String(baseline + 1));
+      await page
+        .getByRole("button", { name: "核对并确认", exact: true })
+        .click();
+      const dialog = page.locator(".ui-overlay");
+      await expect(dialog).toBeVisible();
+      await expect(
+        dialog.locator(".count-summary-strip .metric.is-net.is-increase"),
+      ).toBeVisible();
+      await page.screenshot({
+        path: test.info().outputPath("count-confirmation-1440x900.png"),
+      });
+    }
+  }
   const movementQuery = newReportQuery("movements");
   movementQuery.view = "records";
   movementQuery.scope.kinds = ["Reconcile"];

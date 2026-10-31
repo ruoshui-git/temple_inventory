@@ -700,7 +700,12 @@ describe("shared data table", () => {
     expect(wrapper.get(".data-table-skeleton-row").findAll("td")).toHaveLength(
       3,
     );
-    expect(wrapper.get('[aria-label="物品排序：未排序"]').text()).toContain(
+    expect(
+      wrapper
+        .get('[aria-label="物品排序：未排序"] .data-table-sort-indicator svg')
+        .exists(),
+    ).toBe(true);
+    expect(wrapper.get('[aria-label="物品排序：未排序"]').text()).not.toContain(
       "↕",
     );
     expect(
@@ -929,6 +934,8 @@ describe("shared data table", () => {
     const hint = wrapper.get(".data-table-header-hint");
     await hint.trigger("click");
     await nextTick();
+    expect(wrapper.emitted("sort")).toBeUndefined();
+    expect(hint.find("svg").exists()).toBe(true);
     const descriptionId = wrapper
       .get("thead th")
       .attributes("aria-describedby");
@@ -1068,7 +1075,7 @@ describe("shared data table", () => {
         .findAll("thead th")
         .filter((cell) => !cell.find('[aria-label="设置列"]').exists())
         .map((cell) => cell.text()),
-    ).toEqual(["物品↕", "旧列"]);
+    ).toEqual(["物品", "旧列"]);
   });
 
   it("cancels a queued old-account save and serializes later same-table saves", async () => {
@@ -1278,7 +1285,7 @@ describe("shared data table", () => {
         .findAll("thead th")
         .filter((cell) => !cell.find('[aria-label="设置列"]').exists())
         .map((cell) => cell.text()),
-    ).toEqual(["物品↕", "旧列"]);
+    ).toEqual(["物品", "旧列"]);
   });
 
   it("mounts report cells with injected account preferences before evaluating columns", async () => {

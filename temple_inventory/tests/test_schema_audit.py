@@ -10,7 +10,21 @@ from temple_inventory import schema_audit
 class SchemaAuditTests(unittest.TestCase):
 	def test_source_manifest_matches_app_owned_fixture_and_doctype_json(self):
 		manifest = schema_audit._source_manifest()
-		self.assertEqual(len(manifest["custom_fields"]), 38)
+		self.assertEqual(len(manifest["custom_fields"]), 34)
+		self.assertIn(("Stock Reconciliation", "ti_time_mode"), manifest["custom_fields"])
+		self.assertFalse(
+			set(manifest["custom_fields"])
+			& {
+				("Stock Reconciliation", field)
+				for field in (
+					"ti_count_scope",
+					"ti_count_items",
+					"ti_count_warehouses",
+					"ti_baseline_timestamp",
+					"ti_baseline_fingerprint",
+				)
+			}
+		)
 		self.assertEqual(
 			manifest["doctypes"],
 			sorted(
@@ -27,7 +41,6 @@ class SchemaAuditTests(unittest.TestCase):
 		)
 		self.assertEqual(manifest["hooks"]["fixtures"], ["Custom Field"])
 		self.assertFalse(manifest["hooks"]["contains_retired_names"])
-		self.assertEqual(manifest["native_count_api_field"], "ti_count_warehouses")
 		self.assertTrue(manifest["setup"]["seeds_activity_types"])
 		self.assertFalse(manifest["setup"]["contains_retired_names"])
 		self.assertIn("ti_read_generation", manifest["settings_fields"])

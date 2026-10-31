@@ -2,7 +2,6 @@
 import { exportDestination } from "../lib/nativeNavigation";
 import { computed, ref } from "vue";
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from "vue-router";
-import { decodeItemSelection } from "../lib/routeSelection";
 import CountEditorPage from "../features/counts/CountEditorPage.vue";
 import { useNativeEditorRoute } from "../lib/nativeEditorRoute";
 import { documentDestination } from "../lib/nativeNavigation";
@@ -11,7 +10,6 @@ const route = useRoute(),
 	router = useRouter();
 const editor = ref<InstanceType<typeof CountEditorPage>>();
 useNativeEditorRoute(() => editor.value?.controller);
-const selection = computed(() => decodeItemSelection(route.query.items));
 const name = computed(() => (route.params.name ? String(route.params.name) : undefined));
 onBeforeRouteLeave(() => editor.value?.controller.requestLeave() ?? true);
 onBeforeRouteUpdate(() => editor.value?.controller.requestLeave() ?? true);
@@ -25,10 +23,8 @@ function nextCount() {
 </script>
 <template>
 	<CountEditorPage
-		v-if="!selection.error"
 		ref="editor"
 		:name="name"
-		:initial-items="selection.items"
 		:warehouse="typeof route.query.warehouse === 'string' ? route.query.warehouse : undefined"
 		:recovery-id="typeof route.query.recovery === 'string' ? route.query.recovery : undefined"
 		@back="back"
@@ -38,5 +34,4 @@ function nextCount() {
 			(doctype, documentName) => router.push(documentDestination(doctype, documentName))
 		"
 	/>
-	<p v-else role="alert">{{ selection.error }}</p>
 </template>

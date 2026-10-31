@@ -182,7 +182,6 @@ class NativeReportsExportsTests(NativeReportTestCase):
 					"date",
 					"time",
 					"docstatus",
-					"count_scope",
 					"item_count",
 					"gains",
 					"losses",
@@ -283,7 +282,7 @@ class NativeReportsExportsTests(NativeReportTestCase):
 				"kind": "类型",
 				"source_warehouse": "来源位置",
 				"destination_warehouse": "去向位置",
-				"quantity": "数量",
+				"quantity": "借还数量",
 				"outstanding": "未归还数量",
 				"stock_uom": "单位",
 				"time": "时间",
@@ -598,9 +597,9 @@ class NativeReportsExportsTests(NativeReportTestCase):
 
 	def test_loan_history_export_lists_only_outstanding_submitted_loans(self):
 		partly = self.loan(5, borrower="部分归还")
-		self.submit(self.settlement(partly, 2))
+		partly_return = self.submit(self.settlement(partly, 2))
 		settled = self.loan(3, borrower="全部归还")
-		self.submit(self.settlement(settled, 3))
+		settled_return = self.submit(self.settlement(settled, 3))
 		query = self.query("loans", "items")
 		with Projection(query, refresh=True) as projection, tempfile.TemporaryDirectory() as directory:
 			projection.build()
@@ -630,13 +629,13 @@ class NativeReportsExportsTests(NativeReportTestCase):
 				rows = list(csv.reader(stream))
 		self.assertEqual(
 			rows[0],
-			["编号", "类型", "物品名称", "借用方", "活动", "来源位置", "数量", "单位"],
+			["编号", "类型", "物品名称", "借用方", "活动", "来源位置", "借还数量", "单位"],
 		)
 		self.assertEqual([row[0] for row in rows[1:-1]], [partly.name])
 		self.assertEqual(rows[1][3:6], ["部分归还", self.activity.title, projection.context.label(self.a)])
 		self.assertEqual(float(rows[1][6]), 5)
 		self.assertTrue(rows[-1][0].startswith("合计"))
-		inclusive_query = self.query("loans", "items", includeZero=True)
+		inclusive_query = self.query("loans", "items", loanStatus="all")
 		with (
 			Projection(inclusive_query, refresh=True) as inclusive_projection,
 			tempfile.TemporaryDirectory() as directory,
@@ -654,9 +653,10 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			)
 			with inclusive_path.open(encoding="utf-8-sig", newline="") as stream:
 				inclusive_rows = list(csv.reader(stream))
+		# The all-status view keeps settled loans and their linked settlement events.
 		self.assertEqual(
 			{row[0] for row in inclusive_rows[1:-1]},
-			{partly.name, settled.name},
+			{partly.name, partly_return.name, settled.name, settled_return.name},
 		)
 
 	def test_all_scope_loan_export_contains_loan_and_settlement_lines(self):
@@ -664,7 +664,7 @@ class NativeReportsExportsTests(NativeReportTestCase):
 		partly_return = self.submit(self.settlement(partly, 2))
 		settled = self.loan(3, borrower="全部归还")
 		settled_return = self.submit(self.settlement(settled, 3))
-		query = self.query("loans", "items", loanScope="all")
+		query = self.query("loans", "items", loanStatus="all")
 		with Projection(query, refresh=True) as projection, tempfile.TemporaryDirectory() as directory:
 			projection.build()
 			path = Path(directory) / "loans-all.csv"
@@ -679,7 +679,7 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			)
 			with path.open(encoding="utf-8-sig", newline="") as stream:
 				rows = list(csv.reader(stream))
-		self.assertEqual(rows[0], ["编号", "类型", "物品名称", "数量", "单位"])
+		self.assertEqual(rows[0], ["编号", "类型", "物品名称", "借还数量", "单位"])
 		self.assertEqual({row[1] for row in rows[1:-1]}, {"借出", "归还"})
 		self.assertEqual(
 			{row[0] for row in rows[1:-1]},
@@ -781,7 +781,7 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			self.create(self.movement("Loan", 5, self.a, self.loan_leaf, ti_borrower="部分归还"))
 		)
 		settlement = self.submit(self.settlement(loan, 2))
-		query = self.query("loans", "records", loan=loan.name, loanScope="all")
+		query = self.query("loans", "records", loan=loan.name, loanStatus="all")
 		query["scope"]["period"] = {"key": "all", "from": "", "to": ""}
 		with Projection(query, refresh=True) as projection:
 			projection.build()

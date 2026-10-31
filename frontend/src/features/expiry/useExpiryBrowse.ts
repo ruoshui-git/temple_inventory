@@ -24,6 +24,7 @@ import {
   type ScopeFilterField,
 } from "../../lib/filterPresentation";
 import { useReportGroups } from "../../composables/useReportGroups";
+import { useBrowseSelection } from "../../composables/useBrowseSelection";
 export interface ExpiryPageData extends BrowseRowsPage {
   item_count: number;
   batch_count: number;
@@ -39,7 +40,8 @@ export function useExpiryBrowse(
 ) {
   const services = useInventoryServices(),
     reference = useReferenceData(),
-    account = reference.user;
+    account = reference.user,
+    selection = useBrowseSelection();
   const query = ref(browseDefaults("expiry", "batches")),
     routeError = ref("");
   const groups = useReportGroups(query, services);
@@ -176,6 +178,7 @@ export function useExpiryBrowse(
             ),
           ]
         : value.rows;
+      if (!more) selection.retain(result.rows.map((row) => String(row.id)));
       Object.assign(result, {
         total: value.matched_count,
         next: value.next_start,
@@ -206,6 +209,7 @@ export function useExpiryBrowse(
     () => {
       if (routeError.value) {
         cancel();
+        selection.exit();
         result.stale = true;
         result.loading = false;
       } else {
@@ -363,6 +367,11 @@ export function useExpiryBrowse(
     cancel();
   });
   return {
+    selecting: selection.selecting,
+    selected: selection.selected,
+    enterSelection: selection.enter,
+    exitSelection: selection.exit,
+    setSelected: selection.set,
     query,
     groups,
     scope,

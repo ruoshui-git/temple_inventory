@@ -55,6 +55,10 @@ const paths: Record<string, string> = {
 	"chevron-down": "m6 9 6 6 6-6",
 	"chevron-right": "m9 6 6 6-6 6",
 	"chevron-left": "m15 6-6 6 6 6",
+	"sort-none": "M8 7l4-4 4 4M12 3v18m-4-4 4 4 4-4",
+	"sort-asc": "M8 7l4-4 4 4M12 3v18",
+	"sort-desc": "M8 17l4 4 4-4M12 3v18",
+	info: "M12 11v5m0-8h.01M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z",
 };
 const aliases: Record<string, string> = { trash: "disposal" };
 const resolvedName = aliases[props.name] || props.name;

@@ -349,6 +349,11 @@ def loan_balances(loan_name, *, lock=False, by_batch=False):
 	return result
 
 
+def _shared_value(values):
+	distinct = {value or "" for value in values}
+	return distinct.pop() if len(distinct) == 1 else ""
+
+
 def validate_settlements(doc):
 	lines = [row for row in doc.get("items", []) if row.get("ti_original_loan")]
 	if any(row.get("ti_original_loan_line") and not row.get("ti_original_loan") for row in doc.items):
@@ -360,14 +365,12 @@ def validate_settlements(doc):
 		check_document_scope(loan)
 		if loan.docstatus != 1 or loan.ti_movement_kind != "Loan" or loan.company != doc.company:
 			frappe.throw("请选择有效的原借出记录")
-		if loan.ti_borrower != doc.ti_borrower or (doc.ti_activity and loan.ti_activity != doc.ti_activity):
-			frappe.throw("一次结算中的原借用方和活动必须相同")
-		if loans and any(
-			(other.ti_borrower, other.ti_activity) != (loan.ti_borrower, loan.ti_activity)
-			for other in loans.values()
-		):
-			frappe.throw("一次结算中的原借用方和活动必须相同")
 		loans[name] = loan
+	# One settlement may cover loans from several borrowers and activities. The
+	# header only summarizes a shared value; each line keeps its original loan.
+	if loans:
+		doc.ti_borrower = _shared_value(loan.ti_borrower for loan in loans.values()) or ""
+		doc.ti_activity = _shared_value(loan.ti_activity for loan in loans.values()) or None
 	requested = defaultdict(Decimal)
 	requested_batches = defaultdict(Decimal)
 	for row in lines:

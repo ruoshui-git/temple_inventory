@@ -272,13 +272,6 @@ export function operationColumnsFor(
           export: ["lost"],
           quantity: true,
         },
-        {
-          id: "actions",
-          label: "操作",
-          required: true,
-          defaultVisible: true,
-          export: [],
-        },
       ];
 }
 export function operationItemColumnsFor(
@@ -450,7 +443,7 @@ export function operationItemColumnsFor(
         {
           id: "quantities",
           quantity: true,
-          label: "数量",
+          label: "借还数量",
           hint: "借出为正，归还为负",
           defaultVisible: false,
           align: "end",
@@ -541,7 +534,7 @@ export function operationItemColumnsFor(
         {
           id: "borrowed",
           quantity: true,
-          label: "数量",
+          label: "借还数量",
           hint: "借出为正，归还为负",
           defaultVisible: true,
           export: ["quantity", "stock_uom"],
@@ -553,12 +546,6 @@ export function operationItemColumnsFor(
           label: "单位",
           defaultVisible: false,
           export: ["stock_uom"],
-        },
-        {
-          id: "actions",
-          label: "操作",
-          defaultVisible: wideScreen,
-          export: [],
         },
       ];
 }

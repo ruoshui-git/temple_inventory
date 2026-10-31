@@ -464,12 +464,15 @@ test("real matching count finishes without creating an adjustment document", asy
   expect(stockedItem).toBeTruthy();
   const query = { dataset: "counts" };
   const before = await call(page.request, "projections.report_page", { query });
+  // A count covers every authorized leaf; `warehouse` only presets the location filter.
   await page.goto(
-    `/inventory/counts/new?warehouse=${encodeURIComponent(warehouse.name)}&items=${encodeURIComponent(JSON.stringify([stockedItem.item_code]))}`,
+    `/inventory/counts/new?warehouse=${encodeURIComponent(warehouse.name)}`,
   );
   const rows = page.locator("[data-count-key]");
   await expect(rows).not.toHaveCount(0);
-  await expect(rows.first()).toContainText(stockedItem.item_code);
+  await expect(
+    rows.filter({ hasText: stockedItem.item_code }).first(),
+  ).toBeVisible();
   const matching = page.waitForResponse((response) =>
     response.url().endsWith("temple_inventory.counts.save_count"),
   );

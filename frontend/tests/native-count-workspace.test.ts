@@ -96,10 +96,7 @@ function setup(
     units: [{ name: "Nos", whole: true }],
   });
   const controller = {
-    values: ref({
-      ti_count_warehouses: ["ROOM-A", "ROOM-B"],
-      ti_count_scope: "Full Location",
-    }),
+    values: ref({}),
     rows: ref(rows),
     names: reactive<Record<string, string>>({}),
     images: reactive<Record<string, string>>({}),
@@ -198,6 +195,20 @@ describe("compact count workspace", () => {
     await flushPromises();
     expect(desktop.wrapper.find(".count-data-table").exists()).toBe(true);
     expect(desktop.wrapper.findAll(".count-card")).toHaveLength(0);
+    const firstPageGroup = desktop.wrapper
+      .findAll(".count-data-table .data-table-group-row")
+      .find((group) => group.text().includes("乙室"));
+    expect(firstPageGroup?.text()).toContain("102");
+    await desktop.wrapper
+      .findAll("button")
+      .find((button) => button.text() === "下一页")!
+      .trigger("click");
+    expect(
+      desktop.wrapper
+        .findAll(".count-data-table .data-table-group-row")
+        .find((group) => group.text().includes("乙室"))
+        ?.text(),
+    ).toContain("102");
     desktop.wrapper.unmount();
 
     const phone = setup(

@@ -30,12 +30,15 @@ it("shows recorded multi-batch book, actual zero and variance without changing n
   expect(row.recorded_count_allocations[1]?.actual_qty).toBe(0);
 });
 afterEach(() => {
+  vi.useRealTimers();
   wrappers.splice(0).forEach((wrapper) => wrapper.unmount());
   localStorage.clear();
 });
 function row(overrides: Partial<CountRow> = {}): CountRow {
   return {
     item_code: "ITEM-A",
+    item_name: "测试物品",
+    image: "",
     warehouse: "ROOM-A",
     batch_no: null,
     stock_uom: "Nos",
@@ -53,6 +56,7 @@ function setup(
 ) {
   let c!: ReturnType<typeof useCountEditor>;
   const reference = createReferenceData();
+  currentReference = reference;
   Object.assign(reference, {
     site: "unit-site",
     user: "volunteer",
@@ -81,18 +85,25 @@ function setup(
   wrappers.push(mount(root));
   return { c, reference };
 }
+let currentReference: ReturnType<typeof createReferenceData> | undefined;
 function service() {
   let saved: Record<string, unknown>;
   return vi.fn(async (method: string, args: Record<string, any>) => {
-    if (method === "counts.count_baseline")
+    if (method === "counts.count_baseline") {
+      const previous = (args.previous_rows as CountRow[]) || [];
       return {
-        rows: ((args.warehouses as string[]) || []).map((warehouse) =>
-          row({ warehouse }),
-        ),
+        rows: previous.length
+          ? previous.map((old) => ({ ...old, needs_review: false }))
+          : // The server always covers every authorized physical leaf.
+            (currentReference?.physicalLeaves || []).map((warehouse) =>
+              row({ warehouse }),
+            ),
         timestamp: args.timestamp,
-        fingerprint: "BASE-1",
         removed_rows: [],
       };
+    }
+    if (method === "native_api.editor_clock")
+      return { timestamp: "2026-10-16 10:00:00" };
     if (method === "catalog.operation_items")
       return {
         items: [
@@ -159,6 +170,74 @@ function service() {
   });
 }
 describe("native count form integration", () => {
+  it("reopens a saved draft with three reviewed rows and confirms after refreshing the baseline", async () => {
+    const base = service();
+    const savedRows = ["ROOM-A", "ROOM-B", "ROOM-C"].map((warehouse) =>
+      row({
+        warehouse,
+        actual_qty: 8,
+        review_state: "Reviewed",
+        needs_review: false,
+        ti_display_item_name: "测试物品",
+        ti_display_image: "",
+      }),
+    );
+    const call = vi.fn(async (method: string, args: Record<string, any>) =>
+      method === "native_api.load_document"
+        ? {
+            doctype: "Stock Reconciliation",
+            name: "COUNT-DRAFT",
+            version: "v1",
+            docstatus: 0,
+            purpose: "Stock Reconciliation",
+            editable: true,
+            posting_date: "2026-10-16",
+            posting_time: "10:00:00",
+            ti_time_mode: "Historical",
+            ti_count_review: savedRows,
+            items: savedRows.map((saved) => ({
+              item_code: saved.item_code,
+              warehouse: saved.warehouse,
+              qty: saved.actual_qty,
+            })),
+          }
+        : base(method, args),
+    );
+    const { c, reference } = setup(call, { name: "COUNT-DRAFT" });
+    reference.physicalLeaves = ["ROOM-A", "ROOM-B", "ROOM-C"];
+    await flushPromises();
+    expect(c.rows.value).toHaveLength(3);
+    await c.review();
+    expect(c.reviewOpen.value).toBe(true);
+    await c.confirm();
+    expect(c.state.status).toBe("submitted");
+    expect(c.state.error).toBe("");
+  });
+  it("autosaves an untouched or incomplete count without showing an error", async () => {
+    vi.useFakeTimers();
+    const { c } = setup(service());
+    await flushPromises();
+    c.values.value.remarks = "开始盘点";
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(c.blockers.value).toContain("请至少核对一行盘点物品");
+    expect(c.state.error).toBe("");
+    await c.save(true);
+    expect(c.state.error).toBe("请至少核对一行盘点物品");
+    vi.useRealTimers();
+  });
+  it("debounces recovery writes and captures the latest count input", async () => {
+    vi.useFakeTimers();
+    const { c } = setup(service());
+    await flushPromises();
+    const previousEntries = c.recovery.list().entries.length;
+    c.input(c.rows.value[0]!, "8");
+    await flushPromises();
+    expect(c.recovery.list().entries).toHaveLength(previousEntries);
+    await vi.advanceTimersByTimeAsync(500);
+    const snapshot = c.recovery.list().entries[0];
+    expect(snapshot?.values.ti_count_review[0]?.actual_qty).toBe(8);
+    vi.useRealTimers();
+  });
   it("uses first-response current display names and images without an extra catalog query", async () => {
     const current = {
       doctype: "Stock Reconciliation",
@@ -167,9 +246,6 @@ describe("native count form integration", () => {
       docstatus: 1,
       purpose: "Stock Reconciliation",
       editable: false,
-      ti_count_warehouses: ["ROOM-A"],
-      ti_count_scope: "Selected",
-      ti_count_items: ["ITEM-A"],
       items: [
         {
           name: "COUNT-LINE",
@@ -306,13 +382,12 @@ describe("native count form integration", () => {
     expect(c.state.status).toBe("submitted");
     expect(c.state.server?.items).toHaveLength(1);
     expect(c.state.server?.items[0]?.qty).toBe(8);
-    expect(c.summary.value.unreviewed).toBe(1);
+    expect(c.summary.value.unreviewed).toBe(2);
   });
   it("captures multiple locations explicitly and retains same-item rows by location", async () => {
     const call = service(),
       { c } = setup(call, {});
     await flushPromises();
-    expect(c.values.value.ti_count_warehouses).toEqual(["ROOM-A", "ROOM-B"]);
     expect(c.rows.value.map((value) => value.warehouse)).toEqual([
       "ROOM-A",
       "ROOM-B",
@@ -323,32 +398,25 @@ describe("native count form integration", () => {
     expect(c.valid.value).toBe(true);
     await c.confirm();
     expect(c.state.status).toBe("submitted");
-    expect(c.state.server?.ti_count_warehouses).toEqual(["ROOM-A", "ROOM-B"]);
+    expect(c.state.server).not.toHaveProperty("ti_count_warehouses");
     expect(c.state.server?.items).toHaveLength(2);
     expect(c.state.server?.items.map((value) => value.warehouse)).toEqual([
       "ROOM-A",
       "ROOM-B",
     ]);
   });
-  it("requires a new baseline after location, selection, scope or timestamp changes", async () => {
+  it("requires a new baseline after the posting time changes", async () => {
     const call = service(),
       { c } = setup(call);
     await flushPromises();
     c.input(c.rows.value[0]!, "10");
     expect(c.valid.value).toBe(true);
-    c.values.value.ti_count_warehouses = ["ROOM-B"];
+    c.values.value.posting_time = "11:00:00";
     expect(c.currentBaseline.value).toBe(false);
     await c.save();
     expect(
       call.mock.calls.some(([method]) => method === "counts.save_count"),
     ).toBe(false);
-    c.values.value.ti_count_warehouses = ["ROOM-A"];
-    expect(c.currentBaseline.value).toBe(true);
-    c.values.value.ti_count_scope = "Selected";
-    expect(c.currentBaseline.value).toBe(false);
-    c.values.value.ti_count_scope = "Full Location";
-    c.values.value.posting_time = "11:00:00";
-    expect(c.currentBaseline.value).toBe(false);
   });
   it("retains changed and removed baseline inputs and requires explicit re-review", async () => {
     const call = service(),
@@ -385,10 +453,13 @@ describe("native count form integration", () => {
     expect(c.rows.value[0]?.actual_qty).toBe(8);
     expect(c.valid.value).toBe(false);
     expect(c.removed.value[0]?.actual_qty).toBe(4);
+    expect(c.blockers.value).toContain("有账面已变化的行尚未确认仍按当前实点");
     c.rereview(c.rows.value[0]!);
     c.removalAcknowledged.value = true;
     expect(c.valid.value).toBe(true);
     expect(c.rows.value[1]?.review_state).toBe("Unreviewed");
+    await c.confirm();
+    expect(c.state.status).toBe("submitted");
   });
   it("preserves native Desk count rows without inventing full-location review metadata", async () => {
     const base = service();
@@ -401,7 +472,6 @@ describe("native count form integration", () => {
             docstatus: 0,
             purpose: "Stock Reconciliation",
             editable: true,
-            ti_count_items: "[]",
             posting_date: "2026-10-16",
             posting_time: "10:00:00",
             items: [
@@ -415,7 +485,9 @@ describe("native count form integration", () => {
               },
             ],
           }
-        : base(method, args),
+        : method === "catalog.item_summaries"
+          ? []
+          : base(method, args),
     );
     const { c } = setup(call, { name: "DESK-COUNT" });
     await flushPromises();
@@ -451,9 +523,6 @@ describe("native count form integration", () => {
           editable: true,
           posting_date: "2026-10-16",
           posting_time: "10:00:00",
-          ti_count_scope: "Full Location",
-          ti_count_warehouses: ["ROOM-A"],
-          ti_count_items: [],
           ti_count_review: nativeReview,
           items: [],
         };

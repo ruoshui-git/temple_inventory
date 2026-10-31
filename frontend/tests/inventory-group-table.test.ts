@@ -239,7 +239,11 @@ describe("inventory grouped table", () => {
       defineComponent({
         setup() {
           provideInventoryServices(
-            { call, report: vi.fn(), upload: vi.fn() },
+            {
+              call,
+              report: vi.fn(),
+              upload: vi.fn(),
+            },
             reference,
           );
           return () => h(StockBrowsePage);
@@ -327,6 +331,9 @@ describe("inventory grouped table", () => {
     );
     // At the desktop breakpoint, location and batch are visible by default.
     expect(wrapper.text()).toContain("Main Warehouse · BATCH-1");
+    page.vm.controller.enterSelection();
+    await flushPromises();
+    expect(page.vm.controller.selecting.value).toBe(true);
     expect(wrapper.find('[aria-label="选择Noodles"]').exists()).toBe(true);
     await wrapper.get('[aria-label="选择Noodles"]').setValue(true);
     expect(page.vm.controller.selected.value).toEqual(["ITEM-1"]);
@@ -339,5 +346,80 @@ describe("inventory grouped table", () => {
         ([endpoint]) => endpoint === "browse.inventory_page",
       ),
     ).toBe(true);
+  });
+
+  it("offers bulk Return only when every selected stock item has loaned quantity", async () => {
+    const call = vi.fn(async (endpoint: string) => {
+      if (endpoint === "browse.inventory_page")
+        return {
+          rows: [
+            {
+              code: "ITEM-A",
+              name: "物品甲",
+              available: 2,
+              loaned: 3,
+              damaged: 0,
+              locations: [],
+            },
+            {
+              code: "ITEM-B",
+              name: "物品乙",
+              available: 2,
+              loaned: 0,
+              damaged: 0,
+              locations: [],
+            },
+          ],
+          matched_count: 2,
+          next_start: null,
+          snapshot: "now",
+          summary: [],
+          analysis: { category: [], location: [] },
+        };
+      if (endpoint === "table_preferences.get_column_preferences")
+        return { order: [], hidden: [] };
+      if (endpoint === "table_preferences.get_presentation_preference")
+        return true;
+      return undefined;
+    });
+    const reference = createReferenceData();
+    reference.user = "manager";
+    reference.site = "test";
+    reference.operations.Return = true;
+    reference.operations.Receive = true;
+    reference.operations.Issue = true;
+    reference.operations.Transfer = true;
+    const wrapper = mount(
+      defineComponent({
+        setup() {
+          provideInventoryServices(
+            {
+              call,
+              report: vi.fn(),
+              upload: vi.fn(),
+            },
+            reference,
+          );
+          return () => h(StockBrowsePage);
+        },
+      }),
+      {
+        attachTo: document.body,
+        global: { stubs: { RouterLink: RouterLinkStub } },
+      },
+    );
+    wrappers.push(wrapper);
+    await flushPromises();
+    const controller = wrapper.getComponent(StockBrowsePage).vm.controller;
+    controller.toggle("ITEM-A");
+    await flushPromises();
+    expect(
+      controller.selectedActions.value.map((action) => action.kind),
+    ).toContain("Return");
+    controller.toggle("ITEM-B");
+    await flushPromises();
+    expect(
+      controller.selectedActions.value.map((action) => action.kind),
+    ).not.toContain("Return");
   });
 });

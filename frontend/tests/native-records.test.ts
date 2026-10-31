@@ -125,7 +125,6 @@ describe("native drafts and count records", () => {
       whole: {
         ...nativeRow.whole,
         editable: false,
-        scope: '["ROOM-A"]',
         gains: [{ uom: "Nos", qty: 1 }],
         losses: [{ uom: "Nos", qty: -1 }],
         quantities: [
@@ -140,13 +139,20 @@ describe("native drafts and count records", () => {
       "counts",
     );
     await flushPromises();
+    expect(wrapper.get(".browse-result-summary").text()).toContain(
+      "205 条盘点记录",
+    );
+    expect(
+      wrapper
+        .find(".browse-result-summary .data-table-settings-outlet")
+        .exists(),
+    ).toBe(true);
     const headers = wrapper.findAll("thead th").map((header) => header.text());
     expect(headers.map((header) => header.replace(/[↓↑↕]/g, ""))).toEqual(
       expect.arrayContaining([
         "盘点编号",
         "类型",
         "状态",
-        "盘点范围",
         "物品种数",
         "增加",
         "减少",

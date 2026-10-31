@@ -406,7 +406,16 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 				{{ error }} <UiButton size="compact" @click="emit('retry')">重试</UiButton>
 			</p>
 			<button class="history-mobile-sort" type="button" @click="emit('sort', 'date')">
-				日期 {{ sortBy === "date" ? (sortDirection === "asc" ? "↑" : "↓") : "↕" }}
+				日期
+				<InventoryIcon
+					:name="
+						sortBy === 'date'
+							? sortDirection === 'asc'
+								? 'sort-asc'
+								: 'sort-desc'
+							: 'sort-none'
+					"
+				/>
 			</button>
 			<p class="history-mobile-count" role="status">
 				{{ rows.length }} / {{ total }} 条记录

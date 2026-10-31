@@ -42,12 +42,6 @@ export function nativeRecordColumns(mode: "drafts" | "counts"): DataColumn[] {
       export: ["docstatus"],
     },
     {
-      id: "count_scope",
-      label: "盘点范围",
-      defaultVisible: true,
-      export: ["count_scope"],
-    },
-    {
       id: "line_count",
       label: "明细数",
       defaultVisible: false,

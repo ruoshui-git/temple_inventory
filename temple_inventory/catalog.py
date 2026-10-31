@@ -12,7 +12,7 @@ from temple_inventory import uom_labels
 from temple_inventory.item_code import allocate_item_code
 from temple_inventory.item_code import suggest_item_code as next_item_code
 from temple_inventory.native_access import check_item, load_locked, require_app
-from temple_inventory.native_files import attachments, can_read
+from temple_inventory.native_files import FILE_PERMISSION_FIELDS, attachments, can_read, readable_parents
 from temple_inventory.projections import report_page
 from temple_inventory.report_query import validate_query
 from temple_inventory.report_sources import ReportContext, paged, stock_rows
@@ -204,25 +204,28 @@ def item_display_summaries(item_codes):
 			"is_private": 1,
 			"file_url": ["in", sorted({row.image for row in items if row.image}) or [""]],
 		},
-		fields=["name", "attached_to_name", "file_url"],
+		fields=list(FILE_PERMISSION_FIELDS),
 		order_by="creation asc, name asc",
 		limit_page_length=0,
 	):
-		covers.setdefault((value.attached_to_name, value.file_url), []).append(value.name)
+		covers.setdefault((value.attached_to_name, value.file_url), []).append(value)
 	result = {}
-	for row in items:
-		image = ""
-		for file_name in covers.get((row.name, row.image), ()):
-			file_doc = frappe.get_doc("File", file_name)
-			if file_doc.has_permission("read") and can_read(file_doc):
-				image = row.image
-				break
-		result[row.name] = {
-			"item_name": row.item_name,
-			"image": image,
-			"has_batch_no": bool(row.has_batch_no),
-			"has_expiry_date": bool(row.has_expiry_date),
-		}
+	# The Items came from a read-permission-filtered get_list, so their File checks
+	# need not reload each parent Item.
+	with readable_parents("Item", [row.name for row in items]):
+		for row in items:
+			image = ""
+			for value in covers.get((row.name, row.image), ()):
+				file_doc = frappe.get_doc({"doctype": "File", **value})
+				if file_doc.has_permission("read") and can_read(file_doc):
+					image = row.image
+					break
+			result[row.name] = {
+				"item_name": row.item_name,
+				"image": image,
+				"has_batch_no": bool(row.has_batch_no),
+				"has_expiry_date": bool(row.has_expiry_date),
+			}
 	return result
 
 

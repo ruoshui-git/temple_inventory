@@ -105,7 +105,6 @@ export function reportFilterChips(
       allocations: "allocations",
       itemLocations: "itemLocations",
       loanStatus: "status",
-      loanScope: "loanScope",
       loanOutcome: "loanOutcome",
       damageOnly: "damageOnly",
       activityKind: "activityKind",
@@ -134,16 +133,8 @@ export function reportFilterChips(
       isDefault,
     );
   }
-  if (
-    (query.dataset === "expiry" ||
-      (query.dataset === "loans" && query.view === "items")) &&
-    query.includeZero
-  )
-    add(
-      "includeZero",
-      query.dataset === "loans" ? "显示已结清物品" : "包含零库存",
-      { includeZero: false },
-    );
+  if (query.dataset === "expiry" && query.includeZero)
+    add("includeZero", "包含零库存", { includeZero: false });
   if (
     query.dataset === "inventory" &&
     query.view !== "historical" &&
@@ -257,16 +248,12 @@ export function reportFilterChips(
         ? `物品 / 库位（${query.itemLocationKeys.length}）`
         : undefined,
     );
-  if (query.loanStatus !== "all")
+  if (query.dataset === "loans" && query.loanStatus !== "outstanding")
     add(
       "loanStatus",
       `借用状态：${reportLoanStatusLabels[query.loanStatus] || query.loanStatus}`,
-      { loanStatus: "all" },
+      { loanStatus: "outstanding" },
     );
-  if (query.dataset === "loans" && query.loanScope !== "outstanding")
-    add("loanScope", "记录范围：借出与归还全部记录", {
-      loanScope: "outstanding",
-    });
   if (query.loanOutcome !== "all")
     add(
       "loanOutcome",

@@ -209,7 +209,8 @@ export function useOperationEditor(props: {
     recovery,
     values: props.initialValues || {
       ...newOperation(props.kind || "Receive", reference),
-      activity: props.initialActivity || "",
+      // A Return's activity comes from its settled loans, so it never starts from a route value.
+      activity: props.kind === "Return" ? "" : props.initialActivity || "",
     },
     valid: (value) =>
       !issues(value as unknown as OperationDraft).length && writable.value,
@@ -415,7 +416,8 @@ export function useOperationEditor(props: {
       if (
         !state.identity &&
         !initialItemsApplied &&
-        props.initialItems?.length
+        props.initialItems?.length &&
+        draft.value.kind !== "Return"
       ) {
         const additions: AllocationLine[] = [];
         const codes = [...new Set(props.initialItems)];
@@ -487,8 +489,45 @@ export function useOperationEditor(props: {
         }
       }
       state.recoveryError = recovery.list().error;
-      if (!state.identity && props.originalLoan)
-        await appendLoan(props.originalLoan);
+      if (
+        !state.identity &&
+        draft.value.kind === "Return" &&
+        props.initialItems?.length
+      ) {
+        const itemCodes = [...new Set(props.initialItems)];
+        const rows = await services.call<
+          {
+            loan: string;
+            original_loan_line: string;
+            item_code: string;
+            batch_no: string;
+            qty: number;
+          }[]
+        >("temple_inventory.loans.outstanding_lines", {
+          item_codes: itemCodes,
+        });
+        const byLoan = new Map<string, typeof rows>();
+        for (const row of rows)
+          byLoan.set(row.loan, [...(byLoan.get(row.loan) || []), row]);
+        for (const [name, allocations] of byLoan)
+          await appendLoan(name, allocations);
+        initialItemsApplied = true;
+      }
+      if (!state.identity && props.originalLoan) {
+        let loanNames = [props.originalLoan];
+        try {
+          const parsed = JSON.parse(props.originalLoan);
+          if (
+            Array.isArray(parsed) &&
+            parsed.length > 0 &&
+            parsed.every((name) => typeof name === "string" && name.trim())
+          )
+            loanNames = parsed;
+        } catch {
+          // Existing single-loan prefill values are plain names.
+        }
+        for (const name of [...new Set(loanNames)]) await appendLoan(name);
+      }
     } catch (reason) {
       state.error =
         reason instanceof Error ? reason.message : "操作资料读取失败";
@@ -582,20 +621,20 @@ export function useOperationEditor(props: {
       if (active()) busy.value = false;
     }
   }
-  async function appendLoan(name: string) {
+  async function appendLoan(
+    name: string,
+    selectedAllocations?: {
+      original_loan_line: string;
+      batch_no: string;
+      qty: number;
+    }[],
+  ) {
     if (!name || !active()) return;
     const loan = await services.call<NativeDocument>("native_api.loan_detail", {
       name,
     });
     if (loan.docstatus !== 1 || loan.kind !== "Loan")
       throw new Error("请选择已提交的原借出记录");
-    if (
-      draft.value.items.length &&
-      draft.value.loanName &&
-      (draft.value.borrower !== String(loan.ti_borrower || "") ||
-        draft.value.activity !== String(loan.ti_activity || ""))
-    )
-      throw new Error("借用方或活动不同，请另建操作");
     const additions = [];
     for (const row of loan.items) {
       await ensure(String(row.item_code));
@@ -604,8 +643,14 @@ export function useOperationEditor(props: {
         outstanding_qty: number;
       }[];
       for (const allocation of allocations || []) {
+        const selectedAllocation = selectedAllocations?.find(
+          (entry) =>
+            entry.original_loan_line === row.name &&
+            entry.batch_no === allocation.batch_no,
+        );
         if (
           !(allocation.outstanding_qty > 0) ||
+          (selectedAllocations && !selectedAllocation) ||
           draft.value.items.some(
             (line) =>
               line.loanName === name &&
@@ -616,7 +661,7 @@ export function useOperationEditor(props: {
           continue;
         const id = crypto.randomUUID(),
           factor = Number(row.conversion_factor),
-          qty = allocation.outstanding_qty;
+          qty = selectedAllocation?.qty ?? allocation.outstanding_qty;
         additions.push({
           id,
           localId: id,
@@ -632,6 +677,9 @@ export function useOperationEditor(props: {
           sourceLocation: String(row.t_warehouse),
           loanedLocation: String(row.t_warehouse),
           loanName: name,
+          loanBorrower: String(loan.ti_borrower || ""),
+          loanActivity: String(loan.ti_activity || ""),
+          loanActivityTitle: String(loan.activity_title || ""),
           originalLoanLine: String(row.name),
           batch: allocation.batch_no,
           returnOutcome:
@@ -645,8 +693,6 @@ export function useOperationEditor(props: {
       }
     }
     if (!active()) return;
-    draft.value.borrower = String(loan.ti_borrower || "");
-    draft.value.activity = String(loan.ti_activity || "");
     draft.value.loanName ||= name;
     draft.value.items.push(...additions);
   }
@@ -739,6 +785,7 @@ export function useOperationEditor(props: {
           state.savedRevision = 0;
           files.clear();
           await hydrate();
+          await refreshLoanBalances();
         }
       }
       action.value = undefined;

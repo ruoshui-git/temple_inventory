@@ -192,36 +192,15 @@ export function registerFixtureDraft(draft: ReviewDraft) {
   documents.set(key(doc.doctype, name), doc);
   return copy(doc);
 }
-function countFingerprint(
-  rows: CountRow[],
-  warehouses: string[],
-  timestamp: string,
-  scope: string,
-) {
-  return JSON.stringify([
-    [...warehouses].sort(),
-    timestamp,
-    scope,
-    rows.map((row) => [
-      row.item_code,
-      row.warehouse,
-      row.batch_no || "",
-      row.baseline_qty,
-    ]),
-  ]);
-}
 function countBaseline(args: Record<string, unknown>) {
-  const selected = (args.item_codes as string[]) || [],
-    warehouses = [...new Set((args.warehouses as string[]) || [])].sort(),
-    timestamp = String(args.timestamp),
-    scope = String(args.scope);
+  const warehouses = [...new Set((args.warehouses as string[]) || [])].sort(),
+    timestamp = String(args.timestamp);
   const oldRows = (args.previous_rows as CountRow[]) || [];
   const rows: CountRow[] = [];
   for (const item of reviewSession.stock) {
-    if (scope === "Selected" && !selected.includes(item.code)) continue;
     for (const warehouse of warehouses) {
       const location = item.locations.find((row) => row.location === warehouse);
-      if (!location && scope !== "Selected") continue;
+      if (!location) continue;
       const allocations = item.tracksBatch
         ? location?.batches
             ?.filter((batch) => batch.available)
@@ -235,8 +214,13 @@ function countBaseline(args: Record<string, unknown>) {
               (row.batch_no || "") === allocation.batch,
           ),
           changed = !!old && old.baseline_qty !== allocation.qty;
+        if (!allocation.qty && !old) continue;
         rows.push({
           item_code: item.code,
+          item_name: item.name,
+          ti_display_item_name: item.name,
+          ti_display_image: item.image || "",
+          image: item.image || "",
           warehouse,
           batch_no: allocation.batch || null,
           stock_uom: item.uom,
@@ -254,7 +238,6 @@ function countBaseline(args: Record<string, unknown>) {
   return {
     rows,
     timestamp,
-    fingerprint: countFingerprint(rows, warehouses, timestamp, scope),
     removed_rows: oldRows.filter(
       (row) =>
         !rows.some(
@@ -268,11 +251,6 @@ function countBaseline(args: Record<string, unknown>) {
 }
 export function registerFixtureCount(draft: ReviewDraft) {
   synchronizeSession();
-  const warehouses = draft.countWarehouses?.length
-    ? [...new Set(draft.countWarehouses)].sort()
-    : [
-        ...new Set(draft.lines.map((line) => line.location).filter(Boolean)),
-      ].sort();
   const rows: CountRow[] = draft.lines.map((line) => ({
     item_code: line.code,
     warehouse: line.location,
@@ -283,8 +261,6 @@ export function registerFixtureCount(draft: ReviewDraft) {
     review_state: line.countedQty === undefined ? "Unreviewed" : "Reviewed",
     reason: line.reason || "",
   }));
-  const scope = draft.countMode === "full" ? "Full Location" : "Selected",
-    timestamp = `${draft.postingDate} ${draft.postingTime || "10:00:00"}`;
   const doc = normalize(
     {
       doctype: "Stock Reconciliation",
@@ -292,17 +268,8 @@ export function registerFixtureCount(draft: ReviewDraft) {
       kind: "Reconcile",
       posting_date: draft.postingDate,
       posting_time: draft.postingTime || "10:00:00",
-      ti_count_warehouses: warehouses,
-      ti_count_scope: scope,
-      ti_count_items: [...new Set(rows.map((row) => row.item_code))],
+      ti_time_mode: "Historical",
       ti_count_review: rows,
-      ti_baseline_timestamp: timestamp,
-      ti_baseline_fingerprint: countFingerprint(
-        rows,
-        warehouses,
-        timestamp,
-        scope,
-      ),
       ti_activity: draft.activity,
       ti_notes: draft.note,
       items: rows
@@ -369,7 +336,6 @@ function find(doctype: string, name: string) {
               : "Material Receipt",
         posting_date: event.date,
         posting_time: "09:00:00",
-        ti_count_items: "[]",
         items: [
           {
             item_code: event.itemId,
@@ -480,13 +446,6 @@ function syncSavedDocument(doc: NativeDocument) {
     lines: input.items,
   };
   if (doc.doctype === "Stock Reconciliation") {
-    const warehouses =
-      typeof doc.ti_count_warehouses === "string"
-        ? JSON.parse(doc.ti_count_warehouses || "[]")
-        : doc.ti_count_warehouses;
-    value.countWarehouses = Array.isArray(warehouses) ? warehouses : [];
-    value.countMode =
-      doc.ti_count_scope === "Full Location" ? "full" : "selective";
     value.lines = ((doc.ti_count_review || []) as CountRow[]).map((row) => ({
       id: `${row.item_code}:${row.batch_no || ""}`,
       code: row.item_code,

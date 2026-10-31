@@ -19,33 +19,68 @@ function quantities(values: [string, number][], signed = false) {
 
 <template>
 	<div class="count-summary-strip" role="status">
-		<strong v-if="!compact">已核对 {{ summary.reviewed }} / {{ summary.total }} 行</strong>
-		<span v-if="!compact">{{ summary.unreviewed }} 行未核对</span>
-		<span v-if="!compact">账面合计：{{ quantities(summary.baseline) }}</span>
-		<span v-if="!compact"
-			>已核对实点合计：{{ summary.reviewed ? quantities(summary.actual) : "—" }}</span
+		<article v-if="!compact" class="metric">
+			<small>核对物品数</small><strong>{{ summary.reviewed }} / {{ summary.total }}</strong>
+		</article>
+		<article v-if="!compact && summary.unreviewed" class="metric">
+			<small>未核对</small><strong>{{ summary.unreviewed }} 行未核对</strong>
+		</article>
+		<article v-if="!compact" class="metric">
+			<small>有差异物品数</small><strong>{{ summary.changed }}</strong>
+		</article>
+		<article class="metric" :class="{ 'is-increase': summary.gains.some(([, qty]) => qty) }">
+			<small>增加</small
+			><strong>{{ summary.reviewed ? quantities(summary.gains, true) : "—" }}</strong>
+		</article>
+		<article class="metric" :class="{ 'is-decrease': summary.losses.some(([, qty]) => qty) }">
+			<small>减少</small
+			><strong>{{ summary.reviewed ? quantities(summary.losses, true) : "—" }}</strong>
+		</article>
+		<article
+			class="metric is-net"
+			:class="
+				summary.difference.some(([, qty]) => qty > 0)
+					? 'is-increase'
+					: summary.difference.some(([, qty]) => qty < 0)
+						? 'is-decrease'
+						: ''
+			"
 		>
-		<span>增加：{{ summary.reviewed ? quantities(summary.gains, true) : "—" }}</span>
-		<span>减少：{{ summary.reviewed ? quantities(summary.losses, true) : "—" }}</span>
-		<span title="增加与减少相抵后的净值">
-			净差异：{{ summary.reviewed ? quantities(summary.difference, true) : "—" }}
-		</span>
+			<small>净差异</small
+			><strong>{{ summary.reviewed ? quantities(summary.difference, true) : "—" }}</strong>
+		</article>
 	</div>
 </template>
 
 <style scoped>
 .count-summary-strip {
-	display: flex;
-	align-items: baseline;
-	flex-wrap: wrap;
-	gap: 6px 16px;
-	padding: 9px 12px;
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+	gap: 8px;
+}
+.metric {
+	min-width: 0;
+	padding: 12px;
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-control);
-	background: var(--p-soft);
+	background: var(--p-surface);
 }
-.count-summary-strip span {
+.metric small,
+.metric strong {
+	display: block;
+}
+.metric small {
 	color: var(--p-muted);
+}
+.metric strong {
+	margin-top: 4px;
+	font-variant-numeric: tabular-nums;
+}
+.metric.is-increase strong {
+	color: var(--p-success);
+}
+.metric.is-decrease strong {
+	color: var(--p-danger);
 }
 @media (max-width: 1023px) {
 	.count-summary-strip {

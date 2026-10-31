@@ -20,6 +20,7 @@ import { isUnavailableError } from "../../lib/serviceFailure";
 import { useBrowseState } from "../../lib/browseMemory";
 import { sortableColumnsForView } from "../../lib/reportContract";
 import { useReportGroups } from "../../composables/useReportGroups";
+import { useBrowseSelection } from "../../composables/useBrowseSelection";
 export interface OperationGroup {
   id: string;
   item?: CatalogItem;
@@ -104,7 +105,8 @@ export function useOperationBrowse(
   const relatedLoans = useRelatedLoans();
   const services = useInventoryServices(),
     reference = useReferenceData(),
-    account = reference.user;
+    account = reference.user,
+    selection = useBrowseSelection();
   function defaults(records = props.records) {
     const view = records
       ? "records"
@@ -217,8 +219,7 @@ export function useOperationBrowse(
       : props.family === "movements"
         ? "summary"
         : "items";
-    if (props.family === "loans" && !props.records) {
-      incoming.loanStatus = "all";
+    if (props.family === "loans") {
       incoming.statuses = [1];
     }
     const supportedSorts = sortableColumnsForView(props.family, incoming.view);
@@ -240,6 +241,12 @@ export function useOperationBrowse(
       ]),
     enter,
     { immediate: true },
+  );
+  watch(
+    () => reference.user,
+    (user) => {
+      if (user !== account) selection.exit();
+    },
   );
   useBrowseState(
     `operations/${props.family}/${props.records ? "records" : "items"}`,
@@ -292,6 +299,7 @@ export function useOperationBrowse(
             ),
           ]
         : page.rows;
+      if (!more) selection.retain(result.rows.map((row) => String(row.id)));
       result.total = page.matched_count;
       result.next = page.next_start;
       result.summary = page.summary;
@@ -434,12 +442,6 @@ export function useOperationBrowse(
                         ? {}
                         : { item_code: row.item_code }),
                       outcome: row.outcome_key,
-                      ...(props.family === "loans" &&
-                      query.value.view === "items"
-                        ? {
-                            loan_scope: query.value.loanScope,
-                          }
-                        : {}),
                     }),
                 start: more ? table.next : 0,
                 page_length: 30,
@@ -475,7 +477,7 @@ export function useOperationBrowse(
       requests.delete(request);
       if (detailRequests.get(row.id) === request) {
         detailRequests.delete(row.id);
-        if (active(current)) table.loading = false;
+        table.loading = false;
       }
     }
   }
@@ -558,10 +560,7 @@ export function useOperationBrowse(
       if (!details[row.id]?.error) void loadDetails(row);
     } else expanded.delete(row.id);
   }
-  function setHistoryScope(value: "outstanding" | "all") {
-    if (query.value.loanScope === value) return;
-    if (!props.records) skipNextQueryLoad = true;
-    query.value.loanScope = value;
+  function reloadExpandedLoanHistory() {
     for (const [id, table] of Object.entries(details)) {
       detailRequests.get(id)?.abort();
       detailRequests.delete(id);
@@ -581,6 +580,14 @@ export function useOperationBrowse(
       if (row) void loadDetails(row);
     }
   }
+  watch(
+    () => query.value.loanStatus,
+    (value, previous) => {
+      if (props.family === "loans" && value !== previous)
+        reloadExpandedLoanHistory();
+    },
+    { flush: "post" },
+  );
   async function moreAnalysis() {
     const table = analyses[dimension.value];
     if (!table || table.loading || table.next === null || result.stale) return;
@@ -634,17 +641,11 @@ export function useOperationBrowse(
     },
   });
   const primaryChip = (key: string) =>
-    props.family === "movements"
-      ? props.records && key === "statuses"
-      : props.records && key === "loanStatus";
+    props.family === "movements" && props.records && key === "statuses";
   const extraChips = computed(() => [
-    ...reportFilterChips(query.value, reference)
-      .filter((chip) => !chip.fixed && !primaryChip(chip.key))
-      .map((chip) =>
-        props.family === "loans" && chip.key === "includeZero"
-          ? { ...chip, label: "包括已结清物品", summary: "包括已结清物品" }
-          : chip,
-      ),
+    ...reportFilterChips(query.value, reference).filter(
+      (chip) => !chip.fixed && !primaryChip(chip.key),
+    ),
   ]);
   const scopeChips = computed(() => scopeFilterChips(scope.value, reference));
   function clearFilters() {
@@ -670,54 +671,28 @@ export function useOperationBrowse(
     routeError.value = "";
     query.value = defaults();
   }
+  // Movement records only; loans use the 借用状态 (loanStatus) filter.
   const status = computed({
     get: () =>
-      props.family === "movements"
-        ? query.value.statuses.length !== 1
-          ? "multiple"
-          : query.value.statuses[0] === 0
-            ? "draft"
-            : query.value.statuses[0] === 2
-              ? "cancelled"
-              : "completed"
-        : props.records
-          ? query.value.statuses.length === 1 && query.value.statuses[0] === 0
-            ? "draft"
-            : query.value.loanStatus
-          : query.value.includeZero
-            ? "all"
-            : "outstanding",
+      query.value.statuses.length !== 1
+        ? "multiple"
+        : query.value.statuses[0] === 0
+          ? "draft"
+          : query.value.statuses[0] === 2
+            ? "cancelled"
+            : "completed",
     set: (value: string) => {
-      if (props.family === "movements")
-        query.value.statuses = [
-          value === "draft" ? 0 : value === "cancelled" ? 2 : 1,
-        ];
-      else if (props.records) {
-        query.value.statuses = value === "draft" ? [0] : [1];
-        query.value.loanStatus = value === "draft" ? "all" : value;
-      } else query.value.includeZero = value === "all";
+      query.value.statuses = [
+        value === "draft" ? 0 : value === "cancelled" ? 2 : 1,
+      ];
     },
   });
-  const statusChoices = computed(() =>
-    props.family === "movements"
-      ? [
-          ["completed", "已提交"],
-          ["draft", "草稿"],
-          ["cancelled", "已取消"],
-          ...(status.value === "multiple" ? [["multiple", "多个状态"]] : []),
-        ]
-      : props.records
-        ? [
-            ["all", "全部"],
-            ["open", "未结清"],
-            ["settled", "已结清"],
-            ["draft", "草稿"],
-          ]
-        : [
-            ["outstanding", "未结清物品"],
-            ["all", "全部相关物品"],
-          ],
-  );
+  const statusChoices = computed(() => [
+    ["completed", "已提交"],
+    ["draft", "草稿"],
+    ["cancelled", "已取消"],
+    ...(status.value === "multiple" ? [["multiple", "多个状态"]] : []),
+  ]);
   const analysis = computed(() => analyses[dimension.value]);
   function viewQuery(records: boolean): ReportQuery {
     if (records === props.records)
@@ -753,6 +728,11 @@ export function useOperationBrowse(
     cancel();
   });
   return {
+    selecting: selection.selecting,
+    selected: selection.selected,
+    enterSelection: selection.enter,
+    exitSelection: selection.exit,
+    setSelected: selection.set,
     relatedLoans,
     query,
     groups,
@@ -780,7 +760,6 @@ export function useOperationBrowse(
     detailSortBy,
     detailSortDirection,
     toggle,
-    setHistoryScope,
     moreAnalysis,
     viewQuery,
     loanHistory,

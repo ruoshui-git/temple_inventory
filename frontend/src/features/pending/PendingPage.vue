@@ -9,7 +9,7 @@ const props = withDefaults(
 );
 const emit = defineEmits<{
 	item: [code: string];
-	operation: [kind: "Repair" | "Disposal", allocation: InitialAllocation];
+	operation: [kind: "Repair" | "Disposal", allocations: InitialAllocation[]];
 	queryChange: [query: ReportQuery];
 	openExport: [query: ReportQuery];
 }>();
@@ -21,7 +21,7 @@ defineExpose({ controller });
 		:controller="controller"
 		:active="active"
 		@item="emit('item', $event)"
-		@operation="(kind, allocation) => emit('operation', kind, allocation)"
+		@operation="(kind, allocations) => emit('operation', kind, allocations)"
 		@open-export="emit('openExport', $event)"
 	/>
 </template>

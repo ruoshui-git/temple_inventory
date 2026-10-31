@@ -163,9 +163,8 @@ export function decodeReportQuery(
       sort: ["asc", "desc"],
       stockState: Object.keys(stockStateLabels),
       activityStatus: ["all", "active", "archived"],
-      loanStatus: ["all", "outstanding", "open", "settled"],
+      loanStatus: ["all", "outstanding", "settled"],
       loanOutcome: ["all", "outstanding", "returned", "damaged", "lost"],
-      loanScope: ["outstanding", "all"],
       itemStatus: ["enabled", "disabled", "all"],
       countReviewed: ["all", "reviewed", "unreviewed", "difference"],
       relatedPresence: ["all", "yes", "no", "with", "without"],
@@ -206,7 +205,6 @@ export function decodeReportQuery(
       query.scope.categories = [];
       query.scope.uncategorized = false;
     }
-    if (query.dataset === "inventory") query.includeZero = false;
     if (
       !(["all", "batch", "expiry", "none", "batch_only"] as string[]).includes(
         query.scope.tracking,
@@ -309,7 +307,6 @@ export function normalizeReportQuery(source: ReportQuery): ReportQuery {
     target.scope.categories = [];
     target.scope.uncategorized = false;
   }
-  if (dataset === "inventory") target.includeZero = false;
   if (dataset !== "inventory") target.stockState = "in_stock";
   const sourceFields = source as unknown as Record<string, unknown>;
   const targetFields = target as unknown as Record<string, unknown>;

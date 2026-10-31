@@ -29,6 +29,15 @@ function changed(query: ReportQuery) {
 function switchView(records: boolean, query: ReportQuery) {
 	void router.push(browseStateDestination(props.family, records ? "records" : "items", query));
 }
+function settle(encoded: string) {
+	const selection = JSON.parse(encoded) as { items?: string[]; loans?: string[] };
+	void router.push(
+		operationDestination("Return", {
+			...(selection.items ? { items: JSON.stringify(selection.items) } : {}),
+			...(selection.loans ? { loans: JSON.stringify(selection.loans) } : {}),
+		}),
+	);
+}
 </script>
 <template>
 	<OperationBrowsePage
@@ -40,7 +49,7 @@ function switchView(records: boolean, query: ReportQuery) {
 		@open-document="(doctype, name) => router.push(documentDestination(doctype, name))"
 		@open-loan="router.push(routeTarget('loan-overview', { name: $event }))"
 		@open-item="router.push(routeTarget('item-detail', { code: $event }))"
-		@settle="router.push(operationDestination('Return', { loan: $event }))"
+		@settle="settle"
 		@browse="router.push(browseDestination($event))"
 		@open-export="router.push(exportDestination($event))"
 		@new-operation="router.push(operationDestination($event))"

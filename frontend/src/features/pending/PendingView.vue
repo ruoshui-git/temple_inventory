@@ -14,11 +14,10 @@ import { removeGroupByField } from "../../lib/groupBy";
 import { groupLabels, sortableColumnsForView } from "../../lib/reportContract";
 import Overlay from "../../components/ui/Overlay.vue";
 import UiButton from "../../components/ui/UiButton.vue";
-import ReportTable from "../../components/ui/ReportTable.vue";
+import DataTable from "../../components/ui/DataTable.vue";
 import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import QuickExport from "../../components/QuickExport.vue";
-import PopupMenu from "../../components/ui/PopupMenu.vue";
 import FilterRailEdge from "../../components/ui/FilterRailEdge.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import BrowseRefreshNotice from "../../components/ui/BrowseRefreshNotice.vue";
@@ -28,17 +27,22 @@ import { reportExportColumns } from "../../lib/reportExportColumns";
 import { useOptionalInventoryServices } from "../../services/contracts";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import { exportFields } from "../../lib/exportColumns";
-import type { DataColumn } from "../../lib/dataTable";
+import type { DataColumn, DataTableEntry } from "../../lib/dataTable";
+import { RouterLink } from "vue-router";
+import { routeTarget } from "../../lib/routeRegistry";
+import UnitText from "../../components/ui/UnitText.vue";
+import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
 const props = withDefaults(defineProps<{ controller: PendingController; active?: boolean }>(), {
 	active: true,
 });
 const emit = defineEmits<{
 	item: [code: string];
-	operation: [kind: "Repair" | "Disposal", allocation: InitialAllocation];
+	operation: [kind: "Repair" | "Disposal", allocations: InitialAllocation[]];
 	openExport: [query: ReportQuery];
 }>();
 const c = props.controller,
-	{ query, scope, scopeChips, chips, routeError, metrics, analysisOpen, dimension } = c;
+	{ query, scope, scopeChips, chips, routeError, metrics, analysisOpen, dimension, reference } =
+		c;
 const table = c.report.mainTable,
 	analysisTable = c.analysis.mainTable;
 const reportColumns = computed<DataColumn[]>(() =>
@@ -86,6 +90,25 @@ const {
 const { isMobile } = useResponsiveLayout();
 const filterSheetOpen = ref(false);
 const sortColumns = computed(() => sortableColumnsForView(query.value.dataset, query.value.view));
+const pendingRows = computed<DataTableEntry[]>(() =>
+	query.value.groupBy.length
+		? c.report.groups.entries.value
+		: (table.value?.rows || []).map((row) => ({
+				kind: "record",
+				id: String(row.id),
+				value: row as unknown as Record<string, unknown>,
+			})),
+);
+const selectedAllocations = computed(() =>
+	(table.value?.rows || []).filter((row) => c.selected.value.includes(String(row.id))),
+);
+function bulkOperation(kind: "Repair" | "Disposal") {
+	emit(
+		"operation",
+		kind,
+		selectedAllocations.value.map((row) => c.allocation(row)),
+	);
+}
 function sortReport(field: string) {
 	if (!sortColumns.value.includes(field)) return;
 	if (query.value.sortBy === field)
@@ -115,15 +138,65 @@ watch([() => props.active, isMobile], () => {
 			@filter-open="filterSheetOpen = $event"
 			sidebar-available
 			:filter-count="scopeChips.length + chips.filter((chip) => !chip.fixed).length"
-			><template #actions
-				><QuickExport
-					v-if="!routeError"
-					:query="query"
-					:table="table?.id"
-					:columns="exportColumns"
-					title="待处理"
-					:active="active"
-			/></template>
+		>
+			<template #actions>
+				<BrowseOverflowMenu>
+					<UiButton
+						v-if="isMobile"
+						icon="select"
+						:aria-pressed="c.selecting.value"
+						@click="c.selecting.value ? c.exitSelection() : c.enterSelection()"
+						>{{ c.selecting.value ? "取消选择" : "选择" }}</UiButton
+					>
+					<QuickExport
+						v-if="!routeError"
+						:query="query"
+						:table="table?.id"
+						:columns="exportColumns"
+						title="待处理"
+						:active="active"
+					/>
+				</BrowseOverflowMenu>
+				<UiButton
+					v-if="!isMobile"
+					icon="select"
+					:aria-pressed="c.selecting.value"
+					@click="c.selecting.value ? c.exitSelection() : c.enterSelection()"
+					>{{ c.selecting.value ? "取消选择" : "选择" }}</UiButton
+				>
+			</template>
+			<template #selection>
+				<div
+					v-if="c.selecting.value"
+					class="selection-bar stock-selection-actions"
+					role="region"
+					aria-label="损坏物资批量操作"
+				>
+					<span role="status">已选择 {{ c.selected.value.length }} 项</span>
+					<UiButton
+						v-for="action in [
+							{ kind: 'Repair', label: '修复归库' },
+							{ kind: 'Disposal', label: '报废' },
+						]"
+						:key="action.kind"
+						:disabled="
+							!selectedAllocations.length ||
+							c.report.result.stale ||
+							reference.operations[action.kind] !== true
+						"
+						:title="
+							!selectedAllocations.length
+								? '请先选择损坏明细'
+								: reference.operations[action.kind] !== true
+									? '当前账户不可执行此操作'
+									: ''
+						"
+						@click="bulkOperation(action.kind as 'Repair' | 'Disposal')"
+						>{{ action.label }}</UiButton
+					>
+					<UiButton variant="ghost" @click="c.exitSelection()">取消</UiButton>
+				</div>
+			</template>
 			<template #filters>
 				<BrowseFilters
 					v-model="scope"
@@ -142,10 +215,9 @@ watch([() => props.active, isMobile], () => {
 				</div>
 				<UiButton @click="c.clear">清空筛选</UiButton>
 			</template>
-			<div class="browse-callout damaged-callout">
-				<span class="browse-callout-icon"><InventoryIcon name="warning" /></span>
+			<div class="notice-bar">
+				<InventoryIcon name="info" />
 				<span>损坏物资待处理：明细均位于“损坏待处理”位置，可修复归库或正式报废。</span>
-				<b v-if="table?.initialized">{{ c.report.result.total }} 条明细</b>
 			</div>
 			<p v-if="routeError" role="alert">{{ routeError }}</p>
 			<template #chips="{ editFilter }">
@@ -239,85 +311,57 @@ watch([() => props.active, isMobile], () => {
 				@toggle="toggleFilter"
 			/>
 			<div class="browse-results surface damaged-results-card">
-				<ReportTable
+				<DataTable
 					v-if="table"
-					sticky-actions
-					:preference-id="`pending.${query.dataset}.${query.view}.${table.id}`"
-					:table="table"
-					:hidden-columns="['warehouse_label', 'warehouse']"
-					:total="table.total"
+					data-browse-scroll="damaged-table"
+					ariaLabel="损坏待处理明细"
+					table-class="browse-table"
+					:columns="
+						reportColumns.filter(
+							(column) =>
+								!['warehouse_label', 'warehouse'].includes(String(column.id)),
+						)
+					"
+					:rows="pendingRows"
+					:column-preferences="reportPrefs"
+					:selection-enabled="c.selecting.value"
+					:selected-keys="c.selected.value"
+					:sort-by="query.sortBy"
+					:sort-direction="query.sort"
 					:loading="table.loading"
 					:initialized="table.initialized"
 					:error="table.error"
 					:stale="c.report.result.stale"
-					:sortable-columns="sortColumns"
-					:sort-by="query.sortBy"
-					:sort-direction="query.sort"
-					:grouped="query.groupBy.length > 0"
-					:group-pages="c.report.groups"
-					@load-more="c.report.loadTable(table, true)"
+					:has-more="table.next !== null"
+					:loaded-count="table.rows.length"
+					:total-count="table.total"
+					@select="c.setSelected"
+					@select-visible="
+						(keys, checked) => keys.forEach((key) => c.setSelected(key, checked))
+					"
 					@sort="sortReport"
+					@toggle-group="c.report.groups.toggleGroup"
+					@load-more="c.report.loadTable(table, true)"
 					@retry="
 						c.report.loadTable(table, table.initialized && table.next !== null, true)
 					"
 				>
-					<template #actions="{ row }">
-						<div class="browse-row-actions damaged-row-actions">
-							<UiButton
-								v-if="c.canAct('Repair', row as ReportRow)"
-								class="damaged-desktop-action"
-								variant="secondary"
-								:icon="kindIcons.Repair.icon"
-								@click="
-									emit('operation', 'Repair', c.allocation(row as ReportRow))
-								"
-								>修复归库</UiButton
-							>
-							<UiButton
-								v-if="c.canAct('Disposal', row as ReportRow)"
-								variant="ghost"
-								class="damaged-disposal-button damaged-desktop-action"
-								:icon="kindIcons.Disposal.icon"
-								@click="
-									emit('operation', 'Disposal', c.allocation(row as ReportRow))
-								"
-								>报废</UiButton
-							>
-							<PopupMenu label="更多损坏物品操作" align="end" sheet>
-								<UiButton
-									v-if="c.canAct('Repair', row as ReportRow)"
-									class="damaged-mobile-menu-action"
-									variant="secondary"
-									:icon="kindIcons.Repair.icon"
-									@click="
-										emit('operation', 'Repair', c.allocation(row as ReportRow))
-									"
-									>修复归库</UiButton
-								>
-								<UiButton
-									v-if="c.canAct('Disposal', row as ReportRow)"
-									class="damaged-mobile-menu-action"
-									variant="ghost"
-									:icon="kindIcons.Disposal.icon"
-									@click="
-										emit(
-											'operation',
-											'Disposal',
-											c.allocation(row as ReportRow),
-										)
-									"
-									>报废</UiButton
-								>
-								<QuickExport
-									:disabled="c.report.result.stale"
-									:query="c.rowQuery(row as ReportRow)"
-									title="待处理"
-									:active="active"
-								/>
-							</PopupMenu>
-						</div>
+					<template #group-label="{ group }">{{ group.label }}</template>
+					<template #cell="{ column, row, value }">
+						<RouterLink
+							v-if="column.id === 'item_name' && row.item_code"
+							class="browse-row-link"
+							:to="routeTarget('item-detail', { code: String(row.item_code) })"
+							>{{ value }}</RouterLink
+						>
+						<UnitText
+							v-else-if="column.kind === 'unit'"
+							:name="row.stock_uom"
+							:qty="Number(value || 0)"
+						/>
+						<template v-else>{{ value }}</template>
 					</template>
-				</ReportTable>
+				</DataTable>
 
 				<Overlay
 					v-if="analysisOpen"

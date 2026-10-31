@@ -393,7 +393,6 @@ DISPLAY_COLUMNS = {
 		"stock_uom",
 		"activity_title",
 		"loan_status",
-		"count_scope",
 		"doctype",
 		"item_count",
 		"allocation_count",
@@ -669,11 +668,9 @@ def _loan_history_rows(projection):
 	for row in projection.rows("outcomes"):
 		if int(row.get("docstatus") or 0) != 1:
 			continue
-		if (
-			projection.query["loanScope"] == "outstanding"
-			and not projection.query["includeZero"]
-			and float(row.get("outstanding") or 0) <= 0
-		):
+		if projection.query["loanStatus"] == "outstanding" and float(row.get("outstanding") or 0) <= 0:
+			continue
+		if projection.query["loanStatus"] == "settled" and float(row.get("outstanding") or 0) > 0:
 			continue
 		key = loan_contribution_key({**row, "kind": "Loan"})
 		group = groups.setdefault(
@@ -682,7 +679,7 @@ def _loan_history_rows(projection):
 		group["borrowed"] += float(row.get("borrowed") or 0)
 		group["outstanding"] += float(row.get("outstanding") or 0)
 		group["quantity"] += float(row.get("borrowed") or 0)
-	if projection.query["loanScope"] == "all":
+	if projection.query["loanStatus"] == "all":
 		for row in projection.rows("linked_settlements"):
 			key = loan_contribution_key(row)
 			group = groups.setdefault(key, {**row, "borrowed": 0.0, "outstanding": 0.0, "quantity": 0.0})
@@ -1144,7 +1141,7 @@ class Projection(AbstractContextManager):
 			)
 		self.main_table, self.summary_table, self.sums = "records", "records", tuple(sums)
 
-	def build(self, *, related=False, complete_records=True):
+	def build(self, *, related=False, complete_records=True, requested_table=None):
 		query, context = self.query, self.context
 		dataset, view = query["dataset"], query["view"]
 		from temple_inventory.read_cache import restore_projection, store_projection
@@ -1206,30 +1203,11 @@ class Projection(AbstractContextManager):
 				self.add("outcomes", loan_rows(context))
 				if view == "records":
 					loan_lines = list(self.rows("outcomes"))
+					# Settlement lines already carry their original loan's borrower and activity.
 					settlement_lines = (
-						list(linked_settlement_rows(context)) if query["loanScope"] == "all" else []
+						list(linked_settlement_rows(context)) if query["loanStatus"] == "all" else []
 					)
-					loan_metadata = {row["document"]: row for row in loan_lines}
-					settlement_metadata = {}
 					for row in settlement_lines:
-						original = loan_metadata.get(row["original_loan"], {})
-						values = settlement_metadata.setdefault(row["document"], (set(), set(), set()))
-						values[0].add(original.get("borrower", ""))
-						values[1].add(original.get("activity", "") or row.get("original_activity", ""))
-						values[2].add(
-							original.get("activity_title", "") or row.get("original_activity_title", "")
-						)
-					for row in settlement_lines:
-						borrowers, activities, activity_titles = settlement_metadata[row["document"]]
-						row["borrower"] = row.get("borrower") or (
-							next(iter(borrowers)) if len(borrowers) == 1 else ""
-						)
-						row["activity"] = row.get("activity") or (
-							next(iter(activities)) if len(activities) == 1 else ""
-						)
-						row["activity_title"] = row.get("activity_title") or (
-							next(iter(activity_titles)) if len(activity_titles) == 1 else ""
-						)
 						row["borrowed"] = row["stock_qty"]
 						row["quantity"] = row["stock_qty"]
 						row["returned"] = row["damaged"] = row["lost"] = row["outstanding"] = 0
@@ -1237,14 +1215,17 @@ class Projection(AbstractContextManager):
 						row["quantity"] = row["borrowed"]
 					self.add("outcomes", settlement_lines)
 				if view == "items":
-					self.add("linked_settlements", linked_settlement_rows(context))
+					self.add(
+						"linked_settlements",
+						linked_settlement_rows(context) if query["loanStatus"] == "all" else [],
+					)
 					self.add("loan_history", _loan_history_rows(self))
 					self.add(
 						"loan_item_page",
 						(
 							row
 							for row in self.rows("outcomes")
-							if query["includeZero"] or row["outstanding"] > 0
+							if query["loanStatus"] != "outstanding" or row["outstanding"] > 0
 						),
 					)
 				self.group(
@@ -1281,20 +1262,25 @@ class Projection(AbstractContextManager):
 					LOAN_SUMS if view in ("items", "outcomes", "records") else ("stock_qty",),
 				)
 		elif not restored and dataset == "activities":
-			self.add("metadata", activity_rows(context))
-			self.add("records", activity_rows(context, metadata=False))
-			# Select exact original loan lines from the independently scoped native loan projection.
-			self.add(
-				"outcomes",
-				(
-					row
-					for row in loan_rows(context)
-					if self.db.execute(
-						"select 1 from rows where table_id = 'metadata' and identity = ? limit 1",
-						(row["activity"],),
-					).fetchone()
-				),
-			)
+			if requested_table in (None, "metadata", "outcomes") or view == "loans":
+				self.add("metadata", activity_rows(context))
+			if requested_table in (None, "records") or view == "records":
+				self.add("records", activity_rows(context, metadata=False))
+			if requested_table in (None, "outcomes") or view == "loans":
+				# Select original loan lines from the activity metadata already in this projection.
+				self.add(
+					"outcomes",
+					(
+						row
+						for row in loan_rows(
+							context, activity_names=getattr(context, "_activity_page_names", None)
+						)
+						if self.db.execute(
+							"select 1 from rows where table_id = 'metadata' and identity = ? limit 1",
+							(row["activity"],),
+						).fetchone()
+					),
+				)
 			self.main_table, sums = (
 				("outcomes" if view == "loans" else view),
 				LOAN_SUMS if view == "loans" else ("stock_qty",),
@@ -1323,7 +1309,6 @@ class Projection(AbstractContextManager):
 					"time",
 					"docstatus",
 					"stock_uom",
-					"count_scope",
 				),
 				COUNT_SUMS,
 			)
@@ -1774,12 +1759,17 @@ def report_page(query, start=0, page_length=30, table=None, include_related=Fals
 
 
 def _report_page(query, start, page_length, table, include_related, refresh=False):
+	requested_table = table
+	if requested_table is None and query["dataset"] == "activities":
+		requested_table = {"metadata": "metadata", "records": "records", "loans": "outcomes"}.get(
+			query["view"]
+		)
 	with Projection(
 		query,
 		refresh=refresh,
 		load_item_children=include_related or query["dataset"] not in ("movements", "loans"),
 	) as projection:
-		projection.build(related=include_related)
+		projection.build(related=include_related, requested_table=requested_table)
 		selected = table or projection.main_table
 		if selected not in projection.column_names or selected in INTERNAL_TABLES:
 			frappe.throw("请选择有效的数据表")

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { nativeUiSession, sampleWarehouses } from "./fixtures/nativeUi";
@@ -9,6 +9,8 @@ import { newReportQuery } from "../../src/lib/reportContract";
 const appRoot = fileURLToPath(new URL("../../..", import.meta.url));
 const publicRoot = path.join(appRoot, "temple_inventory/public/frontend");
 const indexPath = path.join(publicRoot, "index.html");
+const selectionShots = "/tmp/codex-runs/browse-selection-shots";
+mkdirSync(selectionShots, { recursive: true });
 const fontPath = [
   process.env.TEMPLE_UI_CJK_FONT,
   process.env.NATIVE_UI_REVIEW_FONT,
@@ -167,7 +169,7 @@ async function prepare(page: Page, scale = 100, density = "balanced") {
         doctype: "Stock Entry",
         document: "MAT-2026-0000" + n,
         kind: loan
-          ? query.loanScope === "all" && n === 2
+          ? query.loanStatus === "all" && n === 2
             ? "Return"
             : "Loan"
           : n === 1
@@ -175,6 +177,8 @@ async function prepare(page: Page, scale = 100, density = "balanced") {
             : n === 2
               ? "Issue"
               : "Transfer",
+        outstanding: loan ? 5 : 0,
+        loaned: loan ? 5 : 0,
         borrower: "",
         activity_title: "",
         docstatus: 1,
@@ -209,7 +213,7 @@ async function prepare(page: Page, scale = 100, density = "balanced") {
             },
           ],
           original_loans:
-            loan && query.loanScope === "all" && n === 2
+            loan && query.loanStatus === "all" && n === 2
               ? ["MAT-2026-00001"]
               : [],
           settlement_records:
@@ -228,6 +232,41 @@ async function prepare(page: Page, scale = 100, density = "balanced") {
           .flatMap((r) => r.totals)
           .map((t) => ({ ...t, outstanding: 5, borrowed: 12 })),
         summary: { item_count: 1, document_count: 3 },
+      };
+    } else if (method === "loans.outstanding_lines") {
+      message = (args.item_codes || []).map((item_code: string) => ({
+        loan: `LOAN-${item_code}`,
+        original_loan_line: `LINE-${item_code}`,
+        item_code,
+        batch_no: "BATCH-001",
+        qty: 5,
+        uom: "Nos",
+        warehouse: "ROOM-B",
+        borrower: "借用方甲",
+        activity: "ACT-1",
+      }));
+    } else if (method === "browse.operation_contributions") {
+      // 明细 lines of one item: two open loans.
+      message = {
+        rows: [1, 2].map((n) => ({
+          id: `LOAN-LINE-${n}`,
+          document: `MAT-2026-0000${n}`,
+          doctype: "Stock Entry",
+          kind: "Loan",
+          date: "2026-10-16",
+          can_settle: true,
+          original_loan: `MAT-2026-0000${n}`,
+          original_loan_line: `LINE-${n}`,
+          quantity: 6,
+          signed: true,
+          stock_uom: "Nos",
+          outstanding: 5,
+          loan_status: "Open",
+          stock_qty: 6,
+        })),
+        columns: ["document", "original_loan_line", "stock_qty"],
+        matched_count: 2,
+        next_start: null,
       };
     } else if (method === "browse.dashboard_card") {
       message = {
@@ -361,6 +400,9 @@ for (const width of [1440, 390]) {
       path: info.outputPath("movement-records.png"),
       fullPage: true,
     });
+    await page.screenshot({
+      path: path.join(selectionShots, `sort-icons-${width}.png`),
+    });
     await expect(
       page.getByRole("button", { name: "明细", exact: true }),
     ).toBeVisible();
@@ -403,14 +445,40 @@ for (const width of [1440, 390]) {
       await expect(loanRows).toHaveCount(3);
       await expect(
         page.getByRole("button", { name: "登记归还", exact: true }),
-      ).toHaveCount(3);
+      ).toHaveCount(0);
+      // Borrower and activity cells are blank for these records (td 2 and 3
+      // before the select-mode checkbox column is added).
       await expect(loanRows.first().locator("td").nth(2)).toBeEmpty();
       await expect(loanRows.first().locator("td").nth(3)).toBeEmpty();
+      if (loanWidth < 1024)
+        await page
+          .getByRole("button", { name: "更多操作", exact: true })
+          .click();
+      if (loanWidth < 1024)
+        await page.getByRole("menuitem", { name: "选择", exact: true }).click();
+      else
+        await page.getByRole("button", { name: "选择", exact: true }).click();
+      await page
+        .locator("tbody .data-table-selection-column input")
+        .first()
+        .check();
+      await expect(page.locator(".selection-bar")).toContainText("已选择 1 项");
+      await expect(
+        page
+          .locator(".selection-bar")
+          .getByRole("button", { name: "登记归还" }),
+      ).toBeVisible();
+      await page.screenshot({
+        path: path.join(
+          selectionShots,
+          `loans-records-select-${loanWidth}.png`,
+        ),
+      });
       await page.getByRole("button", { name: "筛选", exact: true }).click();
-      const loanScopeDisclosure = page.locator(
-        '[data-filter-field="loanScope"] > summary',
+      const loanStatusDisclosure = page.locator(
+        '[data-filter-field="loanStatus"] > summary',
       );
-      await expect(loanScopeDisclosure).toBeVisible();
+      await expect(loanStatusDisclosure).toBeVisible();
       if (loanWidth < 1024)
         await page.getByRole("button", { name: "完成", exact: true }).click();
       else await page.getByRole("button", { name: "关闭筛选" }).click();
@@ -438,14 +506,15 @@ for (const width of [1440, 390]) {
         fullPage: true,
       });
       await page.getByRole("button", { name: "筛选", exact: true }).click();
-      await loanScopeDisclosure.click();
-      await page.getByRole("button", { name: "借出与归还全部记录" }).click();
+      await loanStatusDisclosure.click();
+      await page
+        .getByRole("combobox", { name: "借用状态", exact: true })
+        .selectOption("all");
       await expect(
-        page.getByText("记录范围：借出与归还全部记录", { exact: true }),
+        page.getByText("借用状态：全部", { exact: true }),
       ).toBeVisible();
       await expect(page.locator("td .record-ref-chip")).toHaveCount(2);
-      // Reference chips must not make a row taller than chip-free rows
-      // (settlement rows have no 登记归还 button, so heights may differ).
+      // Reference chips must not make a row taller than chip-free rows.
       const heights = await loanRows.evaluateAll((rows) =>
         rows.map((row) => ({
           chips: row.querySelectorAll(".record-ref-chip").length,
@@ -488,6 +557,9 @@ for (const width of [1440, 390]) {
         path: info.outputPath("loan-quantity-hint-open.png"),
         fullPage: true,
       });
+      await page.screenshot({
+        path: path.join(selectionShots, `loans-header-hint-${loanWidth}.png`),
+      });
       await page.getByRole("dialog", { name: /数量说明/ }).press("Escape");
       const summary = page.locator(".browse-result-summary-trigger");
       await expect(summary).toHaveAttribute("aria-label", /数量分析/);
@@ -498,6 +570,14 @@ for (const width of [1440, 390]) {
       await reviewScreenshot(page, {
         path: info.outputPath("loan-items.png"),
         fullPage: true,
+      });
+      await page.getByRole("button", { name: "选择", exact: true }).click();
+      await page
+        .locator("tbody .data-table-selection-column input")
+        .first()
+        .check();
+      await page.screenshot({
+        path: path.join(selectionShots, `loans-items-select-${loanWidth}.png`),
       });
       expect(errors).toEqual([]);
     });
@@ -517,6 +597,20 @@ for (const width of [1440, 390]) {
     await reviewScreenshot(page, {
       path: info.outputPath("expiry.png"),
       fullPage: true,
+    });
+    if (width < 1024) {
+      await page.getByRole("button", { name: "更多操作", exact: true }).click();
+      await page.getByRole("menuitem", { name: "选择", exact: true }).click();
+    } else
+      await page.getByRole("button", { name: "选择", exact: true }).click();
+    await page
+      .locator(
+        ".expiry-phone-card .stock-list-checkbox input, tbody .data-table-selection-column input",
+      )
+      .first()
+      .check();
+    await page.screenshot({
+      path: path.join(selectionShots, `expiry-select-${width}.png`),
     });
     await page
       .getByRole("button", { name: /放大查看.*图片/ })

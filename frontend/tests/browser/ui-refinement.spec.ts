@@ -1,12 +1,19 @@
 import { expect, test, type Page } from "@playwright/test";
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import {
   auditCjkFontType,
   nativeUiSession,
   requiredAuditCjkFont,
 } from "./fixtures/nativeUi";
 const font = requiredAuditCjkFont();
-async function setup(page: Page, scale = 100, density = "balanced") {
+const selectionShots = "/tmp/codex-runs/browse-selection-shots";
+mkdirSync(selectionShots, { recursive: true });
+async function setup(
+  page: Page,
+  scale = 100,
+  density = "balanced",
+  operationOverrides: Record<string, boolean> = {},
+) {
   await page.route("**/refinement-font.otf", (route) =>
     route.fulfill({
       body: readFileSync(font),
@@ -101,6 +108,18 @@ async function setup(page: Page, scale = 100, density = "balanced") {
         })),
         analysis: {},
       };
+    else if (method === "loans.outstanding_lines")
+      message = (args.item_codes || []).map((item_code: string) => ({
+        loan: `LOAN-${item_code}`,
+        original_loan_line: `LINE-${item_code}`,
+        item_code,
+        batch_no: "",
+        qty: 2,
+        uom: "个",
+        warehouse: "LEASED",
+        borrower: "借用方甲",
+        activity: "ACT-1",
+      }));
     else if (method === "browse.operation_contributions")
       message = {
         columns: [
@@ -263,7 +282,7 @@ async function setup(page: Page, scale = 100, density = "balanced") {
       },
     ],
     capabilities: { Item: { create: true }, "Stock Entry": { create: true } },
-    operations: { Receive: true },
+    operations: { Receive: true, ...operationOverrides },
   });
   await page.route("**/api/method/temple_inventory.session.info", (route) =>
     route.fulfill({
@@ -306,6 +325,11 @@ for (const [width, scale, density] of [
     await page
       .getByRole("searchbox", { name: "搜索库存" })
       .fill("供灯用品与法会日常储备长关键词");
+    if (width < 1024) {
+      await page.getByRole("button", { name: "更多操作", exact: true }).click();
+      await page.getByRole("menuitem", { name: "选择", exact: true }).click();
+    } else
+      await page.getByRole("button", { name: "选择", exact: true }).click();
     await page.locator(".card-checkbox input").first().check();
     const persistentSearch = page.getByRole("searchbox", { name: "搜索库存" });
     await persistentSearch.focus();
@@ -315,7 +339,7 @@ for (const [width, scale, density] of [
     await expect(page.locator(".browse-tools-toggle")).toHaveCount(0);
     await expect(
       page.getByRole("region", { name: "已选物品操作" }),
-    ).toContainText("已选择 1 项物品");
+    ).toContainText("已选择 1 项");
     await expect(persistentSearch).toBeVisible();
     await expect(persistentSearch).toBeFocused();
     await expect(persistentSearch).toHaveValue(
@@ -570,6 +594,40 @@ for (const width of [390, 1440]) {
   });
 }
 
+test("stock selection screenshots cover desktop and phone surfaces", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await setup(page, 100, "balanced", { Return: true });
+  await page.goto("/inventory/stock");
+  await page.getByRole("button", { name: "卡片视图", exact: true }).click();
+  await expect(page.locator(".stock-card")).toHaveCount(20);
+  await page.screenshot({ path: `${selectionShots}/stock-normal-desktop.png` });
+  await page.setViewportSize({ width: 390, height: 844 });
+  // The phone header may be stuck after the resize; its actions stay reachable either way.
+  const phoneActions = page.getByRole("button", {
+    name: "更多操作",
+    exact: true,
+  });
+  await page.screenshot({ path: `${selectionShots}/stock-normal-phone.png` });
+  await phoneActions.click();
+  await page.getByRole("menuitem", { name: "选择", exact: true }).click();
+  // Phones keep their own list/card choice (list by default).
+  await page.locator(".stock-list-checkbox input").nth(0).check();
+  await page.locator(".stock-list-checkbox input").nth(1).check();
+  await expect(
+    page.getByRole("region", { name: "已选物品操作" }),
+  ).toContainText("已选择 2 项");
+  await page.screenshot({ path: `${selectionShots}/stock-select-phone.png` });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(
+    page.getByRole("region", { name: "已选物品操作" }).getByRole("button", {
+      name: "归还",
+    }),
+  ).toBeVisible();
+  await page.screenshot({ path: `${selectionShots}/stock-select-desktop.png` });
+});
+
 test("stock state and open filter survive the shared breakpoint", async ({
   page,
 }) => {
@@ -579,6 +637,8 @@ test("stock state and open filter survive the shared breakpoint", async ({
   await page.getByRole("button", { name: "卡片视图", exact: true }).click();
   await expect(page.locator(".stock-card")).toHaveCount(20);
   await page.getByRole("searchbox", { name: "搜索库存" }).fill("法会用品");
+  await page.getByRole("button", { name: "更多操作", exact: true }).click();
+  await page.getByRole("menuitem", { name: "选择", exact: true }).click();
   await page.locator(".card-checkbox input").first().check();
   await page.getByRole("button", { name: /^筛选/ }).click();
   const mobileFilters = page.getByRole("dialog", { name: "筛选", exact: true });
@@ -591,7 +651,7 @@ test("stock state and open filter survive the shared breakpoint", async ({
   await expect(page.locator(".hierarchy-row input").first()).toBeChecked();
   await expect(
     page.getByRole("region", { name: "已选物品操作" }),
-  ).toContainText("已选择 1 项物品");
+  ).toContainText("已选择 1 项");
   await page.setViewportSize({ width: 390, height: 1000 });
   // The open filter survives the breakpoint in both directions (controller state is retained).
   const reopenedFilters = page.getByRole("dialog", {
@@ -605,7 +665,7 @@ test("stock state and open filter survive the shared breakpoint", async ({
   await expect(page.locator(".hierarchy-row input").first()).toBeChecked();
   await expect(
     page.getByRole("region", { name: "已选物品操作" }),
-  ).toContainText("已选择 1 项物品");
+  ).toContainText("已选择 1 项");
   await page.keyboard.press("Escape");
 });
 

@@ -9,6 +9,7 @@ import QuickExport from "../../components/QuickExport.vue";
 import type { ReportQuery } from "../../lib/reportContract";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { OperationEditor } from "./useOperationEditor";
+import type { NativeDocument } from "./nativeEditor";
 import { operationLabels } from "../../lib/presentationLabels";
 import OperationLines from "./OperationLines.vue";
 import AllocationSummary from "./AllocationSummary.vue";
@@ -254,6 +255,84 @@ async function toggleBorrower(group: OutstandingBorrowerSummary) {
 const selectedLoanNames = computed(
 	() => [...new Set(draft.value.items.map((line) => line.loanName).filter(Boolean))] as string[],
 );
+const returnLoanContexts = ref<Record<string, { borrower: string; activity: string }>>({});
+let returnContextGeneration = 0;
+watch(
+	selectedLoanNames,
+	async (names) => {
+		const generation = ++returnContextGeneration;
+		if (draft.value.kind !== "Return") return;
+		const missing = names.filter((name) => {
+			const lines = draft.value.items.filter((line) => line.loanName === name);
+			const context = lines.find(
+				(line) =>
+					typeof line.loanBorrower === "string" && typeof line.loanActivity === "string",
+			);
+			if (context) {
+				returnLoanContexts.value[name] = {
+					borrower: String(context.loanBorrower || ""),
+					activity: String(context.loanActivityTitle || context.loanActivity || ""),
+				};
+				return false;
+			}
+			return !returnLoanContexts.value[name];
+		});
+		const fetched = await Promise.all(
+			missing.map(async (name) => {
+				try {
+					const loan = await services.call<NativeDocument>("native_api.loan_detail", {
+						name,
+					});
+					return [
+						name,
+						{
+							borrower: String(loan.ti_borrower || ""),
+							activity: String(loan.activity_title || loan.ti_activity || ""),
+						},
+					] as const;
+				} catch {
+					return [name, { borrower: "", activity: "" }] as const;
+				}
+			}),
+		);
+		if (generation === returnContextGeneration)
+			for (const [name, context] of fetched) returnLoanContexts.value[name] = context;
+	},
+	{ immediate: true },
+);
+const returnLoanDetails = computed(() =>
+	selectedLoanNames.value.map((name) => ({
+		name,
+		borrower: returnLoanContexts.value[name]?.borrower || "未填写借用方",
+		activity: returnLoanContexts.value[name]?.activity || "",
+		activityLabel:
+			reference.activities.find(
+				(row) => row.value === returnLoanContexts.value[name]?.activity,
+			)?.label ||
+			returnLoanContexts.value[name]?.activity ||
+			"未关联活动",
+	})),
+);
+const returnBorrowerValues = computed(() => [
+	...new Set(returnLoanDetails.value.map((row) => row.borrower)),
+]);
+const returnActivityValues = computed(() => [
+	...new Set(returnLoanDetails.value.map((row) => row.activityLabel)),
+]);
+const returnBorrowerSummary = computed(() =>
+	returnBorrowerValues.value.length > 1
+		? "多个借用方"
+		: returnBorrowerValues.value[0] || "待加载",
+);
+const returnActivitySummary = computed(() =>
+	returnActivityValues.value.length > 1
+		? "多个活动"
+		: returnActivityValues.value[0] || "未关联活动",
+);
+function returnLoanContext(name: string) {
+	const context = returnLoanDetails.value.find((row) => row.name === name);
+	return `原借出 ${name} · 借用方 ${context?.borrower || "未填写借用方"} · 活动 ${context?.activityLabel || "未关联活动"}`;
+}
 validation.register(
 	"borrower",
 	() => draft.value.borrower,
@@ -277,8 +356,10 @@ function removeLoan(name: string) {
 	draft.value.items = draft.value.items.filter((line) => line.loanName !== name);
 	if (!draft.value.items.some((line) => line.loanName)) {
 		draft.value.loanName = "";
-		draft.value.borrower = "";
-		draft.value.activity = "";
+		if (draft.value.kind !== "Return") {
+			draft.value.borrower = "";
+			draft.value.activity = "";
+		}
 	}
 }
 async function addLoan(name: string) {
@@ -388,8 +469,9 @@ const reviewContext = computed(() => {
 	const fields = [
 		{
 			label: "关联活动",
-			value: draft.value.activity ? activityLabel.value : "",
-			relevant: true,
+			value:
+				draft.value.kind !== "Return" && draft.value.activity ? activityLabel.value : "",
+			relevant: draft.value.kind !== "Return",
 		},
 		{
 			label: draft.value.kind === "Receive" ? "来源" : "用途",
@@ -398,8 +480,8 @@ const reviewContext = computed(() => {
 		},
 		{
 			label: "借用方",
-			value: draft.value.borrower,
-			relevant: ["Loan", "Return"].includes(draft.value.kind),
+			value: draft.value.kind === "Loan" ? draft.value.borrower : "",
+			relevant: draft.value.kind === "Loan",
 		},
 		{ label: "记录人", value: draft.value.recorder, relevant: true },
 		{ label: "经手人", value: draft.value.handler, relevant: true },
@@ -730,18 +812,12 @@ async function lifecycle() {
 										:key="name"
 										type="button"
 										class="record-ref-chip"
+										:title="returnLoanContext(name)"
+										:aria-label="`移除 ${returnLoanContext(name)}`"
 										@click="removeLoan(name)"
 									>
-										{{
-											borrowerGroups
-												.flatMap(
-													(group) =>
-														groupLoans[group.borrower]?.rows || [],
-												)
-												.find((loan) => loan.name === name)?.borrower ||
-											draft.borrower
-										}}
-										· {{ name }} <span aria-hidden="true">×</span>
+										{{ returnLoanContext(name) }}
+										<span aria-hidden="true">×</span>
 									</button>
 								</div>
 								<UiButton
@@ -899,27 +975,49 @@ async function lifecycle() {
 										}}
 									</p>
 									<p class="muted">
-										可加入同一借用方和活动的多笔借用；遗失使用单独操作。
+										可加入多笔未结清借用；每条归还明细保留原借用方与活动。遗失使用单独操作。
 									</p>
 								</div>
 							</template>
 						</div>
 					</section>
 				</template>
-				<dl v-else class="info-grid form-section">
-					<div>
-						<dt>操作日期</dt>
-						<dd>{{ draft.postingDate }}</dd>
-					</div>
-					<div>
-						<dt>操作时间（站点时间）</dt>
-						<dd>{{ draft.postingTime }}</dd>
-					</div>
-					<div v-if="draft.borrower">
-						<dt>借用方</dt>
-						<dd>{{ draft.borrower }}</dd>
-					</div>
-				</dl>
+				<template v-else>
+					<dl class="info-grid form-section">
+						<div>
+							<dt>操作日期</dt>
+							<dd>{{ draft.postingDate }}</dd>
+						</div>
+						<div>
+							<dt>操作时间（站点时间）</dt>
+							<dd>{{ draft.postingTime }}</dd>
+						</div>
+						<div v-if="draft.kind === 'Return'">
+							<dt>借用方</dt>
+							<dd>{{ returnBorrowerSummary }}</dd>
+						</div>
+						<div v-else-if="draft.borrower">
+							<dt>借用方</dt>
+							<dd>{{ draft.borrower }}</dd>
+						</div>
+						<div v-if="draft.kind === 'Return'">
+							<dt>活动</dt>
+							<dd>{{ returnActivitySummary }}</dd>
+						</div>
+					</dl>
+					<ul
+						v-if="
+							draft.kind === 'Return' &&
+							(returnBorrowerValues.length > 1 || returnActivityValues.length > 1)
+						"
+						class="return-loan-context-list"
+						aria-label="原借用记录的借用方与活动"
+					>
+						<li v-for="loan in returnLoanDetails" :key="loan.name">
+							{{ returnLoanContext(loan.name) }}
+						</li>
+					</ul>
+				</template>
 				<p v-if="draft.amendedFrom" class="content-long-text">
 					修订来源：{{ draft.amendedFrom }}
 				</p>
@@ -963,6 +1061,9 @@ async function lifecycle() {
 						<TransactionContext
 							:draft="draft"
 							:activity-label="activityLabel"
+							:return-loan-details="
+								draft.kind === 'Return' ? returnLoanDetails : undefined
+							"
 							:disabled="!writable || busy"
 							:mode="editing ? 'edit' : 'display'"
 							@dirty-change="supportingDirty = $event"
@@ -1159,7 +1260,12 @@ async function lifecycle() {
 						<p v-if="draft.kind === 'Loan'">
 							借用方：{{ draft.borrower || "待填写" }}
 						</p>
-						<p v-if="draft.activity">活动：{{ activityLabel }}</p>
+						<ul v-if="draft.kind === 'Return'" class="return-loan-context-list">
+							<li v-for="loan in returnLoanDetails" :key="loan.name">
+								{{ returnLoanContext(loan.name) }}
+							</li>
+						</ul>
+						<p v-else-if="draft.activity">活动：{{ activityLabel }}</p>
 						<p v-if="draft.postingDate">日期：{{ draft.postingDate }}</p>
 						<p v-if="!readOnly" class="muted">
 							确认前请核对物品、数量和库位。复核并确认后才变更库存。
@@ -1178,6 +1284,11 @@ async function lifecycle() {
 			</p>
 			<p>{{ itemCount }} 种物品 · {{ draft.items.length }} 条明细 · {{ totals }}</p>
 			<AllocationSummary :draft="draft" :link-items="false" />
+			<ul v-if="draft.kind === 'Return'" class="return-loan-context-list">
+				<li v-for="loan in returnLoanDetails" :key="loan.name">
+					{{ returnLoanContext(loan.name) }}
+				</li>
+			</ul>
 			<dl v-if="reviewContext.filled.length" class="info-grid">
 				<div v-for="field in reviewContext.filled" :key="field.label">
 					<dt>{{ field.label }}</dt>
@@ -1235,6 +1346,12 @@ async function lifecycle() {
 </template>
 
 <style scoped>
+.return-loan-context-list {
+	margin: 0 0 var(--p-space-3);
+	padding-inline-start: 1.25em;
+	color: var(--p-muted);
+	font-size: var(--p-small);
+}
 :deep(.app-page-identity) {
 	align-items: flex-start;
 }

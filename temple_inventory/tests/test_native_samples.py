@@ -394,7 +394,13 @@ class NativeSampleTests(NativeDocumentTests):
 			self.assertNotEqual(amendments[0].owner, "Administrator")
 			count = frappe.get_doc("Stock Reconciliation", result["reconciliation"])
 			self.assertEqual(count.docstatus, 1)
-			self.assertEqual(len(count.ti_count_review), 4)
+			# The count lists every physical leaf; only the two joint-count rooms are reviewed.
+			joint_locations = {result["rooms"]["DEMO_A"], result["rooms"]["DEMO_SHELF"]}
+			reviewed_locations = {
+				row.warehouse for row in count.ti_count_review if row.review_state == "Reviewed"
+			}
+			self.assertIn(result["rooms"]["DEMO_A"], reviewed_locations)
+			self.assertLessEqual(reviewed_locations, joint_locations)
 			self.assertEqual({row.review_state for row in count.ti_count_review}, {"Reviewed", "Unreviewed"})
 			self.assertIn(-1, {row.difference for row in count.ti_count_review})
 			self.assertIn(1, {row.difference for row in count.ti_count_review})

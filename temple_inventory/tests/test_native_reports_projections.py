@@ -641,7 +641,7 @@ class NativeReportsProjectionsTests(NativeReportTestCase):
 		)["rows"][0]
 		self.assertEqual(row["whole"]["quantities"], [{"uom": "Nos", "qty": 7}])
 		self.assertEqual(row["whole"]["available_effects"], [{"uom": "Nos", "qty": 7}])
-		self.assertIn(self.a, row["whole"]["scope"])
+		self.assertIn(self.a, [branch["source"] for branch in row["whole"]["branches"]])
 		count_page = browse.counts_page(self.query("counts", "records", statuses=[1]))
 		opening_row = next(row for row in count_page["rows"] if row["document"] == doc.name)
 		self.assertEqual(opening_row["kind"], "Opening")

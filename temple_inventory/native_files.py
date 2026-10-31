@@ -1,5 +1,7 @@
 """Native-parent attachment authorization, including former parents on relinking."""
 
+from contextlib import contextmanager
+
 import frappe
 
 from temple_inventory.native_access import (
@@ -11,6 +13,34 @@ from temple_inventory.native_access import (
 
 PARENTS = NATIVE_DOCTYPES | {"Item", "Inventory Activity"}
 IMAGE_VARIANT_FIELD = "ti_image_variant"
+# Enough File fields to evaluate read permission without loading each File.
+FILE_PERMISSION_FIELDS = (
+	"name",
+	"owner",
+	"is_private",
+	"file_url",
+	"attached_to_doctype",
+	"attached_to_name",
+	"attached_to_field",
+)
+
+
+@contextmanager
+def readable_parents(doctype, names):
+	"""Trust parents a permission-filtered get_list just returned, for this block only."""
+	if doctype in NATIVE_DOCTYPES:
+		raise ValueError("Native parents also need document scope checks")
+	previous = getattr(frappe.local, "ti_readable_parents", None)
+	frappe.local.ti_readable_parents = (frappe.session.user, doctype, frozenset(names))
+	try:
+		yield
+	finally:
+		frappe.local.ti_readable_parents = previous
+
+
+def _trusted_parent(doctype, name):
+	trusted = getattr(frappe.local, "ti_readable_parents", None)
+	return bool(trusted and trusted[:2] == (frappe.session.user, doctype) and name in trusted[2])
 
 
 def _parent(doctype, name, *, write=False):
@@ -19,7 +49,7 @@ def _parent(doctype, name, *, write=False):
 	doc = frappe.get_doc(doctype, name, for_update=write)
 	doc.check_permission("write" if write else "read")
 	if doctype in NATIVE_DOCTYPES:
-		if doc.get("ti_movement_kind") or doc.get("ti_count_scope"):
+		if doc.get("ti_movement_kind") or doc.get("ti_count_review"):
 			check_document_scope(doc)
 		# Attachments are notes, not stock: drafts and submitted records accept changes.
 		if write and doc.docstatus == 2:
@@ -89,10 +119,11 @@ def can_read(doc):
 	# Derivatives are served only by the versioned, Item-authorized image endpoint.
 	if doc.attached_to_doctype == "Item" and doc.attached_to_field == IMAGE_VARIANT_FIELD:
 		return False
-	try:
-		_parent(doc.attached_to_doctype, doc.attached_to_name)
-	except frappe.PermissionError, frappe.AuthenticationError, frappe.DoesNotExistError:
-		return False
+	if not _trusted_parent(doc.attached_to_doctype, doc.attached_to_name):
+		try:
+			_parent(doc.attached_to_doctype, doc.attached_to_name)
+		except frappe.PermissionError, frappe.AuthenticationError, frappe.DoesNotExistError:
+			return False
 	return is_private_original(doc)
 
 

@@ -468,8 +468,7 @@ export interface ReportQuery {
   sortBy: string;
   statuses: number[];
   stockState: keyof typeof stockStateLabels;
-  includeZero: boolean;
-  loanScope: "outstanding" | "all";
+  includeZero?: boolean;
   includeUndated: boolean;
   activityStatus: "all" | "active" | "archived";
   typeId: string;
@@ -499,7 +498,7 @@ export function newReportQuery(
   dataset: ReportDataset = "inventory",
 ): ReportQuery {
   const view = reportDefinitions[dataset].views[0]!.id;
-  return {
+  const query: ReportQuery = {
     dataset,
     view,
     scope: emptyScope(),
@@ -512,7 +511,6 @@ export function newReportQuery(
     statuses: [1],
     stockState: "in_stock",
     includeZero: false,
-    loanScope: "outstanding",
     includeUndated: true,
     activityStatus: "all",
     typeId: "",
@@ -538,4 +536,6 @@ export function newReportQuery(
     itemStatus: "enabled",
     person: { name: "", role: "any" },
   };
+  if (dataset === "loans") query.loanStatus = "outstanding";
+  return query;
 }

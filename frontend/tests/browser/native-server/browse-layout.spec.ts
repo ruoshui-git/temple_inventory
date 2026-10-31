@@ -225,7 +225,16 @@ test("browse table chips stay single-line and browse pages retain their phone la
   await page.keyboard.press("Escape");
   await expect(page.locator(".data-table-scroll table").first()).toBeVisible();
   await assertSingleLineCells(page);
-  await expect(page.locator(".stock-row-actions button").first()).toBeVisible();
+  // Row actions moved to 选择 mode: no 操作 column, a 选择 toggle in the toolbar.
+  await expect(
+    page
+      .locator(".data-table-scroll thead")
+      .first()
+      .getByText("操作", { exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "选择", exact: true }),
+  ).toBeVisible();
   await assertChipBaselines(
     page,
     "td .detail-popover-trigger",
@@ -236,6 +245,12 @@ test("browse table chips stay single-line and browse pages retain their phone la
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.waitForTimeout(350);
 
+  // Stale results disable the selection bar's actions until the refresh lands.
+  await page.getByRole("button", { name: "选择", exact: true }).click();
+  await page
+    .locator("tbody .data-table-selection-column input")
+    .first()
+    .check();
   let blocked: import("@playwright/test").Route | undefined;
   await page.route(
     "**/api/method/temple_inventory.browse.inventory_page*",
@@ -246,7 +261,10 @@ test("browse table chips stay single-line and browse pages retain their phone la
   await page
     .locator("input[data-browse-search]")
     .fill("browse layout refresh failure");
-  const stockAction = page.locator(".stock-row-actions button").first();
+  const stockAction = page
+    .getByRole("region", { name: "已选物品操作" })
+    .getByRole("button")
+    .first();
   await expect(stockAction).toBeVisible();
   await expect(stockAction).toBeDisabled();
   expect(blocked).toBeTruthy();

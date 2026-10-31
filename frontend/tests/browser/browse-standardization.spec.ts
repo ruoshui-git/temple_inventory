@@ -485,6 +485,9 @@ test("an overflowing stock table pins item identity and bolds quantities", async
     if (!(await checkbox.isChecked()) && (await checkbox.isEnabled()))
       await checkbox.check();
   await page.keyboard.press("Escape");
+  // The selection column exists only in select mode; the pinned identity sits
+  // after it, so enter select mode before measuring the pin offset.
+  await page.getByRole("button", { name: "选择", exact: true }).click();
   const tableScroll = page.locator(".data-table-scroll").first();
   await expect(tableScroll.locator("table")).toBeVisible();
   await expect(tableScroll).toHaveClass(/is-overflowing/);

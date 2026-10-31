@@ -43,7 +43,6 @@ doc_events = {
 	},
 	"Stock Reconciliation": {
 		"before_validate": "temple_inventory.counts.before_validate",
-		"before_submit": "temple_inventory.counts.before_validate",
 		"on_submit": "temple_inventory.notifications.enqueue_document_event",
 	},
 	"Item": {

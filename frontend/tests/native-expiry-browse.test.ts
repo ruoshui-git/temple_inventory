@@ -247,8 +247,13 @@ describe("native expiry browser", () => {
     ).toContain("Nos");
     await quantityHeader.trigger("click");
     expect(wrapper.find('th[aria-sort="ascending"] button').text()).toContain(
-      "库存数量↑",
+      "库存数量",
     );
+    expect(
+      wrapper
+        .find('th[aria-sort="ascending"] .data-table-sort-indicator svg')
+        .exists(),
+    ).toBe(true);
     expect(
       wrapper.findComponent(ExpiryBrowsePage).vm.controller.query.value.sortBy,
     ).toBe("stock_qty");

@@ -19,12 +19,14 @@ import { useReferenceData } from "../../services/contracts";
 import { useReportController } from "../export/useReportController";
 import type { InitialAllocation } from "../../lib/routeSelection";
 import { useBrowseState } from "../../lib/browseMemory";
+import { useBrowseSelection } from "../../composables/useBrowseSelection";
 export function usePendingController(
   props: { initialQuery?: ReportQuery; routeQuery?: string },
   changed: (query: ReportQuery) => void,
 ) {
   const reference = useReferenceData(),
     account = reference.user,
+    selection = useBrowseSelection(),
     query = ref(browseDefaults("inventory", "locations")),
     routeError = ref(""),
     analysisOpen = ref(false),
@@ -58,6 +60,12 @@ export function usePendingController(
     immediate: true,
   });
   const valid = computed(() => !routeError.value && reference.user === account);
+  watch(
+    () => reference.user,
+    (user) => {
+      if (user !== account) selection.exit();
+    },
+  );
   const report = useReportController(query, {
     personalViews: false,
     enabled: valid,
@@ -167,6 +175,11 @@ export function usePendingController(
     } as ReportQuery;
   }
   return {
+    selecting: selection.selecting,
+    selected: selection.selected,
+    enterSelection: selection.enter,
+    exitSelection: selection.exit,
+    setSelected: selection.set,
     reference,
     query,
     scope,

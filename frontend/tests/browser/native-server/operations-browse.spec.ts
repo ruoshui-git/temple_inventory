@@ -76,13 +76,11 @@ test("loan scope, movement effects and multi-location records render at desktop 
 }) => {
   await settled(page, "/inventory/loans");
   await page.getByRole("button", { name: "筛选", exact: true }).click();
-  await page.locator('[data-filter-field="loanScope"] > summary').click();
+  await page.locator('[data-filter-field="loanStatus"] > summary').click();
   await page
-    .getByRole("button", { name: "借出与归还全部记录", exact: true })
-    .click();
-  await expect(
-    page.getByText("也列出已全部归还的借出行和物品（未归还余额为零）。"),
-  ).toBeVisible();
+    .getByRole("combobox", { name: "借用状态", exact: true })
+    .selectOption("all");
+  await expect(page.getByText("借用状态：全部", { exact: true })).toBeVisible();
   await capture(page, "loans-all-scope-filters", 1440, 900);
   await capture(page, "loans-all-scope-filters", 390, 844);
 
@@ -233,7 +231,7 @@ test("live XLSX exports include loan scopes and movement available-effect totals
     "loan_history",
     "loans-outstanding.xlsx",
   );
-  const loansAll = { ...loansOpen, loanScope: "all" as const };
+  const loansAll = { ...loansOpen, loanStatus: "all" };
   const allRows = await exportXlsx(
     loansAll,
     "loan_history",
@@ -241,7 +239,6 @@ test("live XLSX exports include loan scopes and movement available-effect totals
   );
   const groupedLoans = {
     ...loansAll,
-    includeZero: true,
     groupBy: ["item"] as typeof loansAll.groupBy,
   };
   const groupedLoanRows = await exportXlsx(
@@ -267,7 +264,7 @@ test("live XLSX exports include loan scopes and movement available-effect totals
 
   expect(openRows[0]).toContain("编号");
   expect(openRows[0]).toContain("物品名称");
-  expect(openRows[0]).toContain("数量");
+  expect(openRows[0]).toContain("借还数量");
   expect(openRows[0]).not.toContain("借出为正");
   expect(allRows.length).toBeGreaterThan(openRows.length);
   expect(groupedLoanRows.some((row) => String(row[0]).startsWith("合计"))).toBe(

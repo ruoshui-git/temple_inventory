@@ -15,12 +15,12 @@ import type { CountRow } from "./countModel";
 import type { CountEditor } from "./useCountEditor";
 import DataTable from "../../components/ui/DataTable.vue";
 import { useOptionalInventoryServices } from "../../services/contracts";
-import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
+import type { DataColumn, DataTableEntry } from "../../lib/dataTable";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import { showCountRowsOrEmpty } from "../documents/creationFormPresentation";
-import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import { unitLabel } from "../../lib/units";
+import { formatQuantity } from "../../lib/formatQuantity";
 
 const props = defineProps<{ controller: CountEditor }>();
 const emit = defineEmits<{ openDocument: [doctype: string, name: string] }>();
@@ -43,8 +43,15 @@ const {
 	removalAcknowledged,
 } = c;
 const search = ref("");
+const searchTerm = ref("");
+let searchTimer: ReturnType<typeof setTimeout> | undefined;
+watch(search, (value) => {
+	clearTimeout(searchTimer);
+	searchTimer = setTimeout(() => (searchTerm.value = value), 200);
+});
 const reviewFilter = ref<"all" | "unreviewed" | "difference">("all");
-const selectedLocations = ref<string[]>([]);
+const groupBy = ref<"location" | "item" | "none">("location");
+const selectedLocations = ref<string[]>(c.warehouseFilter ? [c.warehouseFilter] : []);
 const sortBy = ref<"location" | "item_name" | "item_code" | "batch">("location");
 const sortDirection = ref<1 | -1>(1);
 const pageSize = 100;
@@ -73,6 +80,15 @@ const physicalLocations = computed(() => {
 const warehouseByName = computed(
 	() => new Map(reference.warehouses.map((row) => [row.name, row])),
 );
+const warehouseLabels = computed(
+	() =>
+		new Map(
+			reference.warehouses.map((row) => [
+				row.name,
+				warehouseLabel(row.name, reference.warehouses),
+			]),
+		),
+);
 function leafScope(row: CountRow) {
 	if (!selectedLocations.value.length) return true;
 	return selectedLocations.value.some((name) => {
@@ -88,7 +104,7 @@ function leafScope(row: CountRow) {
 	});
 }
 const filteredRows = computed(() => {
-	const term = search.value.trim().toLocaleLowerCase();
+	const term = searchTerm.value.trim().toLocaleLowerCase();
 	return rows.value.filter((row) => {
 		if (!leafScope(row)) return false;
 		if (reviewFilter.value === "unreviewed" && row.review_state !== "Unreviewed") return false;
@@ -99,7 +115,7 @@ const filteredRows = computed(() => {
 				row.actual_qty === row.baseline_qty)
 		)
 			return false;
-		const location = warehouseLabel(row.warehouse, reference.warehouses);
+		const location = warehouseLabels.value.get(row.warehouse) || row.warehouse;
 		return (
 			!term ||
 			`${location} ${row.item_name || names[row.item_code] || ""} ${row.item_code} ${row.batch_no || ""}`
@@ -110,10 +126,22 @@ const filteredRows = computed(() => {
 });
 const sortedRows = computed(() =>
 	[...filteredRows.value].sort((left, right) => {
+		if (groupBy.value !== "none") {
+			const leftGroup =
+				groupBy.value === "location"
+					? warehouseLabels.value.get(left.warehouse) || left.warehouse
+					: left.item_name || names[left.item_code] || left.item_code;
+			const rightGroup =
+				groupBy.value === "location"
+					? warehouseLabels.value.get(right.warehouse) || right.warehouse
+					: right.item_name || names[right.item_code] || right.item_code;
+			const groupOrder = compareTableValues(leftGroup, rightGroup);
+			if (groupOrder) return groupOrder;
+		}
 		const values = {
 			location: [
-				warehouseLabel(left.warehouse, reference.warehouses),
-				warehouseLabel(right.warehouse, reference.warehouses),
+				warehouseLabels.value.get(left.warehouse) || left.warehouse,
+				warehouseLabels.value.get(right.warehouse) || right.warehouse,
 			],
 			item_name: [
 				left.item_name || names[left.item_code] || left.item_code,
@@ -126,8 +154,8 @@ const sortedRows = computed(() =>
 		if (primary) return primary;
 		const stable = [
 			[
-				warehouseLabel(left.warehouse, reference.warehouses),
-				warehouseLabel(right.warehouse, reference.warehouses),
+				warehouseLabels.value.get(left.warehouse) || left.warehouse,
+				warehouseLabels.value.get(right.warehouse) || right.warehouse,
 			],
 			[
 				left.item_name || names[left.item_code] || left.item_code,
@@ -146,6 +174,15 @@ const pageCount = computed(() => Math.max(1, Math.ceil(sortedRows.value.length /
 const visibleRows = computed(() =>
 	sortedRows.value.slice((visiblePage.value - 1) * pageSize, visiblePage.value * pageSize),
 );
+const groupCounts = computed(() => {
+	const counts = new Map<string, number>();
+	if (groupBy.value === "none") return counts;
+	for (const row of sortedRows.value) {
+		const key = groupBy.value === "location" ? row.warehouse : row.item_code;
+		counts.set(key, (counts.get(key) || 0) + 1);
+	}
+	return counts;
+});
 const countColumns = computed<DataColumn[]>(() => [
 	{ id: "location", label: "位置", sortable: true },
 	{ id: "image", label: "图片", defaultVisible: true },
@@ -161,9 +198,37 @@ const countColumns = computed<DataColumn[]>(() => [
 const countColumnPreferences = services
 	? useColumnPreferences("count.workspace", countColumns, reference, services)
 	: undefined;
-const countTableRows = computed<DataTableRecord[]>(() =>
-	visibleRows.value.map((row) => ({ kind: "record", id: c.countKey(row), value: row })),
-);
+const countTableRows = computed<DataTableEntry[]>(() => {
+	const page = visibleRows.value;
+	if (groupBy.value === "none")
+		return page.map((row) => ({ kind: "record", id: c.countKey(row), value: row }));
+	const groups = new Map<string, CountRow[]>();
+	for (const row of page) {
+		const key = groupBy.value === "location" ? row.warehouse : row.item_code;
+		groups.set(key, [...(groups.get(key) || []), row]);
+	}
+	const result: DataTableEntry[] = [];
+	for (const [key, grouped] of groups) {
+		const location = groupBy.value === "location";
+		result.push({
+			kind: "group",
+			id: `count-group:${groupBy.value}:${key}`,
+			label: location
+				? warehouseLabels.value.get(key) || key
+				: grouped[0]?.item_name || names[key] || key,
+			labelColumn: "item_name",
+			countColumn: "item_name",
+			depth: 0,
+			count: groupCounts.value.get(key) || grouped.length,
+			countLabel: "行",
+			expanded: true,
+			hasChildren: grouped.length > 0,
+		});
+		for (const row of grouped)
+			result.push({ kind: "record", id: c.countKey(row), value: row });
+	}
+	return result;
+});
 const countEmptyText = computed(() =>
 	rows.value.length ? "没有符合当前搜索和筛选条件的行。" : "此范围没有库存行。",
 );
@@ -178,7 +243,7 @@ function hasCountInput(row: CountRow): row is CountRow & { actual_qty: number } 
 		row.actual_qty !== null && (row.review_state === "Reviewed" || row.needs_review === true)
 	);
 }
-watch([selectedLocations, search, reviewFilter], () => {
+watch([selectedLocations, search, reviewFilter, groupBy], () => {
 	visiblePage.value = 1;
 });
 watch(pageCount, (count) => {
@@ -239,40 +304,13 @@ function itemImage(row: CountRow) {
 
 <template>
 	<section class="count-workspace">
-		<DisclosureSection
-			class="count-scope-details"
-			title="盘点范围与基准"
-			:count="values.ti_count_warehouses.length"
-			:summary="`${values.ti_count_warehouses.length} 个实体末级位置`"
-		>
-			<div class="count-scope-controls">
-				<label class="form-field count-scope-type">
-					盘点方式
-					<select
-						v-model="values.ti_count_scope"
-						:disabled="busy || baselineBusy"
-						@change="c.refresh()"
-					>
-						<option value="Full Location">全部有库存物品</option>
-						<option value="Selected">选定物品</option>
-					</select>
-				</label>
-				<UiButton
-					v-if="values.ti_count_scope === 'Selected'"
-					:disabled="busy || baselineBusy"
-					@click="pickerOpen = true"
-					>添加物品</UiButton
-				>
-				<UiButton
-					:disabled="busy || baselineBusy"
-					:loading="baselineBusy"
-					loading-label="正在刷新账面基准…"
-					@click="c.refresh"
-					>刷新账面基准</UiButton
-				>
-			</div>
-		</DisclosureSection>
 		<div class="count-filter-bar">
+			<UiButton :disabled="busy || baselineBusy" @click="pickerOpen = true"
+				>添加物品</UiButton
+			>
+			<UiButton :disabled="busy || baselineBusy" :loading="baselineBusy" @click="c.refresh"
+				>刷新账面</UiButton
+			>
 			<FilterPanel label="位置" :count="selectedLocations.length" context="count-location">
 				<HierarchyFilter
 					v-model="selectedLocations"
@@ -291,6 +329,13 @@ function itemImage(row: CountRow) {
 					placeholder="输入物品名称、编码、批次或位置"
 				/>
 			</label>
+			<label class="form-field count-group-by"
+				>分组方式<select v-model="groupBy">
+					<option value="location">位置</option>
+					<option value="item">物品</option>
+					<option value="none">不分组</option>
+				</select></label
+			>
 			<div class="segmented" role="group" aria-label="核对状态筛选">
 				<button
 					type="button"
@@ -315,7 +360,7 @@ function itemImage(row: CountRow) {
 				</button>
 			</div>
 		</div>
-		<div class="count-toolbar">
+		<div class="count-toolbar" data-table-settings-outlet>
 			<strong>{{ filteredRows.length }} / {{ rows.length }} 行</strong>
 			<span v-if="hiddenEntered">已隐藏 {{ hiddenEntered }} 条有输入的记录</span>
 			<span v-if="removed.length">{{ removed.length }} 行已移出基准</span>
@@ -542,17 +587,19 @@ function itemImage(row: CountRow) {
 				</div>
 				<span
 					v-else-if="column.id === 'difference'"
-					:class="{
-						'count-difference-positive':
-							hasCountInput(row as unknown as CountRow) &&
-							Number(row.actual_qty) > Number(row.baseline_qty),
-						'count-difference-negative':
-							hasCountInput(row as unknown as CountRow) &&
-							Number(row.actual_qty) < Number(row.baseline_qty),
-					}"
+					:class="[
+						'stock-effect',
+						!hasCountInput(row as unknown as CountRow)
+							? ''
+							: Number(row.actual_qty) > Number(row.baseline_qty)
+								? 'is-increase'
+								: Number(row.actual_qty) < Number(row.baseline_qty)
+									? 'is-decrease'
+									: 'is-neutral',
+					]"
 					>{{
 						hasCountInput(row as unknown as CountRow)
-							? `${Number(row.actual_qty) - Number(row.baseline_qty) > 0 ? "+" : ""}${Number(row.actual_qty) - Number(row.baseline_qty)}`
+							? `${Number(row.actual_qty) > Number(row.baseline_qty) ? "+" : Number(row.actual_qty) < Number(row.baseline_qty) ? "−" : ""}${formatQuantity(Math.abs(Number(row.actual_qty) - Number(row.baseline_qty)))}`
 							: "待核对"
 					}}</span
 				>
@@ -592,7 +639,7 @@ function itemImage(row: CountRow) {
 			@select-multiple="
 				(selections) => {
 					pickerOpen = false;
-					c.chooseItems([...new Set(selections.map((selection) => selection.code))]);
+					c.chooseItems(selections);
 				}
 			"
 		/>
@@ -650,24 +697,12 @@ function itemImage(row: CountRow) {
 	gap: 8px;
 	min-width: 0;
 }
-.count-scope-details {
-	font-size: 0.88rem;
-	color: var(--p-muted);
-}
-.count-scope-controls,
 .count-filter-bar,
 .count-toolbar,
 .count-pagination {
 	display: flex;
 	align-items: center;
 	gap: 8px;
-}
-.count-scope-controls {
-	flex-wrap: wrap;
-	padding: 6px 0;
-}
-.count-scope-type {
-	width: min(260px, 32vw);
 }
 .count-filter-bar {
 	flex-wrap: wrap;

@@ -62,7 +62,6 @@ const dateTimeColumns = new Set([
   "creation",
   "snapshot",
   "balance_at",
-  "baseline_timestamp",
   "created",
   "updated",
 ]);

@@ -74,6 +74,7 @@ const {
 	sort,
 	descending,
 	selected,
+	selecting,
 	stockState,
 	analysisDimension,
 	query: quickReportQuery,
@@ -264,10 +265,6 @@ function setSelected(code: string, checked: boolean) {
 	const isSelected = selected.value.includes(code);
 	if (checked !== isSelected) props.controller.toggle(code);
 }
-function stockRowAction(row: StockTableRow, kind: string) {
-	if (!isStockItemRow(row)) return;
-	props.controller.rowAction(kind, row);
-}
 
 const results = ref<HTMLElement>();
 useFocusVisibility(
@@ -391,6 +388,15 @@ watch([() => props.active, isMobile], () => {
 			</template>
 			<template #actions>
 				<BrowseOverflowMenu>
+					<UiButton
+						v-if="isMobile"
+						icon="select"
+						:aria-pressed="selecting"
+						@click="
+							selecting ? controller.exitSelection() : controller.enterSelection()
+						"
+						>{{ selecting ? "取消选择" : "选择" }}</UiButton
+					>
 					<QuickExport
 						:query="quickReportQuery"
 						title="库存列表"
@@ -399,6 +405,13 @@ watch([() => props.active, isMobile], () => {
 						:active="active"
 					/>
 				</BrowseOverflowMenu>
+				<UiButton
+					v-if="!isMobile"
+					icon="select"
+					:aria-pressed="selecting"
+					@click="selecting ? controller.exitSelection() : controller.enterSelection()"
+					>{{ selecting ? "取消选择" : "选择" }}</UiButton
+				>
 				<BrowseSplitButton
 					label="新建物品"
 					kind="Item"
@@ -419,20 +432,21 @@ watch([() => props.active, isMobile], () => {
 			<slot name="context-actions" />
 			<template #selection>
 				<div
-					v-if="selected.length"
+					v-if="selecting"
 					class="selection-bar stock-selection-actions"
 					role="region"
 					aria-label="已选物品操作"
 				>
-					<span role="status">已选择 {{ selected.length }} 项物品</span>
+					<span role="status">已选择 {{ selected.length }} 项</span>
 					<UiButton
 						v-for="item in controller.selectedActions.value"
 						:key="item.kind"
 						:icon="item.icon"
+						:disabled="data.stale"
 						@click="controller.selectedAction(item.kind)"
 						>{{ item.name }}</UiButton
 					>
-					<UiButton variant="ghost" @click="selected = []">取消选择</UiButton>
+					<UiButton variant="ghost" @click="controller.exitSelection()">取消</UiButton>
 				</div>
 			</template>
 		</BrowseToolbar>
@@ -590,7 +604,7 @@ watch([() => props.active, isMobile], () => {
 											><slot
 												name="artwork"
 												:item="item" /></template></ItemImage
-									><label class="card-checkbox"
+									><label v-if="selecting" class="card-checkbox"
 										><input
 											type="checkbox"
 											:checked="selected.includes(item.code)"
@@ -690,7 +704,7 @@ watch([() => props.active, isMobile], () => {
 										</span>
 									</span>
 								</button>
-								<label class="stock-list-checkbox" @click.stop>
+								<label v-if="selecting" class="stock-list-checkbox" @click.stop>
 									<input
 										type="checkbox"
 										:checked="selected.includes(item.code)"
@@ -717,7 +731,7 @@ watch([() => props.active, isMobile], () => {
 							@empty-action="reset"
 							:sort-by="sort"
 							:sort-direction="sortDirection"
-							selection-enabled
+							:selection-enabled="selecting"
 							:selected-keys="selected"
 							:has-more="
 								quickReportQuery.groupBy.length
@@ -780,18 +794,6 @@ watch([() => props.active, isMobile], () => {
 							"
 						>
 							<template #cell="{ column, row }">
-								<div
-									v-if="column.id === 'actions' && isStockItemRow(row)"
-									class="browse-row-actions stock-row-actions"
-								>
-									<UiButton
-										v-if="reference.operations.Issue && isStockItemRow(row)"
-										variant="secondary"
-										:disabled="data.stale"
-										@click="stockRowAction(row, 'Issue')"
-										>出库</UiButton
-									>
-								</div>
 								<div v-if="column.id === 'image'" class="table-item-image">
 									<ItemImage :item="stockIdentity(row)"></ItemImage>
 								</div>

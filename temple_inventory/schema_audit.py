@@ -55,12 +55,6 @@ def _source_manifest():
 	settings_fields = sorted(field["fieldname"] for field in settings.get("fields", []))
 	hooks = (APP_ROOT / "hooks.py").read_text()
 	deployment = (APP_ROOT / "deployment.py").read_text()
-	api_source = (APP_ROOT / "native_api.py").read_text()
-	current_callers = sorted(
-		str(path.relative_to(APP_ROOT))
-		for path in APP_ROOT.rglob("*.py")
-		if "ti_count_warehouses" in path.read_text(errors="ignore")
-	)
 	retired_name_sources = {
 		name: [
 			str(path.relative_to(APP_ROOT))
@@ -90,8 +84,6 @@ def _source_manifest():
 				name in deployment for name in RETIRED_CUSTOM_FIELDS | RETIRED_DOCTYPES
 			),
 		},
-		"native_count_api_field": "ti_count_warehouses" if '"ti_count_warehouses"' in api_source else None,
-		"current_count_field_callers": current_callers,
 		"retired_name_sources_outside_audit_and_preflight": retired_name_sources,
 	}
 

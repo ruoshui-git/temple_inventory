@@ -543,7 +543,10 @@ describe("native location workspace", () => {
     expect(table.get('th button[aria-label^="物品名称排序"]').exists()).toBe(
       true,
     );
-    expect(table.get('button[aria-label="设置列"]').exists()).toBe(true);
+    // The column settings trigger lives in the result summary above the table.
+    expect(
+      wrapper.get('.browse-summary-copy button[aria-label="设置列"]').exists(),
+    ).toBe(true);
     expect(table.get("td.warehouse-code").classes()).toContain("align-start");
     expect(table.text()).toContain("ITM-000123");
     expect(table.text()).toContain("12 Nos");

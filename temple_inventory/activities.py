@@ -43,15 +43,16 @@ def validate_assignment(doc, method=None):
 	name = doc.get("ti_activity")
 	if not name:
 		return
+	# The lock serializes this link with reference deletion for every writer.
 	activity = lock_reference("Inventory Activity", name)
+	if doc.doctype == "Stock Entry" and any(row.get("ti_original_loan") for row in doc.get("items", [])):
+		# A settlement's activity is derived from its original loans, not chosen now;
+		# archived or unreadable activities must not block returning the stock.
+		return
 	activity.check_permission("read")
 	previous = doc.get_doc_before_save()
 	unchanged = previous and previous.get("ti_activity") == name
-	settlement = doc.doctype == "Stock Entry" and any(
-		row.get("ti_original_loan") for row in doc.get("items", [])
-	)
-	# Settlements preserve the original activity; provenance validation checks identity.
-	if activity.status != "Active" and not unchanged and not settlement:
+	if activity.status != "Active" and not unchanged:
 		frappe.throw("活动已归档，请选择其它活动")
 
 
@@ -221,13 +222,13 @@ def load_activity(name):
 	with Projection({"dataset": "activities", "scope": {"activity": name}}) as projection:
 		projection.build()
 		summary = next(projection.rows("metadata"), {})
-		# Lifetime direct submitted totals are separate from the user's related
-		# record filters and indirect settlement references.
+		# Lifetime submitted totals are separate from the user's related record
+		# filters. A settlement counts for each activity of its original loan lines.
 		for row in projection.rows("records"):
-			if row["relationship"] == "direct" and row["docstatus"] == 1:
-				projection.put("direct", row)
-		if "direct" in projection.column_names:
-			projection.group("direct", "movement_totals", ("kind", "stock_uom"), ("stock_qty",))
+			if row["relationship"] in ("direct", "original_loan") and row["docstatus"] == 1:
+				projection.put("linked", row)
+		if "linked" in projection.column_names:
+			projection.group("linked", "movement_totals", ("kind", "stock_uom"), ("stock_qty",))
 			movement_totals = list(projection.rows("movement_totals"))
 		else:
 			movement_totals = []

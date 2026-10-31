@@ -155,6 +155,13 @@ for (const width of [375, 1024, 1440]) {
     await page.getByRole("button", { name: "列表视图", exact: true }).click();
     await page.getByRole("button", { name: /^加载更多/ }).click();
     await expect(page.locator("[data-browse-row]")).toHaveCount(60);
+    // Row checkboxes exist only in select mode: phones enter it from the
+    // overflow menu, desktop from the toolbar.
+    if (width < 1024) {
+      await page.getByRole("button", { name: "更多操作", exact: true }).click();
+      await page.getByRole("menuitem", { name: "选择", exact: true }).click();
+    } else
+      await page.getByRole("button", { name: "选择", exact: true }).click();
     const row = page.locator('[data-browse-row="ITEM-42"]');
     await row.locator("input").check();
     await row.scrollIntoViewIfNeeded();

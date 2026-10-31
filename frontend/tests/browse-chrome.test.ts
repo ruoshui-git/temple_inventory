@@ -529,6 +529,7 @@ it("offers new Item as the primary stock action and keeps selected actions avail
   expect(wrapper.get(".browse-header-actions").text()).toContain("新建物品");
   expect(wrapper.find(".stock-selection-actions").exists()).toBe(false);
   expect(wrapper.find(".browse-tools-toggle").exists()).toBe(false);
+  c.enterSelection();
   c.toggle("A");
   c.toggle("隐藏,中文物品");
   await flushPromises();

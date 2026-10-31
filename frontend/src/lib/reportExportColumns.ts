@@ -60,7 +60,7 @@ const tableLabels: Record<string, Record<string, string>> = {
     document: "编号",
     date: "日期",
     stock_uom: "单位",
-    quantity: "数量",
+    quantity: "借还数量",
     activity_title: "活动",
     kind: "类型",
     source_warehouse: "来源位置",

@@ -463,6 +463,101 @@ describe("native movement editor integration", () => {
       ),
     ).toBe(false);
   });
+  it("amends a cancelled mixed-loan Return and refreshes each loan's outstanding balance", async () => {
+    const lines = [
+      {
+        name: "LINE-A",
+        item_code: "ITEM-A",
+        qty: 1,
+        uom: "Nos",
+        conversion_factor: 1,
+        s_warehouse: "LEASED",
+        t_warehouse: "ROOM-A",
+        ti_original_loan: "LOAN-A",
+        ti_original_loan_line: "LINE-LOAN-A",
+        ti_settlement_outcome: "Returned",
+        batch_no: "",
+      },
+      {
+        name: "LINE-B",
+        item_code: "ITEM-A",
+        qty: 2,
+        uom: "Nos",
+        conversion_factor: 1,
+        s_warehouse: "LEASED",
+        t_warehouse: "ROOM-A",
+        ti_original_loan: "LOAN-B",
+        ti_original_loan_line: "LINE-LOAN-B",
+        ti_settlement_outcome: "Returned",
+        batch_no: "",
+      },
+    ];
+    const cancelled = {
+      ...document({
+        ti_movement_kind: "Return",
+        posting_date: "2026-10-16",
+        posting_time: "12:00:00",
+        items: lines,
+      }),
+      docstatus: 2,
+      editable: false,
+    } as NativeDocument;
+    const amended = {
+      ...document(
+        {
+          ti_movement_kind: "Return",
+          posting_date: "2026-10-16",
+          posting_time: "12:00:00",
+          items: lines,
+        },
+        "amend-v1",
+      ),
+      name: "STE-AMEND",
+      docstatus: 0,
+      editable: true,
+    } as NativeDocument;
+    const loanDetail = (name: string, outstanding: number) => ({
+      name,
+      doctype: "Stock Entry",
+      kind: "Loan",
+      docstatus: 1,
+      ti_borrower: name === "LOAN-A" ? "借用方甲" : "借用方乙",
+      ti_activity: "",
+      items: [
+        {
+          name: `LINE-${name}`,
+          item_code: "ITEM-A",
+          s_warehouse: "ROOM-A",
+          t_warehouse: "LEASED",
+          stock_uom: "Nos",
+          uom: "Nos",
+          conversion_factor: 1,
+          allocations: [{ batch_no: "", outstanding_qty: outstanding }],
+        },
+      ],
+    });
+    const base = service();
+    const call = vi.fn(async (method, args) => {
+      if (method === "native_api.load_document") return cancelled;
+      if (method === "native_api.amend_document") return amended;
+      if (method === "native_api.loan_detail")
+        return loanDetail(String(args.name), args.name === "LOAN-A" ? 2 : 1);
+      return base(method, args);
+    });
+    const { controller: c } = setup(
+      () =>
+        useOperationEditor({
+          identity: { doctype: "Stock Entry", name: "STE-1" },
+        }),
+      call,
+    );
+    await flushPromises();
+    c.action.value = "amend";
+    await c.lifecycle();
+    expect(c.state.identity?.name).toBe("STE-AMEND");
+    expect(c.draft.value.items.map((line) => line.outstanding)).toEqual([2, 1]);
+    expect(c.draft.value).toMatchObject({ borrower: "", activity: "" });
+  });
   it("displays recorded bundle allocations and saves their native identity without preparing replacement batches", async () => {
     const allocations = [
       {
@@ -674,7 +769,7 @@ describe("native movement editor integration", () => {
         doctype: "Stock Entry",
         kind: "Loan",
         docstatus: 1,
-        ti_borrower: "借用方",
+        ti_borrower: "借用方甲",
         ti_activity: "ACT-A",
         items: ["ORIGINAL-ROW-A", "ORIGINAL-ROW-B"].map((name, index) => ({
           name,
@@ -720,7 +815,203 @@ describe("native movement editor integration", () => {
       s_warehouse: "LEASED",
       t_warehouse: "DAMAGED",
     });
-    expect(c.draft.value.activity).toBe("ACT-A");
+    expect(c.draft.value).toMatchObject({ borrower: "", activity: "" });
+  });
+  it("prefills selected Return items from outstanding loan allocations", async () => {
+    const base = service();
+    const call = vi.fn(async (method, args) => {
+      if (method === "temple_inventory.loans.outstanding_lines")
+        return [
+          {
+            loan: "LOAN-A",
+            original_loan_line: "LINE-A",
+            item_code: "ITEM-A",
+            batch_no: "BATCH-A",
+            qty: 4,
+            uom: "Nos",
+            warehouse: "LEASED",
+          },
+        ];
+      if (method === "native_api.loan_detail")
+        return {
+          name: "LOAN-A",
+          doctype: "Stock Entry",
+          kind: "Loan",
+          docstatus: 1,
+          ti_borrower: "借用方甲",
+          ti_activity: "ACT-A",
+          items: [
+            {
+              name: "LINE-A",
+              item_code: "ITEM-A",
+              s_warehouse: "ROOM-A",
+              t_warehouse: "LEASED",
+              stock_uom: "Nos",
+              uom: "Nos",
+              conversion_factor: 1,
+              allocations: [{ batch_no: "BATCH-A", outstanding_qty: 9 }],
+            },
+          ],
+        };
+      return base(method, args);
+    });
+    const { controller: c } = setup(
+      () => useOperationEditor({ kind: "Return", initialItems: ["ITEM-A"] }),
+      call,
+    );
+    await flushPromises();
+    expect(call).toHaveBeenCalledWith(
+      "temple_inventory.loans.outstanding_lines",
+      { item_codes: ["ITEM-A"] },
+    );
+    expect(c.draft.value.items).toHaveLength(1);
+    expect(c.draft.value.items[0]).toMatchObject({
+      loanName: "LOAN-A",
+      originalLoanLine: "LINE-A",
+      batch: "BATCH-A",
+      qty: 4,
+      sourceLocation: "LEASED",
+      returnOutcome: "returned",
+      loanBorrower: "借用方甲",
+      loanActivity: "ACT-A",
+    });
+  });
+  it("prefills one Return from loans with different borrowers and activities", async () => {
+    const base = service();
+    const call = vi.fn(async (method, args) => {
+      if (method !== "native_api.loan_detail") return base(method, args);
+      const name = String(args.name);
+      return {
+        name,
+        doctype: "Stock Entry",
+        kind: "Loan",
+        docstatus: 1,
+        ti_borrower: name === "LOAN-A" ? "借用方甲" : "借用方乙",
+        ti_activity: name === "LOAN-A" ? "ACT-A" : "ACT-B",
+        items: [
+          {
+            name: `LINE-${name}`,
+            item_code: "ITEM-A",
+            s_warehouse: "ROOM-A",
+            t_warehouse: "LEASED",
+            stock_uom: "Nos",
+            uom: "Nos",
+            conversion_factor: 1,
+            allocations: [{ batch_no: "", outstanding_qty: 2 }],
+          },
+        ],
+      };
+    });
+    const { controller: c } = setup(
+      () =>
+        useOperationEditor({
+          kind: "Return",
+          originalLoan: JSON.stringify(["LOAN-A", "LOAN-B"]),
+        }),
+      call,
+    );
+    await flushPromises();
+    expect(c.draft.value.items).toHaveLength(2);
+    expect(c.draft.value.items.map((line) => line.loanName)).toEqual([
+      "LOAN-A",
+      "LOAN-B",
+    ]);
+    expect(c.draft.value.items.map((line) => line.originalLoanLine)).toEqual([
+      "LINE-LOAN-A",
+      "LINE-LOAN-B",
+    ]);
+    expect(
+      c.draft.value.items.map((line) => [line.loanBorrower, line.loanActivity]),
+    ).toEqual([
+      ["借用方甲", "ACT-A"],
+      ["借用方乙", "ACT-B"],
+    ]);
+    expect(c.draft.value).toMatchObject({ borrower: "", activity: "" });
+    await c.save();
+    const sent = call.mock.calls.find(
+      ([method]) => method === "native_api.create_document",
+    )?.[1].data;
+    expect(sent).not.toHaveProperty("ti_borrower");
+    expect(sent).not.toHaveProperty("ti_activity");
+  });
+  it("prefills Return from selected Items across loans with different borrowers", async () => {
+    const base = service();
+    const loanDetail = (name: string, borrower: string, activity: string) => ({
+      name,
+      doctype: "Stock Entry",
+      kind: "Loan",
+      docstatus: 1,
+      ti_borrower: borrower,
+      ti_activity: activity,
+      items: [
+        {
+          name: `LINE-${name}`,
+          item_code: "ITEM-A",
+          s_warehouse: "ROOM-A",
+          t_warehouse: "LEASED",
+          stock_uom: "Nos",
+          uom: "Nos",
+          conversion_factor: 1,
+          allocations: [{ batch_no: "", outstanding_qty: 2 }],
+        },
+      ],
+    });
+    const call = vi.fn(async (method, args) => {
+      if (method === "temple_inventory.loans.outstanding_lines")
+        return [
+          {
+            loan: "LOAN-A",
+            original_loan_line: "LINE-LOAN-A",
+            item_code: "ITEM-A",
+            batch_no: "",
+            qty: 1,
+            uom: "Nos",
+            warehouse: "LEASED",
+          },
+          {
+            loan: "LOAN-B",
+            original_loan_line: "LINE-LOAN-B",
+            item_code: "ITEM-A",
+            batch_no: "",
+            qty: 2,
+            uom: "Nos",
+            warehouse: "LEASED",
+          },
+        ];
+      if (method === "native_api.loan_detail")
+        return args.name === "LOAN-A"
+          ? loanDetail("LOAN-A", "借用方甲", "ACT-A")
+          : loanDetail("LOAN-B", "借用方乙", "ACT-B");
+      return base(method, args);
+    });
+    const { controller: c } = setup(
+      () => useOperationEditor({ kind: "Return", initialItems: ["ITEM-A"] }),
+      call,
+    );
+    await flushPromises();
+    expect(
+      c.draft.value.items.map((line) => [
+        line.loanName,
+        line.qty,
+        line.loanBorrower,
+        line.loanActivity,
+      ]),
+    ).toEqual([
+      ["LOAN-A", 1, "借用方甲", "ACT-A"],
+      ["LOAN-B", 2, "借用方乙", "ACT-B"],
+    ]);
+    expect(c.draft.value).toMatchObject({ borrower: "", activity: "" });
+    await c.save();
+    const sent = call.mock.calls.find(
+      ([method]) => method === "native_api.create_document",
+    )?.[1].data;
+    expect(sent).not.toHaveProperty("ti_borrower");
+    expect(sent).not.toHaveProperty("ti_activity");
+    expect(
+      sent.items.map(
+        (row: { ti_original_loan: string }) => row.ti_original_loan,
+      ),
+    ).toEqual(["LOAN-A", "LOAN-B"]);
   });
   it("retains invalid input locally and creates one valid native draft before explicit submission", async () => {
     const call = service();

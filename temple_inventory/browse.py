@@ -714,8 +714,6 @@ def _operation_source(projection, *, records):
 	if query["dataset"] == "loans" and not records:
 		for row in projection.rows(source):
 			if query["view"] == "items":
-				if not query["includeZero"] and row["outstanding"] <= 0:
-					continue
 				projection.put(
 					"browse_contributions",
 					{**row, "id": frappe.as_json([row["id"], "outstanding"]), "outcome_key": "outstanding"},
@@ -1013,7 +1011,6 @@ def operation_contributions(
 	records=False,
 	item_code=None,
 	outcome=None,
-	loan_scope=None,
 	doctype=None,
 	name=None,
 	history_sort_by=None,
@@ -1052,9 +1049,7 @@ def operation_contributions(
 					conditions.append("json_extract(payload, '$.outcome_key')=?")
 					params.append(outcome)
 				if projection.query["view"] == "items":
-					history_scope = loan_scope or projection.query["loanScope"]
-					if history_scope not in ("outstanding", "all"):
-						frappe.throw("请选择有效的借用明细范围")
+					history_status = projection.query["loanStatus"]
 					allocations = []
 					allocation_where = " and ".join(conditions) or "1=1"
 					for (payload,) in projection.db.execute(
@@ -1064,11 +1059,9 @@ def operation_contributions(
 						allocation = frappe.parse_json(payload)
 						if allocation["docstatus"] != 1:
 							continue
-						if (
-							history_scope == "outstanding"
-							and allocation["outstanding"] <= 0
-							and not projection.query["includeZero"]
-						):
+						if history_status == "outstanding" and allocation["outstanding"] <= 0:
+							continue
+						if history_status == "settled" and allocation["outstanding"] > 0:
 							continue
 						allocations.append(allocation)
 					selected = {
@@ -1116,15 +1109,11 @@ def operation_contributions(
 							float(allocation["borrowed"]),
 							float(allocation["outstanding"]),
 						)
-					# The ungrouped outstanding list is the 借出清单: open loan lines only. Returns
-					# stay in per-item histories and in 全部相关记录.
-					loan_list_only = history_scope == "outstanding" and not item_code
+					# Settlement history is part of 全部 only; other states show loan rows.
 					for (payload,) in (
-						()
-						if loan_list_only
-						else projection.db.execute(
-							"select payload from rows where table_id='linked_settlements'"
-						)
+						projection.db.execute("select payload from rows where table_id='linked_settlements'")
+						if history_status == "all"
+						else ()
 					):
 						event = frappe.parse_json(payload)
 						link = (
@@ -1136,7 +1125,7 @@ def operation_contributions(
 						if link in selected:
 							add_history(event, -abs(float(event.get("stock_qty") or 0)))
 							observed_events[link] += abs(float(event.get("stock_qty") or 0))
-					history_complete = loan_list_only or all(
+					history_complete = history_status != "all" or all(
 						abs(observed_events[key] - expected) < 0.000001
 						for key, expected in expected_events.items()
 					)
@@ -1193,7 +1182,7 @@ def operation_contributions(
 							"source_warehouse": key[5],
 							"destination_warehouse": key[6],
 							"stock_uom": key[7],
-							"borrower": allocations[0].get("borrower", ""),
+							"borrower": values.get("borrower", ""),
 							"borrowed": values["quantity"],
 							"outstanding": values["outstanding"],
 							"quantity": values["quantity"],
@@ -1531,12 +1520,17 @@ def movement_history_key(row):
 		destination,
 		row["stock_uom"],
 		int(row["docstatus"]),
+		row.get("original_loan", ""),
 	)
 	return key, source, destination
 
 
 def loan_contribution_key(row):
-	"""Shared row identity for the ungrouped loan contribution history."""
+	"""Shared row identity for the ungrouped loan contribution history.
+
+	A settlement document covering several loans appears once per original loan,
+	so each row keeps that loan's borrower and activity.
+	"""
 	return (
 		row["doctype"],
 		row["document"],
@@ -1547,6 +1541,7 @@ def loan_contribution_key(row):
 		row.get("destination_warehouse", ""),
 		row["stock_uom"],
 		row.get("item_code", ""),
+		row.get("original_loan", ""),
 	)
 
 

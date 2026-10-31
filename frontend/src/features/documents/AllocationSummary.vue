@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
 import DataTable from "../../components/ui/DataTable.vue";
 import ItemImage from "../../components/ItemImage.vue";
@@ -19,10 +19,11 @@ import {
 	type OperationDraft,
 	type AllocationLine,
 } from "./operationModel";
-import { useReferenceData } from "../../services/contracts";
+import { useOptionalInventoryServices, useReferenceData } from "../../services/contracts";
 
 const context = useOperationContext();
 const reference = useReferenceData();
+const services = useOptionalInventoryServices();
 const { isMobile } = useResponsiveLayout();
 const props = withDefaults(
 	defineProps<{ draft: OperationDraft; collapsible?: boolean; linkItems?: boolean }>(),
@@ -33,7 +34,79 @@ type AllocationRow = Record<string, unknown> & {
 	place?: string;
 };
 const expanded = ref(new Set<string>());
+const returnLoanContexts = ref<Record<string, { borrower: string; activity: string }>>({});
+const loanNames = computed(
+	() => [...new Set(props.draft.items.map((line) => line.loanName).filter(Boolean))] as string[],
+);
+let loanContextGeneration = 0;
+watch(
+	loanNames,
+	async (names) => {
+		const generation = ++loanContextGeneration;
+		if (props.draft.kind !== "Return") return;
+		const missing = names.filter((name) => {
+			const lines = props.draft.items.filter(
+				(line) => line.loanName === name,
+			) as (AllocationLine & {
+				loanBorrower?: string;
+				loanActivity?: string;
+				loanActivityTitle?: string;
+			})[];
+			const local = lines.find(
+				(line) =>
+					typeof line.loanBorrower === "string" && typeof line.loanActivity === "string",
+			);
+			if (local) {
+				returnLoanContexts.value[name] = {
+					borrower: local.loanBorrower || "",
+					activity: local.loanActivityTitle || local.loanActivity || "",
+				};
+				return false;
+			}
+			return !returnLoanContexts.value[name];
+		});
+		const fetched = await Promise.all(
+			missing.map(async (name) => {
+				try {
+					const loan = await services?.call<Record<string, unknown>>(
+						"native_api.loan_detail",
+						{ name },
+					);
+					return [
+						name,
+						{
+							borrower: String(loan?.ti_borrower || ""),
+							activity: String(loan?.activity_title || loan?.ti_activity || ""),
+						},
+					] as const;
+				} catch {
+					return [name, { borrower: "", activity: "" }] as const;
+				}
+			}),
+		);
+		if (generation === loanContextGeneration)
+			for (const [name, value] of fetched) returnLoanContexts.value[name] = value;
+	},
+	{ immediate: true },
+);
 const item = (code: string) => context.stock.find((row) => row.code === code);
+function loanContextLabel(line: AllocationLine) {
+	const name = line.loanName || props.draft.loanName;
+	if (!name || props.draft.kind !== "Return") return name;
+	const local = line as AllocationLine & {
+		loanBorrower?: string;
+		loanActivity?: string;
+		loanActivityTitle?: string;
+	};
+	const loan = returnLoanContexts.value[name];
+	const borrower = local.loanBorrower ?? loan?.borrower ?? "未填写借用方";
+	const activity = local.loanActivityTitle || local.loanActivity || loan?.activity || "";
+	const activityLabel =
+		reference.activities.find((row) => row.value === activity)?.label ||
+		activity ||
+		"未关联活动";
+	return `原借出 ${name} · 借用方 ${borrower || "未填写借用方"} · 活动 ${activityLabel}`;
+}
 function lineBatch(line: AllocationLine) {
 	return (
 		line.batch ||
@@ -189,8 +262,7 @@ function phoneDetails(line: AllocationLine) {
 	if (manufacturingDate) details.push(`生产 ${manufacturingDate}`);
 	if (props.draft.kind === "Transfer" && line.location)
 		details.push(`调入 ${warehouseLabel(line.location, reference.warehouses)}`);
-	if (line.loanName || props.draft.loanName)
-		details.push(`原借出 ${line.loanName || props.draft.loanName}`);
+	if (line.loanName || props.draft.loanName) details.push(loanContextLabel(line));
 	if (line.returnOutcome)
 		details.push(
 			line.returnOutcome === "lost"
@@ -404,7 +476,7 @@ function itemFor(row: Record<string, unknown>) {
 				/>
 			</template>
 			<template v-else-if="column.id === 'original_loan'">{{
-				lineFor(row).loanName || draft.loanName
+				loanContextLabel(lineFor(row))
 			}}</template>
 			<template v-else-if="column.id === 'outcome'">
 				{{

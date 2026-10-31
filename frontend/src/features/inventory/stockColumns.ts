@@ -132,6 +132,5 @@ export function inventoryColumnsForPage(
       defaultVisible: false,
       export: ["expiry_state"],
     },
-    { id: "actions", label: "操作", defaultVisible: true, export: [] },
   ];
 }

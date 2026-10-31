@@ -101,6 +101,8 @@ describe("routed native browse restoration", () => {
     wrappers.push(wrapper);
     await flushPromises();
     const initial = wrapper.findComponent(StockBrowsePage).vm.controller;
+    initial.enterSelection();
+    await flushPromises();
     await wrapper.find('[aria-label="选择物品0"]').setValue(true);
     initial.view.value = "table";
     initial.search.value = "物品";

@@ -19,11 +19,7 @@ export interface CountRow {
 export interface CountValues {
   posting_date: string;
   posting_time: string;
-  ti_count_warehouses: string[];
-  ti_count_scope: "Selected" | "Full Location";
-  ti_count_items: string[];
-  ti_baseline_timestamp: string;
-  ti_baseline_fingerprint: string;
+  baselineTimestamp: string;
   ti_count_review: CountRow[];
   items: Record<string, unknown>[];
   ti_activity: string;
@@ -43,6 +39,7 @@ export function countSummary(rows: CountRow[]) {
     gains = new Map<string, number>(),
     losses = new Map<string, number>();
   let reviewed = 0;
+  let changed = 0;
   for (const row of rows) {
     const unit = row.stock_uom;
     baseline.set(unit, (baseline.get(unit) || 0) + row.baseline_qty);
@@ -50,6 +47,7 @@ export function countSummary(rows: CountRow[]) {
     reviewed++;
     actual.set(unit, (actual.get(unit) || 0) + row.actual_qty);
     const delta = row.actual_qty - row.baseline_qty;
+    if (delta !== 0) changed++;
     difference.set(unit, (difference.get(unit) || 0) + delta);
     if (delta > 0) gains.set(unit, (gains.get(unit) || 0) + delta);
     else if (delta < 0) losses.set(unit, (losses.get(unit) || 0) + delta);
@@ -57,6 +55,7 @@ export function countSummary(rows: CountRow[]) {
   return {
     total: rows.length,
     reviewed,
+    changed,
     unreviewed: rows.length - reviewed,
     baseline: [...baseline],
     actual: [...actual],

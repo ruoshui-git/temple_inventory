@@ -10,7 +10,10 @@ const emit = defineEmits<{
 	queryChange: [query: ReportQuery];
 	item: [code: string];
 	openBatch: [name: string];
-	newOperation: [kind: string];
+	newOperation: [
+		kind: "Receive" | "Issue" | "Transfer" | "Damage",
+		allocations?: { item_code: string; warehouse: string; batch_no: string; qty: number }[],
+	];
 	openExport: [query: ReportQuery];
 }>();
 const controller = useExpiryBrowse(props, (query) => emit("queryChange", query));
@@ -22,7 +25,7 @@ defineExpose({ controller });
 		:active="active"
 		@item="emit('item', $event)"
 		@open-batch="emit('openBatch', $event)"
-		@new-operation="emit('newOperation', $event)"
+		@new-operation="(kind, allocations) => emit('newOperation', kind, allocations)"
 		@open-export="emit('openExport', $event)"
 	/>
 </template>

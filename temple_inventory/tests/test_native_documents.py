@@ -17,6 +17,7 @@ from temple_inventory import (
 	conversions,
 	counts,
 	native_api,
+	native_balances,
 	native_files,
 	preferences,
 	session,
@@ -531,20 +532,20 @@ class NativeDocumentTests(unittest.TestCase):
 	def count_data(self, actual=None, state="Unreviewed", warehouses=None):
 		posting = now_datetime()
 		warehouses = warehouses or [self.a]
-		baseline = counts.count_baseline(warehouses, str(posting), "Selected", [self.item])
+		baseline = counts.count_baseline(str(posting))
 		rows = copy.deepcopy(baseline["rows"])
 		for row in rows:
-			row.update({"actual_qty": actual, "review_state": state, "reason": "实点差异"})
+			# A count always lists every authorized leaf; leaves outside `warehouses` stay blank.
+			if row["warehouse"] in warehouses:
+				row.update({"actual_qty": actual, "review_state": state, "reason": "实点差异"})
+			else:
+				row.update({"actual_qty": None, "review_state": "Unreviewed", "reason": ""})
 		return {
 			"company": self.company,
 			"posting_date": str(posting.date()),
 			"posting_time": str(posting.time()),
-			"ti_count_warehouses": warehouses,
-			"ti_count_scope": "Selected",
-			"ti_count_items": [self.item],
+			"ti_time_mode": "Historical",
 			"ti_notes": "盘点说明可持久保存",
-			"ti_baseline_timestamp": baseline["timestamp"],
-			"ti_baseline_fingerprint": baseline["fingerprint"],
 			"ti_count_review": rows,
 		}
 
@@ -554,6 +555,30 @@ class NativeDocumentTests(unittest.TestCase):
 		result = counts.save_count(str(uuid4()), self.count_data(10, "Reviewed"))
 		self.assertTrue(result["no_adjustment"])
 		self.assertEqual(frappe.db.count("Stock Reconciliation"), before)
+
+	def test_set_based_count_baseline_matches_native_balance_for_backdated_and_cancelled_entries(self):
+		posting_day = frappe.utils.add_days(nowdate(), -3)
+		first = self.movement(quantity=5, posting_date=posting_day, posting_time="09:00:00")
+		self.submit(self.create(first))
+		later = self.movement(quantity=4, target=self.b, posting_date=posting_day, posting_time="10:00:00")
+		self.submit(self.create(later))
+		cancelled = self.create(
+			self.movement("Issue", 2, self.a, posting_date=posting_day, posting_time="11:00:00")
+		)
+		self.submit(cancelled)
+		cancelled_doc = frappe.get_doc("Stock Entry", cancelled.name)
+		cancelled_doc.cancel()
+		timestamp = f"{posting_day} 12:00:00"
+		baseline = counts.count_baseline(timestamp)
+		quantities = {
+			row["warehouse"]: row["baseline_qty"]
+			for row in baseline["rows"]
+			if row["item_code"] == self.item and not row["batch_no"]
+		}
+		self.assertEqual(quantities[self.a], native_balances.stock_balance(self.item, self.a, timestamp))
+		self.assertEqual(quantities[self.b], native_balances.stock_balance(self.item, self.b, timestamp))
+		self.assertEqual(quantities[self.a], 5)
+		self.assertEqual(quantities[self.b], 4)
 
 	def test_document_display_names_use_current_readable_item_metadata(self):
 		entry = self.receipt(10)
@@ -629,7 +654,6 @@ class NativeDocumentTests(unittest.TestCase):
 		data = self.count_data(0, "Reviewed", [self.a, self.b])
 		data["ti_count_review"][0]["actual_qty"] = 8
 		doc = counts.save_count(str(uuid4()), data)
-		self.assertEqual(frappe.parse_json(doc.ti_count_warehouses), [self.a, self.b])
 		self.assertEqual(doc.ti_notes, "盘点说明可持久保存")
 		self.assertEqual(len(doc.get("items")), 2)
 		self.assertEqual({row.warehouse: row.qty for row in doc.get("items")}, {self.a: 8, self.b: 0})
@@ -664,12 +688,10 @@ class NativeDocumentTests(unittest.TestCase):
 		data = self.count_data(8, "Reviewed")
 		# Deliberately back-date another native movement into the selected baseline.
 		self.receipt(2)
-		data["ti_baseline_fingerprint"] = "stale"
-		with self.assertRaises(frappe.TimestampMismatchError):
+		data["ti_count_review"][0]["baseline_qty"] -= 1
+		with self.assertRaisesRegex(frappe.ValidationError, "基准已变化"):
 			counts.save_count(str(uuid4()), data)
-		refreshed = counts.count_baseline(
-			[self.a], str(now_datetime()), "Selected", [self.item], data["ti_count_review"]
-		)
+		refreshed = counts.count_baseline(str(now_datetime()), data["ti_count_review"])
 		self.assertEqual(refreshed["rows"][0]["actual_qty"], 8)
 		self.assertEqual(refreshed["rows"][0]["review_state"], "Unreviewed")
 		self.assertTrue(refreshed["rows"][0]["needs_review"])
@@ -681,7 +703,6 @@ class NativeDocumentTests(unittest.TestCase):
 		desk.items[0].qty = 7
 		desk.save()
 		self.assertFalse(desk.ti_count_review)
-		self.assertFalse(desk.ti_baseline_fingerprint)
 
 	def test_display_preferences_validate_complete_values_and_defaults(self):
 		import json

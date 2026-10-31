@@ -5,7 +5,6 @@ import { useCountEditor } from "./useCountEditor";
 const props = withDefaults(
 	defineProps<{
 		name?: string;
-		initialItems?: string[];
 		warehouse?: string;
 		recoveryId?: string;
 		active?: boolean;

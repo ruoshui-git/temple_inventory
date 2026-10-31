@@ -190,10 +190,11 @@ describe("interactive preview", () => {
     await nextTick();
     expect(wrapper.findAll("tbody tr")).toHaveLength(1);
   });
-  it("filters, sorts, and keeps selected-item actions available across views and breakpoints", async () => {
+  it("drops filtered-out selection while preserving selection mode across views and breakpoints", async () => {
     const wrapper = render(PreviewInventory, { pattern: "proposed" });
     await flushPromises();
     expect(wrapper.get(".browse-header-actions").text()).toContain("新建物品");
+    await button(wrapper, "选择").trigger("click");
     await wrapper.get('input[aria-label="选择东北珍珠米"]').setValue(true);
     await button(wrapper, "列表").trigger("click");
     expect(wrapper.findAll("tbody tr.selected")).toHaveLength(1);
@@ -209,7 +210,7 @@ describe("interactive preview", () => {
     await vi.waitFor(() => expect(wrapper.findAll("tbody tr")).toHaveLength(1));
     await flushPromises();
     expect(wrapper.findAll("tbody tr")).toHaveLength(1);
-    expect(wrapper.get(".selection-bar").text()).toContain("已选择 1 项");
+    expect(wrapper.get(".selection-bar").text()).toContain("已选择 0 项");
     desktop = false;
     listeners.forEach((callback) => callback({ matches: false }));
     await flushPromises();
@@ -220,12 +221,17 @@ describe("interactive preview", () => {
     ).toContain("新建物品");
     expect(wrapper.find(".browse-tools-toggle").exists()).toBe(false);
     expect(wrapper.get(".stock-selection-actions").isVisible()).toBe(true);
-    await button(wrapper, "调拨").trigger("click");
-    expect(wrapper.emitted("navigate")?.at(-1)).toEqual([
-      "movement-form",
-      "Transfer",
-    ]);
-    await button(wrapper, "取消选择").trigger("click");
+    // The preview account has no Transfer capability, so that action stays gated.
+    expect(
+      wrapper
+        .findAll(".selection-bar button")
+        .some((item) => item.text() === "调拨"),
+    ).toBe(false);
+    await wrapper
+      .get(".selection-bar")
+      .findAll("button")
+      .find((item) => item.text() === "取消")!
+      .trigger("click");
     expect(wrapper.find(".stock-selection-actions").exists()).toBe(false);
   });
   it("validates receiving input and confirms through the shared native service contract", async () => {

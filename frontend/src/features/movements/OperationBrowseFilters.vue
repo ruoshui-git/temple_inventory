@@ -52,32 +52,24 @@ watch(
 			<section class="browse-filter-mega-section">
 				<FilterDisclosure
 					v-if="family === 'loans'"
-					label="范围"
-					field="loanScope"
-					:summary="query.loanScope === 'all' ? '借出与归还全部记录' : '仅未归还借出'"
+					label="借用状态"
+					field="loanStatus"
+					:summary="
+						query.loanStatus === 'all'
+							? '全部'
+							: query.loanStatus === 'settled'
+								? '已结清'
+								: '未结清'
+					"
 				>
-					<div class="segmented" role="group" aria-label="记录范围">
-						<UiButton
-							v-for="[value, label] in [
-								['outstanding', '仅未归还借出'],
-								['all', '借出与归还全部记录'],
-							]"
-							:key="value"
-							:aria-pressed="query.loanScope === value"
-							:variant="query.loanScope === value ? 'primary' : 'ghost'"
-							@click="controller.setHistoryScope(value as 'outstanding' | 'all')"
-							>{{ label }}</UiButton
-						>
-					</div>
-					<p class="form-field-hint">
-						仅未归还借出：只列仍有未还数量的借出行。借出与归还全部记录：列出全部借出行，以及它们的归还、损坏、遗失行。
-					</p>
-					<label v-if="!records" class="form-choice-label form-check"
-						><input v-model="query.includeZero" type="checkbox" />包括已结清物品</label
-					>
-					<p v-if="!records" class="form-field-hint">
-						也列出已全部归还的借出行和物品（未归还余额为零）。
-					</p>
+					<label class="form-field">
+						借用状态
+						<select v-model="query.loanStatus" aria-label="借用状态">
+							<option value="outstanding">未结清</option>
+							<option value="settled">已结清</option>
+							<option value="all">全部</option>
+						</select>
+					</label>
 				</FilterDisclosure>
 				<BrowseFilters
 					v-model="scope"
@@ -167,17 +159,14 @@ watch(
 					>
 				</FilterDisclosure>
 				<FilterDisclosure
-					v-if="records"
+					v-if="records && family === 'movements'"
 					label="状态"
 					field="status"
 					:summary="statusChoices.find(([value]) => value === status)?.[1] || '不限'"
 				>
 					<label class="form-field">
 						状态
-						<select
-							v-model="status"
-							:aria-label="family === 'movements' ? '流动记录状态' : '借用状态'"
-						>
+						<select v-model="status" aria-label="流动记录状态">
 							<option
 								v-for="[value, label] in statusChoices"
 								:key="value"

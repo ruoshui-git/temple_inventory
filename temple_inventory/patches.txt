@@ -6,3 +6,4 @@ temple_inventory.patches.fix_expiry_notification_links
 temple_inventory.patches.optimize_item_images
 temple_inventory.patches.align_user_time_zones
 temple_inventory.patches.backfill_push_endpoint_hashes
+temple_inventory.patches.remove_obsolete_count_fields

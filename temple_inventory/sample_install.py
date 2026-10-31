@@ -523,10 +523,10 @@ def verify_development_sample(*, require_images=True, data="full"):
 		"Stock Reconciliation",
 		{"ti_request_key": _request_key("Stock Reconciliation", native_samples.REQUEST_PREFIX + "count")},
 	)
-	count_warehouses = frappe.parse_json(reconciliation.ti_count_warehouses or "[]")
-	if set(count_warehouses) != {rooms["DEMO_A"], rooms["DEMO_SHELF"]}:
-		raise AssertionError("Native sample count does not retain both selected warehouses")
 	count_rows = frappe.parse_json(reconciliation.ti_count_review or "[]")
+	count_warehouses = {row.get("warehouse") for row in count_rows}
+	if not {rooms["DEMO_A"], rooms["DEMO_SHELF"]}.issubset(count_warehouses):
+		raise AssertionError("Native sample count does not cover both physical locations")
 	if {row.get("review_state") for row in count_rows} != {"Reviewed", "Unreviewed"}:
 		raise AssertionError("Native sample count must preserve reviewed and unreviewed rows")
 	if not any(row.get("difference") == -1 for row in count_rows) or not any(

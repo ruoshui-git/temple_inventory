@@ -78,6 +78,35 @@ class CatalogImagesTests(NativeDocumentTests):
 		with patch("temple_inventory.catalog.can_read", return_value=False):
 			self.assertEqual(cover(own.file_url), "")
 
+	def test_display_summaries_trust_listed_items_only_for_their_own_call(self):
+		parent_checks = []
+		original_parent = native_files._parent
+
+		def counted_parent(doctype, name, **kwargs):
+			parent_checks.append((doctype, name))
+			return original_parent(doctype, name, **kwargs)
+
+		own = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": f"trusted-cover-{self.token}.png",
+				"content": f"trusted-cover-{self.token}".encode(),
+				"is_private": 1,
+				"attached_to_doctype": "Item",
+				"attached_to_name": self.item,
+			}
+		).insert()
+		frappe.db.set_value("Item", self.item, "image", own.file_url, update_modified=False)
+		with patch("temple_inventory.native_files._parent", side_effect=counted_parent):
+			self.assertEqual(catalog.item_display_summaries([self.item])[self.item]["image"], own.file_url)
+			self.assertEqual(parent_checks, [])
+			self.assertIsNone(getattr(frappe.local, "ti_readable_parents", None))
+			native_files.can_read(own)
+			self.assertEqual(parent_checks, [("Item", self.item)])
+		with self.assertRaises(ValueError):
+			with native_files.readable_parents("Stock Entry", []):
+				pass
+
 	def test_primary_image_reuses_one_private_file_across_frontend_and_desk_saves(self):
 		file = frappe.get_doc(
 			{

@@ -9,6 +9,7 @@ import ActivityEditor from "../activities/ActivityEditor.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 const props = defineProps<{
 	draft: Pick<OperationDraft, "source" | "purpose" | "activity" | "loanName"> & { kind: string };
+	returnLoanDetails?: { name: string; activityLabel: string }[];
 	disabled?: boolean;
 	activityLabel: string;
 	mode?: "edit" | "display";
@@ -80,7 +81,7 @@ async function search(search: string, start: number, signal: AbortSignal) {
 </script>
 <template>
 	<dl v-if="mode === 'display'" class="info-grid">
-		<div>
+		<div v-if="draft.kind !== 'Return'">
 			<dt>关联活动</dt>
 			<dd>
 				{{ activityLabel }}
@@ -92,7 +93,25 @@ async function search(search: string, start: number, signal: AbortSignal) {
 		</div>
 	</dl>
 	<div v-else class="form-fields">
-		<template v-if="!creating"
+		<template v-if="draft.kind === 'Return'">
+			<dl class="info-grid return-activity-summary">
+				<div>
+					<dt>关联活动</dt>
+					<dd>由原借用记录确定</dd>
+				</div>
+			</dl>
+			<ul class="return-loan-context-list">
+				<li v-for="loan in returnLoanDetails || []" :key="loan.name">
+					原借出 {{ loan.name }} · 活动 {{ loan.activityLabel }}
+				</li>
+			</ul>
+			<FormField label="用途">
+				<template #default="{ fieldAttrs }">
+					<input v-model="draft.purpose" v-bind="fieldAttrs" :disabled="disabled" />
+				</template>
+			</FormField>
+		</template>
+		<template v-else-if="!creating"
 			><dl v-if="draft.loanName" class="info-grid">
 				<div>
 					<dt>关联活动</dt>
@@ -148,6 +167,13 @@ async function search(search: string, start: number, signal: AbortSignal) {
 </template>
 
 <style scoped>
+.return-loan-context-list {
+	margin: 0 0 var(--p-space-3);
+	padding-inline-start: 1.25em;
+	color: var(--p-muted);
+	font-size: var(--p-small);
+}
+
 /* The dialog already frames the editor; drop the inline card chrome. */
 .activity-dialog-editor {
 	padding: 0;

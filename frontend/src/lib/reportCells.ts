@@ -51,8 +51,6 @@ export const reportColumnLabels: Record<string, string> = {
   actual_qty: "已核对实点",
   difference: "差异量",
   review_state: "核对状态",
-  count_scope: "盘点范围",
-  baseline_timestamp: "账面基准时间",
   period_from: "期间开始",
   period_to: "期间结束",
   native_running_qty: "库存流水余额",

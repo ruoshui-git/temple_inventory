@@ -483,18 +483,36 @@ function setGroup(index: number, value: string) {
 								</label>
 							</FilterDisclosure>
 							<FilterDisclosure
-								v-if="
-									dataset === 'expiry' ||
-									(dataset === 'loans' && query.view === 'items')
+								v-if="dataset === 'loans'"
+								label="借用状态"
+								field="loanStatus"
+								:summary="
+									query.loanStatus === 'all'
+										? '全部'
+										: query.loanStatus === 'settled'
+											? '已结清'
+											: '未结清'
 								"
-								:label="dataset === 'loans' ? '已结清物品' : '零库存'"
+							>
+								<label class="form-field">
+									<select v-model="query.loanStatus" aria-label="借用状态">
+										<option value="outstanding">未结清</option>
+										<option value="settled">已结清</option>
+										<option value="all">全部</option>
+									</select>
+								</label>
+							</FilterDisclosure>
+							<FilterDisclosure
+								v-if="dataset === 'expiry'"
+								label="零库存"
 								field="includeZero"
 								:summary="query.includeZero ? '显示' : '隐藏'"
 							>
 								<label class="form-choice-label"
-									><input type="checkbox" v-model="query.includeZero" />{{
-										dataset === "loans" ? "显示已结清物品" : "包含零库存"
-									}}</label
+									><input
+										type="checkbox"
+										v-model="query.includeZero"
+									/>包含零库存</label
 								>
 							</FilterDisclosure>
 							<FilterDisclosure

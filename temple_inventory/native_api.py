@@ -38,6 +38,8 @@ HEADER_FIELDS = {
 	"ti_handler_name",
 	"ti_reviewer_name",
 }
+SETTLEMENT_KINDS = ("Return", "Damage", "Loss")
+SETTLEMENT_HEADER_FIELDS = {"ti_activity", "ti_borrower"}
 ENTRY_LINE_FIELDS = {
 	"item_code",
 	"qty",
@@ -57,11 +59,7 @@ ENTRY_LINE_FIELDS = {
 }
 COUNT_LINE_FIELDS = {"item_code", "warehouse", "batch_no", "qty", "use_serial_batch_fields"}
 COUNT_HEADER_FIELDS = {
-	"ti_count_scope",
-	"ti_baseline_timestamp",
-	"ti_count_warehouses",
-	"ti_count_items",
-	"ti_baseline_fingerprint",
+	"ti_time_mode",
 	"ti_notes",
 }
 REVIEW_FIELDS = {
@@ -139,11 +137,14 @@ def _apply(doc, data):
 	allowed = HEADER_FIELDS | (COUNT_HEADER_FIELDS if doc.doctype == "Stock Reconciliation" else set())
 	if doc.doctype == "Stock Reconciliation":
 		allowed.discard("remarks")
+	if doc.doctype == "Stock Entry" and (data.get("ti_movement_kind") or doc.get("ti_movement_kind")) in (
+		SETTLEMENT_KINDS
+	):
+		# Settlement borrower and activity come from the original loan lines on validate.
+		allowed -= SETTLEMENT_HEADER_FIELDS
 	for field in allowed:
 		if field in data:
 			value = data[field]
-			if field in ("ti_count_items", "ti_count_warehouses") and not isinstance(value, str):
-				value = frappe.as_json(value)
 			doc.set(field, value)
 	if "items" in data:
 		_apply_lines(doc, data["items"])
@@ -308,7 +309,7 @@ def submit_document(doctype, name, version):
 			"Material Issue": "Issue",
 			"Material Transfer": "Transfer",
 		}[doc.purpose]
-	if doc.doctype == "Stock Entry" and doc.get("ti_time_mode") == "Current":
+	if doc.get("ti_time_mode") == "Current":
 		current = frappe.utils.now_datetime()
 		doc.posting_date, doc.posting_time = current.date(), current.time()
 		doc.set_posting_time = 1

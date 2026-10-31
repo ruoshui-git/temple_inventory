@@ -2,8 +2,6 @@
 
 # ruff: noqa: RUF001 — Chinese UI punctuation is intentional.
 
-import hashlib
-import json
 from decimal import Decimal
 
 import frappe
@@ -16,7 +14,7 @@ from temple_inventory.native_access import (
 	require_app,
 	retry_native_request,
 )
-from temple_inventory.native_balances import batch_balances, lock_stock_locations, stock_balance
+from temple_inventory.native_balances import lock_stock_locations
 from temple_inventory.native_stock import (
 	number,
 	validate_precision,
@@ -29,39 +27,68 @@ def _key(row):
 	return row.get("item_code"), row.get("warehouse"), row.get("batch_no") or ""
 
 
-def _baseline(warehouses, timestamp, scope, item_codes=None, *, lock=False):
+def _lock_count_locations():
 	_settings, _visible, physical, _leased, _damaged = warehouse_scopes()
-	if isinstance(warehouses, str):
-		warehouses = frappe.parse_json(warehouses)
-	if not isinstance(warehouses, list) or not warehouses:
-		frappe.throw("请选择至少一个实体末级盘点位置")
-	warehouses = sorted(set(warehouses))
-	if any(not isinstance(name, str) or name not in physical for name in warehouses):
-		frappe.throw("盘点位置必须全部属于有权限的实体末级位置", frappe.PermissionError)
-	for warehouse in warehouses:
-		frappe.get_doc("Warehouse", warehouse).check_permission("read")
-	if scope not in ("Selected", "Full Location"):
-		frappe.throw("请选择有效的盘点范围")
+	warehouses = tuple(sorted(physical))
+	if warehouses:
+		frappe.db.sql(
+			"""select name from `tabWarehouse` where name in %(warehouses)s
+			order by name for update""",
+			{"warehouses": warehouses},
+		)
+
+
+def _baseline(timestamp, *, lock=False, previous_rows=None):
+	_settings, _visible, physical, _leased, _damaged = warehouse_scopes()
+	warehouses = sorted(set(physical))
+	if not warehouses:
+		frappe.throw("没有可访问的实体末级盘点位置")
+	readable_warehouses = set(
+		frappe.get_list("Warehouse", filters={"name": ["in", warehouses]}, pluck="name")
+	)
+	if readable_warehouses != set(warehouses):
+		frappe.throw("盘点位置包含无权访问的实体末级位置", frappe.PermissionError)
 	posting = get_datetime(timestamp)
 	if not timestamp:
-		frappe.throw("请选择盘点基准时间")
-	selected = sorted(set(frappe.parse_json(item_codes) or []))
-	if scope == "Selected":
-		if not selected:
-			frappe.throw("请选择盘点物品")
-		if any(not isinstance(code, str) for code in selected):
-			frappe.throw("盘点物品范围无效")
-	else:
-		# Scope is the explicit set of authorized locations; preserve its whole baseline.
-		candidates = frappe.db.sql(
-			"""select distinct item_code from `tabStock Ledger Entry`
-			where warehouse in %(warehouses)s and is_cancelled = 0
-			and timestamp(posting_date, posting_time) <= %(posting)s order by item_code"""
-			+ (" for update" if lock else ""),
-			{"warehouses": tuple(warehouses), "posting": posting},
-			pluck=True,
-		)
-		selected = candidates
+		frappe.throw("请选择盘点时间")
+	previous = {_key(row): row for row in (previous_rows or [])}
+	added = {key[0] for key in previous}
+	where_args = {"warehouses": tuple(warehouses), "posting": posting}
+	ledger_rows = frappe.db.sql(
+		"""select item_code, warehouse, sum(actual_qty) as qty
+		from `tabStock Ledger Entry`
+		where warehouse in %(warehouses)s and is_cancelled = 0 and docstatus = 1
+		and posting_datetime <= %(posting)s and serial_and_batch_bundle is null
+		and batch_no is null group by item_code, warehouse""",
+		where_args,
+		as_dict=True,
+	)
+	batch_rows = frappe.db.sql(
+		"""select sle.item_code, sle.warehouse, sbe.batch_no, sum(sbe.qty) as qty
+		from `tabStock Ledger Entry` sle
+		inner join `tabSerial and Batch Entry` sbe on sbe.parent = sle.serial_and_batch_bundle
+		where sle.warehouse in %(warehouses)s and sle.is_cancelled = 0 and sle.docstatus = 1
+		and sle.posting_datetime <= %(posting)s and sle.serial_and_batch_bundle is not null
+		and sbe.docstatus = 1 and sbe.is_cancelled = 0 and sbe.batch_no is not null
+		group by sle.item_code, sle.warehouse, sbe.batch_no
+		union all
+		select item_code, warehouse, batch_no, sum(actual_qty) as qty
+		from `tabStock Ledger Entry`
+		where warehouse in %(warehouses)s and is_cancelled = 0 and docstatus = 1
+		and posting_datetime <= %(posting)s and serial_and_batch_bundle is null
+		and batch_no is not null group by item_code, warehouse, batch_no""",
+		where_args,
+		as_dict=True,
+	)
+	quantities = {}
+	for entry in ledger_rows:
+		quantities[(entry.item_code, entry.warehouse, "")] = float(entry.qty or 0)
+	for entry in batch_rows:
+		key = (entry.item_code, entry.warehouse, entry.batch_no or "")
+		quantities[key] = quantities.get(key, 0) + float(entry.qty or 0)
+	for key in previous:
+		quantities.setdefault(key, 0)
+	selected = sorted({key[0] for key, qty in quantities.items() if qty} | added)
 	items = frappe.get_list(
 		"Item",
 		filters={"name": ["in", selected or [""]], "disabled": 0, "is_stock_item": 1},
@@ -69,62 +96,52 @@ def _baseline(warehouses, timestamp, scope, item_codes=None, *, lock=False):
 		limit_page_length=0,
 	)
 	items_by_name = {row.name: row for row in items}
-	if scope == "Selected" and set(items_by_name) != set(selected):
-		frappe.throw("所选物品不存在、停用或无权访问", frappe.PermissionError)
+	from temple_inventory.catalog import item_display_summaries
+
+	display_items = item_display_summaries(sorted(items_by_name))
+	by_item = {}
+	for (item_code, warehouse, batch), quantity in quantities.items():
+		if quantity or (item_code, warehouse, batch) in previous:
+			by_item.setdefault(item_code, []).append((warehouse, batch, quantity))
 	rows = []
-	for code in sorted(selected):
-		item = items_by_name.get(code)
-		if not item:
-			continue
-		if lock:
-			frappe.db.get_value("Item", code, "name", for_update=True)
+	for code in sorted(items_by_name):
+		item = items_by_name[code]
 		if item.has_serial_no:
 			frappe.throw("物资管理暂不支持序列号盘点")
-		for warehouse in warehouses:
-			if item.has_batch_no:
-				quantities = batch_balances(
-					code, warehouse, str(posting), lock=lock, include_zero=scope == "Selected"
-				)
-				quantities = [
-					(row.get("batch_no"), row.get("qty"))
-					for row in quantities
-					if row.get("batch_no") and (row.get("qty") or scope == "Selected")
-				]
-			else:
-				quantity = stock_balance(code, warehouse, str(posting), lock=lock)
-				quantities = [(None, quantity)] if quantity or scope == "Selected" else []
-			for batch, quantity in quantities:
-				if batch:
-					frappe.get_doc("Batch", batch).check_permission("read")
-				rows.append(
-					{
-						"item_code": code,
-						"item_name": item.item_name,
-						"image": item.image or "",
-						"warehouse": warehouse,
-						"batch_no": batch,
-						"stock_uom": item.stock_uom,
-						"baseline_qty": float(quantity),
-						"actual_qty": None,
-						"review_state": "Unreviewed",
-						"reason": "",
-					}
-				)
-	canonical = [(row["item_code"], row["warehouse"], row["batch_no"], row["baseline_qty"]) for row in rows]
-	fingerprint = hashlib.sha256(
-		json.dumps([warehouses, str(posting), scope, selected, canonical], ensure_ascii=False).encode()
-	).hexdigest()
-	return {"rows": rows, "fingerprint": fingerprint, "timestamp": str(posting), "warehouses": warehouses}
+		display = display_items.get(code, {})
+		for warehouse, batch, quantity in by_item.get(code, ()):
+			if item.has_batch_no != bool(batch):
+				continue
+			rows.append(
+				{
+					"item_code": code,
+					"item_name": display.get("item_name") or item.item_name,
+					"image": display.get("image") or "",
+					"warehouse": warehouse,
+					"batch_no": batch or None,
+					"stock_uom": item.stock_uom,
+					"baseline_qty": float(quantity),
+					"actual_qty": None,
+					"review_state": "Unreviewed",
+					"reason": "",
+				}
+			)
+	batch_names = {row["batch_no"] for row in rows if row["batch_no"]}
+	if batch_names:
+		permitted = set(frappe.get_list("Batch", filters={"name": ["in", list(batch_names)]}, pluck="name"))
+		if batch_names - permitted:
+			frappe.throw("无权读取盘点批次", frappe.PermissionError)
+	return {"rows": rows, "timestamp": str(posting), "warehouses": warehouses}
 
 
 @frappe.whitelist()
-def count_baseline(warehouses, timestamp, scope="Full Location", item_codes=None, previous_rows=None):
+def count_baseline(timestamp, previous_rows=None):
 	require_app()
 	if not frappe.has_permission("Stock Reconciliation", "create") and not frappe.has_permission(
 		"Stock Reconciliation", "write"
 	):
 		frappe.throw("没有创建或编辑盘点的权限", frappe.PermissionError)
-	result = _baseline(warehouses, timestamp, scope, item_codes)
+	result = _baseline(timestamp, previous_rows=frappe.parse_json(previous_rows) or [])
 	previous = {_key(row): row for row in (frappe.parse_json(previous_rows) or [])}
 	for row in result["rows"]:
 		old = previous.get(_key(row))
@@ -154,12 +171,12 @@ def _differences(review_rows, baseline_rows):
 		seen.add(key)
 		book = baseline[key]
 		row["stock_uom"] = book["stock_uom"]
-		if Decimal(str(row.get("baseline_qty"))) != Decimal(str(book["baseline_qty"])):
-			frappe.throw("账面数量已变化，请刷新并重新核对", frappe.TimestampMismatchError)
 		state = row.get("review_state")
 		if state == "Unreviewed":
 			row["difference"] = 0
 			continue
+		if Decimal(str(row.get("baseline_qty"))) != Decimal(str(book["baseline_qty"])):
+			frappe.throw("账面数量已变化，请刷新并重新核对", frappe.TimestampMismatchError)
 		if state != "Reviewed" or row.get("actual_qty") in (None, ""):
 			frappe.throw("请填写实点数量，或清空为未核对")
 		reviewed += 1
@@ -198,19 +215,24 @@ def save_count(request_id, data, name=None, version=None):
 		frappe.has_permission("Stock Reconciliation", "create", throw=True)
 	# Matching counts must use the same current baseline and authorization checks
 	# as adjustments. They still create no document.
-	warehouses = data.get("ti_count_warehouses")
-	for warehouse in sorted(set(warehouses or [])):
-		frappe.db.get_value("Warehouse", warehouse, "name", for_update=True)
-	baseline = _baseline(
-		warehouses,
-		data.get("ti_baseline_timestamp"),
-		data.get("ti_count_scope"),
-		data.get("ti_count_items"),
-		lock=True,
-	)
-	if data.get("ti_baseline_fingerprint") != baseline["fingerprint"]:
-		frappe.throw("账面基准已变化，请刷新并重新核对", frappe.TimestampMismatchError)
 	reviews = data.get("ti_count_review") or []
+	_lock_count_locations()
+	baseline = _baseline(
+		f"{data.get('posting_date')} {data.get('posting_time')}",
+		lock=True,
+		previous_rows=reviews,
+	)
+	current = {_key(row): row for row in baseline["rows"]}
+	stale = [
+		row
+		for row in reviews
+		if row.get("review_state") == "Reviewed" and row.get("actual_qty") not in (None, "")
+		if _key(row) in current
+		and Decimal(str(row.get("baseline_qty") or 0)) != Decimal(str(current[_key(row)]["baseline_qty"]))
+	]
+	if stale:
+		labels = "、".join(f"{row.get('item_code')}@{row.get('warehouse')}" for row in stale)
+		frappe.throw(f"基准已变化的盘点行：{labels}。请逐行确认仍按当前实点后再保存或确认。")
 	differences = _differences(reviews, baseline["rows"])
 	if not differences:
 		# A saved native draft remains untouched; the UI offers explicit deletion.
@@ -235,8 +257,13 @@ def save_count(request_id, data, name=None, version=None):
 		for row in data["items"]:
 			if _key(row) in by_key:
 				row["name"] = by_key[_key(row)]
-		return native_api.save_document("Stock Reconciliation", name, version, data)
-	return native_api.create_document("Stock Reconciliation", request_id, data)
+	frappe.flags.ti_count_baseline = baseline
+	try:
+		if name:
+			return native_api.save_document("Stock Reconciliation", name, version, data)
+		return native_api.create_document("Stock Reconciliation", request_id, data)
+	finally:
+		frappe.flags.pop("ti_count_baseline", None)
 
 
 def _native_values(doc):
@@ -249,6 +276,7 @@ def before_validate(doc, method=None):
 	validate_assignment(doc)
 	if not doc.get("ti_count_review"):
 		return
+	_lock_count_locations()
 	check_company(doc)
 	previous = doc.get_doc_before_save()
 	if previous and previous.get("ti_count_review"):
@@ -260,24 +288,24 @@ def before_validate(doc, method=None):
 			# Ordinary Desk edits invalidate custom review context instead of presenting
 			# an earlier review as the result of the newly edited reconciliation.
 			doc.set("ti_count_review", [])
-			doc.ti_count_scope = None
-			doc.ti_baseline_timestamp = None
-			doc.ti_baseline_fingerprint = None
 			return
-	baseline = _baseline(
-		doc.ti_count_warehouses,
-		doc.ti_baseline_timestamp,
-		doc.ti_count_scope,
-		doc.ti_count_items,
+	baseline = frappe.flags.get("ti_count_baseline") or _baseline(
+		f"{doc.posting_date} {doc.posting_time}",
 		lock=True,
+		previous_rows=[row.as_dict() for row in doc.ti_count_review],
 	)
-	if str(get_datetime(doc.ti_baseline_timestamp)) != str(
-		get_datetime(f"{doc.posting_date} {doc.posting_time}")
-	):
-		frappe.throw("盘点基准时间必须与原生盘点调整入账时间相同")
-	if baseline["fingerprint"] != doc.ti_baseline_fingerprint:
-		frappe.throw("账面基准已变化，请刷新并重新核对", frappe.TimestampMismatchError)
 	review_dicts = [row.as_dict() for row in doc.ti_count_review]
+	current = {_key(row): row for row in baseline["rows"]}
+	stale = [
+		row
+		for row in review_dicts
+		if row.get("review_state") == "Reviewed" and row.get("actual_qty") not in (None, "")
+		if _key(row) in current
+		and Decimal(str(row.get("baseline_qty") or 0)) != Decimal(str(current[_key(row)]["baseline_qty"]))
+	]
+	if stale:
+		labels = "、".join(f"{row.get('item_code')}@{row.get('warehouse')}" for row in stale)
+		frappe.throw(f"基准已变化的盘点行：{labels}。请重新核对后再提交。")
 	differences = _differences(review_dicts, baseline["rows"])
 	for row, value in zip(doc.ti_count_review, review_dicts, strict=True):
 		row.difference = value["difference"]

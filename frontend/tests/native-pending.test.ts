@@ -88,18 +88,23 @@ describe("native damaged-stock workspace", () => {
       damageOnly: true,
       includeZero: false,
     });
+    c.enterSelection();
+    c.setSelected(String(row.id), true);
+    await flushPromises();
     await wrapper
-      .findAll("button")
+      .findAll(".selection-bar button")
       .find((button) => button.text() === "修复归库")!
       .trigger("click");
     expect(page.emitted("operation")?.[0]).toEqual([
       "Repair",
-      {
-        item_code: "ITEM,A",
-        warehouse: "DAMAGED / A,1",
-        batch_no: "BATCH-A",
-        qty: 5,
-      },
+      [
+        {
+          item_code: "ITEM,A",
+          warehouse: "DAMAGED / A,1",
+          batch_no: "BATCH-A",
+          qty: 5,
+        },
+      ],
     ]);
     expect(c.rowQuery(row)).toMatchObject({
       damageOnly: true,
@@ -130,7 +135,7 @@ describe("native damaged-stock workspace", () => {
     expect(wrapper.text()).not.toContain("当前没有符合条件");
     expect(wrapper.text()).not.toContain("0 条分配");
   });
-  it("keeps damaged row actions quiet and moves details and export into the row menu", async () => {
+  it("keeps damaged rows free of inline actions and shows the neutral note on the shared layout", async () => {
     const originalMatchMedia = window.matchMedia;
     Object.defineProperty(window, "matchMedia", {
       configurable: true,
@@ -142,28 +147,17 @@ describe("native damaged-stock workspace", () => {
     });
     const { wrapper } = setup();
     await flushPromises();
-    expect(wrapper.get(".browse-row-link").text()).toBe("待修物品");
-    const actions = wrapper.get(".damaged-row-actions");
-    const repair = actions
-      .findAll("button")
-      .find((button) => button.text() === "修复归库")!;
-    const disposal = actions
-      .findAll("button")
-      .find((button) => button.text() === "报废")!;
-    expect(repair.classes()).toContain("ui-button--secondary");
-    expect(disposal.classes()).toContain("ui-button--ghost");
-    expect(disposal.classes()).toContain("damaged-disposal-button");
+    expect(wrapper.find(".damaged-row-actions").exists()).toBe(false);
+    expect(wrapper.find(".damaged-callout").exists()).toBe(false);
     expect(
-      actions.findAll("button").some((button) => button.text() === "物品详情"),
+      wrapper
+        .findAll("button")
+        .some((button) => ["修复归库", "报废"].includes(button.text())),
     ).toBe(false);
-    expect(actions.find('[aria-label="更多损坏物品操作"]').exists()).toBe(true);
-    expect(actions.findComponent({ name: "PopupMenu" }).props("sheet")).toBe(
-      true,
-    );
-    expect(
-      document.body.querySelector(".damaged-mobile-menu-action")?.textContent,
-    ).toContain("修复归库");
-    expect(wrapper.get(".damaged-callout").text()).toContain("条明细");
+    const note = wrapper.get(".notice-bar");
+    expect(note.text()).toContain("损坏物资待处理");
+    expect(note.classes()).not.toContain("danger");
+    expect(note.classes()).not.toContain("warning");
     expect(wrapper.get(".browse-summary-line").text()).toContain("条存放明细");
     const rail = wrapper.get(".browse-filter-rail").element;
     const results = wrapper.get(".damaged-results-card").element;

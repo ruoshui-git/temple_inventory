@@ -1295,12 +1295,14 @@ def _workflow(company, items, rooms, *, attach_files):
 def _count(company, rooms, items):
 	stamp = _date(-1) + " 12:00:00"
 	warehouses = [rooms["DEMO_A"], rooms["DEMO_SHELF"]]
-	selected_items = [items["N-WORKFLOW"]["item_code"], items["N-ZERO"]["item_code"]]
-	baseline = counts.count_baseline(warehouses, stamp, "Selected", selected_items)
+	baseline = counts.count_baseline(stamp)
 	rows = []
 	for row in baseline["rows"]:
 		copy = dict(row)
-		if row["item_code"] == items["N-WORKFLOW"]["item_code"]:
+		if row["warehouse"] not in warehouses:
+			# The count lists every physical leaf; leaves outside this joint count stay blank.
+			copy.update(actual_qty=None, review_state="Unreviewed", reason="")
+		elif row["item_code"] == items["N-WORKFLOW"]["item_code"]:
 			copy.update(
 				actual_qty=float(row["baseline_qty"]) + (-1 if row["warehouse"] == rooms["DEMO_A"] else 1),
 				review_state="Reviewed",
@@ -1319,11 +1321,7 @@ def _count(company, rooms, items):
 			"company": company,
 			"posting_date": _date(-1),
 			"posting_time": "12:00:00",
-			"ti_count_warehouses": warehouses,
-			"ti_count_scope": "Selected",
-			"ti_count_items": selected_items,
-			"ti_baseline_timestamp": baseline["timestamp"],
-			"ti_baseline_fingerprint": baseline["fingerprint"],
+			"ti_time_mode": "Historical",
 			"ti_count_review": rows,
 			"ti_notes": "两个位置的联合盘点",
 		},
@@ -1346,17 +1344,20 @@ def _volume_counts(company, rooms, items, *, count_item=None, submitted=17, draf
 		posting_date = _date(days)
 		posting_time = "23:00:00"
 		stamp = posting_date + " " + posting_time
-		baseline = counts.count_baseline(warehouses, stamp, "Selected", selected_items)
+		baseline = counts.count_baseline(stamp)
 		rows = []
 		for row in baseline["rows"]:
 			copy = dict(row)
-			copy.update(
-				actual_qty=float(row["baseline_qty"]),
-				review_state="Reviewed",
-				reason="日常库存抽查",
-			)
-			if row["item_code"] == selected_items[0] and row["warehouse"] == rooms["DEMO_A"]:
-				copy["actual_qty"] = float(row["baseline_qty"]) + 1
+			if row["warehouse"] not in warehouses:
+				copy.update(actual_qty=None, review_state="Unreviewed", reason="")
+			else:
+				copy.update(
+					actual_qty=float(row["baseline_qty"]),
+					review_state="Reviewed",
+					reason="日常库存抽查",
+				)
+				if row["item_code"] == selected_items[0] and row["warehouse"] == rooms["DEMO_A"]:
+					copy["actual_qty"] = float(row["baseline_qty"]) + 1
 			rows.append(copy)
 
 		def save():
@@ -1366,11 +1367,7 @@ def _volume_counts(company, rooms, items, *, count_item=None, submitted=17, draf
 					"company": company,
 					"posting_date": posting_date,
 					"posting_time": posting_time,
-					"ti_count_warehouses": warehouses,
-					"ti_count_scope": "Selected",
-					"ti_count_items": selected_items,
-					"ti_baseline_timestamp": baseline["timestamp"],
-					"ti_baseline_fingerprint": baseline["fingerprint"],
+					"ti_time_mode": "Historical",
 					"ti_count_review": rows,
 					"ti_notes": "日常库存抽查",
 				},
@@ -1395,9 +1392,10 @@ def _mixed_count(company, rooms, items):
 	warehouses = [row.name for row in _physical_leaves(company, settings.physical_root_warehouse)]
 	posting_time = frappe.utils.now_datetime().strftime("%H:%M:%S")
 	stamp = _date(0) + " " + posting_time
-	codes = sorted({item["item_code"] for key, item in items.items() if not key.startswith("C-")})
-	baseline = counts.count_baseline(warehouses, stamp, "Selected", codes)
-	all_rows = baseline["rows"]
+	baseline = counts.count_baseline(stamp)
+	# Costume stock is counted by its own sample flows, not by the mixed reconciliation.
+	counted_codes = {item["item_code"] for key, item in items.items() if not key.startswith("C-")}
+	all_rows = [row for row in baseline["rows"] if row["item_code"] in counted_codes]
 	location_counts = defaultdict(set)
 	for row in all_rows:
 		if float(row["baseline_qty"]) > 0:
@@ -1442,15 +1440,20 @@ def _mixed_count(company, rooms, items):
 	selected = list(dict.fromkeys(batch_stocked[:1] + sorted(rows_by_item)))[:40]
 	if len(selected) < 40:
 		frappe.throw("混合盘点样例需要至少 40 个有库存物品")
-	baseline = counts.count_baseline(warehouses, stamp, "Selected", selected)
+	baseline = counts.count_baseline(stamp)
 	rows = []
 	reviewed_stock_rows = 0
 	location_indices = {location: index for index, location in enumerate(warehouses)}
+	selected_codes = set(selected)
 	deltas = (-8, -5, -3, -1, 2, 4, 7, 12, 1, 3)
 	for row in baseline["rows"]:
 		copy = dict(row)
 		quantity = float(row["baseline_qty"])
-		if quantity <= 0:
+		if (
+			quantity <= 0
+			or row["warehouse"] not in location_indices
+			or row["item_code"] not in selected_codes
+		):
 			copy.update(actual_qty=None, review_state="Unreviewed", reason="")
 		else:
 			reviewed_stock_rows += 1
@@ -1473,11 +1476,7 @@ def _mixed_count(company, rooms, items):
 			"company": company,
 			"posting_date": _date(0),
 			"posting_time": posting_time,
-			"ti_count_warehouses": warehouses,
-			"ti_count_scope": "Selected",
-			"ti_count_items": selected,
-			"ti_baseline_timestamp": baseline["timestamp"],
-			"ti_baseline_fingerprint": baseline["fingerprint"],
+			"ti_time_mode": "Historical",
 			"ti_count_review": rows,
 			"ti_notes": "40 种以上物品，跨三个以上房间与货架，含多单位增减和无变化核对。",
 		},

@@ -124,8 +124,9 @@ export function encodeOperation(
     posting_time: draft.postingTime,
     ti_source_text: draft.source,
     ti_purpose_text: draft.purpose,
-    ti_activity: draft.activity || null,
-    ti_borrower: draft.borrower,
+    ...(draft.kind === "Return"
+      ? {}
+      : { ti_activity: draft.activity || null, ti_borrower: draft.borrower }),
     ti_recorder_name: draft.recorder,
     ti_handler_name: draft.handler,
     ti_reviewer_name: draft.reviewer,

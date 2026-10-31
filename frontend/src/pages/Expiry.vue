@@ -5,12 +5,21 @@ import { exportDestination } from "../lib/nativeNavigation";
 import { operationDestination } from "../lib/nativeNavigation";
 import { browseRouteQuery, browseRouteTarget, routeTarget } from "../lib/routeRegistry";
 import type { ReportQuery } from "../lib/reportContract";
+import type { InitialAllocation } from "../lib/routeSelection";
 const route = useRoute(),
 	router = useRouter();
 function changed(query: ReportQuery) {
 	const target = browseRouteTarget(query);
 	if (route.query.query !== target.query?.query || route.query.view !== target.query?.view)
 		void router.replace(target);
+}
+function newOperation(kind: string, allocations?: InitialAllocation[]) {
+	void router.push(
+		operationDestination(
+			kind,
+			allocations?.length ? { allocations: JSON.stringify(allocations) } : {},
+		),
+	);
 }
 </script>
 
@@ -30,7 +39,7 @@ function changed(query: ReportQuery) {
 				query: { back: route.fullPath },
 			})
 		"
-		@new-operation="router.push(operationDestination($event))"
+		@new-operation="newOperation"
 		@open-export="router.push(exportDestination($event))"
 	/>
 </template>

@@ -32,7 +32,6 @@ export const recoveryLabels: Record<string, Record<string, string>> = {
   kind: movementLabels,
   ti_movement_kind: movementLabels,
   review_state: { Reviewed: "已核对", Unreviewed: "未核对" },
-  ti_count_scope: { Selected: "选择的物品", "Full Location": "完整库位" },
   ti_time_mode: {
     Manual: "手动指定",
     Now: "使用当前时间",
@@ -58,6 +57,7 @@ export const recoveryLabels: Record<string, Record<string, string>> = {
 };
 
 export const reportLoanStatusLabels: Record<string, string> = {
+  all: "全部",
   open: "未结清",
   outstanding: "未结清",
   settled: "已结清",
@@ -132,11 +132,6 @@ const reviewLabels: Record<string, string> = {
   Reviewed: "已核对",
 };
 
-const countScopeLabels: Record<string, string> = {
-  Selected: "选定物品",
-  "Full Location": "整个库位",
-};
-
 const relationshipLabels: Record<string, string> = {
   direct: "直接关联",
   "via original loan": "经原借出关联",
@@ -167,7 +162,6 @@ export function enumPresentationLabel(
     return "状态未知";
   }
   if (field === "review_state") return reviewLabels[raw] || "核对状态未知";
-  if (field === "count_scope") return countScopeLabels[raw] || "盘点范围未知";
   if (field === "relationship")
     return relationshipLabels[raw] || "关联方式未知";
   return raw || "未指定";

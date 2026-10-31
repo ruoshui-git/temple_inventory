@@ -14,7 +14,9 @@ from temple_inventory.projections import group_page, report_page
 from temple_inventory.report_query import DEFINITIONS, group_sequences_for_view, validate_query
 from temple_inventory.tests.test_native_documents import NativeDocumentTests
 
-GOLDEN_PATH = Path(__file__).with_name("fixtures") / "browse_golden.json"
+GOLDEN_PATH = Path(
+	os.environ.get("TI_BROWSE_GOLDEN_PATH", Path(__file__).with_name("fixtures") / "browse_golden.json")
+)
 
 
 class BrowseGoldenTests(NativeDocumentTests):
@@ -147,7 +149,14 @@ class BrowseGoldenTests(NativeDocumentTests):
 				if view == "historical":
 					today = str(nowdate())
 					report_scope["period"] = {"key": "custom", "from": today, "to": today}
-				report_query = validate_query({"dataset": dataset, "view": view, "scope": report_scope})
+				# Count line ids embed random Frappe child names, so the default identity order can
+				# flip between runs; the golden orders count lines by location instead.
+				count_order = (
+					{"sortBy": "warehouse", "sort": "asc"} if (dataset, view) == ("counts", "lines") else {}
+				)
+				report_query = validate_query(
+					{"dataset": dataset, "view": view, "scope": report_scope, **count_order}
+				)
 				key = f"report_page:{dataset}:{view}"
 				payloads[key] = report_page(report_query, refresh=True)
 				group_by = next(

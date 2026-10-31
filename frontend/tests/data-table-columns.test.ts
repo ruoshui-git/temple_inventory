@@ -63,7 +63,7 @@ describe("DataTable column presentation metadata", () => {
       operationItemColumnsFor("loans", "history", false),
       "borrowed",
     );
-    expect(quantity.label).toBe("数量");
+    expect(quantity.label).toBe("借还数量");
     expect(quantity.hint).toBe("借出为正，归还为负");
   });
 
