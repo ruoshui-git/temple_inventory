@@ -118,6 +118,7 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 | Per-unit 合计 rows | ✅ | |
 | 导出说明 sheet: page, filters, grouping, sort, period, time, account, row count | ✅ | XLSX sheet; PDF shows rows, time, filters and grouping in one line under the title |
 | 🆕 PDF: same rows, visible columns and grouping as XLSX, leading #, Letter, no files; 版式 物资表格 or (stock data) 盘点表 with 实盘/备注 and signatures; Desk-customized formats listed | ✅ | 2026-11-01. Columns sized to content; capped by Temple Inventory Settings → PDF 最多行数 (default 5,000) |
+| 🆕 打印 on saved movement, loan and count records: Letter portrait slip, 单号 on every page, signatures per kind, watermark for drafts/cancelled, Desk Default Print Format honoured, hidden locations refused | ✅ | 2026-11-01. Disabled while edits are unsaved |
 | Readable filename: page–period–time | ✅ | e.g. `货物流动 · 明细-2026-10-01至2026-10-29-20261029-0019.xlsx` |
 | Grouped XLSX: grey "[group] (N)" rows, subtotals, collapsible outline | ✅ | Opens expanded; CSV stays flat |
 | 附带文件: images / images + attachments as ZIP, de-duplicated by reference | ✅ | `images/<物品编号>.*`, `attachments/items/<物品编号>/`, `attachments/records/<编号>/` |
