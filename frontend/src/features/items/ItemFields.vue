@@ -133,8 +133,10 @@ onDeactivated(() => {
 		<template v-if="editing && !trackingChangeable"
 			><dl class="info-grid">
 				<div>
-					<dt>按批次管理</dt>
-					<dd>{{ model.tracksBatch ? "是" : "否" }}</dd>
+					<dt>追踪方式</dt>
+					<dd>
+						{{ model.tracksSerial ? "序列号" : model.tracksBatch ? "批次" : "不追踪" }}
+					</dd>
 				</div>
 				<div>
 					<dt>记录效期</dt>
@@ -146,14 +148,30 @@ onDeactivated(() => {
 			</p></template
 		>
 		<template v-else>
-			<label class="form-choice-label"
-				><input
-					type="checkbox"
-					v-model="model.tracksBatch"
-					:disabled="disabled || model.tracksExpiry"
-				/>按批次管理</label
+			<FormField class="full-width" label="追踪方式" for="item-tracking-mode"
+				><template #default="{ fieldAttrs }">
+					<select
+						v-bind="fieldAttrs"
+						:disabled="disabled"
+						:value="
+							model.tracksSerial ? 'serial' : model.tracksBatch ? 'batch' : 'none'
+						"
+						@change="
+							(event) => {
+								const mode = (event.target as HTMLSelectElement).value;
+								model.tracksSerial = mode === 'serial';
+								model.tracksBatch = mode === 'batch';
+								if (mode !== 'batch') model.tracksExpiry = false;
+							}
+						"
+					>
+						<option value="none">不追踪</option>
+						<option value="batch">批次</option>
+						<option value="serial">序列号</option>
+					</select>
+				</template></FormField
 			>
-			<label class="form-choice-label"
+			<label v-if="model.tracksBatch" class="form-choice-label"
 				><input
 					type="checkbox"
 					v-model="model.tracksExpiry"
@@ -163,7 +181,19 @@ onDeactivated(() => {
 					"
 				/>记录效期</label
 			>
-			<p class="muted">
+			<FormField
+				v-if="model.tracksSerial"
+				class="full-width"
+				label="编号规则"
+				hint="留空则使用默认规则；入库时可自动生成序列号"
+				><template #default="{ fieldAttrs }"
+					><input
+						v-model="model.serialNoSeries"
+						v-bind="fieldAttrs"
+						:placeholder="`${model.code || '物品编号'}-.####`"
+						:disabled="disabled" /></template
+			></FormField>
+			<p v-if="model.tracksBatch" class="muted">
 				{{ model.tracksExpiry ? "效期按批次记录" : "批次、数量和效期在入库单中填写。" }}
 			</p>
 		</template>

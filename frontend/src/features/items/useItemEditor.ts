@@ -29,7 +29,9 @@ export interface ItemInput {
   barcode: string;
   description: string;
   tracksBatch: boolean;
+  tracksSerial: boolean;
   tracksExpiry: boolean;
+  serialNoSeries: string;
 }
 export function useItemEditor(
   props: {
@@ -70,7 +72,9 @@ export function useItemEditor(
     barcode: props.barcode || "",
     description: "",
     tracksBatch: false,
+    tracksSerial: false,
     tracksExpiry: false,
+    serialNoSeries: "",
   });
   const suggestedCode = ref("");
   const existing = ref<
@@ -228,7 +232,11 @@ export function useItemEditor(
           barcode: item.barcodes.map((row) => row.barcode).join("\n"),
           description: item.description,
           tracksBatch: item.has_batch_no,
+          tracksSerial: item.has_serial_no,
           tracksExpiry: item.has_expiry_date,
+          serialNoSeries:
+            (item as typeof item & { serial_no_series?: string })
+              .serial_no_series || "",
         });
         files.load(item.attachments || [], item.image);
       } else await suggest();
@@ -320,7 +328,9 @@ export function useItemEditor(
       barcode: props.barcode || "",
       description: "",
       tracksBatch: false,
+      tracksSerial: false,
       tracksExpiry: false,
+      serialNoSeries: "",
     });
     suggestedCode.value = "";
     initialized.value = false;
@@ -356,6 +366,8 @@ export function useItemEditor(
           description: model.description,
           has_batch_no: model.tracksBatch || model.tracksExpiry,
           has_expiry_date: model.tracksExpiry,
+          has_serial_no: model.tracksSerial,
+          serial_no_series: model.serialNoSeries.trim(),
         },
         ...(existing.value
           ? {

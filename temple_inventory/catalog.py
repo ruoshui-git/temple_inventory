@@ -3,6 +3,7 @@
 # ruff: noqa: RUF001 — Chinese UI punctuation is intentional.
 
 import hashlib
+import re
 
 import frappe
 from frappe.model.naming import make_autoname
@@ -65,6 +66,8 @@ def item_metadata(item, *, include_attachments=True, include_lifecycle=False, co
 		"image": image,
 		"version": str(item.modified),
 		"has_batch_no": bool(item.has_batch_no),
+		"has_serial_no": bool(item.has_serial_no),
+		"serial_no_series": item.serial_no_series or "",
 		"has_expiry_date": bool(item.has_expiry_date),
 		"barcodes": [
 			{"name": row.name, "barcode": row.barcode, "barcode_type": row.barcode_type or ""}
@@ -145,11 +148,13 @@ def _item_can_delete(item):
 def tracking_change_status(item):
 	"""Use ERPNext's native submitted-document link checks for tracking edits."""
 	try:
-		linked = item._get_linked_submitted_documents(["has_batch_no", "has_expiry_date"])
+		linked = item._get_linked_submitted_documents(
+			["has_batch_no", "has_expiry_date", "has_serial_no", "serial_no_series"]
+		)
 	except (AttributeError, TypeError):
 		linked = None
 	if linked:
-		return {"allowed": False, "reason": "已有已提交库存单据，不能更改批次或效期追踪；请新建物品"}
+		return {"allowed": False, "reason": "已有已提交库存单据，不能更改批次、序列号或效期追踪；请新建物品"}
 	return {"allowed": True, "reason": ""}
 
 
@@ -190,7 +195,7 @@ def item_display_summaries(item_codes):
 	items = frappe.get_list(
 		"Item",
 		filters={"name": ["in", sorted(set(item_codes)) or [""]]},
-		fields=["name", "item_name", "image", "has_batch_no", "has_expiry_date"],
+		fields=["name", "item_name", "image", "has_batch_no", "has_expiry_date", "has_serial_no"],
 		limit_page_length=0,
 	)
 	# Only the cover is shown, so authorize just the File that Item.image names,
@@ -224,6 +229,7 @@ def item_display_summaries(item_codes):
 				"item_name": row.item_name,
 				"image": image,
 				"has_batch_no": bool(row.has_batch_no),
+				"has_serial_no": bool(row.has_serial_no),
 				"has_expiry_date": bool(row.has_expiry_date),
 			}
 	return result
@@ -770,7 +776,7 @@ def save_item(data, item_code=None, version=None):
 				frappe.throw("现有物品的编号与库存单位不能在此更改")
 		tracking_changed = any(
 			field in data and bool(cint(data[field])) != bool(item.get(field))
-			for field in ("has_batch_no", "has_expiry_date")
+			for field in ("has_batch_no", "has_expiry_date", "has_serial_no")
 		)
 		enabling_expiry = (
 			"has_expiry_date" in data and cint(data["has_expiry_date"]) and not cint(item.has_expiry_date)
@@ -779,10 +785,18 @@ def save_item(data, item_code=None, version=None):
 			status = tracking_change_status(item)
 			if not status["allowed"]:
 				frappe.throw(status["reason"])
+			if (
+				"has_serial_no" in data
+				and cint(data["has_serial_no"])
+				and not frappe.db.get_single_value("Stock Settings", "enable_serial_and_batch_no_for_item")
+			):
+				frappe.throw("请先在库存设置中启用序列号功能")
 			if "has_batch_no" in data:
 				item.has_batch_no = cint(data["has_batch_no"])
 			if "has_expiry_date" in data:
 				item.has_expiry_date = cint(data["has_expiry_date"])
+			if "has_serial_no" in data:
+				item.has_serial_no = cint(data["has_serial_no"])
 			if item.has_expiry_date:
 				item.has_batch_no = 1
 			if not item.has_batch_no and frappe.db.exists("Batch", {"item": item.name}):
@@ -799,6 +813,7 @@ def save_item(data, item_code=None, version=None):
 		item.stock_uom = data.get("stock_uom")
 		item.has_batch_no = cint(data.get("has_batch_no"))
 		item.has_expiry_date = cint(data.get("has_expiry_date"))
+		item.has_serial_no = cint(data.get("has_serial_no"))
 		item.is_stock_item = 1
 		if not item.stock_uom:
 			frappe.throw("请选择计量单位")
@@ -811,6 +826,10 @@ def save_item(data, item_code=None, version=None):
 			"Stock Settings", "enable_serial_and_batch_no_for_item"
 		):
 			frappe.throw("请先在库存设置中启用批次功能")
+		if item.has_serial_no and not frappe.db.get_single_value(
+			"Stock Settings", "enable_serial_and_batch_no_for_item"
+		):
+			frappe.throw("请先在库存设置中启用序列号功能")
 	for field in ITEM_FIELDS:
 		if field in data:
 			item.set(field, data[field])
@@ -822,6 +841,21 @@ def save_item(data, item_code=None, version=None):
 	if item_code and tracking_changed:
 		item.has_batch_no = cint(item.has_batch_no)
 		item.has_expiry_date = cint(item.has_expiry_date)
+		if "has_serial_no" in data:
+			item.has_serial_no = cint(item.has_serial_no)
+	if item.has_serial_no and item.has_batch_no:
+		frappe.throw("序列号与批次追踪不能同时启用")
+	if item.has_serial_no:
+		if not frappe.get_cached_value("UOM", item.stock_uom, "must_be_whole_number"):
+			frappe.throw("序列号物品的库存单位必须是整数单位")
+		series = str(data.get("serial_no_series") or item.serial_no_series or "").strip()
+		if not series:
+			series = f"{item.item_code}-.####"
+		if not re.search(r"#+", series):
+			frappe.throw("编号规则必须包含至少一个 #")
+		item.serial_no_series = series
+	elif "serial_no_series" in data:
+		item.serial_no_series = str(data.get("serial_no_series") or "").strip()
 	if "barcodes" in data:
 		_barcodes(item, data["barcodes"])
 	item.save()

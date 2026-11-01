@@ -19,6 +19,66 @@ from temple_inventory.tests.test_native_documents import NativeDocumentTests
 
 
 class CatalogItemsTests(NativeDocumentTests):
+	def test_serial_item_defaults_series_and_metadata_exposes_tracking(self):
+		frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)
+		result = catalog.save_item(
+			{
+				"item_code": f"TI-SERIAL-{self.token}",
+				"item_name": "序列物品",
+				"stock_uom": "Nos",
+				"has_serial_no": 1,
+			}
+		)
+		self.assertEqual(result["serial_no_series"], f"{result['item_code']}-.####")
+		self.assertTrue(result["has_serial_no"])
+		self.assertTrue(
+			catalog.item_display_summaries([result["item_code"]])[result["item_code"]]["has_serial_no"]
+		)
+
+	def test_serial_item_rejects_batch_nonwhole_uom_and_invalid_series(self):
+		frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)
+		for data, expected in (
+			({"has_serial_no": 1, "has_batch_no": 1, "stock_uom": "Nos"}, "不能同时启用"),
+			({"has_serial_no": 1, "stock_uom": "Kg"}, "库存单位必须是整数单位"),
+			({"has_serial_no": 1, "stock_uom": "Nos", "serial_no_series": "SERIAL"}, "必须包含至少一个 #"),
+		):
+			with self.assertRaises(frappe.ValidationError) as error:
+				catalog.save_item({"item_name": "无效序列物品", **data})
+			self.assertIn(expected, str(error.exception))
+
+	def test_serial_tracking_cannot_be_changed_after_submitted_native_stock_entry(self):
+		frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)
+		created = catalog.save_item({"item_name": "序列库存物品", "stock_uom": "Nos", "has_serial_no": 1})
+		item = frappe.get_doc("Item", created["item_code"])
+		entry = frappe.get_doc(
+			{
+				"doctype": "Stock Entry",
+				"company": self.company,
+				"posting_date": nowdate(),
+				"purpose": "Material Receipt",
+				"stock_entry_type": "Material Receipt",
+				# A plain ERPNext entry: in-app movements do not take serial Items yet.
+				"ti_movement_kind": "",
+				"items": [
+					{
+						"item_code": item.name,
+						"qty": 1,
+						"uom": "Nos",
+						"conversion_factor": 1,
+						"t_warehouse": self.a,
+						"basic_rate": 10,
+						"use_serial_batch_fields": 1,
+						"serial_no": f"TCAT-{self.token}-SERIAL",
+					}
+				],
+			}
+		).insert()
+		entry.submit()
+		item.reload()
+		with self.assertRaises(frappe.ValidationError) as error:
+			catalog.save_item({"has_serial_no": 0}, item_code=item.name, version=str(item.modified))
+		self.assertIn("已有已提交库存单据", str(error.exception))
+
 	def test_operation_items_filters_an_item_permission_failure_per_code(self):
 		blocked = catalog.save_item(
 			{"item_code": f"TI-BLOCKED-{self.token}", "item_name": "Blocked", "stock_uom": "Nos"}

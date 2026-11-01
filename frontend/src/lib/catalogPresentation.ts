@@ -17,6 +17,8 @@ export interface CatalogItem {
   version: string;
   has_batch_no: boolean;
   has_expiry_date: boolean;
+  has_serial_no?: boolean;
+  serial_no_series?: string;
   can_edit: boolean;
   disabled?: boolean;
   barcodes: { barcode: string }[];

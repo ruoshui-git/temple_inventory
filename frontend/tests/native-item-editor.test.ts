@@ -22,6 +22,8 @@ const item: CatalogItem = {
   can_edit: true,
   description: "说明",
   has_batch_no: false,
+  has_serial_no: false,
+  serial_no_series: "",
   has_expiry_date: false,
   barcodes: [{ barcode: "A" }, { barcode: "B" }],
   uoms: [{ uom: "Kg", conversion_factor: 1 }],
@@ -102,6 +104,24 @@ function fill(c: ReturnType<typeof useItemEditor>) {
   });
 }
 describe("native Item editing and pending uploads", () => {
+  it("includes serial tracking fields in saved data and recovery drafts", async () => {
+    const call = service();
+    const { c } = setup(call);
+    await flushPromises();
+    fill(c);
+    c.model.tracksSerial = true;
+    c.model.serialNoSeries = "CUSTOM-.###";
+    window.dispatchEvent(new Event("beforeunload", { cancelable: true }));
+    expect(c.recovery.list().entries[0]?.values).toMatchObject({
+      tracksSerial: true,
+      serialNoSeries: "CUSTOM-.###",
+    });
+    await c.save();
+    expect(
+      call.mock.calls.find(([method]) => method === "catalog.save_item")?.[1]
+        .data,
+    ).toMatchObject({ has_serial_no: true, serial_no_series: "CUSTOM-.###" });
+  });
   it("uses Nos only when it exists and preserves the user's selected native UOM and multiline barcodes", async () => {
     const call = service(),
       { c, saved } = setup(call);
