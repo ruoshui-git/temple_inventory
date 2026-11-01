@@ -37,6 +37,7 @@ from temple_inventory.tests.test_native_warehouses import NativeWarehouseTests
 from temple_inventory.tests.test_notifications import NotificationTests
 from temple_inventory.tests.test_printing import PrintingTests
 from temple_inventory.tests.test_schema_audit import SchemaAuditTests
+from temple_inventory.tests.test_serial_tracking import SerialTrackingTests
 from temple_inventory.tests.test_table_preferences import TablePreferenceTests
 from temple_inventory.tests.test_units import UnitTests
 
@@ -80,6 +81,7 @@ def run(test_name=None):
 		UnitTests,
 		EnvironmentTests,
 		SchemaAuditTests,
+		SerialTrackingTests,
 		PrintingTests,
 		ActivityTypeTests,
 	):
