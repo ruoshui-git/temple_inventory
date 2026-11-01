@@ -40,7 +40,7 @@ class PrintingTests(NativeDocumentTests):
 		page = PdfReader(io.BytesIO(pdf)).pages[0]
 		self.assertAlmostEqual(float(page.mediabox.width), 612, delta=1)
 		self.assertAlmostEqual(float(page.mediabox.height), 792, delta=1)
-		text = page.extract_text() or ""
+		text = unicodedata.normalize("NFKC", page.extract_text() or "")
 		self.assertIn("登记表", text)
 		self.assertIn(document.name, text)
 		self.assertIn("#", text)
@@ -66,7 +66,7 @@ class PrintingTests(NativeDocumentTests):
 		reader = PdfReader(io.BytesIO(pdf))
 		self.assertLessEqual(len(reader.pages), 2)
 		for page in reader.pages:
-			text = page.extract_text() or ""
+			text = unicodedata.normalize("NFKC", page.extract_text() or "")
 			self.assertIn("登记表", text)
 			self.assertIn(document.name, text)
 			self.assertIn("草稿", unicodedata.normalize("NFKC", text))
@@ -224,7 +224,7 @@ class PrintingTests(NativeDocumentTests):
 			box = page.mediabox
 			self.assertAlmostEqual(float(box.width), 612, delta=1)
 			self.assertAlmostEqual(float(box.height), 792, delta=1)
-			text = page.extract_text() or ""
+			text = unicodedata.normalize("NFKC", page.extract_text() or "")
 			self.assertIn("礼堂折叠椅", "".join(text.split()))
 			self.assertIn("#", text)
 			self.assertIn(document.name, text)
@@ -244,7 +244,7 @@ class PrintingTests(NativeDocumentTests):
 		self.assertAlmostEqual(float(reader.pages[0].mediabox.width), 792, delta=1)
 		self.assertAlmostEqual(float(reader.pages[0].mediabox.height), 612, delta=1)
 		for page in reader.pages:
-			text = page.extract_text() or ""
+			text = unicodedata.normalize("NFKC", page.extract_text() or "")
 			self.assertIn(document.name, text)
 			self.assertIn("#", text)
 			self.assertIn("礼堂折叠椅", "".join(text.split()))
@@ -294,7 +294,10 @@ class PrintingTests(NativeDocumentTests):
 			pdf = render_pdf("Inventory Export Request", request.name, "物资表格")
 			self.assertTrue(pdf.startswith(b"%PDF"))
 			self._save_pdf("export-flat", pdf)
-			text = "".join((page.extract_text() or "") for page in PdfReader(io.BytesIO(pdf)).pages)
+			text = "".join(
+				unicodedata.normalize("NFKC", page.extract_text() or "")
+				for page in PdfReader(io.BytesIO(pdf)).pages
+			)
 			self.assertIn("礼堂折叠椅", text)
 			self.assertIn("1", text)
 			self.assertRegex(text, r"1\s*(?:行|⾏)")
@@ -309,7 +312,8 @@ class PrintingTests(NativeDocumentTests):
 			request.db_set("print_format", "盘点表")
 			count_pdf = render_pdf("Inventory Export Request", request.name, "盘点表")
 			count_text = "".join(
-				(page.extract_text() or "") for page in PdfReader(io.BytesIO(count_pdf)).pages
+				unicodedata.normalize("NFKC", page.extract_text() or "")
+				for page in PdfReader(io.BytesIO(count_pdf)).pages
 			)
 			count_text = unicodedata.normalize("NFKC", count_text)
 			for expected in (
@@ -440,7 +444,7 @@ class PrintingTests(NativeDocumentTests):
 		reader = PdfReader(str(pdf_path))
 		window_size = "1056,816" if landscape else "816,1056"
 		for page_number, page in enumerate(reader.pages, 1):
-			page_text = page.extract_text() or ""
+			page_text = unicodedata.normalize("NFKC", page.extract_text() or "")
 			sequences = [int(value) for value in re.findall(r"(?m)^(\d+)\s+礼堂折叠椅", page_text)]
 			if not sequences:
 				self.fail(f"Could not identify item rows on {stem} PDF page {page_number}")
