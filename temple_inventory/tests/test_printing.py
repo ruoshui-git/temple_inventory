@@ -5,7 +5,9 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import time
+import unicodedata
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -25,6 +27,8 @@ class PrintingTests(NativeDocumentTests):
 		from frappe.utils.jinja import get_jenv
 
 		self.assertIn(".ti-table", ti_print_css())
+		self.assertIn(".print-format .ti-print .ti-table thead th", ti_print_css())
+		self.assertIn("color: #000 !important", ti_print_css())
 		env = get_jenv()
 		self.assertIn("ti_print_css", env.globals)
 		template = env.from_string("{{ item_name | e }}")
@@ -40,6 +44,22 @@ class PrintingTests(NativeDocumentTests):
 			self.assertRaisesRegex(frappe.ValidationError, "PDF 打印需要 Chromium"),
 		):
 			render_pdf("Stock Entry", "missing", "missing")
+
+	def test_render_pdf_rejects_a_wrapper_script_that_would_leak_chromium(self):
+		with tempfile.NamedTemporaryFile("w", suffix=".sh", delete=False) as wrapper:
+			wrapper.write('#!/bin/sh\n/usr/lib/chromium/chromium-headless-shell "$@"\n')
+		os.chmod(wrapper.name, 0o755)
+		try:
+			with (
+				patch(
+					"temple_inventory.printing.frappe.get_common_site_config",
+					return_value={"chromium_path": wrapper.name},
+				),
+				self.assertRaisesRegex(frappe.ValidationError, "启动脚本"),
+			):
+				render_pdf("Stock Entry", "missing", "missing")
+		finally:
+			os.unlink(wrapper.name)
 
 	def test_chrome_slip_letter_page_repeat_escape_and_footer(self):
 		format_name, document = self._spike_document(31)
@@ -79,6 +99,81 @@ class PrintingTests(NativeDocumentTests):
 			self.assertIn("礼堂折叠椅", "".join(text.split()))
 			self.assertRegex(text, r"第\s*\d+\s*/\s*\d+\s*(?:页|⻚)")
 		self._render_pngs("list-300", document, landscape=True)
+
+	def test_shipped_export_formats_render_escaped_rows_and_count_fields(self):
+		from temple_inventory import exports
+		from temple_inventory.report_query import validate_query
+
+		hostile = '<img src=x onerror="alert(1)"> 礼堂折叠椅'
+		self.receipt(1)
+		query = validate_query(
+			{
+				"dataset": "inventory",
+				"view": "locations",
+				"scope": {"item": self.item, "warehouses": [self.root]},
+			}
+		)
+		with patch("temple_inventory.exports._enqueue"):
+			result = exports.request_export(
+				query,
+				"locations",
+				columns=["item_name"],
+				export_format="pdf",
+				print_format="物资表格",
+				summary={"title": "库存列表", "filters": ["有库存"]},
+			)
+		request = frappe.get_doc("Inventory Export Request", result["name"])
+		payload = {
+			"title": "库存列表",
+			"filters": ["有库存"],
+			"generated_at": "2026-11-01 10:30:00",
+			"row_count": 1,
+			"columns": [{"label": "物品名称", "align": "text", "is_main": True}],
+			"rows": [{"style": "row", "sequence": 1, "values": [hostile]}],
+			"orientation": "portrait",
+			"count_sheet": False,
+		}
+		token = exports.pdf_export_context.set(payload)
+		try:
+			format_doc = frappe.get_doc("Print Format", "物资表格")
+			rendered = frappe.get_jenv().from_string(format_doc.html).render(doc=request)
+			self.assertNotIn("<img src=x", rendered)
+			self.assertIn("&lt;img", rendered)
+			self.assertIn("1 行 · 2026-11-01 10:30:00 · 有库存", rendered)
+			pdf = render_pdf("Inventory Export Request", request.name, "物资表格")
+			self.assertTrue(pdf.startswith(b"%PDF"))
+			self._save_pdf("export-flat", pdf)
+			text = "".join((page.extract_text() or "") for page in PdfReader(io.BytesIO(pdf)).pages)
+			self.assertIn("礼堂折叠椅", text)
+			self.assertIn("1", text)
+			self.assertRegex(text, r"1\s*(?:行|⾏)")
+			self.assertRegex(text, r"1\s*(?:行|⾏)\s*·\s*2026-11-01 10:30:00")
+			self.assertRegex(text, r"第\s*1\s*/\s*1\s*(?:页|⻚)")
+
+			payload["rows"] = [
+				{"style": "group-1", "values": ["库位 A (1)"]},
+				{"style": "row", "sequence": 1, "values": ["礼堂折叠椅"]},
+			]
+			payload["row_count"] = 1
+			request.db_set("print_format", "盘点表")
+			count_pdf = render_pdf("Inventory Export Request", request.name, "盘点表")
+			count_text = "".join(
+				(page.extract_text() or "") for page in PdfReader(io.BytesIO(count_pdf)).pages
+			)
+			count_text = unicodedata.normalize("NFKC", count_text)
+			for expected in (
+				"库位 A",
+				"库存列表 盘点表",
+				"实盘",
+				"备注",
+				"盘点人",
+				"复核人",
+				"日期",
+			):
+				self.assertIn(expected, count_text)
+			self.assertNotIn("库存列表 · 盘点表", count_text)
+		finally:
+			exports.pdf_export_context.reset(token)
 
 	@unittest.skipUnless(os.getenv("TI_PDF_5000"), "set TI_PDF_5000=1 for the 5,000-row timing spike")
 	def test_chrome_5000_row_timing_spike(self):

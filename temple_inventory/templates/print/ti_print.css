@@ -24,6 +24,16 @@
 	box-sizing: border-box;
 }
 
+.print-format .ti-print,
+.print-format .ti-print h1,
+.print-format .ti-print h2,
+.print-format .ti-print th,
+.print-format .ti-print td,
+.print-format .ti-print .ti-title,
+.print-format .ti-print .ti-filters {
+	color: #000 !important;
+}
+
 .ti-sheet {
 	width: 100%;
 	font-size: 12pt;
@@ -60,10 +70,39 @@
 }
 
 .ti-table .ti-main {
-	width: 99%;
+	width: 100%;
+	min-width: 50mm;
 	white-space: normal;
 	font-weight: 700;
 	word-break: break-word;
+}
+
+.ti-table .ti-nowrap {
+	white-space: nowrap;
+}
+
+/* Exports size columns on the server (<colgroup>); the main column takes what is left. */
+.ti-table.ti-fixed {
+	table-layout: fixed;
+}
+
+.ti-table.ti-fixed th,
+.ti-table.ti-fixed td {
+	width: auto;
+	min-width: 0;
+}
+
+.ti-table td.ti-wrap,
+.ti-table th.ti-wrap,
+.ti-table .ti-total td {
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+
+.ti-head-row th {
+	font-weight: 700;
+	text-align: center;
+	white-space: normal;
 }
 
 .ti-title-row th {
@@ -72,6 +111,11 @@
 	font-size: 20pt;
 	font-weight: 700;
 	text-align: center;
+}
+
+.print-format .ti-print .ti-table .ti-title-row th {
+	color: #000 !important;
+	font-weight: 700 !important;
 }
 
 .ti-title {
@@ -88,9 +132,19 @@
 	text-align: right;
 }
 
-.ti-table thead tr:nth-child(2) th {
-	font-weight: 700;
-	text-align: center;
+.print-format .ti-print .ti-table thead th {
+	color: #000 !important;
+	font-weight: 700 !important;
+}
+
+.ti-table thead .ti-filter-row th {
+	font-size: 8pt;
+	font-weight: 400;
+	text-align: left;
+}
+
+.print-format .ti-print .ti-table thead .ti-filter-row th {
+	font-weight: 400 !important;
 }
 
 .ti-num {
@@ -111,6 +165,10 @@
 .ti-subtotal,
 .ti-total {
 	margin-top: 3px;
+	font-weight: 700;
+}
+
+.ti-table .ti-subtotal td {
 	font-weight: 700;
 }
 
@@ -142,13 +200,16 @@
 	font-size: 15pt;
 }
 
-.ti-list thead tr:nth-child(2) th {
-	font-size: 10pt;
-}
 
 .ti-list th,
 .ti-list td {
 	padding: 1.5px 4px;
+}
+
+.ti-count tbody td {
+	min-height: 8mm;
+	height: 8mm;
+	padding: 4px 5px;
 }
 
 .ti-group th,

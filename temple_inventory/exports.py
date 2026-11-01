@@ -7,6 +7,7 @@ import json
 import re
 import shutil
 import tempfile
+import unicodedata
 import zipfile
 from contextvars import ContextVar
 from pathlib import Path
@@ -32,6 +33,22 @@ from temple_inventory.uom_labels import uom_label
 
 EXPORT_DOCTYPE = "Inventory Export Request"
 service_write = ContextVar("inventory_export_service_write", default=False)
+pdf_export_context = ContextVar("ti_pdf_export_context", default=None)
+
+GROUP_LABELS = {
+	"item": "物品",
+	"category": "类别",
+	"location": "库位",
+	"kind": "类型",
+	"activityType": "活动类型",
+	"activity": "活动",
+	"borrower": "借用方",
+	"outcome": "结算结果",
+	"source": "来源位置",
+	"destination": "去向位置",
+	"month": "月份",
+	"status": "状态",
+}
 
 
 def request_permission(doc, ptype=None, user=None, **kwargs):
@@ -71,6 +88,7 @@ def _status(doc):
 		"columns": _json_value(getattr(doc, "columns_json", None), []),
 		"grouped": bool(getattr(doc, "grouped", False)),
 		"include_files": getattr(doc, "include_files", "none") or "none",
+		"print_format": getattr(doc, "print_format", "") or "",
 		"file_label": getattr(doc, "file_label", "") or "",
 		"status": doc.status,
 		"progress": progress.get("percent", doc.progress) if isinstance(progress, dict) else doc.progress,
@@ -109,14 +127,17 @@ def request_export(
 	include_files="none",
 	sort_by=None,
 	sort=None,
+	print_format=None,
 ):
 	require_app()
-	if export_format not in ("xlsx", "csv"):
-		frappe.throw("请选择 XLSX 或 CSV 格式")
+	if export_format not in ("xlsx", "csv", "pdf"):
+		frappe.throw("请选择 XLSX、CSV 或 PDF 格式")
 	if type(grouped) is not bool:
 		frappe.throw("请选择有效的分组导出选项")
 	if include_files not in ("none", "images", "all"):
 		frappe.throw("请选择有效的附件导出范围")
+	if export_format == "pdf" and include_files != "none":
+		frappe.throw("PDF 不附带文件")
 	if grouped and export_format == "csv":
 		frappe.throw("CSV 不支持分组导出")
 	validated = validate_query(query)
@@ -194,6 +215,13 @@ def request_export(
 			sort = sort or "desc"
 		if not projection.query.get("groupBy"):
 			grouped = False
+		if export_format == "pdf":
+			if not print_format:
+				frappe.throw("请选择 PDF 版式")
+			_validate_print_format(print_format, validated["dataset"])
+			limit = _pdf_max_rows()
+			if projection.count(table) > limit:
+				frappe.throw(f"PDF 最多 {limit} 行，请缩小筛选范围或导出 XLSX", frappe.ValidationError)
 		selected = columns or [
 			field for field in default_columns(validated["dataset"], table) if field in allowed
 		]
@@ -214,6 +242,7 @@ def request_export(
 			"doctype": EXPORT_DOCTYPE,
 			"query_json": json.dumps(validated, ensure_ascii=False),
 			"export_format": export_format,
+			"print_format": print_format or "",
 			"tables_json": json.dumps([table]),
 			"columns_json": json.dumps(selected),
 			"summary_json": json.dumps(summary, ensure_ascii=False),
@@ -238,6 +267,37 @@ def request_export(
 		service_write.reset(token)
 	_enqueue(doc)
 	return {**_status(doc), "table": table, "columns": selected, "file_label": doc.file_label}
+
+
+def _pdf_max_rows():
+	return int(frappe.db.get_single_value("Temple Inventory Settings", "pdf_max_rows") or 5000)
+
+
+def _validate_print_format(name, dataset):
+	format_doc = frappe.db.get_value("Print Format", name, ["doc_type", "disabled"], as_dict=True)
+	if not format_doc or format_doc.doc_type != EXPORT_DOCTYPE or format_doc.disabled:
+		frappe.throw("请选择已启用的物资导出版式", frappe.ValidationError)
+	if name == "盘点表" and dataset != "inventory":
+		frappe.throw("盘点表仅适用于库存数据", frappe.ValidationError)
+	return name
+
+
+@frappe.whitelist()
+def export_print_formats(dataset):
+	require_app()
+	if dataset not in ("inventory", "movements", "counts", "loans"):
+		frappe.throw("请选择有效的数据范围", frappe.ValidationError)
+	formats = frappe.get_all(
+		"Print Format",
+		filters={"doc_type": EXPORT_DOCTYPE, "disabled": 0},
+		fields=["name", "standard"],
+		order_by="standard desc, name asc",
+	)
+	return [
+		{"name": row.name, "label": row.name, "count_sheet": row.name == "盘点表"}
+		for row in formats
+		if row.name != "盘点表" or dataset == "inventory"
+	]
 
 
 @frappe.whitelist()
@@ -475,6 +535,35 @@ def _write_data(projection, doc, path, *, rows=None, row_files=None):
 			reverse=(getattr(doc, "export_sort", "") or "desc") == "desc",
 		)
 	count = 0
+	if doc.export_format == "pdf":
+		collector = _PdfRows()
+		count_sheet = getattr(doc, "print_format", "") == "盘点表"
+		if bool(getattr(doc, "grouped", False)) and projection.query.get("groupBy"):
+			count = _write_grouped_rows(
+				collector,
+				list(rows),
+				columns,
+				table,
+				projection,
+				row_files=row_files,
+				styles=("group-1", "group-2"),
+				include_subtotals=not count_sheet,
+				include_grand_total=not count_sheet,
+			)
+		else:
+			count = _write_rows(
+				collector,
+				rows,
+				columns,
+				table,
+				projection,
+				progress_doc=doc,
+				include_totals=not count_sheet,
+			)
+		info = _export_info(projection, doc, count)
+		payload = _pdf_context(projection, doc, columns, table, collector.rows, count, info)
+		pdf_export_context.set(payload)
+		return count
 	if doc.export_format == "csv":
 		with open(path, "w", encoding="utf-8-sig", newline="") as output:
 			writer = csv.writer(output)
@@ -487,23 +576,6 @@ def _write_data(projection, doc, path, *, rows=None, row_files=None):
 		str(path), {"constant_memory": True, "strings_to_formulas": False, "strings_to_urls": False}
 	) as workbook:
 		header = workbook.add_format({"bold": True, "bg_color": "#E9EDF2"})
-		summary = _json_value(getattr(doc, "summary_json", None), {})
-		filters = summary.get("filters", [])
-		period = projection.context.period
-		group_names = {
-			"item": "物品",
-			"category": "类别",
-			"location": "库位",
-			"kind": "类型",
-			"activityType": "活动类型",
-			"activity": "活动",
-			"borrower": "借用方",
-			"outcome": "结算结果",
-			"source": "来源位置",
-			"destination": "去向位置",
-			"month": "月份",
-			"status": "状态",
-		}
 		worksheet = None
 		row_index = 1
 		part = 0
@@ -539,32 +611,286 @@ def _write_data(projection, doc, path, *, rows=None, row_files=None):
 				progress_doc=doc,
 			)
 		info = workbook.add_worksheet("导出说明")
-		info_rows = [
-			("页面", summary.get("title") or TABLE_LABELS.get(table, table)),
-			*(("筛选", value) for value in filters),
-			(
-				"分组",
-				"、".join(group_names.get(key, key) for key in projection.query.get("groupBy", [])) or "无",
-			),
-			("排序", _sort_label(projection.query)),
-			(
-				"期间",
-				f"{period['date_from']}至{period['date_to']}" if period.get("date_from") else "全部时间",
-			),
-			("生成时间", projection.context.snapshot),
-			("请求账户", doc.owner),
-			("行数", count),
-			("表格", TABLE_LABELS.get(table, table)),
-			(
-				"分组输出",
-				"是" if bool(getattr(doc, "grouped", False)) and projection.query.get("groupBy") else "否",
-			),
-		]
+		info_rows = _export_info(projection, doc, count)
 		for index, values in enumerate(info_rows):
 			info.write_row(index, 0, values)
 		info.set_column(0, 0, 16)
 		info.set_column(1, 1, 60)
 	return count
+
+
+def _export_info(projection, doc, count):
+	table = json.loads(doc.tables_json)[0]
+	summary = _json_value(getattr(doc, "summary_json", None), {})
+	period = projection.context.period
+	return [
+		("页面", summary.get("title") or TABLE_LABELS.get(table, table)),
+		*(("筛选", value) for value in summary.get("filters", [])),
+		(
+			"分组",
+			"、".join(GROUP_LABELS.get(key, key) for key in projection.query.get("groupBy", [])) or "无",
+		),
+		("排序", _sort_label(projection.query)),
+		("期间", f"{period['date_from']}至{period['date_to']}" if period.get("date_from") else "全部时间"),
+		("生成时间", projection.context.snapshot),
+		("请求账户", doc.owner),
+		("行数", count),
+		("表格", TABLE_LABELS.get(table, table)),
+		(
+			"分组输出",
+			"是" if bool(getattr(doc, "grouped", False)) and projection.query.get("groupBy") else "否",
+		),
+	]
+
+
+def _pdf_context(projection, doc, columns, table, rows, count, info):
+	from frappe.utils import get_datetime
+
+	visible = [field for field in columns if field not in ("image_file", "attachments")]
+	main_field = next(
+		(
+			field
+			for name in ("item_name", "activity_name", "document", "name", "item_code")
+			for field in visible
+			if field == name
+		),
+		None,
+	)
+	number_fields = {
+		"qty",
+		"stock_qty",
+		"available",
+		"available_qty",
+		"available_effect",
+		"flow_qty",
+		"quantity",
+		"amount",
+		"rate",
+		"basic_rate",
+		"conversion_factor",
+		"gains",
+		"losses",
+		"net",
+		"borrowed",
+		"outstanding",
+		"stock_value",
+		"valuation_rate",
+		"remaining_days",
+	}
+	center_fields = {
+		"stock_uom",
+		"entered_uom",
+		"uom",
+		"docstatus",
+		"kind",
+		"expiry_state",
+		"date",
+		"time",
+	}
+	no_wrap_fields = (
+		number_fields
+		| center_fields
+		| {
+			"item_code",
+			"batch_no",
+			"document",
+			"name",
+			"date",
+			"expiry_date",
+			"manufacturing_date",
+			"time",
+			"warehouse_native_name",
+		}
+	)
+	filters = [value for key, value in info if key == "筛选"]
+	group_by = projection.query.get("groupBy", [])
+	if group_by:
+		filters.append("分组：" + "、".join(GROUP_LABELS.get(key, key) for key in group_by))
+	generated_at = get_datetime(projection.context.snapshot).strftime("%Y-%m-%d %H:%M:%S")
+	column_data = [
+		{
+			"label": label(projection.query["dataset"], field, table),
+			"align": "number" if field in number_fields else "center" if field in center_fields else "text",
+			"is_main": field == main_field,
+		}
+		for field in visible
+	]
+	count_sheet = getattr(doc, "print_format", "") == "盘点表"
+	subtotal_span = next(
+		(index for index, column in enumerate(column_data) if column["align"] == "number"),
+		len(column_data),
+	)
+	layout = _pdf_layout(
+		column_data,
+		rows,
+		subtotal_span=subtotal_span,
+		count_sheet=count_sheet,
+		wrappable={
+			index
+			for index, field in enumerate(visible)
+			if field not in no_wrap_fields and field != main_field
+		},
+	)
+	return {
+		"title": next((value for key, value in info if key == "页面"), TABLE_LABELS.get(table, table)),
+		"filters": filters,
+		"generated_at": generated_at,
+		"row_count": count,
+		"columns": column_data,
+		"subtotal_span": subtotal_span,
+		"rows": rows,
+		"count_sheet": count_sheet,
+		**layout,
+	}
+
+
+# Measured table width on Letter inside Frappe's Chrome print margins, in points.
+PDF_PAGE_WIDTH_PT = {"portrait": 525.0, "landscape": 700.0}
+# Horizontal cell padding plus border, in points.
+PDF_CELL_EXTRA_PT = 8.5
+# Safety margin on estimated text widths so nowrap text stays inside its fixed column.
+PDF_TEXT_MARGIN = 1.06
+# Count sheets leave room to handwrite 实盘 and 备注, in em.
+PDF_COUNT_SHEET_EM = (5.0, 8.0)
+
+
+def _text_em(text):
+	"""Estimate rendered width in em: CJK glyphs are full width, Latin about half."""
+	width = 0.0
+	for char in str(text):
+		if unicodedata.east_asian_width(char) in ("W", "F"):
+			width += 1.0
+		elif char.isupper() or char.isdigit():
+			width += 0.62
+		else:
+			width += 0.5
+	return width
+
+
+def _pdf_layout(columns, rows, *, subtotal_span, count_sheet, wrappable):
+	"""Size every column to its content so only the main column absorbs spare page width.
+
+	Try the largest font in portrait, then landscape, then smaller fonts. When the widest
+	values do not fit, size columns to their typical (90th percentile) value and let the
+	rare longer values wrap; as a last resort cap the widest non-number columns.
+	"""
+	header = [_text_em(column["label"]) * 1.08 for column in columns]
+	values = [[] for _ in columns]
+	sequence = 0
+	for row in rows:
+		style = row["style"]
+		if style.startswith("group-"):
+			continue
+		if style == "row":
+			sequence = row.get("sequence") or sequence
+		for index, value in enumerate(row["values"]):
+			if style == "subtotal" and index < subtotal_span:
+				continue
+			if style == "total":
+				# Grand totals may list several units; their cells wrap instead of widening columns.
+				continue
+			if value != "":
+				values[index].append(_text_em(value))
+	widest = [max([header[index], *found]) for index, found in enumerate(values)]
+	typical = [
+		max(header[index], sorted(found)[int(len(found) * 0.9)] if found else 0.0)
+		for index, found in enumerate(values)
+	]
+	main = next((index for index, column in enumerate(columns) if column["is_main"]), None)
+	seq_em = max(1.2, _text_em(sequence) * 0.85)
+	extra_em = list(PDF_COUNT_SHEET_EM) if count_sheet else []
+	fonts = (11.0, 10.0, 9.5, 9.0, 8.5) if count_sheet else (9.5, 8.5, 8.0, 7.5)
+	attempts = [("portrait", fonts[0]), *(("landscape", font) for font in fonts)]
+
+	def total_width(widths, font, main_em):
+		fixed = sum(width for index, width in enumerate(widths) if index != main)
+		ems = (fixed + seq_em) * PDF_TEXT_MARGIN + sum(extra_em) + (main_em if main is not None else 0)
+		return ems * font + PDF_CELL_EXTRA_PT * (len(widths) + 1 + len(extra_em))
+
+	def first_fit(widths, main_em):
+		return next(
+			(
+				(orientation, font)
+				for orientation, font in attempts
+				if total_width(widths, font, main_em) <= PDF_PAGE_WIDTH_PT[orientation]
+			),
+			None,
+		)
+
+	# The main column wraps, so it only needs room for a short name beside the rest.
+	main_em = min(widest[main], 10.0) if main is not None else 0.0
+	widths = list(widest)
+	fit = first_fit(widths, main_em)
+	if not fit:
+		widths = [
+			widest[index] if columns[index]["align"] == "number" else typical[index]
+			for index in range(len(columns))
+		]
+		fit = first_fit(widths, main_em)
+	if not fit:
+		orientation, font = attempts[-1]
+		main_em = min(main_em, 8.0)
+		capable = [
+			index for index in range(len(columns)) if index != main and columns[index]["align"] != "number"
+		]
+		# Text columns give way before codes and dates.
+		capable.sort(key=lambda index: (index not in wrappable, -widths[index]))
+		for index in capable:
+			if total_width(widths, font, main_em) <= PDF_PAGE_WIDTH_PT[orientation]:
+				break
+			widths[index] = min(widths[index], max(header[index], 6.0 if index in wrappable else 7.0))
+		overflow = total_width(widths, font, main_em) - PDF_PAGE_WIDTH_PT[orientation]
+		if overflow > 0:
+			# Still too wide: shrink the other columns evenly so the main column keeps its room.
+			shrinkable = sum(widths[index] for index in capable) * font * PDF_TEXT_MARGIN
+			ratio = max(0.5, 1 - overflow / shrinkable) if shrinkable else 1
+			for index in capable:
+				widths[index] *= ratio
+		fit = (orientation, font)
+	orientation, font = fit
+	for index, column in enumerate(columns):
+		column["wrap"] = index != main and widest[index] > widths[index] + 0.01
+		column["width_pt"] = (
+			None if index == main else round(widths[index] * font * PDF_TEXT_MARGIN + PDF_CELL_EXTRA_PT, 1)
+		)
+	return {
+		"orientation": orientation,
+		"font_pt": font,
+		"head_font_pt": font + 0.5,
+		"seq_width_pt": round(seq_em * font * PDF_TEXT_MARGIN + PDF_CELL_EXTRA_PT, 1),
+		"extra_widths_pt": [round(em * font + PDF_CELL_EXTRA_PT, 1) for em in extra_em],
+	}
+
+
+def ti_export(doc):
+	"""Jinja method providing permission-scoped rows collected for the active PDF render."""
+	payload = pdf_export_context.get()
+	if not payload:
+		frappe.throw("PDF 导出数据已失效，请重新生成", frappe.ValidationError)
+	return payload
+
+
+class _PdfRows:
+	def __init__(self):
+		self.rows = []
+		self.sequence = 0
+
+	def writerow(self, values, columns=None, file_values=None, outline_level=None, fmt=None):
+		style = fmt or "row"
+		if style == "row":
+			self.sequence += 1
+			self.rows.append(
+				{"values": [_pdf_value(value) for value in values], "style": style, "sequence": self.sequence}
+			)
+		else:
+			self.rows.append({"values": [_pdf_value(value) for value in values], "style": style})
+
+
+def _pdf_value(value):
+	if isinstance(value, float):
+		# Summed quantities carry float noise (370.58299999999997); print at most three decimals.
+		return f"{value:.3f}".rstrip("0").rstrip(".")
+	return "" if value is None else str(value)
 
 
 class _XlsxRows:
@@ -632,7 +958,17 @@ def _group_units(row, fields):
 	return {unit: {field: row.get(field) for field in fields if row.get(field) is not None}}
 
 
-def _write_grouped_rows(writer, rows, columns, table, projection, row_files=None):
+def _write_grouped_rows(
+	writer,
+	rows,
+	columns,
+	table,
+	projection,
+	row_files=None,
+	styles=None,
+	include_subtotals=True,
+	include_grand_total=True,
+):
 	from temple_inventory.projections import group_field_name, group_label
 
 	group_by = projection.query["groupBy"][:2]
@@ -658,7 +994,7 @@ def _write_grouped_rows(writer, rows, columns, table, projection, row_files=None
 	)
 	count = 0
 	totals = {}
-	styles = [
+	styles = styles or [
 		writer.workbook.add_format({"bold": True, "bg_color": "#D9D9D9"}),
 		writer.workbook.add_format({"bold": True, "bg_color": "#EDEDED"}),
 	]
@@ -718,7 +1054,24 @@ def _write_grouped_rows(writer, rows, columns, table, projection, row_files=None
 						amount = unit_row.get(sum_field)
 						if isinstance(amount, (int, float)):
 							unit_values[unit][sum_field] = unit_values[unit].get(sum_field, 0) + amount
-			if len(unit_values) == 1:
+			if isinstance(writer, _PdfRows):
+				group_line = [""] * len(columns)
+				group_line[0] = values[0]
+				writer.writerow(group_line, fmt=styles[depth], outline_level=depth)
+				emit(children, depth + 1)
+				if include_subtotals:
+					for unit, unit_sums in sorted(unit_values.items()):
+						if not any(isinstance(amount, (int, float)) for amount in unit_sums.values()):
+							continue
+						subtotal = [""] * len(columns)
+						subtotal[0] = f"小计 · {uom_label(unit)}" if unit else "小计 · 未知单位"
+						for index, column in enumerate(columns):
+							if column in unit_sums:
+								subtotal[index] = unit_sums[column]
+							elif column == "stock_uom":
+								subtotal[index] = uom_label(unit)
+						writer.writerow(subtotal, fmt="subtotal")
+			elif len(unit_values) == 1:
 				unit, unit_sums = next(iter(unit_values.items()))
 				for index, column in enumerate(columns):
 					if column in unit_sums:
@@ -745,24 +1098,30 @@ def _write_grouped_rows(writer, rows, columns, table, projection, row_files=None
 						fmt=styles[min(depth + 1, len(styles) - 1)],
 						outline_level=depth + 1,
 					)
-			emit(children, depth + 1)
+			if isinstance(writer, _XlsxRows):
+				emit(children, depth + 1)
 
 	emit(rows, 0)
-	for unit, sums in totals.items():
-		line = [""] * len(columns)
-		prefix = "合计可用变化" if projection.query["dataset"] == "movements" else "合计"
-		line[0] = (
-			f"{prefix}（{uom_label(unit)}） · {sums['_count']} 行"
-			if unit
-			else f"{prefix} · {sums['_count']} 行"
-		)
-		for index, field in enumerate(columns):
-			if field in sums:
-				line[index] = sums[field]
-			elif field == "stock_uom":
-				line[index] = uom_label(unit) if unit else ""
-		writer.writerow(line)
-	writer.worksheet.outline_settings(True, False, True, False)
+	if include_grand_total:
+		for unit, sums in totals.items():
+			line = [""] * len(columns)
+			prefix = "合计可用变化" if projection.query["dataset"] == "movements" else "合计"
+			line[0] = (
+				f"{prefix}（{uom_label(unit)}） · {sums['_count']} 行"
+				if unit
+				else f"{prefix} · {sums['_count']} 行"
+			)
+			for index, field in enumerate(columns):
+				if field in sums:
+					line[index] = sums[field]
+				elif field == "stock_uom":
+					line[index] = uom_label(unit) if unit else ""
+			if isinstance(writer, _PdfRows):
+				writer.writerow(line, fmt="total")
+			else:
+				writer.writerow(line)
+	if isinstance(writer, _XlsxRows):
+		writer.worksheet.outline_settings(True, False, True, False)
 	return count
 
 
@@ -929,7 +1288,16 @@ def _json_value(value, default):
 	return frappe.parse_json(value) if isinstance(value, str) else value
 
 
-def _write_rows(writer, rows, columns, table, projection, row_files=None, progress_doc=None):
+def _write_rows(
+	writer,
+	rows,
+	columns,
+	table,
+	projection,
+	row_files=None,
+	progress_doc=None,
+	include_totals=True,
+):
 	totals = {}
 	count = 0
 	for row in rows:
@@ -959,7 +1327,7 @@ def _write_rows(writer, rows, columns, table, projection, row_files=None, progre
 				unit,
 				{field: row[field] for field in fields if isinstance(row.get(field), (int, float))},
 			)
-	for unit, sums in totals.items():
+	for unit, sums in totals.items() if include_totals else ():
 		line = [""] * len(columns)
 		prefix = "合计可用变化" if projection.query["dataset"] == "movements" else "合计"
 		line[0] = (
@@ -972,7 +1340,10 @@ def _write_rows(writer, rows, columns, table, projection, row_files=None, progre
 				line[index] = sums[field]
 			elif field == "stock_uom":
 				line[index] = uom_label(unit) if unit else ""
-		writer.writerow(line if isinstance(writer, _XlsxRows) else [_csv_value(value) for value in line])
+		if isinstance(writer, _PdfRows):
+			writer.writerow(line, fmt="total")
+		else:
+			writer.writerow(line if isinstance(writer, _XlsxRows) else [_csv_value(value) for value in line])
 	return count
 
 
@@ -1115,12 +1486,27 @@ def generate_export(request_name):
 			) as projection:
 				projection.build()
 				selected_table = json.loads(request.tables_json)[0]
+				if request.export_format == "pdf":
+					_validate_print_format(request.print_format, projection.query["dataset"])
 				row_total = projection.count(selected_table)
+				if request.export_format == "pdf" and row_total > _pdf_max_rows():
+					limit = _pdf_max_rows()
+					frappe.throw(
+						f"PDF 最多 {limit} 行，请缩小筛选范围或导出 XLSX",
+						frappe.ValidationError,
+					)
 				_progress(request, "读取数据", f"已读取 {row_total} 行", 40, persist=True)
 				path = Path(output_dir) / (request.file_label or f"inventory.{request.export_format}")
 				manifest_path = Path(output_dir) / "access.jsonl"
 				_progress(request, "写入文件", f"准备写入 {row_total} 行", 45, persist=True)
 				row_count = _write(projection, request, path)
+				if request.export_format == "pdf":
+					from temple_inventory.printing import render_pdf
+
+					try:
+						path.write_bytes(render_pdf(EXPORT_DOCTYPE, request.name, request.print_format))
+					finally:
+						pdf_export_context.set(None)
 				if request.include_files == "none":
 					_progress(request, "写入文件", f"已写入 {row_count} 行", 80)
 				_manifest(projection, manifest_path)
@@ -1158,6 +1544,8 @@ def generate_export(request_name):
 		request.error = (
 			"导出失败，请重新登录并检查权限后重试"
 			if isinstance(error, (frappe.PermissionError, frappe.AuthenticationError))
+			else str(error)
+			if str(error).startswith("PDF 最多")
 			else "附带文件超过 2 GB，请缩小筛选范围"
 			if "附带文件超过 2 GB，请缩小筛选范围" in str(error)
 			else "导出生成失败，请重试"

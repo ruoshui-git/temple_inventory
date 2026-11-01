@@ -63,6 +63,9 @@ const controller = useQuickExport(query, table, columns, title, sortBy, sort, fi
 const {
 	open,
 	format,
+	printFormats,
+	printFormat,
+	loadingPrintFormats,
 	grouped,
 	includeFiles,
 	matchedCount,
@@ -80,6 +83,9 @@ const {
 	canGenerate,
 } = controller;
 const hasGrouping = computed(() => query.value.groupBy.length > 0);
+watch(format, (value) => {
+	if (value === "pdf") includeFiles.value = "none";
+});
 watch(
 	() => props.active,
 	(value) => {
@@ -177,6 +183,18 @@ defineExpose({ open: openDialog });
 				>格式<select v-model="format" aria-label="格式" :disabled="generating">
 					<option value="xlsx">XLSX</option>
 					<option value="csv">CSV</option>
+					<option value="pdf">PDF</option>
+				</select></label
+			>
+			<label v-if="format === 'pdf'" class="form-field"
+				>版式<select
+					v-model="printFormat"
+					aria-label="PDF 版式"
+					:disabled="generating || loadingPrintFormats"
+				>
+					<option v-for="item in printFormats" :key="item.name" :value="item.name">
+						{{ item.label }}
+					</option>
 				</select></label
 			>
 			<div v-if="hasGrouping" class="quick-export-related">
@@ -190,7 +208,7 @@ defineExpose({ open: openDialog });
 				</label>
 				<p v-if="format === 'csv'" class="muted">CSV 只输出明细行</p>
 			</div>
-			<fieldset>
+			<fieldset :disabled="format === 'pdf' || generating">
 				<legend>附带文件</legend>
 				<label class="form-choice-label"
 					><input
@@ -216,7 +234,8 @@ defineExpose({ open: openDialog });
 						:disabled="generating"
 					/>图片和附件</label
 				>
-				<p class="muted">选择后打包为 ZIP；图片以物品编号命名</p>
+				<p v-if="format === 'pdf'" class="muted">PDF 不附带文件</p>
+				<p v-else class="muted">选择后打包为 ZIP；图片以物品编号命名</p>
 			</fieldset>
 		</div>
 		<p v-if="generating" class="muted">可以关闭此窗口继续工作，完成后会通知你。</p>

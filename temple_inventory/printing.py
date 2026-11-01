@@ -1,7 +1,7 @@
 """Shared PDF rendering helpers for Temple Inventory Print Formats."""
+# ruff: noqa: RUF001 — Chinese UI punctuation is intentional.
 
 import os
-import shutil
 from functools import lru_cache
 from pathlib import Path
 
@@ -21,15 +21,21 @@ def ti_print_css():
 
 def render_pdf(doctype, name, print_format, doc=None):
 	"""Render a Print Format with Frappe's Chrome engine and return the PDF bytes."""
-	config = frappe.get_common_site_config()
-	chromium_path = config.get("chromium_path")
-	if chromium_path:
-		chromium_exists = Path(chromium_path).is_file() and os.access(chromium_path, os.X_OK)
-	else:
-		chromium_exists = bool(shutil.which("chromium-headless-shell") or shutil.which("chromium"))
-	if not chromium_exists:
+	chromium_path = frappe.get_common_site_config().get("chromium_path") or ""
+	path = Path(chromium_path)
+	if not chromium_path or not path.is_file() or not os.access(path, os.X_OK):
 		frappe.throw(
 			"PDF 打印需要 Chromium。请在 common_site_config.json 中设置 chromium_path",
+			exc=frappe.ValidationError,
+		)
+	with path.open("rb") as binary:
+		is_script = binary.read(2) == b"#!"
+	if is_script:
+		# Frappe terminates the process it started; a wrapper script dies alone and leaves
+		# the real browser running, so every PDF would leak one Chromium.
+		frappe.throw(
+			"chromium_path 指向启动脚本，会遗留浏览器进程。请改为 Chromium 可执行文件"
+			"（如 /usr/lib/chromium/chromium-headless-shell）",
 			exc=frappe.ValidationError,
 		)
 

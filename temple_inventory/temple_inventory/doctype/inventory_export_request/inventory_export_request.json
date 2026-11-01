@@ -7,6 +7,7 @@
   "field_order": [
     "query_json",
     "export_format",
+    "print_format",
     "tables_json",
     "columns_json",
     "summary_json",
@@ -36,10 +37,11 @@
       "fieldname": "export_format",
       "fieldtype": "Select",
       "label": "文件格式",
-      "options": "xlsx\ncsv",
+      "options": "xlsx\ncsv\npdf",
       "reqd": 1,
       "read_only": 1
     },
+    {"fieldname": "print_format", "fieldtype": "Link", "label": "PDF 版式", "options": "Print Format", "read_only": 1},
     {
       "fieldname": "tables_json",
       "fieldtype": "JSON",

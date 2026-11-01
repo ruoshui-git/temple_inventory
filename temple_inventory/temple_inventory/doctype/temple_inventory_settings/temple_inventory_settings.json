@@ -9,6 +9,7 @@
     "leased_warehouse",
     "damaged_warehouse",
     "photo_required",
+    "pdf_max_rows",
     "allowed_warehouses",
     "physical_root_warehouse",
     "sample_data_version",
@@ -62,6 +63,7 @@
       "fieldtype": "Check",
       "label": "Photo Required"
     },
+    {"default": "5000", "fieldname": "pdf_max_rows", "fieldtype": "Int", "label": "PDF 最多行数"},
     {
       "fieldname": "allowed_warehouses",
       "fieldtype": "Table",

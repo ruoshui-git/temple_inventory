@@ -376,7 +376,7 @@ describe("background quick export", () => {
     expect(dialog.textContent).not.toContain("打开报表");
     expect(dialog.textContent).not.toContain("预览");
     expect(dialog.textContent).toContain("图片以物品编号命名");
-    Array.from(dialog.querySelectorAll("button"))
+    Array.from(document.body.querySelectorAll("button"))
       .find((button) => button.textContent?.trim() === "开始导出")!
       .click();
     await flushPromises();
@@ -392,6 +392,67 @@ describe("background quick export", () => {
           title: "库存列表",
           filters: ["库存状态：有库存", "物品状态：启用"],
         },
+      }),
+    );
+  });
+
+  it("offers PDF layouts and sends grouped PDF options while disabling attachments", async () => {
+    const service = services();
+    vi.mocked(service.call).mockImplementation(async (endpoint) => {
+      if (endpoint === "exports.export_print_formats")
+        return [
+          { name: "物资表格", label: "物资表格", count_sheet: false },
+          { name: "自定义格式", label: "自定义格式", count_sheet: false },
+        ] as never;
+      return job() as never;
+    });
+    const groupedQuery = query();
+    groupedQuery.groupBy = ["location"];
+    const child = defineComponent({
+      setup() {
+        provideInventoryServices(service, createReferenceData());
+        return () =>
+          h(QuickExport, {
+            query: groupedQuery,
+            title: "库存列表",
+            table: "locations",
+            columns: ["item_name", "stock_qty"],
+          });
+      },
+    });
+    const wrapper = mount(child);
+    wrappers.push(wrapper);
+    await wrapper.get(".quick-report").trigger("click");
+    await flushPromises();
+    const dialog = document.body.querySelector(".quick-export-dialog")!;
+    await setNativeSelect(dialog.querySelector('[aria-label="格式"]')!, "pdf");
+    await flushPromises();
+    const layout = dialog.querySelector(
+      '[aria-label="PDF 版式"]',
+    ) as HTMLSelectElement;
+    expect(Array.from(layout.options).map((option) => option.value)).toEqual([
+      "物资表格",
+      "自定义格式",
+    ]);
+    await setNativeSelect(layout, "自定义格式");
+    await flushPromises();
+    expect(dialog.textContent).toContain("PDF 不附带文件");
+    expect(
+      dialog
+        .querySelector('input[type="radio"][value="images"]')
+        ?.closest("fieldset")?.disabled,
+    ).toBe(true);
+    Array.from(document.body.querySelectorAll("button"))
+      .find((button) => button.textContent?.trim() === "开始导出")!
+      .click();
+    await flushPromises();
+    expect(vi.mocked(service.call)).toHaveBeenCalledWith(
+      "exports.request_export",
+      expect.objectContaining({
+        export_format: "pdf",
+        print_format: "自定义格式",
+        grouped: true,
+        include_files: "none",
       }),
     );
   });

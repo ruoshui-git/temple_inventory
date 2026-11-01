@@ -25,6 +25,33 @@ from temple_inventory.uom_labels import uom_label
 
 
 class NativeReportsExportsTests(NativeReportTestCase):
+	def test_pdf_layout_sizes_columns_to_content_and_wraps_only_text_when_needed(self):
+		def columns(*specs):
+			return [{"label": label, "align": align, "is_main": main} for label, align, main in specs]
+
+		narrow = columns(("物品名称", "text", True), ("物品编号", "text", False), ("数量", "number", False))
+		rows = [{"style": "row", "sequence": 1, "values": ["香", "ITM-000001", "12"]}]
+		layout = exports._pdf_layout(narrow, rows, subtotal_span=2, count_sheet=False, wrappable=set())
+		self.assertEqual((layout["orientation"], layout["font_pt"]), ("portrait", 9.5))
+		self.assertIsNone(narrow[0]["width_pt"])
+		# A code column is sized to its widest value, never left with page-wide slack.
+		self.assertLess(narrow[1]["width_pt"], 70)
+
+		wide = columns(
+			("物品名称", "text", True),
+			*((f"说明{index}", "text", False) for index in range(6)),
+			*((f"数量{index}", "number", False) for index in range(6)),
+		)
+		long_text = "冷藏柜 / 上层 / 第三格 / 左侧"
+		rows = [{"style": "row", "sequence": 1, "values": ["香", *[long_text] * 6, *["100.25"] * 6]}]
+		layout = exports._pdf_layout(
+			wide, rows, subtotal_span=7, count_sheet=True, wrappable=set(range(1, 7))
+		)
+		self.assertEqual(layout["orientation"], "landscape")
+		self.assertTrue(any(column["wrap"] for column in wide[1:7]))
+		self.assertFalse(any(column["wrap"] for column in wide[7:]))
+		self.assertEqual(len(layout["extra_widths_pt"]), 2)
+
 	def test_browse_document_time_fields_are_padded_and_precise(self):
 		doc = frappe._dict(
 			doctype="Stock Entry",
@@ -402,6 +429,7 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			self.assertEqual(worksheet.cell(4, 4).value, 12)
 			self.assertEqual(worksheet.cell(2, 1).fill.fgColor.rgb[-6:], "D9D9D9")
 			workbook.close()
+
 		if not frappe.db.exists("UOM", "Box"):
 			frappe.get_doc({"doctype": "UOM", "uom_name": "Box"}).insert()
 		other = frappe.get_doc(
@@ -447,6 +475,118 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			self.assertEqual(worksheet.cell(4, 4).value, 12)
 			self.assertEqual(worksheet.row_dimensions[2].outline_level, 0)
 			workbook.close()
+
+	def test_pdf_export_collects_display_rows_and_group_styles_without_files(self):
+		self.receipt(12)
+		inventory_formats = exports.export_print_formats("inventory")
+		movement_formats = exports.export_print_formats("movements")
+		self.assertIn("盘点表", [row["name"] for row in inventory_formats])
+		self.assertNotIn("盘点表", [row["name"] for row in movement_formats])
+		custom_name = f"TI Export {self.token}"
+		frappe.get_doc(
+			{
+				"doctype": "Print Format",
+				"name": custom_name,
+				"doc_type": "Inventory Export Request",
+				"module": "Temple Inventory",
+				"custom_format": 1,
+				"print_format_type": "Jinja",
+				"pdf_generator": "chrome",
+				"html": "{{ doc.name | e }}",
+			}
+		).insert(ignore_permissions=True)
+		self.assertIn(custom_name, [row["name"] for row in exports.export_print_formats("inventory")])
+		query = self.query("inventory", "locations", groupBy=["location"])
+		foreign_name = f"TI Foreign Format {self.token}"
+		frappe.get_doc(
+			{
+				"doctype": "Print Format",
+				"name": foreign_name,
+				"doc_type": "Stock Entry",
+				"module": "Stock",
+				"custom_format": 1,
+				"print_format_type": "Jinja",
+				"pdf_generator": "chrome",
+				"html": "{{ doc.name | e }}",
+			}
+		).insert(ignore_permissions=True)
+		with self.assertRaisesRegex(frappe.ValidationError, "物资导出版式"):
+			exports.request_export(
+				query,
+				"locations",
+				export_format="pdf",
+				print_format=foreign_name,
+			)
+		with patch("temple_inventory.exports._enqueue"):
+			result = exports.request_export(
+				query,
+				"locations",
+				columns=["item_name", "stock_qty", "stock_uom"],
+				export_format="pdf",
+				print_format="物资表格",
+				grouped=True,
+			)
+		request = frappe.get_doc("Inventory Export Request", result["name"])
+		with Projection(query, refresh=True) as projection, tempfile.TemporaryDirectory() as directory:
+			projection.build()
+			self.assertEqual(exports._write(projection, request, Path(directory) / "export.pdf"), 1)
+		payload = exports.pdf_export_context.get()
+		self.assertEqual([column["label"] for column in payload["columns"]], ["物品名称", "合计", "库存单位"])
+		self.assertEqual([row["style"] for row in payload["rows"]], ["group-1", "row", "subtotal", "total"])
+		self.assertEqual(payload["rows"][1]["sequence"], 1)
+		self.assertEqual(payload["rows"][1]["values"], ["Native test item", "12", uom_label("Nos")])
+		self.assertEqual(payload["rows"][2]["values"], [f"小计 · {uom_label('Nos')}", "12", uom_label("Nos")])
+		self.assertRegex(payload["generated_at"], r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")
+		self.assertEqual(payload["filters"], ["分组：库位"])
+		self.assertEqual(payload["orientation"], "portrait")
+		self.assertTrue(payload["columns"][0]["is_main"])
+		self.assertIsNone(payload["columns"][0]["width_pt"])
+		self.assertFalse(payload["columns"][1]["wrap"])
+		self.assertGreater(payload["columns"][1]["width_pt"], 0)
+		self.assertEqual(payload["row_count"], 1)
+		request.db_set("print_format", "盘点表")
+		with Projection(query, refresh=True) as projection, tempfile.TemporaryDirectory() as directory:
+			projection.build()
+			self.assertEqual(exports._write(projection, request, Path(directory) / "count.pdf"), 1)
+		self.assertEqual(
+			[row["style"] for row in exports.pdf_export_context.get()["rows"]],
+			["group-1", "row"],
+		)
+		exports.pdf_export_context.set(None)
+		with self.assertRaisesRegex(frappe.ValidationError, "PDF 不附带文件"):
+			exports.request_export(
+				query,
+				"locations",
+				export_format="pdf",
+				print_format="物资表格",
+				include_files="images",
+			)
+		with self.assertRaisesRegex(frappe.ValidationError, "仅适用于库存"):
+			exports.request_export(
+				self.query("movements", "lines"),
+				"lines",
+				export_format="pdf",
+				print_format="盘点表",
+			)
+
+	def test_pdf_row_limit_uses_the_editable_settings_value_at_request_time(self):
+		self.receipt(12)
+		self.submit(self.create(self.movement("Transfer", 1, self.a, self.b)))
+		settings = frappe.get_single("Temple Inventory Settings")
+		previous_limit = settings.pdf_max_rows
+		settings.pdf_max_rows = 1
+		settings.save()
+		try:
+			with self.assertRaisesRegex(frappe.ValidationError, "PDF 最多 1 行"):
+				exports.request_export(
+					self.query("inventory", "locations"),
+					"locations",
+					export_format="pdf",
+					print_format="物资表格",
+				)
+		finally:
+			settings.pdf_max_rows = previous_limit or 5000
+			settings.save()
 
 	def test_grouped_csv_rejected_empty_grouping_clears_flag_and_file_columns_drop(self):
 		query = self.query("movements", "lines")

@@ -2,8 +2,13 @@ import { computed, onBeforeUnmount, ref, watch, type Ref } from "vue";
 import { useInventoryServices, type ExportJob } from "../../services/contracts";
 import type { ReportQuery } from "../../lib/reportContract";
 
-export type ExportFormat = "xlsx" | "csv";
+export type ExportFormat = "xlsx" | "csv" | "pdf";
 export type IncludeFiles = "none" | "images" | "all";
+export interface ExportPrintFormat {
+  name: string;
+  label: string;
+  count_sheet: boolean;
+}
 type ExportProgressJob = ExportJob & {
   stage?: string;
   progress_detail?: string;
@@ -21,6 +26,9 @@ export function useQuickExport(
   const services = useInventoryServices();
   const open = ref(false);
   const format = ref<ExportFormat>("xlsx");
+  const printFormats = ref<ExportPrintFormat[]>([]);
+  const printFormat = ref("物资表格");
+  const loadingPrintFormats = ref(false);
   const grouped = ref(true);
   const includeFiles = ref<IncludeFiles>("none");
   const matchedCount = ref<number>();
@@ -34,6 +42,8 @@ export function useQuickExport(
   let countRequest: AbortController | undefined;
   let statusRequest: AbortController | undefined;
   let generation = 0;
+  let formatsGeneration = 0;
+  let printFormatsLoadedFor = "";
   let jobGeneration = 0;
   let disposed = false;
   let poll: ReturnType<typeof setTimeout> | undefined;
@@ -47,8 +57,9 @@ export function useQuickExport(
       columns: columns?.value,
       title: title?.value,
       format: format.value,
+      printFormat: printFormat.value,
       grouped:
-        format.value === "xlsx" &&
+        (format.value === "xlsx" || format.value === "pdf") &&
         query.value.groupBy.length > 0 &&
         grouped.value,
       includeFiles: includeFiles.value,
@@ -94,6 +105,28 @@ export function useQuickExport(
           reason instanceof Error ? reason.message : "读取匹配数量失败";
     } finally {
       if (current === generation && !disposed) loading.value = false;
+    }
+  }
+
+  async function loadPrintFormats() {
+    const current = ++formatsGeneration;
+    loadingPrintFormats.value = true;
+    try {
+      const result = await services.call<ExportPrintFormat[]>(
+        "exports.export_print_formats",
+        { dataset: query.value.dataset },
+      );
+      if (current !== formatsGeneration || disposed) return;
+      printFormats.value = Array.isArray(result) ? result : [];
+      printFormatsLoadedFor = query.value.dataset;
+      if (!printFormats.value.some((item) => item.name === printFormat.value))
+        printFormat.value = printFormats.value[0]?.name || "";
+    } catch (reason) {
+      if (current !== formatsGeneration || disposed) return;
+      error.value =
+        reason instanceof Error ? reason.message : "读取 PDF 版式失败";
+    } finally {
+      if (current === formatsGeneration) loadingPrintFormats.value = false;
     }
   }
 
@@ -156,11 +189,15 @@ export function useQuickExport(
         filters: [...filterLabels.value],
       },
     };
+    if (format.value === "pdf") args.print_format = printFormat.value;
     if (table?.value) args.table = table.value;
     if (columns?.value) args.columns = columns.value;
     if (sortBy?.value) args.sort_by = sortBy.value;
     if (sort?.value) args.sort = sort.value;
-    if (format.value === "xlsx" && query.value.groupBy.length)
+    if (
+      (format.value === "xlsx" || format.value === "pdf") &&
+      query.value.groupBy.length
+    )
       args.grouped = grouped.value;
     try {
       const result = failed
@@ -277,14 +314,37 @@ export function useQuickExport(
       invalidateJob();
     if (open.value) void count();
   });
+  watch(
+    () => query.value.dataset,
+    () => {
+      if (
+        open.value &&
+        format.value === "pdf" &&
+        printFormatsLoadedFor !== query.value.dataset
+      )
+        void loadPrintFormats();
+    },
+  );
+  watch(format, (value) => {
+    if (
+      value === "pdf" &&
+      open.value &&
+      printFormatsLoadedFor !== query.value.dataset
+    )
+      void loadPrintFormats();
+  });
   watch(open, (value) => {
     if (!value) {
+      formatsGeneration++;
+      loadingPrintFormats.value = false;
+      printFormatsLoadedFor = "";
       generation++;
       countRequest?.abort();
       loading.value = false;
       stopPolling();
     } else {
       void count();
+      if (format.value === "pdf") void loadPrintFormats();
       if (job.value) void status();
     }
   });
@@ -298,6 +358,9 @@ export function useQuickExport(
   return {
     open,
     format,
+    printFormats,
+    printFormat,
+    loadingPrintFormats,
     grouped,
     includeFiles,
     matchedCount,
@@ -314,7 +377,11 @@ export function useQuickExport(
     generate,
     canGenerate: computed(
       () =>
-        matchedCount.value !== undefined && !loading.value && !generating.value,
+        matchedCount.value !== undefined &&
+        !loading.value &&
+        !generating.value &&
+        (format.value !== "pdf" ||
+          (!loadingPrintFormats.value && Boolean(printFormat.value))),
     ),
   };
 }
