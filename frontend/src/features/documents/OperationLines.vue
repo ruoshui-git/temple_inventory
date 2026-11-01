@@ -317,6 +317,66 @@ watch(pickerOpen, (open, wasOpen) => {
 	if (wasOpen && !open) cancelPendingScans();
 });
 const stockItem = (code: string) => context.stock.find((item) => item.code === code);
+const hasSerial = (line: AllocationLine) => Boolean(line.displayTracksSerial);
+const hasSerialSeries = (line: AllocationLine) =>
+	Boolean(
+		(stockItem(line.code) as (StockItem & { serialNoSeries?: string }) | undefined)
+			?.serialNoSeries,
+	);
+const serialInput = ref<Record<string, string>>({});
+const serialSearch = ref<Record<string, string>>({});
+const serialOptions = ref<Record<string, string[]>>({});
+const serialNext = ref<Record<string, number | null>>({});
+const serialLoading = ref<Record<string, boolean>>({});
+async function loadSerials(line: AllocationLine, more = false) {
+	const source = line.sourceLocation || line.location;
+	if (receive.value || !source || serialLoading.value[line.id]) return;
+	const start = more ? serialNext.value[line.id] : 0;
+	if (more && start == null) return;
+	serialLoading.value[line.id] = true;
+	try {
+		const result = await context.availableSerials(
+			line.code,
+			source,
+			serialSearch.value[line.id] || "",
+			start || 0,
+		);
+		serialOptions.value[line.id] = [
+			...(more ? serialOptions.value[line.id] || [] : []),
+			...result.serials,
+		];
+		serialNext.value[line.id] = result.next;
+	} finally {
+		serialLoading.value[line.id] = false;
+	}
+}
+function syncSerialQuantity(line: AllocationLine) {
+	const quantity = line.autoSerialCount ?? (line.serials || []).length;
+	line.qty = quantity;
+	line.entryQty = quantity;
+	line.entryUom = line.uom;
+	line.conversionFactor = 1;
+}
+function addSerialInput(line: AllocationLine, value = serialInput.value[line.id] || "") {
+	const additions = value
+		.split(/[\s,，;；]+/)
+		.map((serial) => serial.trim())
+		.filter(Boolean);
+	const serials = [...(line.serials || [])];
+	for (const serial of additions) if (!serials.includes(serial)) serials.push(serial);
+	line.serials = serials;
+	serialInput.value[line.id] = "";
+	syncSerialQuantity(line);
+}
+function removeSerial(line: AllocationLine, serial: string) {
+	line.serials = (line.serials || []).filter((value) => value !== serial);
+	syncSerialQuantity(line);
+}
+function toggleAutoSerial(line: AllocationLine, enabled: boolean) {
+	line.serials = [];
+	line.autoSerialCount = enabled ? Math.max(1, Number(line.qty || 1)) : undefined;
+	syncSerialQuantity(line);
+}
 function existingQuantity(line: AllocationLine) {
 	if (line.loanName) return lineCapacity(props.draft, line);
 	const place = lineStock(line);
@@ -394,6 +454,9 @@ const addSectionLabel = computed(() => `+ 添加${sectionLabel.value}`);
 function sectionHasBatch(section: OperationLocationSection) {
 	return section.lines.some((line) => hasBatchRows(line.code));
 }
+function sectionHasSerial(section: OperationLocationSection) {
+	return section.lines.some(hasSerial);
+}
 function sectionHasOutcome(section: OperationLocationSection) {
 	return props.draft.kind === "Return" && section.lines.some((line) => !!line.loanName);
 }
@@ -401,6 +464,7 @@ function sectionGridTemplate(section: OperationLocationSection) {
 	const columns = ["minmax(156px, 1.35fr)"];
 	if (sectionHasBatch(section))
 		columns.push("minmax(132px, 1fr)", "minmax(132px, 0.95fr)", "minmax(132px, 0.95fr)");
+	if (sectionHasSerial(section)) columns.push("minmax(220px, 1.5fr)");
 	columns.push("88px", "96px", "88px");
 	if (props.draft.kind === "Transfer") columns.push("minmax(128px, 1fr)");
 	if (["Damage", "Loss"].includes(props.draft.kind)) columns.push("minmax(120px, 0.95fr)");
@@ -906,6 +970,30 @@ async function acceptScannedItem(code: string, batch?: string, captured?: unknow
 	const scanContext = activeScanContext(captured);
 	const item = await context.ensure(code);
 	if (!scanSessionIsCurrent(generation)) return;
+	if ((item as StockItem & { tracksSerial?: boolean }).tracksSerial && batch) {
+		const snapshot = (scanContext || {}) as ScanContextSnapshot;
+		const source = receive.value
+			? ""
+			: snapshot.activeWarehouse ||
+				scanWarehouse.value ||
+				String(props.draft.preferredWarehouse || "");
+		const target = receive.value
+			? snapshot.activeWarehouse ||
+				destination.value ||
+				String(props.draft.preferredWarehouse || "")
+			: scanDestination.value;
+		if (receive.value && !places.value.includes(target))
+			throw new Error("请选择有效的入库库位");
+		if (!receive.value) {
+			if (!source) throw new Error("请先选择序列号所在的来源库位");
+			const available = await context.availableSerials(item.code, source, batch, 0);
+			if (!available.serials.includes(batch))
+				throw new Error(`序列号 ${batch} 不在所选来源库位`);
+		}
+		addScannedSerial(item, batch, source, target);
+		applyScanDestination(target);
+		return;
+	}
 	const prepared = scanResolutionFor(item, batch, scanContext);
 	if (prepared.resolution) {
 		scanResolution.value = prepared.resolution;
@@ -921,6 +1009,36 @@ async function acceptScannedItem(code: string, batch?: string, captured?: unknow
 		throw new Error("当前库位或批次可用量不足 1 个库存单位");
 	applyScanDestination(destinationName);
 	addScannedLine(item, prepared.batch, prepared.source, destinationName);
+}
+function addScannedSerial(item: StockItem, serial: string, source: string, target: string) {
+	let line = props.draft.items.find(
+		(row) =>
+			row.code === item.code &&
+			(row.sourceLocation || "") === source &&
+			row.location === target &&
+			row.displayTracksSerial &&
+			!row.autoSerialCount,
+	);
+	if (!line) {
+		const id = crypto.randomUUID();
+		line = {
+			id,
+			localId: id,
+			code: item.code,
+			qty: 0,
+			uom: item.uom,
+			entryUom: item.uom,
+			entryQty: 0,
+			conversionFactor: 1,
+			location: target,
+			sourceLocation: source,
+			serials: [],
+			displayTracksSerial: true,
+		};
+		props.draft.items.push(line);
+	}
+	line.serials = [...(line.serials || []), serial];
+	syncSerialQuantity(line);
 }
 function applyScanDestination(destinationName: string) {
 	if (!destinationName) return;
@@ -1132,6 +1250,9 @@ defineExpose({ revealIssue, itemPickerReady, openPicker });
 function refreshLine(line: AllocationLine) {
 	const item = stockItem(line.code);
 	if (!item) return;
+	line.displayTracksSerial = Boolean(
+		(item as StockItem & { tracksSerial?: boolean }).tracksSerial,
+	);
 	line.nativeBundle = undefined;
 	line.recordedBundle = undefined;
 	line.batchAllocations = undefined;
@@ -1583,6 +1704,7 @@ function receiveBatchChanged(line: AllocationLine) {
 							></span
 						><span>生产日期 <small class="muted">可选</small></span>
 					</template>
+					<span v-if="sectionHasSerial(section)">序列号</span>
 					<span>数量 <b class="required-mark">*</b></span
 					><span>单位 <b class="required-mark">*</b></span
 					><span class="operation-stock-total-heading" aria-hidden="true"></span>
@@ -1599,6 +1721,7 @@ function receiveBatchChanged(line: AllocationLine) {
 					:class="{
 						'operation-compact-row--recent': highlightedLineIds.has(line.id),
 						'is-batch-tracked': hasBatchRows(line.code),
+						'is-serial-tracked': hasSerial(line),
 					}"
 					:style="{ '--operation-grid-template': sectionGridTemplate(section) }"
 					:data-line-id="line.id"
@@ -1735,10 +1858,152 @@ function receiveBatchChanged(line: AllocationLine) {
 							</template>
 						</div>
 					</div>
+					<div v-if="hasSerial(line)" class="operation-row-batch operation-row-serial">
+						<div class="operation-row-cell operation-row-serial-field">
+							<span class="operation-phone-field-label">序列号</span>
+							<template v-if="receive">
+								<label v-if="hasSerialSeries(line)" class="operation-serial-auto">
+									<input
+										type="checkbox"
+										:checked="line.autoSerialCount !== undefined"
+										:disabled="disabled || hydrating"
+										@change="
+											toggleAutoSerial(
+												line,
+												($event.target as HTMLInputElement).checked,
+											)
+										"
+									/>
+									自动生成
+								</label>
+								<input
+									v-if="line.autoSerialCount !== undefined"
+									type="number"
+									min="1"
+									step="1"
+									aria-label="自动生成序列号数量"
+									:value="line.autoSerialCount"
+									:disabled="disabled || hydrating"
+									@input="
+										line.autoSerialCount = Math.max(
+											1,
+											Number(($event.target as HTMLInputElement).value) || 1,
+										);
+										syncSerialQuantity(line);
+									"
+								/>
+								<template v-else>
+									<div class="operation-serial-chips">
+										<span
+											v-for="serial in line.serials || []"
+											:key="serial"
+											class="operation-serial-chip"
+										>
+											{{ serial }}
+											<button
+												type="button"
+												:disabled="disabled || hydrating"
+												:aria-label="`移除序列号 ${serial}`"
+												@click="removeSerial(line, serial)"
+											>
+												×
+											</button>
+										</span>
+									</div>
+									<input
+										v-model="serialInput[line.id]"
+										data-field="serials"
+										:aria-label="`${lineName(line)}序列号`"
+										placeholder="输入或扫描后按回车"
+										:disabled="disabled || hydrating"
+										@keydown.enter.prevent="addSerialInput(line)"
+										@paste.prevent="
+											addSerialInput(
+												line,
+												$event.clipboardData?.getData('text') || '',
+											)
+										"
+									/>
+								</template>
+							</template>
+							<template v-else>
+								<div class="operation-serial-chips">
+									<span
+										v-for="serial in line.serials || []"
+										:key="serial"
+										class="operation-serial-chip"
+									>
+										{{ serial }}
+										<button
+											type="button"
+											:disabled="disabled || hydrating"
+											:aria-label="`移除序列号 ${serial}`"
+											@click="removeSerial(line, serial)"
+										>
+											×
+										</button>
+									</span>
+								</div>
+								<input
+									v-model="serialSearch[line.id]"
+									:aria-label="`${lineName(line)}搜索可用序列号`"
+									placeholder="搜索可用序列号"
+									:disabled="disabled || hydrating"
+									@focus="loadSerials(line)"
+									@input="
+										serialOptions[line.id] = [];
+										loadSerials(line);
+									"
+								/>
+								<div
+									class="operation-serial-options"
+									role="listbox"
+									aria-multiselectable="true"
+								>
+									<button
+										v-for="serial in serialOptions[line.id] || []"
+										:key="serial"
+										type="button"
+										role="option"
+										:aria-selected="(line.serials || []).includes(serial)"
+										:disabled="disabled || hydrating"
+										@click="
+											(line.serials || []).includes(serial)
+												? removeSerial(line, serial)
+												: ((line.serials = [
+														...(line.serials || []),
+														serial,
+													]),
+													syncSerialQuantity(line))
+										"
+									>
+										{{ serial }}
+									</button>
+									<button
+										v-if="serialNext[line.id] != null"
+										type="button"
+										:disabled="serialLoading[line.id]"
+										@click="loadSerials(line, true)"
+									>
+										加载更多
+									</button>
+									<p v-if="serialLoading[line.id]" class="muted">正在加载…</p>
+								</div>
+							</template>
+							<p
+								v-if="lineInvalid(line, 'serials')"
+								:id="lineIssueId(line, 'serials')"
+								class="utility-error"
+							>
+								{{ lineIssue(line, "serials")?.message }}
+							</p>
+						</div>
+					</div>
 					<div class="operation-row-controls">
 						<label class="operation-row-cell operation-row-quantity">
 							<span class="operation-phone-field-label">数量</span>
 							<input
+								v-if="!hasSerial(line)"
 								data-field="qty"
 								type="number"
 								inputmode="decimal"
@@ -1759,6 +2024,7 @@ function receiveBatchChanged(line: AllocationLine) {
 									)
 								"
 							/>
+							<span v-else class="operation-cell-value">{{ line.qty }}</span>
 							<span
 								v-if="!receive && !disabled"
 								class="operation-row-existing muted"
@@ -1781,7 +2047,7 @@ function receiveBatchChanged(line: AllocationLine) {
 								external-label
 								:aria-label="`${lineName(line)}单位`"
 								:model-value="line.entryUom || line.uom"
-								:disabled="disabled || hydrating"
+								:disabled="disabled || hydrating || hasSerial(line)"
 								:clearable="false"
 								data-field="uom"
 								enterkeyhint="next"
@@ -2152,6 +2418,64 @@ function receiveBatchChanged(line: AllocationLine) {
 	border-color: var(--p-accent);
 	background: color-mix(in srgb, var(--p-accent) 8%, var(--p-surface));
 	box-shadow: 0 0 0 2px color-mix(in srgb, var(--p-accent) 18%, transparent);
+}
+
+.operation-serial-chips,
+.operation-serial-options {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	max-height: 112px;
+	overflow: auto;
+}
+
+.operation-serial-chip,
+.operation-serial-options button,
+.operation-serial-auto {
+	min-height: 44px;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	border: 1px solid var(--p-border);
+	border-radius: var(--p-radius-control);
+	padding: 4px 8px;
+	background: var(--p-surface);
+}
+
+.operation-serial-auto input[type="checkbox"] {
+	width: 20px;
+	min-height: 20px;
+	flex: 0 0 20px;
+	margin: 0;
+	padding: 0;
+}
+
+.operation-serial-chip button {
+	min-width: 32px;
+	min-height: 32px;
+	border: 0;
+	background: transparent;
+	color: inherit;
+}
+
+.operation-serial-field {
+	grid-column: 1 / -1;
+}
+
+@media (max-width: 1023px) {
+	.operation-compact-row.is-serial-tracked .operation-row-serial {
+		display: grid;
+		grid-column: 1 / -1;
+		grid-row: 2;
+		grid-template-columns: minmax(0, 1fr);
+	}
+	.operation-compact-row.is-serial-tracked .operation-row-controls {
+		grid-row: 3;
+	}
+	.operation-serial-field input {
+		min-height: 44px;
+		font-size: 16px;
+	}
 }
 
 @media (max-width: 1023px) {

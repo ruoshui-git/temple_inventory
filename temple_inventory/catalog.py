@@ -1105,6 +1105,20 @@ def scan_code(value):
 	for batch in batches:
 		frappe.get_doc("Batch", batch.name).check_permission("read")
 		codes.add(batch.item)
+	serial = None
+	if frappe.db.exists("Serial No", value):
+		serial_doc = frappe.get_doc("Serial No", value)
+		serial_doc.check_permission("read")
+		item = check_item(serial_doc.item_code)
+		if serial_doc.warehouse:
+			from temple_inventory.native_stock import _check_leaf, warehouse_scopes
+
+			_settings, visible, physical, leased, damaged = warehouse_scopes()
+			if serial_doc.warehouse not in visible:
+				frappe.throw("无权访问此库存位置", frappe.PermissionError)
+			_check_leaf(serial_doc.warehouse, physical | leased | damaged, visible)
+		codes.add(item.name)
+		serial = serial_doc.name
 	for code in codes:
 		check_item(code)
 	matches = [item_metadata(check_item(code)) for code in sorted(codes)]
@@ -1139,8 +1153,41 @@ def scan_code(value):
 		"unknown": not matches and not warehouse,
 		"barcode": value,
 		"matches": matches,
-		"batches": [batch.name for batch in batches],
+		"batches": [batch.name for batch in batches] + ([serial] if serial else []),
+		"serial": serial,
 		"warehouse": warehouse,
+	}
+
+
+@frappe.whitelist()
+def available_serials(item_code, warehouse, search="", start=0, limit=50):
+	"""Return only active serials in an authorized physical source leaf."""
+	from frappe.utils import cint
+
+	from temple_inventory.native_stock import _check_leaf, warehouse_scopes
+
+	require_app()
+	item = check_item(item_code)
+	if not item.has_serial_no:
+		frappe.throw("此物品未启用序列号管理")
+	_settings, visible, physical, _leased, _damaged = warehouse_scopes()
+	_check_leaf(warehouse, physical | _leased | _damaged, visible)
+	start = max(0, cint(start))
+	limit = min(100, max(1, cint(limit)))
+	filters = {"item_code": item.name, "warehouse": warehouse, "status": "Active"}
+	search = str(search or "").strip()
+	if search:
+		filters["name"] = ["like", f"%{search}%"]
+	return {
+		"serials": frappe.get_list(
+			"Serial No",
+			filters=filters,
+			fields=["name"],
+			order_by="name asc",
+			start=start,
+			page_length=limit,
+		),
+		"next": start + limit if frappe.db.count("Serial No", filters=filters) > start + limit else None,
 	}
 
 

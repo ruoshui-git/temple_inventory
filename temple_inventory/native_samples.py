@@ -15,7 +15,7 @@ from decimal import Decimal
 
 import frappe
 from erpnext.stock.utils import get_stock_balance
-from frappe.utils import getdate, nowdate
+from frappe.utils import getdate, now_datetime, nowdate
 
 from temple_inventory import (
 	activities,
@@ -756,6 +756,19 @@ def _items(data, costumes, *, attach_images, include_generated=True):
 				"stock_uom": unit,
 				"has_batch_no": batch,
 				"has_expiry_date": expiry,
+				"barcodes": [code],
+			}
+		)
+	if include_generated:
+		code = allocate_item_code()
+		result["N-SERIAL"] = catalog.save_item(
+			{
+				"item_code": code,
+				"item_name": "无线话筒",
+				"item_group": "演出用品",
+				"stock_uom": "Nos",
+				"has_serial_no": 1,
+				"serial_no_series": f"{code}-.####",
 				"barcodes": [code],
 			}
 		)
@@ -2129,6 +2142,35 @@ def _install(company, *, data="full", attach_images=True, attach_files=True, gen
 	documents.append(depleted_batch_issue)
 	reconciliation = _count(company, rooms, items)
 	mixed_count = _mixed_count(company, rooms, items)
+	serial_item = items["N-SERIAL"]
+	serials = [f"{serial_item['item_code']}-SAMPLE-{index}" for index in range(1, 5)]
+	serial_time = now_datetime()
+	serial_receive = _entry(
+		company,
+		"serial-receipt",
+		"Receive",
+		[_line(serial_item, len(serials), target=rooms["DEMO_A"], serial_no="\n".join(serials))],
+		0,
+		posting_time=serial_time.strftime("%H:%M:%S"),
+	)
+	serial_loan = _entry(
+		company,
+		"serial-loan",
+		"Loan",
+		[
+			_line(
+				serial_item,
+				1,
+				source=rooms["DEMO_A"],
+				target=rooms["LEASE"],
+				serial_no=serials[0],
+			)
+		],
+		0,
+		posting_time=(serial_time + timedelta(seconds=1)).strftime("%H:%M:%S"),
+		ti_borrower="演出团队",
+	)
+	documents.extend((serial_receive, serial_loan))
 	assert_balances(rooms, loans, items)
 	return {
 		"items": len(items),

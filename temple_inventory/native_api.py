@@ -48,6 +48,7 @@ ENTRY_LINE_FIELDS = {
 	"s_warehouse",
 	"t_warehouse",
 	"batch_no",
+	"serial_no",
 	"serial_and_batch_bundle",
 	"use_serial_batch_fields",
 	"basic_rate",
@@ -203,10 +204,20 @@ def serialize(doc):
 			if doc.doctype == "Stock Entry":
 				line["ti_display_tracks_batch"] = bool(metadata.get("has_batch_no"))
 				line["ti_display_tracks_expiry"] = bool(metadata.get("has_expiry_date"))
+				line["ti_display_tracks_serial"] = bool(metadata.get("has_serial_no"))
 		for original, line in zip(doc.get("items"), data["items"], strict=True):
 			if doc.doctype != "Stock Entry":
 				continue
 			bundle = entry_bundle(original)
+			line["serials"] = []
+			if bundle:
+				line["serials"] = [entry.serial_no for entry in bundle.entries if entry.serial_no]
+			elif original.get("serial_no"):
+				line["serials"] = [
+					serial.strip()
+					for serial in original.serial_no.replace(",", "\n").splitlines()
+					if serial.strip()
+				]
 			if bundle:
 				line["recorded_bundle"] = bundle.name
 				line["recorded_batch_allocations"] = []
@@ -422,6 +433,24 @@ def _copy_entry_batches(original, copied):
 	"""
 	for previous, row in zip(original.get("items"), copied.get("items"), strict=True):
 		item = frappe.get_doc("Item", row.item_code)
+		if item.has_serial_no:
+			if not row.s_warehouse:
+				row.serial_no = None
+				row.serial_and_batch_bundle = None
+				row.use_serial_batch_fields = 1
+			else:
+				bundle = entry_bundle(previous)
+				serials = [entry.serial_no for entry in bundle.entries if entry.serial_no] if bundle else []
+				if not serials and previous.get("serial_no"):
+					serials = [
+						value.strip()
+						for value in previous.serial_no.replace(",", "\n").splitlines()
+						if value.strip()
+					]
+				row.serial_no = "\n".join(serials)
+				row.serial_and_batch_bundle = None
+				row.use_serial_batch_fields = 1
+			continue
 		if not item.has_batch_no:
 			continue
 		warehouse = row.s_warehouse or row.t_warehouse

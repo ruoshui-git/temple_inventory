@@ -187,6 +187,30 @@ describe("native movement editor integration", () => {
     expect(wrapper.text()).toContain("自动生成");
   });
 
+  it("keeps serial tracking and its series when the operation editor loads catalog Items", async () => {
+    const call = vi.fn(async (method: string) => {
+      if (method === "catalog.operation_items")
+        return {
+          items: [
+            { ...item, has_serial_no: true, serial_no_series: "MIC-.####" },
+          ],
+          errors: [],
+        };
+      if (method === "native_files.attachments") return [];
+      throw new Error(`Unexpected ${method}`);
+    });
+    const { controller: c } = setup(
+      () => useOperationEditor({ kind: "Receive", initialItems: ["ITEM-A"] }),
+      call,
+    );
+    await flushPromises();
+    expect(c.stock[0]).toMatchObject({
+      tracksSerial: true,
+      serialNoSeries: "MIC-.####",
+    });
+    expect(c.draft.value.items[0]?.displayTracksSerial).toBe(true);
+  });
+
   it("opens review before background balance checks finish and reports their failure", async () => {
     let rejectBalance!: (error: Error) => void;
     const call = vi.fn((method: string) => {
@@ -1438,6 +1462,59 @@ it("does not use frontend DocType capabilities to gate stock confirmation", asyn
   ).toBe(true);
 });
 describe("movement codec", () => {
+  it("round trips explicit serial selections and Receive auto-generation counts", () => {
+    const reference = createReferenceData();
+    const issue = decodeOperation(
+      document({
+        ti_movement_kind: "Issue",
+        items: [
+          {
+            name: "SERIAL-ROW",
+            item_code: "ITEM-A",
+            qty: 2,
+            uom: "Nos",
+            stock_uom: "Nos",
+            conversion_factor: 1,
+            s_warehouse: "ROOM-A",
+            ti_display_tracks_serial: true,
+            serials: ["MIC-001", "MIC-002"],
+          },
+        ],
+      }),
+    );
+    expect(encodeOperation(issue, reference).items).toEqual([
+      expect.objectContaining({
+        qty: 2,
+        serial_no: "MIC-001\nMIC-002",
+        use_serial_batch_fields: 1,
+      }),
+    ]);
+    const receive = decodeOperation(
+      document({
+        ti_movement_kind: "Receive",
+        items: [
+          {
+            item_code: "ITEM-A",
+            qty: 3,
+            uom: "Nos",
+            stock_uom: "Nos",
+            conversion_factor: 1,
+            t_warehouse: "ROOM-A",
+            ti_display_tracks_serial: true,
+          },
+        ],
+      }),
+    );
+    expect(receive.items[0]).toMatchObject({ autoSerialCount: 3, serials: [] });
+    expect(encodeOperation(receive, reference).items).toEqual([
+      expect.objectContaining({
+        qty: 3,
+        serial_no: null,
+        use_serial_batch_fields: 1,
+      }),
+    ]);
+  });
+
   it("preserves recorded conversions and native identities independently of Item defaults", () => {
     const doc = document({
       ti_movement_kind: "Transfer",

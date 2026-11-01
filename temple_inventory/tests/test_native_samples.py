@@ -354,8 +354,20 @@ class NativeSampleTests(NativeDocumentTests):
 				self.assertGreaterEqual(len(placements), 1)
 				self.assertLessEqual(len(placements), 3)
 				self.assertTrue(set(placements) <= physical)
-			self.assertEqual(result["items"], 164)
+			self.assertEqual(result["items"], 165)
 			self.assertEqual(result["images"], 0)
+			serial_item = frappe.get_doc("Item", result["item_codes"]["N-SERIAL"])
+			self.assertEqual(serial_item.item_name, "无线话筒")
+			self.assertEqual(serial_item.stock_uom, "Nos")
+			self.assertEqual(serial_item.serial_no_series, f"{serial_item.name}-.####")
+			serial_rows = frappe.get_all(
+				"Serial No",
+				filters={"item_code": serial_item.name},
+				fields=["name", "status", "warehouse"],
+			)
+			self.assertEqual(len(serial_rows), 4)
+			self.assertEqual(sum(row.warehouse == result["rooms"]["LEASE"] for row in serial_rows), 1)
+			self.assertEqual(sum(row.warehouse == result["rooms"]["DEMO_A"] for row in serial_rows), 3)
 			costumes = test_costumes
 			barcode_to_parent = {
 				row.barcode: row.parent

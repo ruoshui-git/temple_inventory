@@ -8,7 +8,7 @@ from contextvars import ContextVar
 from decimal import Decimal, InvalidOperation
 
 import frappe
-from frappe.utils import get_datetime, getdate
+from frappe.utils import cint, get_datetime, getdate
 
 from temple_inventory.activities import validate_assignment
 from temple_inventory.native_access import check_company, check_document_scope, check_item
@@ -162,9 +162,50 @@ def _check_leaf(name, permitted, visible):
 		frappe.throw("所选库存位置已停用")
 
 
-def _validate_batch(row, item, posting_date):
+def _serial_values(row):
+	values = row.get("serial_no") or ""
+	if isinstance(values, (list, tuple)):
+		return [str(value).strip() for value in values if str(value).strip()]
+	return [value.strip() for value in str(values).replace(",", "\n").splitlines() if value.strip()]
+
+
+def _validate_tracking(row, item, posting_date, kind, source_warehouse, seen_serials):
 	if item.has_serial_no:
-		frappe.throw("物资管理暂不支持序列号物品")
+		if item.has_batch_no:
+			frappe.throw("物品不能同时按序列号和批次管理")
+		if row.uom != item.stock_uom or Decimal(str(row.conversion_factor)) != 1:
+			frappe.throw(f"{item.item_name or item.name}按序列号管理时只能使用库存单位")
+		serials = _serial_values(row)
+		bundle_name = row.get("serial_and_batch_bundle")
+		if not serials and bundle_name:
+			bundle = frappe.get_doc("Serial and Batch Bundle", bundle_name)
+			bundle.check_permission("read")
+			serials = [entry.serial_no for entry in bundle.entries if entry.serial_no]
+		qty = Decimal(str(row.qty))
+		if kind != "Receive" or serials:
+			if qty != len(serials):
+				frappe.throw(f"{item.item_name or item.name}的数量必须等于序列号数量")
+		if kind != "Receive" and not serials:
+			frappe.throw(f"请选择{item.item_name or item.name}的序列号")
+		for serial in serials:
+			if serial in seen_serials:
+				frappe.throw(f"序列号 {serial} 在本单据中重复")
+			seen_serials.add(serial)
+			owner = frappe.db.get_value("Serial No", serial, "item_code")
+			if kind == "Receive":
+				if owner:
+					owner_name = frappe.get_cached_value("Item", owner, "item_name") or owner
+					frappe.throw(f"序列号 {serial} 已属于物品 {owner_name}")
+				continue
+			if not owner:
+				frappe.throw(f"序列号 {serial} 不存在")
+			if owner != item.name:
+				frappe.throw(f"序列号 {serial} 不属于物品 {item.item_name or item.name}")
+			serial_doc = frappe.get_doc("Serial No", serial)
+			serial_doc.check_permission("read")
+			if serial_doc.status != "Active" or serial_doc.warehouse != source_warehouse:
+				frappe.throw(f"序列号 {serial} 不在所选来源库位或已不处于可用状态")
+		return
 	if row.get("serial_and_batch_bundle"):
 		bundle = frappe.get_doc("Serial and Batch Bundle", row.serial_and_batch_bundle)
 		bundle.check_permission("read")
@@ -172,7 +213,9 @@ def _validate_batch(row, item, posting_date):
 			frappe.throw("批次明细不属于此物品")
 		for entry in bundle.entries:
 			if entry.batch_no:
-				_validate_batch(frappe._dict(batch_no=entry.batch_no), item, posting_date)
+				_validate_tracking(
+					frappe._dict(batch_no=entry.batch_no), item, posting_date, "Receive", None, set()
+				)
 	if row.batch_no:
 		batch = frappe.get_doc("Batch", row.batch_no)
 		batch.check_permission("read")
@@ -207,7 +250,9 @@ def validate_availability(doc, *, visible=None, settings=None):
 		if not row.s_warehouse:
 			continue
 		requested[(row.item_code, row.s_warehouse)] += Decimal(str(row.transfer_qty))
-		if row.get("batch_no") or row.get("serial_and_batch_bundle"):
+		if (row.get("batch_no") or row.get("serial_and_batch_bundle")) and not cint(
+			frappe.get_cached_value("Item", row.item_code, "has_serial_no")
+		):
 			for batch, quantity in batch_quantities(row).items():
 				requested_batches[(row.item_code, row.s_warehouse, batch)] += quantity
 	for (code, warehouse), quantity in sorted(requested.items()):
@@ -265,6 +310,7 @@ def before_validate(doc, method=None):
 		frappe.throw("请填写借用方")
 	# Rows often repeat an item; authorize and load each one once per document.
 	items = {}
+	seen_serials = set()
 	for row in doc.get("items", []):
 		if row.item_code not in items:
 			items[row.item_code] = check_item(row.item_code)
@@ -272,7 +318,7 @@ def before_validate(doc, method=None):
 		if item.disabled or not item.is_stock_item:
 			frappe.throw("物品已停用或不是库存物品")
 		validate_quantity(row, item, doc)
-		_validate_batch(row, item, doc.posting_date)
+		_validate_tracking(row, item, doc.posting_date, kind, row.s_warehouse, seen_serials)
 		has_origin = bool(row.get("ti_original_loan") or row.get("ti_original_loan_line"))
 		if has_origin and kind not in ("Return", "Damage", "Loss"):
 			frappe.throw("此操作不能结算借用")

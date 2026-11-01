@@ -24,6 +24,7 @@ export interface AllocationLine {
   displayName?: string;
   displayImage?: string;
   displayTracksBatch?: boolean;
+  displayTracksSerial?: boolean;
   displayTracksExpiry?: boolean;
   qty: number;
   uom: string;
@@ -33,6 +34,8 @@ export interface AllocationLine {
   originalLoanLine?: string;
   loanedLocation?: string;
   batch?: string;
+  serials?: string[];
+  autoSerialCount?: number;
   expiry?: string;
   manufacturingDate?: string;
   entryUom?: string;
@@ -124,6 +127,8 @@ export function mergeCompatibleOperationLines(draft: OperationDraft) {
     "s_warehouse",
     "t_warehouse",
     "batch_no",
+    "serial_no",
+    "serials",
     "serial_and_batch_bundle",
     "recorded_bundle",
     "recorded_batch_allocations",
@@ -135,12 +140,15 @@ export function mergeCompatibleOperationLines(draft: OperationDraft) {
     "ti_display_item_name",
     "ti_display_image",
     "ti_display_tracks_batch",
+    "ti_display_tracks_serial",
     "ti_display_tracks_expiry",
   ]);
   for (const line of draft.items) {
     if (
       line.nativeBundle ||
       line.recordedBundle ||
+      line.serials?.length ||
+      line.autoSerialCount !== undefined ||
       line.batchAllocations?.length ||
       line.loanName ||
       line.returnOutcome
@@ -184,6 +192,8 @@ export function copyOperationLine(line: AllocationLine): AllocationLine {
     qty: 0,
     entryQty: 0,
     batch: "",
+    serials: [],
+    autoSerialCount: undefined,
     expiry: "",
     manufacturingDate: "",
     nativeBundle: undefined,
@@ -308,6 +318,31 @@ export function operationIssues(
       context.units,
     );
     if (invalid) add("qty", invalid);
+    if (line.displayTracksSerial) {
+      if (
+        line.entryUom !== line.uom ||
+        Number(line.conversionFactor || 1) !== 1
+      )
+        add("uom", "序列号物品只能使用库存单位");
+      if (draft.kind === "Receive" && line.autoSerialCount !== undefined) {
+        if (line.autoSerialCount < 1 || !Number.isInteger(line.autoSerialCount))
+          add("serials", "请输入有效的自动生成数量");
+        else {
+          line.qty = line.autoSerialCount;
+          line.entryQty = line.autoSerialCount;
+        }
+      } else {
+        const serials = line.serials || [];
+        if (draft.kind !== "Receive" && !serials.length)
+          add("serials", "请选择序列号");
+        if (serials.length !== line.qty)
+          add("serials", "数量必须等于序列号数量");
+        if (new Set(serials).size !== serials.length)
+          add("serials", "序列号不能重复");
+        line.qty = serials.length;
+        line.entryQty = serials.length;
+      }
+    }
     const source = line.sourceLocation || line.location;
     const sourceSet = line.loanName
       ? context.leasedLeaves
@@ -370,6 +405,12 @@ export interface OperationContext {
   remember(item: StockItem): void;
   ensure(code: string): Promise<StockItem>;
   ensureMany(codes: string[]): Promise<Map<string, StockItem>>;
+  availableSerials(
+    itemCode: string,
+    warehouse: string,
+    search: string,
+    start: number,
+  ): Promise<{ serials: string[]; next: number | null }>;
   timestamp(): string | undefined;
   issues(draft: OperationDraft): OperationIssue[];
   lineStock(line: AllocationLine): ReturnType<typeof lineStock>;

@@ -107,6 +107,15 @@ export function useOperationEditor(props: {
     if (existing) Object.assign(existing, item);
     else stock.push(item);
   }
+  function trackingDisplay(item: StockItem) {
+    return {
+      displayTracksBatch: item.tracksBatch,
+      displayTracksExpiry: item.tracksExpiry,
+      displayTracksSerial: Boolean(
+        (item as StockItem & { tracksSerial?: boolean }).tracksSerial,
+      ),
+    };
+  }
   function timestamp() {
     return draft.value.timeMode === "manual"
       ? `${draft.value.postingDate} ${draft.value.postingTime}`
@@ -138,7 +147,10 @@ export function useOperationEditor(props: {
       });
       if (!active()) throw new DOMException("Account changed", "AbortError");
       for (const entry of result.items) {
-        const item = presentCatalogItem(entry);
+        const item = Object.assign(presentCatalogItem(entry), {
+          tracksSerial: Boolean(entry.has_serial_no),
+          serialNoSeries: String(entry.serial_no_series || ""),
+        });
         itemCache.set(cacheKey(entry.item_code), item);
         if (active()) remember(item);
       }
@@ -149,6 +161,29 @@ export function useOperationEditor(props: {
         return item ? [[code, item] as const] : [];
       }),
     );
+  }
+  async function availableSerials(
+    itemCode: string,
+    warehouse: string,
+    search: string,
+    start: number,
+  ) {
+    if (!active()) throw new DOMException("Account changed", "AbortError");
+    const result = await services.call<{
+      serials: { name: string }[];
+      next: number | null;
+    }>("catalog.available_serials", {
+      item_code: itemCode,
+      warehouse,
+      search,
+      start,
+      limit: 50,
+    });
+    if (!active()) throw new DOMException("Account changed", "AbortError");
+    return {
+      serials: result.serials.map((row) => row.name),
+      next: result.next,
+    };
   }
   function issues(value: OperationDraft) {
     return operationIssues(value, {
@@ -376,6 +411,7 @@ export function useOperationEditor(props: {
     stock,
     ensure,
     ensureMany,
+    availableSerials,
     remember,
     timestamp,
     issues,
@@ -393,6 +429,7 @@ export function useOperationEditor(props: {
           displayName: _displayName,
           displayImage: _displayImage,
           displayTracksBatch: _displayTracksBatch,
+          displayTracksSerial: _displayTracksSerial,
           displayTracksExpiry: _displayTracksExpiry,
           ...line
         }) => line,
@@ -514,6 +551,7 @@ export function useOperationEditor(props: {
             id,
             localId: id,
             code,
+            ...trackingDisplay(item),
             qty: 1,
             entryQty: 1,
             uom: item.uom,
@@ -547,6 +585,7 @@ export function useOperationEditor(props: {
             id,
             localId: id,
             code: item.code,
+            ...trackingDisplay(item),
             qty: allocation.qty,
             entryQty: allocation.qty,
             uom: item.uom,
@@ -723,7 +762,7 @@ export function useOperationEditor(props: {
       throw new Error("请选择已提交的原借出记录");
     const additions = [];
     for (const row of loan.items) {
-      await ensure(String(row.item_code));
+      const item = await ensure(String(row.item_code));
       const allocations = row.allocations as {
         batch_no: string;
         outstanding_qty: number;
@@ -752,6 +791,7 @@ export function useOperationEditor(props: {
           id,
           localId: id,
           code: String(row.item_code),
+          ...trackingDisplay(item),
           qty,
           uom: String(row.stock_uom),
           entryQty: qty / factor,

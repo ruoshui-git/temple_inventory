@@ -124,6 +124,9 @@ function setup(
   );
   const stock = reactive(items);
   const findItem = (code: string) => stock.find((item) => item.code === code);
+  const call = vi.fn(
+    async () => ({ results: [], matched_count: 0, next_start: null }) as never,
+  );
   const context: OperationContext = {
     stock,
     remember: vi.fn(),
@@ -141,6 +144,19 @@ function setup(
           }),
         ),
     ),
+    availableSerials: async (itemCode, warehouse, search, start) => {
+      const result = (await call("catalog.available_serials", {
+        item_code: itemCode,
+        warehouse,
+        search,
+        start,
+        limit: 50,
+      })) as { serials: { name: string }[]; next: number | null };
+      return {
+        serials: result.serials.map((row) => row.name),
+        next: result.next,
+      };
+    },
     timestamp: () => "2026-10-21 10:00:00",
     issues: () => [],
     lineStock: (line) =>
@@ -160,9 +176,6 @@ function setup(
         : place.available;
     },
   };
-  const call = vi.fn(
-    async () => ({ results: [], matched_count: 0, next_start: null }) as never,
-  );
   const services: InventoryServices = {
     call,
     report: vi.fn(
@@ -199,6 +212,102 @@ async function openPicker(wrapper: VueWrapper) {
 }
 
 describe("rapid operation scan integration", () => {
+  it("edits serial chips with a read-only quantity and searches the authorized picker", async () => {
+    const tracked = Object.assign(stockItem(), {
+      tracksSerial: true,
+      serialNoSeries: "ITEM-A-.####",
+    });
+    const { wrapper, draft, call } = setup(
+      "Issue",
+      [tracked],
+      [{ id: "serial-line", displayTracksSerial: true }],
+    );
+    call.mockResolvedValue({
+      serials: [{ name: "SERIAL-001" }, { name: "SERIAL-002" }],
+      next: null,
+    } as never);
+    await wrapper
+      .get(
+        '[data-line-id="serial-line"] input[aria-label="物品甲搜索可用序列号"]',
+      )
+      .trigger("focus");
+    await flushPromises();
+    expect(call).toHaveBeenCalledWith(
+      "catalog.available_serials",
+      expect.objectContaining({ item_code: "ITEM-A", warehouse: "ROOM-A" }),
+    );
+    await wrapper
+      .get('[data-line-id="serial-line"] [role="option"]')
+      .trigger("click");
+    expect(draft.items[0]).toMatchObject({
+      serials: ["SERIAL-001"],
+      qty: 1,
+      entryQty: 1,
+    });
+    expect(
+      wrapper
+        .find('[data-line-id="serial-line"] input[data-field="qty"]')
+        .exists(),
+    ).toBe(false);
+  });
+
+  it("accepts typed serial chips on Receive and keeps the auto count in the same unit", async () => {
+    const tracked = Object.assign(stockItem(), {
+      tracksSerial: true,
+      serialNoSeries: "ITEM-A-.####",
+    });
+    const { wrapper, draft } = setup(
+      "Receive",
+      [tracked],
+      [{ id: "serial-receive", displayTracksSerial: true }],
+    );
+    const input = wrapper.get(
+      '[data-line-id="serial-receive"] input[data-field="serials"]',
+    );
+    await input.setValue("MIC-001,MIC-002");
+    await input.trigger("keydown.enter");
+    expect(draft.items[0]).toMatchObject({
+      serials: ["MIC-001", "MIC-002"],
+      qty: 2,
+      entryQty: 2,
+    });
+    expect(
+      wrapper
+        .find('[data-line-id="serial-receive"] input[data-field="qty"]')
+        .exists(),
+    ).toBe(false);
+    await wrapper
+      .get('[data-line-id="serial-receive"] .operation-serial-auto input')
+      .setValue(true);
+    expect(draft.items[0]).toMatchObject({
+      serials: [],
+      autoSerialCount: 2,
+      qty: 2,
+    });
+  });
+
+  it("routes a scanned serial into its matching outbound line", async () => {
+    const tracked = Object.assign(stockItem(), { tracksSerial: true });
+    const { wrapper, draft, call } = setup("Issue", [tracked]);
+    call.mockResolvedValue({
+      serials: [{ name: "MIC-SCAN-1" }],
+      next: null,
+    } as never);
+    const picker = await openPicker(wrapper);
+    const accept = picker.props("onOperationScan") as (
+      code: string,
+      serial?: string,
+      context?: unknown,
+    ) => Promise<void>;
+    await accept("ITEM-A", "MIC-SCAN-1", { activeWarehouse: "ROOM-A" });
+    expect(draft.items).toHaveLength(1);
+    expect(draft.items[0]).toMatchObject({
+      serials: ["MIC-SCAN-1"],
+      qty: 1,
+      sourceLocation: "ROOM-A",
+    });
+  });
+
   it("shows location stock or selected-batch stock beside outbound quantity", async () => {
     const tracked = stockItem({
       tracksBatch: true,

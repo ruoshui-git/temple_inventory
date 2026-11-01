@@ -13,10 +13,14 @@
 11. ERPNext accepts an Item with both has_serial_no=1 and has_batch_no=1; no error.
 """
 
+from datetime import timedelta
+from unittest.mock import patch
+
 import frappe
 from erpnext.stock.utils import get_stock_balance
 from frappe.utils import now_datetime, nowdate
 
+from temple_inventory import catalog, native_api
 from temple_inventory.tests.test_native_documents import NativeDocumentTests
 
 
@@ -56,6 +60,8 @@ class SerialTrackingTests(NativeDocumentTests):
 				"doctype": "Stock Entry",
 				"company": self.company,
 				"posting_date": nowdate(),
+				"posting_time": now_datetime().time(),
+				"set_posting_time": 1,
 				"purpose": purpose,
 				"stock_entry_type": purpose,
 				"ti_movement_kind": "",
@@ -83,6 +89,43 @@ class SerialTrackingTests(NativeDocumentTests):
 					}
 				],
 			}
+		)
+
+	def native_serial_entry(
+		self,
+		item,
+		kind,
+		quantity,
+		*,
+		source="",
+		target="",
+		serials=None,
+		uom="Nos",
+		posting_time=None,
+	):
+		data = {
+			"company": self.company,
+			"posting_date": nowdate(),
+			"posting_time": posting_time or now_datetime().time().strftime("%H:%M:%S"),
+			"ti_time_mode": "Manual",
+			"ti_movement_kind": kind,
+			"ti_borrower": "序列号测试借用方" if kind == "Loan" else "",
+			"items": [
+				{
+					"item_code": item.name,
+					"qty": quantity,
+					"uom": uom,
+					"conversion_factor": 1,
+					"s_warehouse": source or None,
+					"t_warehouse": target or None,
+					"basic_rate": 10,
+					"serial_no": "\n".join(serials or []),
+					"use_serial_batch_fields": 1,
+				}
+			],
+		}
+		return native_api.create_document(
+			"Stock Entry", f"serial-native:{self.token}:{frappe.generate_hash(length=6)}", data
 		)
 
 	def test_receipt_with_explicit_serials_creates_active_serials_and_inward_bundle(self):
@@ -267,3 +310,107 @@ class SerialTrackingTests(NativeDocumentTests):
 	def test_erpnext_allows_item_to_have_both_serial_and_batch_tracking(self):
 		item = self.serial_item(batch=True)
 		self.assertEqual((item.has_serial_no, item.has_batch_no), (1, 1))
+
+	def test_native_receive_accepts_typed_serials_and_auto_generates_from_series(self):
+		item = self.serial_item(series=f"{self.token}-.####")
+		serials = [f"TSN-{self.token}-NATIVE-A", f"TSN-{self.token}-NATIVE-B"]
+		draft = self.native_serial_entry(item, "Receive", 2, target=self.a, serials=serials)
+		saved = frappe.get_doc("Stock Entry", draft["name"])
+		self.assertEqual(saved.items[0].serial_no, "\n".join(serials))
+		result = native_api.submit_document("Stock Entry", saved.name, str(saved.modified))
+		self.assertEqual(get_stock_balance(item.name, self.a), 2)
+		self.assertEqual(result["items"][0]["serials"], serials)
+		generated = self.native_serial_entry(item, "Receive", 1, target=self.b)
+		generated_doc = frappe.get_doc("Stock Entry", generated["name"])
+		native_api.submit_document("Stock Entry", generated_doc.name, str(generated_doc.modified))
+		self.assertEqual(
+			frappe.db.count("Serial No", {"item_code": item.name, "warehouse": self.b, "status": "Active"}),
+			1,
+		)
+
+	def test_native_receive_existing_serial_names_owner_item(self):
+		owner = self.serial_item()
+		other = self.serial_item()
+		serial = f"TSN-{self.token}-OWNER"
+		self.serial_entry(owner, "Material Receipt", 1, target=self.a, serials=[serial]).insert().submit()
+		with self.assertRaises(frappe.ValidationError) as error:
+			self.native_serial_entry(other, "Receive", 1, target=self.b, serials=[serial])
+		self.assertIn(f"序列号 {serial} 已属于物品 {owner.item_name}", str(error.exception))
+
+	def test_native_issue_transfer_and_loan_use_selected_active_serials(self):
+		item = self.serial_item()
+		serials = [f"TSN-{self.token}-KIND-{i}" for i in range(1, 4)]
+		receipt = self.native_serial_entry(
+			item,
+			"Receive",
+			3,
+			target=self.a,
+			serials=serials,
+			posting_time=(now_datetime() - timedelta(minutes=1)).time().strftime("%H:%M:%S"),
+		)
+		receipt_doc = frappe.get_doc("Stock Entry", receipt["name"])
+		native_api.submit_document("Stock Entry", receipt_doc.name, str(receipt_doc.modified))
+		transfer = self.native_serial_entry(
+			item, "Transfer", 1, source=self.a, target=self.b, serials=[serials[0]]
+		)
+		transfer_doc = frappe.get_doc("Stock Entry", transfer["name"])
+		native_api.submit_document("Stock Entry", transfer_doc.name, str(transfer_doc.modified))
+		loan = self.native_serial_entry(
+			item, "Loan", 1, source=self.a, target=self.loan_leaf, serials=[serials[1]]
+		)
+		loan_doc = frappe.get_doc("Stock Entry", loan["name"])
+		native_api.submit_document("Stock Entry", loan_doc.name, str(loan_doc.modified))
+		issue = self.native_serial_entry(item, "Issue", 1, source=self.a, serials=[serials[2]])
+		issue_doc = frappe.get_doc("Stock Entry", issue["name"])
+		native_api.submit_document("Stock Entry", issue_doc.name, str(issue_doc.modified))
+		self.assertEqual(frappe.db.get_value("Serial No", serials[0], "warehouse"), self.b)
+		self.assertEqual(frappe.db.get_value("Serial No", serials[1], "warehouse"), self.loan_leaf)
+		self.assertEqual(frappe.db.get_value("Serial No", serials[2], "status"), "Consumed")
+
+	def test_native_outward_rejects_wrong_source_wrong_count_and_non_stock_unit(self):
+		item = self.serial_item()
+		serial = f"TSN-{self.token}-SOURCE"
+		self.serial_entry(item, "Material Receipt", 1, target=self.a, serials=[serial]).insert().submit()
+		with self.assertRaisesRegex(frappe.ValidationError, "不在所选来源库位"):
+			self.native_serial_entry(item, "Issue", 1, source=self.b, serials=[serial])
+		with self.assertRaisesRegex(frappe.ValidationError, "数量必须等于序列号数量"):
+			self.native_serial_entry(item, "Issue", 2, source=self.a, serials=[serial])
+		with self.assertRaisesRegex(frappe.ValidationError, "只能使用库存单位"):
+			self.native_serial_entry(item, "Issue", 1, source=self.a, serials=[serial], uom="Box")
+		duplicate = f"TSN-{self.token}-INTRA-DUPLICATE"
+		with self.assertRaisesRegex(frappe.ValidationError, "在本单据中重复"):
+			self.native_serial_entry(item, "Receive", 2, target=self.b, serials=[duplicate, duplicate])
+
+	def test_available_serials_scopes_item_and_authorized_warehouse_and_scan_resolves_serial(self):
+		item = self.serial_item()
+		serial = f"TSN-{self.token}-SCAN"
+		self.serial_entry(item, "Material Receipt", 1, target=self.a, serials=[serial]).insert().submit()
+		result = catalog.available_serials(item.name, self.a)
+		self.assertIn(serial, [row["name"] for row in result["serials"]])
+		with (
+			patch(
+				"temple_inventory.native_stock.warehouse_scopes",
+				return_value=(None, {self.a: frappe._dict(name=self.a, is_group=0)}, {self.a}, set(), set()),
+			),
+			self.assertRaises(frappe.PermissionError),
+		):
+			catalog.available_serials(item.name, self.b)
+		scan = catalog.scan_code(serial)
+		self.assertEqual(scan["matches"][0]["item_code"], item.name)
+		self.assertEqual(scan["serial"], serial)
+		self.assertIn(serial, scan["batches"])
+
+	def test_duplicate_copies_drop_receipt_serials_and_keep_outward_serials(self):
+		item = self.serial_item()
+		serial = f"TSN-{self.token}-COPY"
+		receipt = self.serial_entry(item, "Material Receipt", 1, target=self.a, serials=[serial]).insert()
+		receipt.submit()
+		copied_receipt = native_api.duplicate_document(
+			"Stock Entry", receipt.name, str(receipt.modified), f"serial-copy-receive:{self.token}"
+		)
+		self.assertFalse(frappe.get_doc("Stock Entry", copied_receipt["name"]).items[0].serial_no)
+		issue = self.serial_entry(item, "Material Issue", 1, source=self.a, serials=[serial]).insert()
+		copied_issue = native_api.duplicate_document(
+			"Stock Entry", issue.name, str(issue.modified), f"serial-copy-issue:{self.token}"
+		)
+		self.assertEqual(frappe.get_doc("Stock Entry", copied_issue["name"]).items[0].serial_no, serial)

@@ -289,6 +289,7 @@ describe("operation review rail collapse", () => {
             throw new Error("missing item");
           }),
           ensureMany: vi.fn(async () => new Map()),
+          availableSerials: vi.fn(async () => ({ serials: [], next: null })),
           timestamp: () => undefined,
           issues: () => [],
           lineStock: () => undefined,

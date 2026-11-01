@@ -49,6 +49,7 @@ export function decodeOperation(doc: NativeDocument): NativeOperationDocument {
       displayName: String(row.ti_display_item_name || row.item_name || ""),
       displayImage: String(row.ti_display_image || ""),
       displayTracksBatch: Boolean(row.ti_display_tracks_batch),
+      displayTracksSerial: Boolean(row.ti_display_tracks_serial),
       displayTracksExpiry: Boolean(row.ti_display_tracks_expiry),
       qty: Number(
         row.transfer_qty ?? Number(row.qty) * Number(row.conversion_factor),
@@ -62,6 +63,21 @@ export function decodeOperation(doc: NativeDocument): NativeOperationDocument {
         kind === "Loan" ? String(row.t_warehouse || "") : undefined,
       location: String(row.t_warehouse || row.s_warehouse || ""),
       batch: String(row.batch_no || ""),
+      serials: Array.isArray(row.serials)
+        ? row.serials.map(String)
+        : String(row.serial_no || "")
+            .replaceAll(",", "\n")
+            .split(/\r?\n/)
+            .map((serial) => serial.trim())
+            .filter(Boolean),
+      autoSerialCount:
+        kind === "Receive" &&
+        Boolean(row.ti_display_tracks_serial) &&
+        !row.serial_no &&
+        !row.serials &&
+        !row.serial_and_batch_bundle
+          ? Number(row.qty)
+          : undefined,
       nativeBundle: String(row.serial_and_batch_bundle || ""),
       recordedBundle: String(row.recorded_bundle || ""),
       batchAllocations: (
@@ -139,13 +155,19 @@ export function encodeOperation(
       delete nativeFields.ti_display_image;
       delete nativeFields.ti_display_tracks_batch;
       delete nativeFields.ti_display_tracks_expiry;
+      delete nativeFields.ti_display_tracks_serial;
+      delete nativeFields.serials;
+      const serialTracked = Boolean(line.displayTracksSerial);
+      const serialCount =
+        line.autoSerialCount ??
+        (serialTracked ? line.serials?.length || 0 : undefined);
       return {
         ...nativeFields,
         ...(line.name ? { name: line.name } : {}),
         item_code: line.code,
-        qty: line.entryQty,
-        uom: line.entryUom,
-        conversion_factor: line.conversionFactor,
+        qty: serialTracked ? serialCount : line.entryQty,
+        uom: serialTracked ? line.uom : line.entryUom,
+        conversion_factor: serialTracked ? 1 : line.conversionFactor,
         s_warehouse:
           draft.kind === "Receive"
             ? null
@@ -153,8 +175,14 @@ export function encodeOperation(
         t_warehouse:
           allocationDestination(draft, line, reference.damagedLeaves) || null,
         batch_no: line.batch || null,
+        serial_no:
+          serialTracked &&
+          !(draft.kind === "Receive" && line.autoSerialCount !== undefined)
+            ? (line.serials || []).join("\n") || null
+            : null,
         serial_and_batch_bundle: line.nativeBundle || null,
-        use_serial_batch_fields: line.nativeBundle ? 0 : 1,
+        use_serial_batch_fields:
+          serialTracked || line.nativeBundle ? (serialTracked ? 1 : 0) : 1,
         ti_original_loan: line.loanName || null,
         ti_original_loan_line: line.originalLoanLine || null,
         ti_settlement_outcome: line.loanName
