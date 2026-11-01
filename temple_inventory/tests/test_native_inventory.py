@@ -35,6 +35,7 @@ from temple_inventory.tests.test_native_samples import (
 )
 from temple_inventory.tests.test_native_warehouses import NativeWarehouseTests
 from temple_inventory.tests.test_notifications import NotificationTests
+from temple_inventory.tests.test_printing import PrintingTests
 from temple_inventory.tests.test_schema_audit import SchemaAuditTests
 from temple_inventory.tests.test_table_preferences import TablePreferenceTests
 from temple_inventory.tests.test_units import UnitTests
@@ -79,6 +80,7 @@ def run(test_name=None):
 		UnitTests,
 		EnvironmentTests,
 		SchemaAuditTests,
+		PrintingTests,
 		ActivityTypeTests,
 	):
 		# Feature suites inherit the shared savepoint setup and helpers. Run their

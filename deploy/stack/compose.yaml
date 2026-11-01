@@ -14,6 +14,8 @@ x-frappe: &frappe
   volumes:
     - sites:/home/frappe/frappe-bench/sites
     - logs:/home/frappe/frappe-bench/logs
+    # Optional licensed operator fonts for PDF output (deploy/README.md "PDF fonts").
+    - ${TI_FONTS_DIR:-./fonts}:/usr/local/share/fonts/custom:ro
   networks:
     - default
 
@@ -42,6 +44,7 @@ services:
 
   backend:
     <<: *frappe
+    command: [bash, -c, "fc-cache -f /usr/local/share/fonts/custom || true; exec start.sh"]
     environment:
       GUNICORN_WORKERS: "2"
       GUNICORN_THREADS: "4"
@@ -59,14 +62,14 @@ services:
 
   queue-short:
     <<: *frappe
-    command: [bench, worker, --queue, "short,default"]
+    command: [bash, -c, "fc-cache -f /usr/local/share/fonts/custom || true; exec bench worker --queue short,default"]
     depends_on:
       configurator:
         condition: service_completed_successfully
 
   queue-long:
     <<: *frappe
-    command: [bench, worker, --queue, "long,default,short"]
+    command: [bash, -c, "fc-cache -f /usr/local/share/fonts/custom || true; exec bench worker --queue long,default,short"]
     depends_on:
       configurator:
         condition: service_completed_successfully

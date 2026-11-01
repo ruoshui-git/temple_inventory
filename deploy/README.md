@@ -17,6 +17,16 @@ preserving the path. Only production sends HSTS (one year, includeSubDomains).
 Its CSP permits Frappe Desk same-origin frames, and its referrer policy is
 `strict-origin-when-cross-origin`.
 
+## PDF fonts
+
+The backend image includes Noto CJK fonts for Chinese print output. To use
+Microsoft YaHei, place licensed `msyh.ttc` and `msyhbd.ttc` (or equivalent
+`.ttf` files) in the operator fonts directory and set `TI_FONTS_DIR` to that
+directory in the stack environment. The stack mounts it read-only and refreshes
+fontconfig on backend and worker startup; restart those services after changing
+font files. Font licensing and rights to distribute or use operator-provided
+fonts remain the operator's responsibility.
+
 ## Layout and boundaries
 
 Each host has its own edge and `kufang-edge` Docker network. Every environment

@@ -69,6 +69,9 @@ RUN cp -r sites/assets assets && rm -rf sites/assets
 VOLUME ["/home/frappe/frappe-bench/sites", "/home/frappe/frappe-bench/logs"]
 
 USER root
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends fonts-noto-cjk \
+	&& rm -rf /var/lib/apt/lists/*
 COPY deploy/image/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY deploy/image/start.sh /usr/local/bin/start.sh
 RUN chmod 755 /usr/local/bin/entrypoint.sh /usr/local/bin/start.sh
