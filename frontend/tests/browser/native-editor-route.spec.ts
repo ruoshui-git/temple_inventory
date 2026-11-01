@@ -290,7 +290,8 @@ test("save, reload and amendment keep the current native identity in the URL", a
     path: test.info().outputPath("phone-inbound-dates.png"),
   });
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.getByRole("button", { name: "添加物品", exact: true }).click();
+  // The section's own add action; the phone action bar's copy may still be leaving.
+  await page.locator(".operation-add-item-action").first().click();
   const addPicker = page.getByRole("dialog", { name: "选择物品", exact: true });
   await expect(addPicker).toBeVisible();
   await expect(

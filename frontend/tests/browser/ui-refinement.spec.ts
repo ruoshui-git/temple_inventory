@@ -923,9 +923,10 @@ test("activities and categories use the phone FAB with loaded browse data", asyn
 
 test("touching 完成 in the phone filter sheet does not activate 更多", async ({
   browser,
+  baseURL,
 }) => {
   const context = await browser.newContext({
-    baseURL: "http://127.0.0.1:8081",
+    baseURL,
     viewport: { width: 430, height: 932 },
     isMobile: true,
     hasTouch: true,
