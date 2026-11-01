@@ -72,6 +72,11 @@ USER root
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends fonts-noto-cjk \
 	&& rm -rf /var/lib/apt/lists/*
+# Debian's /usr/bin/chromium-headless-shell is a shell wrapper; Frappe terminates the
+# process it starts, which killed only the wrapper and leaked one browser per PDF.
+# Point the configured path straight at the binary.
+RUN test -x /usr/lib/chromium/chromium-headless-shell \
+	&& ln -sf /usr/lib/chromium/chromium-headless-shell /usr/bin/chromium-headless-shell
 COPY deploy/image/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY deploy/image/start.sh /usr/local/bin/start.sh
 RUN chmod 755 /usr/local/bin/entrypoint.sh /usr/local/bin/start.sh
