@@ -48,7 +48,16 @@ function groupedPath(
     "view",
     dataset === "movements" && view === "summary" ? "items" : view,
   );
-  params.set("query", JSON.stringify({ dataset, view, groupBy }));
+  // All time: the default 本月 can be empty right after a month starts.
+  params.set(
+    "query",
+    JSON.stringify({
+      dataset,
+      view,
+      groupBy,
+      scope: { period: { key: "all", from: "", to: "" } },
+    }),
+  );
   return `${base}?${params.toString()}`;
 }
 
@@ -319,6 +328,8 @@ test("browse table chips stay single-line and browse pages retain their phone la
   }
 
   await settled(page, "/inventory/loans");
+  // Record chips live in the table; phones open record lists as rows.
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByRole("button", { name: "借还流动" }).click();
   await expect(page.locator(".record-ref-chip").first()).toBeVisible();
   await capture(page, "loan-history", 1440, 900);

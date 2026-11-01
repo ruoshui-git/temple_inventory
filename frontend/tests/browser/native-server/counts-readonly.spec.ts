@@ -69,6 +69,12 @@ async function openingReconciliation(page: Page) {
   return ((await response.json()).message as Array<{ name: string }>)[0];
 }
 
+/** Phone record lists open as rows; the column checks cover the table. */
+async function showPhoneTable(page: Page) {
+  await page.getByRole("button", { name: "更多操作", exact: true }).click();
+  await page.getByRole("menuitem", { name: "以表格显示", exact: true }).click();
+}
+
 async function capture(page: Page, route: string, label: string) {
   for (const [width, height] of [
     [1440, 900],
@@ -80,6 +86,7 @@ async function capture(page: Page, route: string, label: string) {
     await expect(page.locator("main h1").first()).toBeVisible();
     if (label === "counts-browse") {
       await expect(page.locator(".browse-results")).toBeVisible();
+      if (width < 1024) await showPhoneTable(page);
       await expect(
         page.getByText("期初库存", { exact: true }).first(),
       ).toBeVisible();
@@ -100,6 +107,7 @@ async function capture(page: Page, route: string, label: string) {
         idLayout.clientWidth + 1,
       );
     } else if (label === "movements-count-available-change") {
+      if (width < 1024) await showPhoneTable(page);
       await expect(
         page.getByRole("columnheader", { name: "可用变化" }),
       ).toBeVisible();

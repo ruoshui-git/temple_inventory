@@ -1536,7 +1536,7 @@ test("real movement editor writes batch receipts, existing-batch outbound flows,
     await submitCurrent();
 
     await page.goto(`/inventory/stock/items/${encodeURIComponent(code)}`);
-    await page.locator("summary").filter({ hasText: "计量单位与换算" }).click();
+    // Units and conversions are always visible on item detail.
     await page.getByRole("button", { name: "编辑常用换算" }).click();
     await page.screenshot({
       path: test.info().outputPath("item-conversions-dialog.png"),
