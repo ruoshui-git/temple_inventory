@@ -67,6 +67,7 @@ Before visual browser inspection, run the browser under `scripts/ui-visual-prefl
 
 ## Changelog
 
+- 2026-11-01: column preferences accept forced-visible columns (序列号 under 按序列号管理); compact serial chip lists with +N on loans, review and cards; grouped stock card sections.
 - 2026-11-01: ItemGallery; ViewModeToggle `kind` and ViewModeMenuItem; row badges position only a row's own status badge; PDF tables size columns on the server.
 - 2026-11-01: BrowseCard, ViewModeToggle and useBrowseViewMode; inert thumbnails in select mode; shared print stylesheet.
 - 2026-10-31: plain single FAB, whole-row/card selection with select-loaded in card views, phone action menus as Overlay sheets with history, touch-close click guard, chip scroll hint.
