@@ -13,6 +13,28 @@ from temple_inventory.tests.helpers import FakeCache, NativeReportTestCase
 
 
 class NativeReportsCacheTests(NativeReportTestCase):
+	def test_movement_history_uses_projection_read_cache_lifecycle(self):
+		from temple_inventory.read_cache import CACHEABLE_METHODS
+
+		self.assertIn("temple_inventory.browse.movement_history", CACHEABLE_METHODS)
+
+	def test_cached_whole_operation_totals_skip_native_document_reloads(self):
+		from types import SimpleNamespace
+		from unittest.mock import Mock
+
+		from temple_inventory.browse import _whole_operation_totals
+
+		row = {"id": "00000000", "kind": "Receive", "stock_uom": "Nos", "stock_qty": 2}
+		projection = SimpleNamespace(
+			column_names={"browse_whole_totals": []}, rows=Mock(return_value=iter([row]))
+		)
+
+		self.assertEqual(
+			_whole_operation_totals(projection, "lines"),
+			[{key: value for key, value in row.items() if key != "id"}],
+		)
+		projection.rows.assert_called_once_with("browse_whole_totals")
+
 	def test_operation_page_reflects_a_stock_entry_write(self):
 		from temple_inventory import browse
 		from temple_inventory.report_query import validate_query
@@ -557,6 +579,34 @@ class NativeReportsCacheTests(NativeReportTestCase):
 		self.assertEqual(second["matched_count"], first["matched_count"])
 		restart.assert_called_once_with()
 		source_reads.assert_called_once()
+
+	def test_write_during_build_rebuilds_instead_of_failing(self):
+		from temple_inventory import read_cache
+
+		self.addCleanup(read_cache.invalidate_now)
+		old_request = getattr(frappe.local, "request", None)
+		old_generation = getattr(frappe.local, "inventory_cache_request_generation", None)
+		old_started = getattr(frappe.local, "inventory_cache_request_started", None)
+		self.addCleanup(setattr, frappe.local, "inventory_cache_request_generation", old_generation)
+		self.addCleanup(setattr, frappe.local, "inventory_cache_request_started", old_started)
+		if old_request is None:
+			self.addCleanup(lambda: setattr(frappe.local, "request", None))
+		else:
+			self.addCleanup(setattr, frappe.local, "request", old_request)
+		self.receipt(3)
+		frappe.local.request = frappe._dict(headers={"X-Inventory-Account": frappe.session.user})
+		frappe.local.inventory_cache_request_generation = read_cache.data_generation()
+		frappe.local.inventory_cache_request_started = str(frappe.utils.now_datetime())
+		query = self.query("inventory", "summary")
+		query["scope"]["warehouses"] = [self.a]
+		with (
+			patch.object(read_cache, "_request_cacheable", return_value=True),
+			patch.object(read_cache, "cache_context_current", return_value=False),
+			patch.object(read_cache, "restart_owned_read_snapshot", return_value=True) as restart,
+		):
+			page = report_page(query)
+		self.assertGreater(page["matched_count"], 0)
+		restart.assert_called_once_with()
 
 	def test_expired_cached_projection_after_grouping_rebuilds_before_serving(self):
 		from temple_inventory import read_cache

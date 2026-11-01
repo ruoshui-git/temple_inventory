@@ -1437,9 +1437,9 @@ class Projection(AbstractContextManager):
 			from temple_inventory.read_cache import _fresh, cache_context_current
 
 			cache_status = cache_context_current(self.cache_context)
-			if cache_status is False:
-				frappe.throw("数据正在更新，请刷新后重试")  # noqa: RUF001
-			if cache_status is None and restored:
+			# A write committed while this projection was built: rebuild once on a
+			# fresh read snapshot instead of failing the page.
+			if cache_status is False or (cache_status is None and restored):
 				return self._rebuild_uncached_after_cache_failure(
 					related=related, complete_records=complete_records
 				)

@@ -184,6 +184,10 @@ def _native_record_page(query, start, page_length, refresh=False):
 			(),
 		)
 		rows = list(projection.rows("native_records", offset=start, limit=size))
+		for doctype in ("Stock Entry", "Stock Reconciliation"):
+			projection.context.preload_parents(
+				doctype, [row["document"] for row in rows if row["doctype"] == doctype]
+			)
 		for row in rows:
 			row["whole"] = whole_operation(projection.context, row["doctype"], row["document"])
 			row["item_name"] = row["whole"].get("item_name", "")
@@ -794,12 +798,13 @@ def _operation_analysis_group(projection, source, dimension):
 			*(() if "month" in projection.column_names.get(source, ()) else ("month",)),
 		]
 	table = "browse_analysis_" + dimension
-	projection.group(
-		"browse_analysis_source",
-		table,
-		(OPERATION_ANALYSIS[dimension], "kind", "outcome_key", "stock_uom", "docstatus"),
-		("stock_qty",),
-	)
+	if table not in projection.column_names:
+		projection.group(
+			"browse_analysis_source",
+			table,
+			(OPERATION_ANALYSIS[dimension], "kind", "outcome_key", "stock_uom", "docstatus"),
+			("stock_qty",),
+		)
 	return table
 
 
@@ -854,6 +859,11 @@ def _operation_page_totals(projection, source, rows):
 
 def _whole_operation_totals(projection, source):
 	"""Summarize each matching native document once using all its native allocations."""
+	if "browse_whole_totals" in projection.column_names:
+		return [
+			{field: value for field, value in row.items() if field not in ("id", "docstatus_label")}
+			for row in projection.rows("browse_whole_totals")
+		]
 	documents, totals = {}, defaultdict(lambda: {"borrowed": 0, "outstanding": 0, "available_effect": 0})
 	for row in projection.rows(source):
 		identity = (row["doctype"], row["document"])
@@ -873,7 +883,7 @@ def _whole_operation_totals(projection, source):
 		for quantity in whole["available_effects"]:
 			key = (whole["kind"], row["docstatus"], quantity["uom"])
 			totals[key]["available_effect"] += quantity["qty"]
-	return [
+	result = [
 		{
 			"kind": kind,
 			"outcome_key": "outstanding",
@@ -886,6 +896,10 @@ def _whole_operation_totals(projection, source):
 		}
 		for (kind, status, uom), values in totals.items()
 	]
+	projection.column_names["browse_whole_totals"] = []
+	for index, row in enumerate(result):
+		projection.put("browse_whole_totals", {**row, "id": f"{index:08}"})
+	return result
 
 
 @frappe.whitelist()
@@ -1013,6 +1027,13 @@ def operation_page(query, records=False, start=0, page_length=20):
 			"select count(distinct json_extract(payload, '$.category')) from rows where table_id=?", (source,)
 		).fetchone()[0]
 		count = projection.count("browse_groups")
+		totals = (
+			_whole_operation_totals(projection, source) if records else list(projection.rows("browse_totals"))
+		)
+		if records:
+			from temple_inventory.read_cache import store_projection
+
+			store_projection(projection)
 		return {
 			"rows": rows,
 			"matched_count": count,
@@ -1020,11 +1041,7 @@ def operation_page(query, records=False, start=0, page_length=20):
 			"query": projection.query,
 			"snapshot": projection.context.snapshot,
 			"summary": {**complete, "category_count": category_count},
-			"totals": (
-				_whole_operation_totals(projection, source)
-				if records
-				else list(projection.rows("browse_totals"))
-			),
+			"totals": totals,
 			"analysis": analysis,
 		}
 
