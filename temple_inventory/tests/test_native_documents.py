@@ -13,7 +13,7 @@ from uuid import uuid4
 
 import frappe
 from erpnext.stock.utils import get_stock_balance
-from frappe.utils import now_datetime, nowdate
+from frappe.utils import add_days, now_datetime, nowdate
 
 from temple_inventory import (
 	activities,
@@ -759,6 +759,45 @@ class NativeDocumentTests(unittest.TestCase):
 		completed = self.submit(self.create(data))
 		self.assertEqual(completed["items"][0].basic_rate, 0)
 		self.assertEqual(get_stock_balance(self.item, self.a), 2)
+
+	def unvalued_receipt(self):
+		item = frappe.get_doc(
+			{
+				"doctype": "Item",
+				"item_code": f"TI-UNVALUED-{self.token}",
+				"item_name": "Unvalued donated item",
+				"stock_uom": "Nos",
+				"item_group": "All Item Groups",
+				"is_stock_item": 1,
+			}
+		).insert()
+		data = self.movement(quantity=2)
+		data["items"][0]["item_code"] = item.name
+		del data["items"][0]["basic_rate"]
+		original = self.submit(self.create(data))
+		self.assertEqual(original["items"][0].allow_zero_valuation_rate, 1)
+		return native_api.cancel_document("Stock Entry", original.name, original.version)
+
+	def test_duplicate_keeps_zero_valuation_allowance_for_unvalued_item(self):
+		cancelled = self.unvalued_receipt()
+		duplicate = native_api.duplicate_document(
+			"Stock Entry", cancelled.name, cancelled.version, str(uuid4())
+		)
+		self.assertEqual(duplicate["items"][0].allow_zero_valuation_rate, 1)
+		backdated = native_api.save_document(
+			"Stock Entry",
+			duplicate["name"],
+			duplicate["version"],
+			{"posting_date": add_days(nowdate(), -1)},
+		)
+		self.assertEqual(backdated["items"][0].allow_zero_valuation_rate, 1)
+		self.assertEqual(self.submit(backdated)["docstatus"], 1)
+
+	def test_amend_keeps_zero_valuation_allowance_for_unvalued_item(self):
+		cancelled = self.unvalued_receipt()
+		amended = native_api.amend_document("Stock Entry", cancelled.name, cancelled.version, str(uuid4()))
+		self.assertEqual(amended["items"][0].allow_zero_valuation_rate, 1)
+		self.assertEqual(self.submit(amended)["docstatus"], 1)
 
 	def test_count_posts_real_difference_and_keeps_native_valuation(self):
 		self.receipt(10)

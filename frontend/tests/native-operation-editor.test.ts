@@ -658,6 +658,165 @@ describe("native movement editor integration", () => {
       call.mock.calls.some(([method]) => method === "catalog.receipt_batches"),
     ).toBe(false);
   });
+  it("shares generated receipt batches by item and dates within the open form", async () => {
+    const base = service();
+    const batchRequests: Record<string, any>[][] = [];
+    const call = vi.fn(async (method, args) => {
+      if (method === "catalog.operation_items")
+        return {
+          items: [{ ...item, has_batch_no: true, has_expiry_date: true }],
+          errors: [],
+        };
+      if (method === "catalog.receipt_batches") {
+        batchRequests.push(args.rows);
+        const name = `BATCH-GEN-${batchRequests.length}`;
+        return {
+          batches: args.rows.map((row: Record<string, any>) => ({
+            local_id: row.local_id,
+            name: row.batch_id || name,
+          })),
+        };
+      }
+      return base(method, args);
+    });
+    const { controller: c } = setup(
+      () => useOperationEditor({ kind: "Receive", initialItems: ["ITEM-A"] }),
+      call,
+    );
+    await flushPromises();
+    const first = c.draft.value.items[0]!;
+    first.location = "ROOM-A";
+    first.manufacturingDate = "2026-10-01";
+    first.expiry = "2027-10-01";
+    c.draft.value.items.push({
+      ...first,
+      id: "second-row",
+      localId: "second-row",
+      name: undefined,
+    });
+
+    await c.save();
+    expect(batchRequests).toHaveLength(1);
+    expect(batchRequests[0]).toHaveLength(1);
+    expect(c.draft.value.items.map((line) => line.batch)).toEqual([
+      "BATCH-GEN-1",
+      "BATCH-GEN-1",
+    ]);
+
+    c.draft.value.items.push({
+      ...c.draft.value.items[1]!,
+      id: "third-row",
+      localId: "third-row",
+      name: undefined,
+      batch: "",
+    });
+    await c.save();
+    expect(batchRequests).toHaveLength(1);
+    expect(c.draft.value.items[2]!.batch).toBe("BATCH-GEN-1");
+
+    c.draft.value.items[0]!.expiry = "2027-11-01";
+    await c.save();
+    expect(batchRequests).toHaveLength(2);
+    expect(batchRequests[1]).toHaveLength(1);
+    expect(batchRequests[1]![0]!.local_id).not.toBe("local-row");
+    expect(c.draft.value.items.map((line) => line.batch)).toEqual([
+      "BATCH-GEN-2",
+      "BATCH-GEN-1",
+      "BATCH-GEN-1",
+    ]);
+  });
+  it("re-dates a generated batch in place when its only row changes dates", async () => {
+    const base = service();
+    const batchRequests: Record<string, any>[][] = [];
+    const call = vi.fn(async (method, args) => {
+      if (method === "catalog.operation_items")
+        return {
+          items: [{ ...item, has_batch_no: true, has_expiry_date: true }],
+          errors: [],
+        };
+      if (method === "catalog.receipt_batches") {
+        batchRequests.push(args.rows);
+        return {
+          batches: args.rows.map((row: Record<string, any>) => ({
+            local_id: row.local_id,
+            name: row.batch_id || "BATCH-OWN",
+          })),
+        };
+      }
+      return base(method, args);
+    });
+    const { controller: c } = setup(
+      () => useOperationEditor({ kind: "Receive", initialItems: ["ITEM-A"] }),
+      call,
+    );
+    await flushPromises();
+    const line = c.draft.value.items[0]!;
+    line.location = "ROOM-A";
+    line.manufacturingDate = "2026-10-01";
+    line.expiry = "2027-10-01";
+    await c.save();
+    expect(batchRequests).toHaveLength(1);
+
+    line.expiry = "2027-11-01";
+    await c.save();
+    expect(batchRequests).toHaveLength(2);
+    expect(batchRequests[1]).toMatchObject([
+      {
+        batch_id: "",
+        local_id: batchRequests[0]![0]!.local_id,
+        expiry_date: "2027-11-01",
+      },
+    ]);
+    expect(c.draft.value.items[0]!.batch).toBe("BATCH-OWN");
+  });
+  it("never regroups an explicitly typed or picked batch number", async () => {
+    const base = service();
+    const batchRequests: Record<string, any>[][] = [];
+    const call = vi.fn(async (method, args) => {
+      if (method === "catalog.operation_items")
+        return {
+          items: [{ ...item, has_batch_no: true, has_expiry_date: true }],
+          errors: [],
+        };
+      if (method === "catalog.receipt_batches") {
+        batchRequests.push(args.rows);
+        return {
+          batches: args.rows.map((row: Record<string, any>) => ({
+            local_id: row.local_id,
+            name: row.batch_id || "BATCH-GENERATED",
+          })),
+        };
+      }
+      return base(method, args);
+    });
+    const { controller: c } = setup(
+      () => useOperationEditor({ kind: "Receive", initialItems: ["ITEM-A"] }),
+      call,
+    );
+    await flushPromises();
+    const line = c.draft.value.items[0]!;
+    line.location = "ROOM-A";
+    line.batch = "BATCH-TYPED";
+    line.manufacturingDate = "2026-10-01";
+    line.expiry = "2027-10-01";
+    await c.save();
+    expect(batchRequests).toHaveLength(1);
+    expect(batchRequests[0]).toMatchObject([
+      { batch_id: "BATCH-TYPED", local_id: line.localId },
+    ]);
+    expect(c.draft.value.items[0]!.batch).toBe("BATCH-TYPED");
+
+    line.qty = 3;
+    await c.save();
+    expect(batchRequests).toHaveLength(1);
+
+    line.expiry = "2027-12-01";
+    await c.save();
+    expect(batchRequests).toHaveLength(2);
+    expect(batchRequests[1]).toMatchObject([
+      { batch_id: "BATCH-TYPED", expiry_date: "2027-12-01" },
+    ]);
+  });
   it("keeps an explicitly selected warehouse source even when another location has stock", async () => {
     const { controller: c, call } = setup(
       () =>

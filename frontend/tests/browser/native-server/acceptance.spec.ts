@@ -19,8 +19,12 @@ async function call(request: APIRequestContext, method: string, data = {}) {
       },
     },
   );
-  expect(response.ok(), `${method}: HTTP ${response.status()}`).toBe(true);
-  const body = await response.json();
+  const responseText = await response.text();
+  expect(
+    response.ok(),
+    `${method}: HTTP ${response.status()} ${responseText}`,
+  ).toBe(true);
+  const body = JSON.parse(responseText);
   expect(body.exc_type, `${method} native error`).toBeUndefined();
   return body.message;
 }
@@ -196,6 +200,128 @@ async function removeNative(
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
 }
+
+test("native copy and amend submit a fresh unvalued donated receipt", async ({
+  page,
+}) => {
+  const bootstrap = await call(page.request, "browse.bootstrap");
+  const warehouse = (bootstrap.physical_leaves as string[])[0]!;
+  const code = `TI-ZERO-COPY-${crypto.randomUUID().slice(0, 10)}`;
+  await call(page.request, "catalog.save_item", {
+    data: {
+      item_code: code,
+      item_name: `Zero valuation copy ${code}`,
+      stock_uom: "Nos",
+    },
+  });
+  const names = new Set<string>();
+  try {
+    const original = await call(page.request, "native_api.create_document", {
+      doctype: "Stock Entry",
+      request_id: crypto.randomUUID(),
+      data: {
+        company: bootstrap.company,
+        posting_date: bootstrap.site_date,
+        ti_movement_kind: "Receive",
+        items: [
+          {
+            item_code: code,
+            qty: 1,
+            uom: "Nos",
+            conversion_factor: 1,
+            t_warehouse: warehouse,
+          },
+        ],
+      },
+    });
+    names.add(original.name);
+    expect(original.items[0].allow_zero_valuation_rate).toBe(1);
+    const submitted = await call(page.request, "native_api.submit_document", {
+      doctype: "Stock Entry",
+      name: original.name,
+      version: original.version,
+    });
+    const cancelled = await call(page.request, "native_api.cancel_document", {
+      doctype: "Stock Entry",
+      name: submitted.name,
+      version: submitted.version,
+    });
+
+    const duplicate = await call(
+      page.request,
+      "native_api.duplicate_document",
+      {
+        doctype: "Stock Entry",
+        name: cancelled.name,
+        version: cancelled.version,
+        request_id: crypto.randomUUID(),
+      },
+    );
+    names.add(duplicate.name);
+    expect(duplicate.items[0].allow_zero_valuation_rate).toBe(1);
+    const backdate = new Date(`${bootstrap.site_date}T00:00:00Z`);
+    backdate.setUTCDate(backdate.getUTCDate() - 1);
+    const backdated = await call(page.request, "native_api.save_document", {
+      doctype: "Stock Entry",
+      name: duplicate.name,
+      version: duplicate.version,
+      data: { posting_date: backdate.toISOString().slice(0, 10) },
+    });
+    expect(backdated.items[0].allow_zero_valuation_rate).toBe(1);
+    const duplicateSubmit = await call(
+      page.request,
+      "native_api.submit_document",
+      {
+        doctype: "Stock Entry",
+        name: backdated.name,
+        version: backdated.version,
+      },
+    );
+    expect(duplicateSubmit.docstatus).toBe(1);
+
+    const amended = await call(page.request, "native_api.amend_document", {
+      doctype: "Stock Entry",
+      name: cancelled.name,
+      version: cancelled.version,
+      request_id: crypto.randomUUID(),
+    });
+    names.add(amended.name);
+    expect(amended.items[0].allow_zero_valuation_rate).toBe(1);
+    const amendedSubmit = await call(
+      page.request,
+      "native_api.submit_document",
+      {
+        doctype: "Stock Entry",
+        name: amended.name,
+        version: amended.version,
+      },
+    );
+    expect(amendedSubmit.docstatus).toBe(1);
+  } finally {
+    for (const name of names) {
+      try {
+        const doc = await call(page.request, "native_api.load_document", {
+          doctype: "Stock Entry",
+          name,
+        });
+        if (doc.docstatus === 1)
+          await call(page.request, "native_api.cancel_document", {
+            doctype: "Stock Entry",
+            name,
+            version: doc.version,
+          });
+        await removeNative(page.request, "Stock Entry", name);
+      } catch {
+        // Keep cleanup best-effort so the acceptance failure remains visible.
+      }
+    }
+    try {
+      await removeNative(page.request, "Item", code);
+    } catch {
+      // Keep cleanup best-effort so the acceptance failure remains visible.
+    }
+  }
+});
 
 test("real Item editor creates, uploads privately, edits and removes its own image", async ({
   page,
@@ -1063,6 +1189,7 @@ test("real movement editor writes batch receipts, existing-batch outbound flows,
   async function saveDraft(expectedBatchDate?: {
     batch: string;
     localId: string;
+    rowName: string;
     expiry: string;
   }) {
     await page.getByRole("button", { name: "保存草稿", exact: true }).click();
@@ -1083,6 +1210,7 @@ test("real movement editor writes batch receipts, existing-batch outbound flows,
                     item_code: code,
                     batch_id: expectedBatchDate.batch,
                     local_id: expectedBatchDate.localId,
+                    row_name: expectedBatchDate.rowName,
                     manufacturing_date: manufacturingDate,
                     expiry_date: expectedBatchDate.expiry,
                   },
@@ -1210,6 +1338,8 @@ test("real movement editor writes batch receipts, existing-batch outbound flows,
         .fill(manufacturingDate);
       await row.locator('input[data-field="expiry"]').fill("2099-04-01");
     }
+    // Preserve two distinct batches for the downstream multi-batch flows.
+    await rows.nth(1).locator('input[data-field="expiry"]').fill("2099-06-01");
     await rows.first().locator('input[data-field="expiry"]').fill("");
     await page.locator("[data-review-action]").click();
     await expect(rows.first().locator(".utility-error")).toContainText(
@@ -1249,9 +1379,21 @@ test("real movement editor writes batch receipts, existing-batch outbound flows,
     expect(
       received.items.some((line: any) => line.item_code === plainCode),
     ).toBe(true);
-    const batchIds = received.items
-      .filter((line: any) => line.item_code === code)
-      .map((line: any) => line.batch_no as string);
+    const batchRows = received.items.filter(
+      (line: any) => line.item_code === code,
+    );
+    const sourceBatchRow = batchRows.find(
+      (line: any) => line.t_warehouse === source,
+    );
+    const targetBatchRow = batchRows.find(
+      (line: any) => line.t_warehouse === target,
+    );
+    expect(sourceBatchRow).toBeDefined();
+    expect(targetBatchRow).toBeDefined();
+    const batchIds = [
+      sourceBatchRow.batch_no,
+      targetBatchRow.batch_no,
+    ] as string[];
     for (const batch of batchIds) generatedBatches.add(batch);
     expect(batchIds.every(Boolean)).toBe(true);
     expect(new Set(batchIds).size).toBe(2);
@@ -1268,7 +1410,8 @@ test("real movement editor writes batch receipts, existing-batch outbound flows,
       .fill("2099-05-01");
     draft = await saveDraft({
       batch: batchIds[0]!,
-      localId: String(received.items[0]!.name),
+      localId: String(sourceBatchRow.name),
+      rowName: String(sourceBatchRow.name),
       expiry: "2099-05-01",
     });
     expect(draft.name).toBe(receiveName);

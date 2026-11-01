@@ -63,7 +63,10 @@ export function useOperationEditor(props: {
     action = ref<"delete" | "cancel" | "amend" | "duplicate">();
   const hydrating = ref(false);
   const itemCache = new Map<string, StockItem>();
+  const generatedBatches = new Map<string, { key: string; name: string }>();
+  // Explicit batches the server already resolved for this exact line content.
   const confirmedBatches = new Map<string, string>();
+  const batchRequestIds = new Map<string, string>();
   let ready = false,
     disposed = false,
     discarded = false,
@@ -158,29 +161,91 @@ export function useOperationEditor(props: {
   async function prepare(value: Record<string, unknown>) {
     const sent = value as unknown as OperationDraft;
     if (sent.kind === "Receive") {
-      const signature = (line: AllocationLine) =>
+      const keyFor = (line: AllocationLine) =>
         JSON.stringify([
           line.code,
-          line.batch || "",
           line.manufacturingDate || "",
           line.expiry || "",
         ]);
-      const rows = sent.items.flatMap((line) =>
-        !stock.find((row) => row.code === line.code)?.tracksBatch ||
-        line.nativeBundle
-          ? []
-          : confirmedBatches.get(line.localId) === signature(line)
-            ? []
-            : [
-                {
-                  item_code: line.code,
-                  batch_id: line.batch || "",
-                  local_id: line.localId,
-                  manufacturing_date: line.manufacturingDate || null,
-                  expiry_date: line.expiry || null,
-                },
-              ],
+      for (const line of sent.items) {
+        const generated = generatedBatches.get(line.localId);
+        if (!generated) continue;
+        if (line.batch === generated.name && keyFor(line) !== generated.key) {
+          // A sole holder keeps its request identity so the server can re-date
+          // its own batch; a shared batch must stay as it is for the others.
+          const shared = sent.items.some(
+            (other) =>
+              other !== line &&
+              generatedBatches.get(other.localId)?.name === generated.name,
+          );
+          line.batch = "";
+          generatedBatches.delete(line.localId);
+          if (shared) batchRequestIds.set(line.localId, crypto.randomUUID());
+        } else if (line.batch !== generated.name) {
+          generatedBatches.delete(line.localId);
+        }
+      }
+      const eligible = sent.items.filter(
+        (line) =>
+          stock.find((row) => row.code === line.code)?.tracksBatch &&
+          !line.nativeBundle,
       );
+      const groups = new Map<string, AllocationLine[]>();
+      for (const line of eligible) {
+        if (line.batch) continue;
+        const key = keyFor(line);
+        const group = groups.get(key) || [];
+        group.push(line);
+        groups.set(key, group);
+      }
+      const rows: {
+        item_code: string;
+        batch_id: string;
+        local_id: string;
+        row_name?: string;
+        manufacturing_date: string | null;
+        expiry_date: string | null;
+      }[] = [];
+      const requestLines = new Map<string, AllocationLine>();
+      for (const [key, lines] of groups) {
+        const existing = eligible
+          .map((line) => generatedBatches.get(line.localId))
+          .find((entry) => entry?.key === key);
+        if (existing) {
+          for (const line of lines) {
+            line.batch = existing.name;
+            generatedBatches.set(line.localId, existing);
+          }
+        } else {
+          const leader = lines[0]!;
+          const localId = batchRequestIds.get(leader.localId) || leader.localId;
+          rows.push({
+            item_code: leader.code,
+            batch_id: "",
+            local_id: localId,
+            row_name: leader.name,
+            manufacturing_date: leader.manufacturingDate || null,
+            expiry_date: leader.expiry || null,
+          });
+          requestLines.set(localId, leader);
+        }
+      }
+      const confirmation = (line: AllocationLine) =>
+        JSON.stringify([line.batch, keyFor(line)]);
+      for (const line of eligible) {
+        if (!line.batch || generatedBatches.has(line.localId)) continue;
+        if (confirmedBatches.get(line.localId) === confirmation(line)) continue;
+        const localId = batchRequestIds.get(line.localId) || line.localId;
+        rows.push({
+          item_code: line.code,
+          batch_id: line.batch,
+          local_id: localId,
+          row_name: line.name,
+          manufacturing_date: line.manufacturingDate || null,
+          expiry_date: line.expiry || null,
+        });
+        requestLines.set(localId, line);
+      }
       if (rows.length) {
         const result = await services.call<{
           batches: { local_id: string; name: string }[];
@@ -189,10 +254,19 @@ export function useOperationEditor(props: {
           result.batches.map((row) => [row.local_id, row.name]),
         );
         for (const row of rows) {
-          const line = sent.items.find((item) => item.localId === row.local_id);
+          const line = requestLines.get(row.local_id);
           if (line) {
-            line.batch = names.get(row.local_id) || line.batch;
-            confirmedBatches.set(line.localId, signature(line));
+            const name = names.get(row.local_id) || line.batch;
+            line.batch = name;
+            if (row.batch_id)
+              confirmedBatches.set(line.localId, confirmation(line));
+            if (!row.batch_id && name) {
+              const generated = { key: keyFor(line), name };
+              for (const grouped of groups.get(generated.key) || []) {
+                grouped.batch = name;
+                generatedBatches.set(grouped.localId, generated);
+              }
+            }
           }
         }
       }

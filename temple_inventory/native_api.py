@@ -370,6 +370,7 @@ def duplicate_document(doctype, name, version, request_id):
 	copied.ti_time_mode = "Manual"
 	if not copied.ti_movement_kind:
 		copied.ti_movement_kind = serialize(original)["kind"]
+	_copy_zero_valuation_allowance(original, copied)
 	_copy_entry_batches(original, copied)
 	with preserve_copied_conversions(original, copied):
 		copied.insert()
@@ -400,9 +401,16 @@ def amend_document(doctype, name, version, request_id):
 	amended.ti_request_user = frappe.session.user
 	amended.check_permission("create")
 	if doctype == "Stock Entry":
+		_copy_zero_valuation_allowance(doc, amended)
 		_copy_entry_batches(doc, amended)
 	amended.insert()
 	return serialize(amended)
+
+
+def _copy_zero_valuation_allowance(original, copied):
+	"""Restore the no-copy allowance for each matching copied Stock Entry row."""
+	for previous, row in zip(original.get("items"), copied.get("items"), strict=True):
+		row.allow_zero_valuation_rate = previous.allow_zero_valuation_rate
 
 
 def _copy_entry_batches(original, copied):

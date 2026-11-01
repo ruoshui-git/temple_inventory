@@ -11,7 +11,7 @@ from frappe.utils import cint, getdate
 from temple_inventory import uom_labels
 from temple_inventory.item_code import allocate_item_code
 from temple_inventory.item_code import suggest_item_code as next_item_code
-from temple_inventory.native_access import check_item, load_locked, require_app
+from temple_inventory.native_access import check_item, load_locked, require_app, retry_native_request
 from temple_inventory.native_files import FILE_PERMISSION_FIELDS, attachments, can_read, readable_parents
 from temple_inventory.projections import report_page
 from temple_inventory.report_query import validate_query
@@ -1111,6 +1111,7 @@ def scan_code(value):
 
 
 @frappe.whitelist(methods=["POST"])
+@retry_native_request
 def receipt_batches(rows):
 	"""Resolve/create receipt batches under one account lock with stable retry identities."""
 	require_app()
@@ -1149,6 +1150,11 @@ def receipt_batches(rows):
 				"name",
 				for_update=True,
 			)
+			superseded_name = None
+			if name and batch_id and name != batch_id:
+				# An explicit picker/typed choice is a new intent, even when this
+				# local row previously generated a different name.
+				superseded_name, name = name, None
 			if not name and batch_id:
 				name = frappe.db.get_value(
 					"Batch",
@@ -1164,7 +1170,7 @@ def receipt_batches(rows):
 			if name:
 				batch = frappe.get_doc("Batch", name)
 				batch.check_permission("read")
-				if batch.item != item.name or (batch_id and batch.name != batch_id):
+				if batch.item != item.name:
 					frappe.throw("此批次请求身份已用于其它批次")
 				requested_dates = {
 					field: getdate(row[field]) if row.get(field) else None
@@ -1185,7 +1191,11 @@ def receipt_batches(rows):
 						bool(batch.get("ti_request_key"))
 						and batch.get("ti_request_user") == frappe.session.user
 					)
-					if not generated_for_request or _batch_has_submitted_reference(batch.name):
+					if (
+						not generated_for_request
+						or _batch_has_submitted_reference(batch.name)
+						or _batch_has_other_draft_reference(batch.name, row.get("row_name"))
+					):
 						frappe.throw("此批次请求日期已变更，请使用新的批次行")
 					batch.manufacturing_date = requested_dates["manufacturing_date"]
 					batch.expiry_date = requested_dates["expiry_date"]
@@ -1213,6 +1223,17 @@ def receipt_batches(rows):
 					batch.ti_request_key = request_key
 					batch.ti_request_user = frappe.session.user
 					batch.save(ignore_permissions=True)
+			if superseded_name and not _batch_has_submitted_reference(superseded_name):
+				if not _batch_has_other_draft_reference(superseded_name, row.get("row_name")):
+					row_name = row.get("row_name")
+					if row_name and frappe.db.exists(
+						"Stock Entry Detail",
+						{"name": row_name, "batch_no": superseded_name, "docstatus": 0},
+					):
+						frappe.db.set_value(
+							"Stock Entry Detail", row_name, "batch_no", None, update_modified=False
+						)
+					frappe.delete_doc("Batch", superseded_name, ignore_permissions=True)
 			result.append(
 				{
 					"local_id": local_id,
@@ -1236,6 +1257,19 @@ def _batch_has_submitted_reference(batch_name):
 			{"batch_no": batch_name, "is_cancelled": 0, "docstatus": 1},
 		)
 	)
+
+
+def _batch_has_bundle_reference(batch_name):
+	"""Return whether any native serial/batch bundle entry retains this batch."""
+	return bool(frappe.db.exists("Serial and Batch Entry", {"batch_no": batch_name}))
+
+
+def _batch_has_other_draft_reference(batch_name, row_name=None):
+	"""Return whether a generated batch is shared by multiple draft rows or a bundle."""
+	filters = {"batch_no": batch_name, "docstatus": 0}
+	if row_name:
+		filters["name"] = ["!=", row_name]
+	return frappe.db.count("Stock Entry Detail", filters) > 0 or _batch_has_bundle_reference(batch_name)
 
 
 @frappe.whitelist()

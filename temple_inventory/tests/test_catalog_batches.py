@@ -105,6 +105,97 @@ class CatalogBatchesTests(NativeDocumentTests):
 				]
 			)
 
+	def test_explicit_batch_replaces_generated_request_batch_and_deletes_unused_one(self):
+		frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)
+		item = frappe.get_doc("Item", self.item)
+		item.has_batch_no = 1
+		item.save()
+		generated_request = {
+			"item_code": self.item,
+			"batch_id": "",
+			"local_id": "switch-batch-line",
+			"manufacturing_date": None,
+			"expiry_date": None,
+		}
+		generated = catalog.receipt_batches([generated_request])["batches"][0]["name"]
+		retried = catalog.receipt_batches([generated_request])["batches"][0]["name"]
+		self.assertEqual(retried, generated)
+		draft_data = self.movement(quantity=1)
+		draft_data["items"][0].update({"batch_no": generated, "use_serial_batch_fields": 1})
+		draft = self.create(draft_data)
+		explicit = catalog.create_batch(self.item, f"TI-EXPLICIT-{self.token}")["name"]
+		resolved = catalog.receipt_batches(
+			[
+				{
+					**generated_request,
+					"batch_id": explicit,
+					"row_name": draft.get("items")[0].name,
+				}
+			]
+		)["batches"][0]["name"]
+		self.assertEqual(resolved, explicit)
+		self.assertFalse(frappe.db.exists("Batch", generated))
+
+	def test_explicit_batch_keeps_superseded_generated_batch_with_another_draft_row(self):
+		frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)
+		item = frappe.get_doc("Item", self.item)
+		item.has_batch_no = 1
+		item.save()
+		generated_request = {
+			"item_code": self.item,
+			"batch_id": "",
+			"local_id": "shared-switch-line",
+			"manufacturing_date": None,
+			"expiry_date": None,
+		}
+		generated = catalog.receipt_batches([generated_request])["batches"][0]["name"]
+		draft_data = self.movement(quantity=1)
+		draft_data["items"][0].update({"batch_no": generated, "use_serial_batch_fields": 1})
+		target_draft = self.create(draft_data)
+		self.create(draft_data)
+		explicit = catalog.create_batch(self.item, f"TI-EXPLICIT-REF-{self.token}")["name"]
+		resolved = catalog.receipt_batches(
+			[
+				{
+					**generated_request,
+					"batch_id": explicit,
+					"row_name": target_draft.get("items")[0].name,
+				}
+			]
+		)["batches"][0]["name"]
+		self.assertEqual(resolved, explicit)
+		self.assertTrue(frappe.db.exists("Batch", generated))
+
+	def test_generated_batch_dates_cannot_change_when_shared_by_another_draft_row(self):
+		frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)
+		item = frappe.get_doc("Item", self.item)
+		item.has_batch_no, item.has_expiry_date = 1, 1
+		item.save()
+		request = {
+			"item_code": self.item,
+			"batch_id": "",
+			"local_id": "shared-date-line",
+			"manufacturing_date": nowdate(),
+			"expiry_date": add_days(nowdate(), 30),
+		}
+		generated = catalog.receipt_batches([request])["batches"][0]["name"]
+		draft_data = self.movement(quantity=1)
+		draft_data["items"][0].update({"batch_no": generated, "use_serial_batch_fields": 1})
+		target_draft = self.create(draft_data)
+		self.create(draft_data)
+		with self.assertRaisesRegex(frappe.ValidationError, "批次请求日期已变更"):
+			catalog.receipt_batches(
+				[
+					{
+						**request,
+						"batch_id": generated,
+						"row_name": target_draft.get("items")[0].name,
+						"manufacturing_date": add_days(nowdate(), 1),
+						"expiry_date": add_days(nowdate(), 45),
+					}
+				]
+			)
+
 	def test_item_and_batch_location_views_do_not_request_zero_rows(self):
 		frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)
 		frappe.db.set_value("Item", self.item, "has_batch_no", 1)
