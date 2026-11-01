@@ -127,6 +127,9 @@ jobs:
           bench set-config -g redis_queue redis://127.0.0.1:11000
           bench set-config -g redis_socketio redis://127.0.0.1:11000
           bench set-config -g chromium_path "$TI_CHROMIUM_PATH"
+          # --skip-assets leaves no manifest; Frappe's print view needs one to render
+          # Print Formats for the PDF tests (shipped formats inline their own CSS).
+          mkdir -p sites/assets && echo '{}' > sites/assets/assets.json
       # A bare site; the snapshot restore or the app install below fills it.
       - name: Create site
         working-directory: /home/runner/frappe-bench
