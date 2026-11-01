@@ -45,3 +45,15 @@ describe("activity summary destinations", () => {
     expect(decodedLoans.query.outstandingOnly).toBe(true);
   });
 });
+
+describe("activity type route precedence", () => {
+  it("resolves the reserved types path to the management page", async () => {
+    const { createMemoryHistory, createRouter } = await import("vue-router");
+    const { routeRecords } = await import("../src/lib/routeRegistry");
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [...routeRecords],
+    });
+    expect(router.resolve("/activities/types").name).toBe("activity-types");
+  });
+});

@@ -107,6 +107,13 @@ export const moreNavigation = [
         description: "管理计量单位与显示名称",
       },
       {
+        key: "activity-types",
+        label: "活动类型",
+        route: routeTarget("activity-types"),
+        icon: "table",
+        description: "管理活动类型、排序与停用",
+      },
+      {
         key: "setup",
         label: "配置与恢复",
         route: routeTarget("setup"),

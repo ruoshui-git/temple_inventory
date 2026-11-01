@@ -158,6 +158,11 @@ describe("native Activity browse scopes", () => {
       routes: [
         { path: "/", component: { render: () => h("div") } },
         {
+          path: "/activities/types",
+          name: "activity-types",
+          component: { render: () => h("div") },
+        },
+        {
           path: "/activities/:name",
           name: "activity-detail",
           component: { render: () => h("div") },

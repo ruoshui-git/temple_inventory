@@ -3,7 +3,7 @@
 # ruff: noqa: RUF001 — Chinese UI punctuation is intentional.
 
 import frappe
-from frappe.utils import getdate
+from frappe.utils import cint, getdate
 
 from temple_inventory.native_access import check_version, require_app
 
@@ -126,6 +126,93 @@ def activity_types():
 		order_by="display_order asc, name asc",
 		limit_page_length=0,
 	)
+
+
+def _activity_type_row(row, counts):
+	count = counts.get(row.name, 0)
+	return {
+		"name": row.name,
+		"label": row.label,
+		"enabled": bool(row.enabled),
+		"display_order": row.display_order,
+		"activity_count": count,
+		"deletable": count == 0,
+		"delete_reason": f"已有 {count} 个活动使用此类型，可停用" if count else "",
+	}
+
+
+@frappe.whitelist()
+def list_activity_types():
+	require_app()
+	frappe.has_permission("Inventory Activity Type", "read", throw=True)
+	rows = frappe.get_list(
+		"Inventory Activity Type",
+		fields=["name", "label", "enabled", "display_order"],
+		limit_page_length=0,
+		order_by="display_order asc, label asc",
+	)
+	counts = dict(
+		frappe.db.sql("select activity_type, count(*) from `tabInventory Activity` group by activity_type")
+	)
+	return [_activity_type_row(row, counts) for row in rows]
+
+
+@frappe.whitelist(methods=["POST"])
+def save_activity_type(name=None, label="", enabled=True):
+	require_app()
+	enabled = cint(enabled)
+	label = str(label or "").strip()
+	if not label:
+		frappe.throw("请填写类型名称")
+	for row in frappe.get_all("Inventory Activity Type", fields=["name", "label"]):
+		if row.name != name and row.label.casefold() == label.casefold():
+			frappe.throw(f"活动类型「{label}」已存在")
+	if name:
+		doc = lock_reference("Inventory Activity Type", name)
+		doc.check_permission("write")
+	else:
+		frappe.has_permission("Inventory Activity Type", "create", throw=True)
+		order = frappe.db.sql("select coalesce(max(display_order), 0) + 1 from `tabInventory Activity Type`")[
+			0
+		][0]
+		doc = frappe.get_doc(
+			{"doctype": "Inventory Activity Type", "label": label, "enabled": enabled, "display_order": order}
+		)
+		doc.check_permission("create")
+		doc.insert()
+		return _activity_type_row(
+			doc, {doc.name: frappe.db.count("Inventory Activity", {"activity_type": doc.name})}
+		)
+	doc.label = label
+	doc.enabled = enabled
+	doc.save()
+	return _activity_type_row(
+		doc, {doc.name: frappe.db.count("Inventory Activity", {"activity_type": doc.name})}
+	)
+
+
+@frappe.whitelist(methods=["POST"])
+def delete_activity_type(name):
+	require_app()
+	doc = lock_reference("Inventory Activity Type", name)
+	doc.check_permission("delete")
+	frappe.delete_doc("Inventory Activity Type", name)
+	return {"name": name, "deleted": True}
+
+
+@frappe.whitelist(methods=["POST"])
+def reorder_activity_types(names):
+	require_app()
+	names = frappe.parse_json(names)
+	rows = frappe.get_all("Inventory Activity Type", fields=["name"])
+	if set(names) != {row.name for row in rows} or len(names) != len(rows):
+		frappe.throw("类型列表已变化，请刷新")
+	for index, name in enumerate(names, 1):
+		doc = lock_reference("Inventory Activity Type", name)
+		doc.check_permission("write")
+		doc.display_order = index
+		doc.save()
+	return list_activity_types()
 
 
 @frappe.whitelist()

@@ -37,6 +37,7 @@ type AppRouteName =
   | "count-new"
   | "count-detail"
   | "activities"
+  | "activity-types"
   | "activity-new"
   | "activity-detail"
   | "activity-edit"
@@ -116,6 +117,7 @@ const pages = {
   NativeRecords: () => import("../pages/NativeRecords.vue"),
   Reconciliation: () => import("../pages/Reconciliation.vue"),
   Activities: () => import("../pages/Activities.vue"),
+  ActivityTypes: () => import("../pages/ActivityTypes.vue"),
   Reports: () => import("../pages/Reports.vue"),
   Settings: () => import("../pages/Settings.vue"),
   Setup: () => import("../pages/Setup.vue"),
@@ -358,6 +360,14 @@ export const routeRegistry: readonly AppRouteDefinition[] = [
     "more",
     ["browse"],
     [root, activities],
+  ),
+  route(
+    "activity-types",
+    "/activities/types",
+    "ActivityTypes",
+    "more",
+    ["browse", "create", "edit"],
+    [root, activities, { label: "活动类型" }],
   ),
   route(
     "activity-new",

@@ -244,6 +244,7 @@ const activityExportColumns = computed(() => {
 		>
 			<template #actions>
 				<BrowseOverflowMenu>
+					<RouterLink :to="{ name: 'activity-types' }">管理活动类型</RouterLink>
 					<QuickExport
 						:query="report"
 						table="metadata"

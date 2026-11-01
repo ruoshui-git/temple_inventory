@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import frappe
 
+from temple_inventory.tests.test_activity_types import ActivityTypeTests
 from temple_inventory.tests.test_browse_golden import BrowseGoldenTests
 from temple_inventory.tests.test_catalog_batches import CatalogBatchesTests
 from temple_inventory.tests.test_catalog_images import CatalogImagesTests
@@ -78,6 +79,7 @@ def run(test_name=None):
 		UnitTests,
 		EnvironmentTests,
 		SchemaAuditTests,
+		ActivityTypeTests,
 	):
 		# Feature suites inherit the shared savepoint setup and helpers. Run their
 		# own scenarios once; the base document cases already run above.

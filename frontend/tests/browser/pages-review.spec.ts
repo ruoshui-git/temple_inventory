@@ -122,6 +122,66 @@ test("units filters and category groups show loaded rows", async ({
   });
 });
 
+test("activity types list and status filter at phone and desktop sizes", async ({
+  page,
+}, info) => {
+  await nativeUiSession(page);
+  await page.route(
+    "**/api/method/temple_inventory.activities.list_activity_types",
+    (route) =>
+      route.fulfill({
+        json: {
+          message: [
+            {
+              name: "TI-TYPE-REVIEW-A",
+              label: "供灯活动",
+              enabled: 1,
+              display_order: 1,
+              activity_count: 3,
+              deletable: false,
+              delete_reason: "已有 3 个活动使用此类型，可停用",
+            },
+            {
+              name: "TI-TYPE-REVIEW-B",
+              label: "维护活动",
+              enabled: 0,
+              display_order: 2,
+              activity_count: 0,
+              deletable: true,
+              delete_reason: "",
+            },
+          ],
+        },
+      }),
+  );
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/inventory/activities/types");
+  await expect(page.getByRole("heading", { name: "活动类型" })).toBeVisible();
+  await expect(page.getByText("供灯活动")).toBeVisible();
+  await page.screenshot({
+    path: info.outputPath("activity-types-desktop.png"),
+  });
+  await page.getByRole("button", { name: "筛选" }).click();
+  let panel = page.getByRole("dialog");
+  await panel.getByLabel("状态").selectOption("disabled");
+  await page.keyboard.press("Escape");
+  await expect(page.getByText("供灯活动")).not.toBeVisible();
+  await page.getByRole("button", { name: "筛选" }).click();
+  panel = page.getByRole("dialog");
+  await panel.getByLabel("状态").selectOption("all");
+  await page.keyboard.press("Escape");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator(".activity-types-phone-row")).toHaveCount(2);
+  await page.screenshot({ path: info.outputPath("activity-types-phone.png") });
+  await page.getByRole("button", { name: "新建类型" }).click();
+  await expect(page.getByRole("dialog")).toContainText(
+    "停用后，此类型的活动不能再被新记录选择。",
+  );
+  await page.screenshot({
+    path: info.outputPath("activity-types-create-phone.png"),
+  });
+});
+
 test("dashboard inventory overview labels empty totals after loading", async ({
   page,
 }, info) => {
