@@ -41,7 +41,7 @@ This document owns tokens, geometry and shared visual contracts. [UI_UX_DECISION
 - Phone browse title uses the 22px mobile-heading token; initial title/action row sits above search/filter. After scroll only search/filter remains sticky. Stock subpage tabs scroll away. Applied chips share one horizontal touch-scroll line, 32px high.
 - Stock defaults to list: 64px square contain thumbnail, two-line name, muted code/category and right-aligned quantities; minimum row height 72px. Card view has two columns, square contain images, two-line name and quantity. Movement/Loan item groups use 56px thumbnails and compact quantity summaries. A phone item-group heading is the thumbnail (its own lightbox button) followed by one ≥44px toggle holding the chevron, the full-width name and a muted count/summary line; 查看物品 opens the item from inside the expanded group.
 - Desktop expiry overview rows remain single-line; compact DataTable thumbnails do not grow row height.
-- Result summaries wrap to at most two compact rows. Create FAB sits 12px above measured navigation, primary face at least 48px and separate 44px menu segment. Return-to-top sits above it with an 8px gap. Hide FAB while overlays/keyboard are open. Phone sort and kind menus are opaque Overlay sheets with scrim, handle, title, full-width cancel and safe-area padding.
+- Result summaries wrap to at most two compact rows. Create FAB sits 12px above measured navigation, primary face at least 48px and separate 44px menu segment. Return-to-top sits above it with an 8px gap. Hide FAB while overlays/keyboard are open. Every phone browse page's primary create action is this FAB (activities, categories, units, warehouses, counts included); without secondary options it renders as one fully rounded button with no menu segment. Phone sort and kind menus are opaque Overlay sheets with scrim, handle, title, full-width cancel and safe-area padding.
 - Phone list/detail gutter is 16px; avoid nested double padding. Sticky editor action bar occupies one row; keyboard visibility keeps focused controls clear and hides sticky actions while typing. Landscape phones use compact browse chrome and safe-area padding.
 
 ### Cards, picker, workspace and scanner
@@ -64,6 +64,7 @@ Before visual browser inspection, run the browser under `scripts/ui-visual-prefl
 
 ## Changelog
 
+- 2026-10-31: plain single FAB, whole-row/card selection with select-loaded in card views, phone action menus as Overlay sheets with history, touch-close click guard, chip scroll hint.
 - 2026-10-30: filter panels nest their selects, stacked supporting dialogs, attachment viewer, reference chips compact on fine pointers.
 - 2026-10-31: select mode (`useBrowseSelection`, selection bar), compact header hint glyph, SVG sort icons, phone actions reachable while stuck.
 - 2026-10-30: column modules with export declarations, start-pinned identity columns, header hints, bold quantities, nested PopupMenu and press-and-release backdrop dismissal.
