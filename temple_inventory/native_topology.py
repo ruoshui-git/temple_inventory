@@ -46,6 +46,12 @@ def _settings():
 def _warehouse_map(company):
 	if not company:
 		return {}
+	if not getattr(frappe.db, "transaction_writes", 0):
+		cache = getattr(frappe.local, "temple_inventory_warehouse_maps", None)
+		if cache is None:
+			cache = frappe.local.temple_inventory_warehouse_maps = {}
+		if company in cache:
+			return cache[company]
 	rows = frappe.get_list(
 		"Warehouse",
 		filters={"company": company},
@@ -67,7 +73,10 @@ def _warehouse_map(company):
 		order_by="lft asc, name asc",
 		limit_page_length=0,
 	)
-	return {row.name: row for row in rows}
+	result = {row.name: row for row in rows}
+	if not getattr(frappe.db, "transaction_writes", 0):
+		cache[company] = result
+	return result
 
 
 def _visible_warehouses(settings=None):

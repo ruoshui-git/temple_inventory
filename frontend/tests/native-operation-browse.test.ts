@@ -1863,7 +1863,7 @@ describe("native operation browsing", () => {
     });
     const call = service();
     call.mockImplementation(async (endpoint, args) =>
-      endpoint === "browse.native_drafts"
+      endpoint === "browse.native_draft_count"
         ? { matched_count: 3 }
         : await service()(endpoint, args),
     );

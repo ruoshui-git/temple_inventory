@@ -57,7 +57,6 @@ import MultiLocationEndpoint from "../../components/ui/MultiLocationEndpoint.vue
 import { loanReferenceIdentity } from "../../lib/relatedLoanPresentation";
 import { formatQuantity } from "../../lib/formatQuantity";
 import { createRecoveryStore } from "../../lib/browserRecovery";
-import { newReportQuery } from "../../lib/reportContract";
 import { RouterLink } from "vue-router";
 import { routeTarget } from "../../lib/routeRegistry";
 import { sortByUnit, unitLabel } from "../../lib/units";
@@ -129,15 +128,8 @@ const services = useOptionalInventoryServices();
 const draftCount = ref(0);
 async function refreshDraftCount() {
 	if (!services || props.family !== "movements") return;
-	const query = newReportQuery("movements");
-	query.view = "records";
-	query.statuses = [0];
 	try {
-		const page = await services.call<{ matched_count: number }>("browse.native_drafts", {
-			query,
-			start: 0,
-			page_length: 1,
-		});
+		const page = await services.call<{ matched_count: number }>("browse.native_draft_count");
 		let localCount = 0;
 		try {
 			localCount = createRecoveryStore(reference.site, reference.user, localStorage)
@@ -393,6 +385,37 @@ const selectedReturnItemRows = computed(() => [
 function toggleMobileItemGroup(group: DataTableGroup, open: boolean) {
 	if (isItemGroup(group)) c.toggle(groupItem(group), open);
 	else void c.groups.toggleGroup(group.id);
+}
+const allMobileLoanItemsSelected = computed(
+	() =>
+		mobileItemGroups.value.length > 0 &&
+		mobileItemGroups.value.every((group) => c.selected.value.includes(group.id)),
+);
+function selectMobileLoanItems(event: Event) {
+	const checked = (event.target as HTMLInputElement).checked;
+	mobileItemGroups.value.forEach((group) => c.setSelected(group.id, checked));
+}
+function toggleMobileLoanItem(group: DataTableGroup) {
+	c.setSelected(group.id, !c.selected.value.includes(group.id));
+}
+function activateMobileLoanItem(event: MouseEvent, group: DataTableGroup) {
+	if (props.family !== "loans" || !c.selecting.value) return;
+	const target = event.target as Element | null;
+	if (target?.closest("button, a[href], input, select, textarea, [contenteditable='true']"))
+		return;
+	toggleMobileLoanItem(group);
+}
+function keyMobileLoanItem(event: KeyboardEvent, group: DataTableGroup) {
+	if (props.family !== "loans" || !c.selecting.value) return;
+	const target = event.target as Element | null;
+	if (
+		target !== event.currentTarget &&
+		target?.closest("button, a[href], input, select, textarea, [contenteditable='true']")
+	)
+		return;
+	if (event.key !== "Enter" && event.key !== " ") return;
+	event.preventDefault();
+	toggleMobileLoanItem(group);
 }
 function operationRow(row: Record<string, unknown>): OperationGroup {
 	const rawWhole = row.whole;
@@ -1052,6 +1075,14 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						role="region"
 						aria-label="借用批量操作"
 					>
+						<label v-if="showMobileItemCards" class="browse-select-visible">
+							<input
+								type="checkbox"
+								:checked="allMobileLoanItemsSelected"
+								@change="selectMobileLoanItems"
+							/>
+							选择当前 {{ mobileItemGroups.length }} 项
+						</label>
 						<span role="status">已选择 {{ c.selected.value.length }} 项</span>
 						<UiButton
 							:disabled="
@@ -1262,6 +1293,18 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							:key="group.id"
 							class="browse-group browse-group--mobile-list browse-card"
 							:data-browse-row="group.id"
+							:class="{ selected: c.selected.value.includes(group.id) }"
+							:tabindex="family === 'loans' && c.selecting.value ? 0 : -1"
+							:role="
+								family === 'loans' && c.selecting.value ? 'checkbox' : undefined
+							"
+							:aria-checked="
+								family === 'loans' && c.selecting.value
+									? c.selected.value.includes(group.id)
+									: undefined
+							"
+							@click="activateMobileLoanItem($event, group)"
+							@keydown="keyMobileLoanItem($event, group)"
 						>
 							<label
 								v-if="family === 'loans' && c.selecting.value"
@@ -1292,7 +1335,11 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 									class="browse-group-trigger"
 									:aria-expanded="group.expanded"
 									:aria-controls="`mobile-operation-group-${group.id}`"
-									@click="toggleMobileItemGroup(group, !group.expanded)"
+									@click.stop="
+										family === 'loans' && c.selecting.value
+											? toggleMobileLoanItem(group)
+											: toggleMobileItemGroup(group, !group.expanded)
+									"
 								>
 									<DisclosureIcon variant="inline" />
 									<span class="mobile-operation-group-identity">
@@ -1310,7 +1357,9 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								</button>
 							</div>
 							<div
-								v-show="group.expanded"
+								v-show="
+									group.expanded && !(family === 'loans' && c.selecting.value)
+								"
 								:id="`mobile-operation-group-${group.id}`"
 								class="browse-group-content"
 							>

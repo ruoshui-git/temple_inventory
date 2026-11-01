@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+import zlib
 from pathlib import Path
 
 import frappe
@@ -12,8 +13,9 @@ import redis
 from frappe.utils import now_datetime
 
 CACHE_TTL = 300
-MAX_ENTRY_BYTES = 16 * 1024 * 1024
-IMPLEMENTATION_VERSION = "browse-v6"
+MAX_ENTRY_BYTES = 64 * 1024 * 1024
+MAX_PROJECTION_BYTES = 256 * 1024 * 1024
+IMPLEMENTATION_VERSION = "browse-v7"
 GENERATION_KEY = "temple_inventory:browse:generation"
 LOCK_WAIT_SECONDS = 3
 CACHEABLE_METHODS = {
@@ -94,6 +96,10 @@ def invalidate_after_commit(doc=None, *_args, **_kwargs):
 	"""Coalesce app/native document hooks and publish only after commit."""
 	if doc and getattr(doc, "doctype", None) not in READ_DOCTYPES:
 		return
+	if doc:
+		frappe.local.inventory_permission_signatures = {}
+		frappe.local.inventory_configuration_signature = None
+		frappe.local.temple_inventory_warehouse_maps = {}
 	if doc and doc.doctype == "User" and _args and _args[0] != "after_insert":
 		before = doc.get_doc_before_save()
 		roles_changed = _user_role_signature(doc) != _user_role_signature(before)
@@ -160,6 +166,17 @@ def after_rename(*_args, **_kwargs):
 
 def _permission_signature(user):
 	"""Read current role/user grants instead of trusting a user-only cache key."""
+	if not getattr(frappe.db, "transaction_writes", 0):
+		cache = getattr(frappe.local, "inventory_permission_signatures", None)
+		if cache is None:
+			cache = frappe.local.inventory_permission_signatures = {}
+		if user not in cache:
+			cache[user] = _permission_signature_uncached(user)
+		return cache[user]
+	return _permission_signature_uncached(user)
+
+
+def _permission_signature_uncached(user):
 	roles = sorted(
 		row.role
 		for row in frappe.get_all("Has Role", filters={"parent": user, "parenttype": "User"}, fields=["role"])
@@ -286,6 +303,15 @@ def _user_role_signature(doc):
 
 
 def _configuration_signature():
+	if not getattr(frappe.db, "transaction_writes", 0):
+		value = getattr(frappe.local, "inventory_configuration_signature", None)
+		if value is None:
+			value = frappe.local.inventory_configuration_signature = _configuration_signature_uncached()
+		return value
+	return _configuration_signature_uncached()
+
+
+def _configuration_signature_uncached():
 	settings = frappe.db.sql(
 		"select field, value from tabSingles where doctype=%s and field in ('company', 'modified', 'ti_read_generation')",
 		("Temple Inventory Settings",),
@@ -588,7 +614,11 @@ def restore_projection(projection):
 		if not isinstance(value, bytes):
 			return False
 		snapshot, separator, database = value.partition(b"\n")
-		if not separator or len(database) > MAX_ENTRY_BYTES or not _fresh(snapshot.decode("utf-8")):
+		if not separator or not _fresh(snapshot.decode("utf-8")):
+			return False
+		if database.startswith(b"ZLIB\n"):
+			database = zlib.decompress(database[5:])
+		if len(database) > MAX_PROJECTION_BYTES:
 			return False
 		staging = Path(projection.temp.name) / "projection.restore"
 		staging.write_bytes(database)
@@ -619,7 +649,7 @@ def restore_projection(projection):
 		projection.sums = tuple(metadata["sums"])
 		projection.context.snapshot = snapshot.decode("utf-8")
 		return True
-	except (redis.exceptions.RedisError, OSError, ValueError, TypeError, sqlite3.Error):
+	except (redis.exceptions.RedisError, OSError, ValueError, TypeError, sqlite3.Error, zlib.error):
 		return False
 
 
@@ -651,12 +681,12 @@ def store_projection(projection):
 			projection.db.execute("pragma page_count").fetchone()[0],
 			projection.db.execute("pragma page_size").fetchone()[0],
 		)
-		if page_count * page_size > MAX_ENTRY_BYTES:
+		if page_count * page_size > MAX_PROJECTION_BYTES:
 			return
 		backup_path = Path(projection.temp.name) / "projection.cache"
 		with sqlite3.connect(backup_path) as backup:
 			projection.db.backup(backup)
-		if backup_path.stat().st_size > MAX_ENTRY_BYTES:
+		if backup_path.stat().st_size > MAX_PROJECTION_BYTES:
 			return
 		database = backup_path.read_bytes()
 		if not _fresh(projection.context.snapshot):
@@ -673,6 +703,7 @@ def store_projection(projection):
 			now_datetime()
 			- __import__("frappe.utils", fromlist=["get_datetime"]).get_datetime(projection.context.snapshot)
 		).total_seconds()
+		database = b"ZLIB\n" + zlib.compress(database, level=1)
 		entry = projection.context.snapshot.encode("utf-8") + b"\n" + database
 		if len(entry) > MAX_ENTRY_BYTES:
 			return
@@ -681,5 +712,5 @@ def store_projection(projection):
 			entry,
 			ex=max(1, int(CACHE_TTL - age)),
 		)
-	except (redis.exceptions.RedisError, OSError, ValueError, TypeError, sqlite3.Error):
+	except (redis.exceptions.RedisError, OSError, ValueError, TypeError, sqlite3.Error, zlib.error):
 		return

@@ -13,6 +13,32 @@ from temple_inventory.tests.helpers import FakeCache, NativeReportTestCase
 
 
 class NativeReportsCacheTests(NativeReportTestCase):
+	def test_operation_page_reflects_a_stock_entry_write(self):
+		from temple_inventory import browse
+		from temple_inventory.report_query import validate_query
+
+		query = validate_query(
+			{
+				"dataset": "movements",
+				"view": "records",
+				"statuses": [0, 1],
+				"scope": {"period": {"key": "all", "from": "", "to": ""}},
+			}
+		)
+		before = browse.operation_page(query, records=True, page_length=1)["matched_count"]
+		self.create(self.movement())
+		after = browse.operation_page(query, records=True, page_length=1)["matched_count"]
+		self.assertEqual(after, before + 1)
+
+	def test_native_draft_count_matches_the_permission_scoped_draft_page(self):
+		from temple_inventory import browse
+
+		self.create(self.movement())
+		self.assertEqual(
+			browse.native_draft_count()["matched_count"],
+			browse.native_drafts({"dataset": "movements", "statuses": [0]})["matched_count"],
+		)
+
 	def test_entry_bundle_cache_reuses_permission_checked_bundle_within_projection(self):
 		from temple_inventory.native_balances import entry_bundle
 

@@ -116,6 +116,26 @@ def native_drafts(query=None, start=0, page_length=30, refresh=False):
 
 
 @frappe.whitelist()
+def native_draft_count():
+	"""Count readable native drafts without building the full movement projection."""
+	require_app()
+	query = validate_query({"dataset": "movements", "view": "records", "statuses": [0]})
+	from temple_inventory.report_sources import ReportContext
+
+	context = ReportContext(query, load_item_attachments=False)
+	count = 0
+	for doctype in ("Stock Entry", "Stock Reconciliation"):
+		names = frappe.get_list(
+			doctype,
+			filters={"company": context.company, "docstatus": 0},
+			pluck="name",
+		)
+		context.preload_parents(doctype, names)
+		count += sum(bool(context.parent(doctype, name)) for name in names)
+	return {"matched_count": count}
+
+
+@frappe.whitelist()
 def counts_page(query=None, start=0, page_length=30, refresh=False):
 	require_app()
 	if type(refresh) is not bool:
@@ -139,7 +159,11 @@ def _native_record_page(query, start, page_length, refresh=False):
 	from frappe.utils import cint
 
 	start, size = max(0, cint(start)), min(100, max(1, cint(page_length)))
-	with Projection(query, refresh=refresh) as projection:
+	with Projection(
+		query,
+		refresh=refresh,
+		load_item_attachments=query["dataset"] != "counts",
+	) as projection:
 		projection.build()
 		projection.group(
 			"lines",
