@@ -202,3 +202,9 @@ export async function nativeUiSession(
       route.fulfill({ json: { message } }),
     );
 }
+
+/** Phone record lists open as rows; switch to the table from the page's "…" menu. */
+export async function showPhoneTable(page: Page) {
+  await page.getByRole("button", { name: "更多操作", exact: true }).click();
+  await page.getByRole("menuitem", { name: "以表格显示", exact: true }).click();
+}

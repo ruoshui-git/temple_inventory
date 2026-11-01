@@ -37,6 +37,8 @@ import { useFilterRailPreference } from "../../composables/useFilterRailPreferen
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import DataTable from "../../components/ui/DataTable.vue";
 import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
+import BrowseCard from "../../components/ui/BrowseCard.vue";
+import ViewModeMenuItem from "../../components/ui/ViewModeMenuItem.vue";
 import AsyncRegion from "../../components/ui/AsyncRegion.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import type {
@@ -100,6 +102,7 @@ const {
 	localError,
 	localTarget,
 	extraChips,
+	view,
 } = c;
 const scopeChips = computed(() => scopeFilterFieldChips(scope.value, c.reference));
 const {
@@ -297,6 +300,34 @@ const tableRows = computed<DataTableRecord[]>(() =>
 const browseRows = computed<DataTableEntry[]>(() =>
 	query.value.groupBy.length ? groups.entries.value : tableRows.value,
 );
+const draftListColumns: DataColumn[] = [
+	{ id: "title", label: "草稿", kind: "primary", required: true },
+	{ id: "status", label: "状态" },
+	{ id: "summary", label: "明细摘要" },
+	{ id: "date", label: "更新时间", kind: "date" },
+];
+const draftListRows = computed<DataTableRecord[]>(() =>
+	draftEntries.value.map((entry) => ({
+		kind: "record",
+		id: entry.id,
+		value: {
+			title: entry.server ? `${entry.label} · ${entry.server.document}` : entry.label,
+			status: entry.type === "server" ? "系统草稿" : "浏览器暂存",
+			summary: entry.summary,
+			date: entry.updatedAt,
+			entry,
+		},
+	})),
+);
+function openDraftEntry(value: unknown) {
+	if (!value || typeof value !== "object") return;
+	const entry = value as DraftListEntry;
+	if (entry.server) open(entry.server);
+	else if (entry.local) emit("recover", entry.local);
+}
+function draftDate(value: unknown) {
+	return String(value || "");
+}
 const groupRoot = computed(() => groups.pages.value["[[],null]"]);
 function groupSummary(group: DataTableGroup) {
 	const row = group.value || {};
@@ -349,6 +380,7 @@ function activityLabel(row: Record<string, unknown>) {
 		>
 			<template #actions>
 				<BrowseOverflowMenu>
+					<ViewModeMenuItem v-if="isMobile" v-model="view" />
 					<UiButton
 						@click="
 							c.load();
@@ -469,6 +501,7 @@ function activityLabel(row: Record<string, unknown>) {
 		>
 			<template #actions>
 				<BrowseOverflowMenu>
+					<ViewModeMenuItem v-if="isMobile && !query.groupBy.length" v-model="view" />
 					<UiButton
 						@click="
 							c.load();
@@ -630,7 +663,7 @@ function activityLabel(row: Record<string, unknown>) {
 						: `${total} 份记录`
 			"
 			:metrics="[]"
-		/>
+		></BrowseResultSummary>
 		<p v-if="routeError" class="utility-error" role="alert">{{ routeError }}</p>
 		<div v-else-if="mode === 'drafts'" class="drafts-browser">
 			<p class="drafts-explainer">草稿单据已保存到系统；浏览器暂存只保存在当前设备。</p>
@@ -655,7 +688,7 @@ function activityLabel(row: Record<string, unknown>) {
 				label="草稿刷新中。"
 			>
 				<template #skeleton><SkeletonBlock variant="list" :rows="5" /></template>
-				<ul class="draft-entry-list">
+				<ul v-if="!isMobile" class="draft-entry-list">
 					<li v-for="entry in draftEntries" :key="entry.id" class="draft-entry">
 						<div class="draft-entry-heading">
 							<span class="draft-type-tag" :class="`is-${entry.type}`"
@@ -738,6 +771,76 @@ function activityLabel(row: Record<string, unknown>) {
 						没有符合条件的草稿。
 					</li>
 				</ul>
+				<div v-else-if="view === 'card'" class="draft-entry-row-list">
+					<BrowseCard
+						v-for="entry in draftEntries"
+						:key="entry.id"
+						:row-key="entry.id"
+						variant="row"
+						:selecting="false"
+						:selected="false"
+						select-label="打开草稿"
+						@open="
+							entry.server
+								? open(entry.server)
+								: entry.local && emit('recover', entry.local)
+						"
+					>
+						<div class="draft-entry-row-content">
+							<strong>{{
+								entry.server
+									? `${entry.label} · ${entry.server.document}`
+									: entry.label
+							}}</strong>
+							<span
+								class="browse-badge"
+								:class="entry.type === 'server' ? 'is-warning' : 'is-neutral'"
+								>{{ entry.type === "server" ? "系统草稿" : "浏览器暂存" }}</span
+							>
+							<small
+								>{{ relativeTime(entry.updatedAt) }} · {{ entry.summary }}</small
+							>
+						</div>
+					</BrowseCard>
+					<p v-if="initialized && !draftEntries.length" class="browse-empty">
+						没有符合条件的草稿。
+					</p>
+				</div>
+				<DataTable
+					v-else-if="isMobile && view === 'table'"
+					ariaLabel="草稿列表"
+					table-class="browse-table"
+					:columns="draftListColumns"
+					:rows="draftListRows"
+					:loading="loading"
+					:initialized="initialized"
+					:error="error"
+					:stale="stale"
+					:loaded-count="draftEntries.length"
+					:total-count="draftEntries.length"
+					:row-attributes="(row) => ({ 'data-browse-row': String(row.id) })"
+					@retry="c.retry"
+				>
+					<template #cell="{ column, row }">
+						<button
+							v-if="column.id === 'title'"
+							class="browse-row-link"
+							@click="openDraftEntry(row.entry)"
+						>
+							{{ row.title }}
+						</button>
+						<span v-else-if="column.id === 'status'" class="browse-badge is-neutral">{{
+							row.status
+						}}</span>
+						<span v-else-if="column.id === 'summary'">{{ row.summary }}</span>
+						<time
+							v-else-if="column.id === 'date'"
+							:datetime="draftDate(row.date)"
+							:title="formatSiteDateTime(draftDate(row.date), c.reference.timezone)"
+							>{{ relativeTime(draftDate(row.date)) }}</time
+						>
+					</template>
+				</DataTable>
 			</AsyncRegion>
 		</div>
 		<template v-else>
@@ -768,7 +871,49 @@ function activityLabel(row: Record<string, unknown>) {
 					@toggle="toggleSidebar"
 				/>
 				<div class="browse-results">
+					<div
+						v-if="
+							mode === 'counts' &&
+							isMobile &&
+							!query.groupBy.length &&
+							view === 'card'
+						"
+						class="native-record-row-list"
+					>
+						<SkeletonBlock v-if="loading && !initialized" variant="list" :rows="5" />
+						<BrowseCard
+							v-for="row in rows"
+							:key="row.id"
+							:row-key="row.id"
+							variant="row"
+							:selecting="false"
+							:selected="false"
+							select-label="打开盘点记录"
+							:stale="stale"
+							@open="open(row)"
+						>
+							<div class="native-record-row-content">
+								<strong>{{ row.document }}</strong
+								><NativeStatusBadge :status="row.docstatus" />
+								<small
+									>{{
+										formatSiteDateTime(
+											row.time
+												? `${row.date || ""} ${row.time}`
+												: row.date || row.posting_timestamp,
+										) || "—"
+									}}
+									· {{ row.whole?.branches?.[0]?.source || "盘点范围" }} ·
+									{{ row.item_count || 0 }} 种物品</small
+								>
+							</div>
+						</BrowseCard>
+						<p v-if="initialized && !rows.length" class="browse-empty">
+							没有符合条件的盘点记录。
+						</p>
+					</div>
 					<DataTable
+						v-if="!isMobile || view === 'table' || query.groupBy.length"
 						data-browse-scroll="records"
 						ariaLabel="库存记录"
 						:table-class="

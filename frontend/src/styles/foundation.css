@@ -923,6 +923,108 @@ strong {
 	border-color: var(--p-accent);
 	box-shadow: 0 0 0 1px var(--p-accent);
 }
+.browse-card-item--row {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 8px 10px;
+	min-height: 64px;
+	padding: 8px 10px;
+	border-bottom: 1px solid var(--p-border);
+	cursor: pointer;
+}
+.browse-card-item--row:focus-visible {
+	outline: 2px solid var(--p-accent);
+	outline-offset: -2px;
+}
+.browse-card-item--row.selected {
+	background: var(--p-soft);
+}
+.browse-card-media {
+	display: grid;
+	place-items: center;
+	width: 56px;
+	height: 56px;
+	border-radius: var(--p-radius-control);
+	overflow: hidden;
+}
+.browse-card-media > :is(.item-image, .item-image-button, .async-image) {
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+}
+.browse-card-item--card > .browse-card-media {
+	width: 100%;
+	height: auto;
+	aspect-ratio: 1;
+	border-radius: 0;
+	background: var(--p-surface);
+}
+.browse-card-item--row
+	> :is(
+		.activity-row-content,
+		.native-record-row-content,
+		.operation-record-row-content,
+		.draft-entry-row-content,
+		.pending-card-content
+	) {
+	display: grid;
+	grid-column: 2 / -1;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 2px 8px;
+	min-width: 0;
+}
+.browse-card-item--row
+	> :is(
+		.activity-row-content,
+		.native-record-row-content,
+		.operation-record-row-content,
+		.draft-entry-row-content,
+		.pending-card-content
+	)
+	> :first-child {
+	grid-column: 1;
+	font-weight: 600;
+}
+.browse-card-item--row
+	> :is(
+		.activity-row-content,
+		.native-record-row-content,
+		.operation-record-row-content,
+		.draft-entry-row-content,
+		.pending-card-content
+	)
+	> small {
+	grid-column: 1 / -1;
+	color: var(--p-muted);
+}
+/* Only a row's own status badge: badges nested deeper (expiry meta) keep their layout. */
+.browse-card-item--row > .browse-badge,
+.browse-card-item--row
+	> :is(
+		.activity-row-content,
+		.native-record-row-content,
+		.operation-record-row-content,
+		.draft-entry-row-content,
+		.pending-card-content
+	)
+	> .browse-badge {
+	grid-column: 2;
+	grid-row: 1;
+}
+.browse-card-item--card > .operation-item-card-content,
+.browse-card-item--card > .expiry-card-content,
+.browse-card-item--card > .pending-card-content {
+	display: grid;
+	gap: 6px;
+	padding: 12px;
+}
+.operation-item-card-content > small,
+.expiry-card-content > small,
+.pending-card-content > small {
+	color: var(--p-muted);
+}
 .stock-card-image {
 	position: relative;
 	display: grid;

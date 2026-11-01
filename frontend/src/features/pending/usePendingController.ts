@@ -20,6 +20,8 @@ import { useReportController } from "../export/useReportController";
 import type { InitialAllocation } from "../../lib/routeSelection";
 import { useBrowseState } from "../../lib/browseMemory";
 import { useBrowseSelection } from "../../composables/useBrowseSelection";
+import { useBrowseViewMode } from "../../composables/useBrowseViewMode";
+import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 export function usePendingController(
   props: { initialQuery?: ReportQuery; routeQuery?: string },
   changed: (query: ReportQuery) => void,
@@ -27,10 +29,12 @@ export function usePendingController(
   const reference = useReferenceData(),
     account = reference.user,
     selection = useBrowseSelection(),
+    responsive = useResponsiveLayout(),
     query = ref(browseDefaults("inventory", "locations")),
     routeError = ref(""),
     analysisOpen = ref(false),
     dimension = ref("category");
+  const browseViewMode = useBrowseViewMode(responsive.isMobile);
   function enter() {
     const decoded = decodeReportQuery(
       props.initialQuery || props.routeQuery,
@@ -86,10 +90,15 @@ export function usePendingController(
   useBrowseState(
     "pending",
     () => query.value,
-    () => ({ dimension: dimension.value, analysisOpen: analysisOpen.value }),
+    () => ({
+      dimension: dimension.value,
+      analysisOpen: analysisOpen.value,
+      ...browseViewMode.snapshot(),
+    }),
     (value) => {
       dimension.value = String(value.dimension || "category");
       analysisOpen.value = value.analysisOpen === true;
+      browseViewMode.restore(value);
     },
     () =>
       !report.result.loading &&
@@ -197,6 +206,7 @@ export function usePendingController(
     setSelected: selection.set,
     reference,
     query,
+    view: browseViewMode.view,
     scope,
     scopeChips,
     chips,

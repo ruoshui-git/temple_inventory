@@ -24,6 +24,8 @@ import { useBrowseState } from "../../lib/browseMemory";
 import { sortableColumnsForView } from "../../lib/reportContract";
 import { useReportGroups } from "../../composables/useReportGroups";
 import { useBrowseSelection } from "../../composables/useBrowseSelection";
+import { useBrowseViewMode } from "../../composables/useBrowseViewMode";
+import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 export interface OperationGroup {
   id: string;
   item?: CatalogItem;
@@ -107,6 +109,9 @@ export function useOperationBrowse(
   changed: (query: ReportQuery) => void,
 ) {
   const relatedLoans = useRelatedLoans();
+  const { isMobile } = useResponsiveLayout();
+  const browseViewMode = useBrowseViewMode(isMobile);
+  browseViewMode.phoneView.value = props.records ? "card" : "table";
   const services = useInventoryServices(),
     reference = useReferenceData(),
     account = reference.user,
@@ -258,11 +263,16 @@ export function useOperationBrowse(
     () => ({
       expanded: [...expanded],
       dimension: dimension.value,
+      ...browseViewMode.snapshot(),
     }),
     (value) => {
       expanded.clear();
       for (const id of (value.expanded || []) as string[]) expanded.add(id);
       dimension.value = String(value.dimension || "category");
+      browseViewMode.restore({
+        ...value,
+        phoneView: value.phoneView ?? (props.records ? "card" : "table"),
+      });
     },
     () =>
       result.initialized &&
@@ -745,6 +755,7 @@ export function useOperationBrowse(
     setSelected: selection.set,
     relatedLoans,
     query,
+    browseView: browseViewMode.view,
     groups,
     routeError,
     result,

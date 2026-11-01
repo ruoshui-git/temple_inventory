@@ -51,6 +51,7 @@ const paths: Record<string, string> = {
 	filter: "M3 4h18l-7 8v7l-4 2v-9L3 4Z",
 	table: "M3 4h18v16H3V4Zm0 5h18M3 14h18M9 4v16",
 	card: "M3 3h7v7H3V3Zm11 0h7v7h-7V3ZM3 14h7v7H3v-7Zm11 0h7v7h-7v-7",
+	list: "M3 4h18v6H3V4Zm0 10h18v6H3v-6",
 	warning: "m12 3 10 18H2L12 3Zm0 6v5m0 3v1",
 	select: "M5 12l4 4L19 6M4 21h16",
 	open: "m9 18 6-6-6-6",

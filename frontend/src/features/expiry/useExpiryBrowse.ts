@@ -29,6 +29,8 @@ import {
 } from "../../lib/filterPresentation";
 import { useReportGroups } from "../../composables/useReportGroups";
 import { useBrowseSelection } from "../../composables/useBrowseSelection";
+import { useBrowseViewMode } from "../../composables/useBrowseViewMode";
+import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 export interface ExpiryPageData extends BrowseRowsPage {
   item_count: number;
   batch_count: number;
@@ -46,6 +48,8 @@ export function useExpiryBrowse(
     reference = useReferenceData(),
     account = reference.user,
     selection = useBrowseSelection();
+  const { isMobile } = useResponsiveLayout();
+  const browseViewMode = useBrowseViewMode(isMobile);
   const query = ref(browseDefaults("expiry", "batches")),
     routeError = ref("");
   const groups = useReportGroups(query, services);
@@ -134,9 +138,10 @@ export function useExpiryBrowse(
   useBrowseState(
     "expiry",
     () => query.value,
-    () => ({ dimension: dimension.value }),
+    () => ({ dimension: dimension.value, ...browseViewMode.snapshot() }),
     (value) => {
       dimension.value = String(value.dimension || "category");
+      browseViewMode.restore(value);
     },
     () =>
       result.initialized &&
@@ -391,6 +396,7 @@ export function useExpiryBrowse(
     removeScope,
     routeError,
     result,
+    view: browseViewMode.view,
     reference,
     chips,
     metrics,

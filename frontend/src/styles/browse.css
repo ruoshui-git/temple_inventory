@@ -2434,6 +2434,13 @@
 	min-width: 40px;
 	min-height: 36px;
 }
+@media (min-width: 1024px) {
+	/* Desktop: the whole segmented control matches the 36px summary buttons beside it. */
+	.browse-summary-controls .stock-view-icons button {
+		min-height: 28px;
+		padding-block: 2px;
+	}
+}
 .stock-view-icons button span {
 	position: absolute;
 	width: 1px;

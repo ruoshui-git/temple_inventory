@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { showPhoneTable } from "./support/phoneTableView";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h, reactive } from "vue";
 import { createMemoryHistory, createRouter } from "vue-router";
@@ -261,6 +262,13 @@ function service(
     throw new Error(`Unexpected ${endpoint}`);
   });
 }
+async function selectTable(wrapper: VueWrapper) {
+  // Record lists switch to the table from the "…" menu; item cards from the 列表 toggle.
+  if (await showPhoneTable(wrapper)) return;
+  const toggle = wrapper.find('[aria-label="列表视图"]');
+  if (toggle.exists()) await toggle.trigger("click");
+  await flushPromises();
+}
 describe("native operation browsing", () => {
   it("keeps detailed branch locations in operation record rows", async () => {
     const operationQuery = newReportQuery("movements");
@@ -319,6 +327,7 @@ describe("native operation browsing", () => {
       true,
     );
     await flushPromises();
+    await selectTable(mounted.wrapper);
     for (const value of [
       "仓库 / 来源区",
       "Source Warehouse",
@@ -391,6 +400,7 @@ describe("native operation browsing", () => {
       true,
     );
     await flushPromises();
+    await selectTable(records.wrapper);
     const recordsExport = records.wrapper.getComponent(QuickExport);
     expect(recordsExport.props()).toMatchObject({
       title: "借用 · 单据",
@@ -722,6 +732,7 @@ describe("native operation browsing", () => {
       { name: "Box", label: "箱", whole: true },
     );
     await flushPromises();
+    await selectTable(wrapper);
     expect(
       wrapper.get(".operation-unit-summary").attributes("aria-label"),
     ).toContain("−12 个；+3 箱");
@@ -818,6 +829,7 @@ describe("native operation browsing", () => {
       true,
     );
     await flushPromises();
+    await selectTable(wrapper);
     const headers = wrapper.findAll("thead th");
     const statusIndex = headers.findIndex((header) =>
       header.text().startsWith("借用状态"),
@@ -932,6 +944,7 @@ describe("native operation browsing", () => {
       true,
     );
     await flushPromises();
+    await selectTable(wrapper);
     const c = wrapper.getComponent(OperationBrowsePage).vm.controller;
     expect(c.query.value.sortBy).toBe("date");
     expect(c.query.value.sort).toBe("desc");
@@ -983,6 +996,7 @@ describe("native operation browsing", () => {
     await flushPromises();
     const records =
       recordView.wrapper.getComponent(OperationBrowsePage).vm.controller;
+    await selectTable(recordView.wrapper);
     expect(records.query.value.sortBy).toBe("date");
     expect(
       recordView.wrapper.find('select[aria-label="借用排序"]').exists(),
@@ -1633,7 +1647,7 @@ describe("native operation browsing", () => {
     expect(c.query.value.allocationKeys).toEqual(["ALLOC-EXACT"]);
   });
   it("uses one mobile Item disclosure for native loan history and preserves it when switching to desktop", async () => {
-    let mediaChange: ((event: { matches: boolean }) => void) | undefined;
+    const mediaChanges: ((event: { matches: boolean }) => void)[] = [];
     const media = { matches: false };
     vi.stubGlobal("matchMedia", () => ({
       get matches() {
@@ -1642,9 +1656,7 @@ describe("native operation browsing", () => {
       addEventListener: (
         _: string,
         listener: (event: { matches: boolean }) => void,
-      ) => {
-        mediaChange = listener;
-      },
+      ) => mediaChanges.push(listener),
       removeEventListener: vi.fn(),
     }));
     const call = service();
@@ -1733,7 +1745,7 @@ describe("native operation browsing", () => {
       .setValue(true);
     expect(wrapper.text()).toContain("已选择 1 项");
     media.matches = true;
-    mediaChange?.({ matches: true });
+    mediaChanges.forEach((listener) => listener({ matches: true }));
     await flushPromises();
     expect(
       wrapper.findAll('[data-browse-scroll="operation-items"]'),

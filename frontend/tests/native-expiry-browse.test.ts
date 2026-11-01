@@ -146,6 +146,20 @@ describe("native expiry browser", () => {
     expect(card.find(".expiry-phone-meta .browse-badge").text()).toBe("未过期");
     expect(card.find(".expiry-phone-meta").text()).not.toContain("·");
   });
+  it("offers an item card grid with the same batch identity and quantity", async () => {
+    const { wrapper } = setup(
+      vi.fn(async (_endpoint, args) => page(Number(args.start || 0))),
+      reactive({}),
+      true,
+    );
+    await flushPromises();
+    await wrapper.get('[aria-label="卡片视图"]').trigger("click");
+    await flushPromises();
+    const card = wrapper.get(".expiry-card-grid [data-browse-row]");
+    expect(card.text()).toContain("物品甲");
+    expect(card.text()).toContain("BATCH-0");
+    expect(card.text()).toContain("11 Nos");
+  });
   it("keeps repeated URL query parameters invalid at the real route boundary", async () => {
     const call = vi.fn(),
       reference = createReferenceData();

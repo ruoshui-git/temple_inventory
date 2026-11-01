@@ -4,6 +4,7 @@ import {
   auditCjkFontType,
   nativeUiSession,
   requiredAuditCjkFont,
+  showPhoneTable,
 } from "./fixtures/nativeUi";
 const font = requiredAuditCjkFont();
 const selectionShots = "/tmp/codex-runs/browse-cards-shots";
@@ -397,6 +398,8 @@ for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     await setup(page);
     await page.goto("/inventory/movements?view=records");
+    // Phones open record lists as rows; these checks cover the table.
+    if (width < 1024) await showPhoneTable(page);
     await page.getByRole("button", { name: "设置列" }).click();
     await page
       .getByRole("group", { name: "设置表格列" })
@@ -1144,6 +1147,8 @@ test("large-text related-loan context keeps its close action visible", async ({
   await page.setViewportSize({ width: 390, height: 844 });
   await setup(page, 200);
   await page.goto("/inventory/movements?view=records");
+  // Phones open record lists as rows; this check covers the table.
+  await showPhoneTable(page);
   await page.getByRole("button", { name: "设置列" }).click();
   await page
     .getByRole("group", { name: "设置表格列" })

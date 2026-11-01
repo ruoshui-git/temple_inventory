@@ -23,6 +23,8 @@ import {
 } from "../../services/contracts";
 import { useReportController } from "../export/useReportController";
 import { useBrowseState } from "../../lib/browseMemory";
+import { useBrowseViewMode } from "../../composables/useBrowseViewMode";
+import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import type { NativeActivity } from "./useActivityEditor";
 
 interface ActivityDetail extends NativeActivity {
@@ -69,6 +71,9 @@ export function useActivitiesController(
 ) {
   const services = useInventoryServices(),
     reference = useReferenceData();
+  const responsive = useResponsiveLayout();
+  const browseViewMode = useBrowseViewMode(responsive.isMobile);
+  browseViewMode.phoneView.value = "card";
   const inherited = ref(browseDefaults("activities", "metadata"));
   const scopeError = ref("");
   const state = reactive({
@@ -148,8 +153,12 @@ export function useActivitiesController(
   useBrowseState(
     `activities/${props.mode}/${props.name || "list"}`,
     () => report.value,
-    () => ({}),
-    () => undefined,
+    () => browseViewMode.snapshot(),
+    (value) =>
+      browseViewMode.restore({
+        ...value,
+        phoneView: value.phoneView ?? "card",
+      }),
     () =>
       !loading.value &&
       !projection.result.loading &&
@@ -368,6 +377,7 @@ export function useActivitiesController(
     detail,
     filtered,
     report,
+    view: browseViewMode.view,
     projection,
     loading,
     error,

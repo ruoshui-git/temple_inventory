@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { showPhoneTable } from "./support/phoneTableView";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h, reactive } from "vue";
 import {
@@ -224,9 +225,17 @@ describe("native Activity browse scopes", () => {
 
   it("renders the activity name as a route link in the activities list", async () => {
     const { wrapper } = await mountActivityView("list");
+    await showPhoneTable(wrapper);
+    await flushPromises();
     const link = wrapper.get('tbody a[href="/activities/ACT-A"]');
     expect(link.text()).toBe("活动名称");
     expect(wrapper.find("tbody button").exists()).toBe(false);
+  });
+  it("defaults the phone activities list to two-line rows", async () => {
+    const { wrapper } = await mountActivityView("list");
+    expect(wrapper.find(".activity-row-list").text()).toContain("活动名称");
+    expect(wrapper.find(".activity-row-list").text()).toContain("进行中");
+    expect(wrapper.find(".activity-row-list").text()).toContain("2026-10-01");
   });
 
   it.each(["{", JSON.stringify(newReportQuery("inventory"))])(

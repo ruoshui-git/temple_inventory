@@ -17,12 +17,17 @@ import { groupLabels } from "../../lib/reportContract";
 import { removeGroupByField } from "../../lib/groupBy";
 import { enumPresentationLabel, movementLabels } from "../../lib/presentationLabels";
 import { formatQuantityWithUnit } from "../../lib/formatQuantity";
+import { formatSiteDateTime } from "../../lib/nativeTime";
 import { kindIcons } from "../../lib/kindIcons";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import BrowseFilters from "../../components/filters/BrowseFilters.vue";
 import ReportTable from "../../components/ui/ReportTable.vue";
 import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
+import BrowseCard from "../../components/ui/BrowseCard.vue";
+import ViewModeToggle from "../../components/ui/ViewModeToggle.vue";
+import ViewModeMenuItem from "../../components/ui/ViewModeMenuItem.vue";
+import ItemGroupLines from "./ItemGroupLines.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
 import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
@@ -84,6 +89,7 @@ const emit = defineEmits<{
 	newOperation: [kind: string];
 }>();
 const c = props.controller;
+const browseView = c.browseView;
 const {
 	query,
 	routeError,
@@ -123,6 +129,9 @@ const showMobileItemCards = computed(
 		!props.records &&
 		query.value.groupBy.length === 1 &&
 		query.value.groupBy[0] === "item",
+);
+const canShowItemCards = computed(
+	() => !props.records && query.value.groupBy.length === 1 && query.value.groupBy[0] === "item",
 );
 const services = useOptionalInventoryServices();
 const draftCount = ref(0);
@@ -385,6 +394,11 @@ const selectedReturnItemRows = computed(() => [
 function toggleMobileItemGroup(group: DataTableGroup, open: boolean) {
 	if (isItemGroup(group)) c.toggle(groupItem(group), open);
 	else void c.groups.toggleGroup(group.id);
+}
+function openItemGroup(group: DataTableGroup) {
+	if (!isItemGroup(group)) return;
+	itemGroupOverlay.value = group;
+	void c.loadDetails(groupItem(group));
 }
 const allMobileLoanItemsSelected = computed(
 	() =>
@@ -835,6 +849,7 @@ const {
 const scanOpen = ref(false);
 const filterSheetOpen = ref(false);
 const analysisOpen = ref(false);
+const itemGroupOverlay = ref<DataTableGroup>();
 watch([() => props.active, isMobile], () => {
 	scanOpen.value = false;
 	analysisOpen.value = false;
@@ -987,6 +1002,16 @@ function openedRecord(row: OperationGroup) {
 		? emit("openLoan", String(row.document))
 		: emit("openDocument", String(row.doctype), String(row.document));
 }
+function recordUnitSummary(row: OperationGroup) {
+	const values =
+		props.family === "loans"
+			? row.whole?.outstanding || row.whole?.quantities || []
+			: row.whole?.available_effects || row.whole?.quantities || [];
+	return values
+		.slice(0, 2)
+		.map((value) => formatQuantityWithUnit(Number(value.qty), value.uom))
+		.join(" · ");
+}
 function openedSettlement(name: string) {
 	if (!result.stale) emit("openDocument", "Stock Entry", name);
 }
@@ -1019,6 +1044,10 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 			>
 				<template #actions>
 					<BrowseOverflowMenu>
+						<ViewModeMenuItem
+							v-if="records && isMobile && !query.groupBy.length"
+							v-model="browseView"
+						/>
 						<UiButton
 							v-if="isMobile && family === 'loans'"
 							icon="select"
@@ -1178,6 +1207,11 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 					:loading="result.loading && !result.initialized"
 				>
 					<template #controls>
+						<ViewModeToggle
+							v-if="canShowItemCards"
+							v-model="browseView"
+							ariaLabel="物品汇总视图"
+						/>
 						<SortControl
 							v-if="showMobileItemCards"
 							v-model:field="query.sortBy"
@@ -1287,7 +1321,10 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							基于完整筛选结果；一条记录涉及多个分组时，各组记录数不可相加。
 						</p>
 					</Overlay>
-					<div v-if="showMobileItemCards" class="mobile-item-group-list browse-card">
+					<div
+						v-if="showMobileItemCards && browseView === 'table'"
+						class="mobile-item-group-list browse-card"
+					>
 						<article
 							v-for="group in mobileItemGroups"
 							:key="group.id"
@@ -1358,7 +1395,9 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							</div>
 							<div
 								v-show="
-									group.expanded && !(family === 'loans' && c.selecting.value)
+									browseView === 'table' &&
+									group.expanded &&
+									!(family === 'loans' && c.selecting.value)
 								"
 								:id="`mobile-operation-group-${group.id}`"
 								class="browse-group-content"
@@ -1399,7 +1438,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 										</li>
 									</ul>
 								</details>
-								<MovementHistoryTable
+								<ItemGroupLines
 									v-if="
 										family === 'movements' &&
 										c.expanded.has(groupItem(group).id) &&
@@ -1421,8 +1460,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 										(doctype, name) => emit('openDocument', doctype, name)
 									"
 									@open-loan="emit('openLoan', $event)"
-								>
-								</MovementHistoryTable>
+								/>
 								<p
 									v-if="
 										family === 'loans' &&
@@ -1434,7 +1472,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								>
 									当前范围没有未结清借用记录。可在筛选中切换到“借出与归还全部记录”查看历史。
 								</p>
-								<MovementHistoryTable
+								<ItemGroupLines
 									v-else-if="
 										family === 'loans' &&
 										c.expanded.has(groupItem(group).id) &&
@@ -1452,7 +1490,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 									"
 									:sort-by="c.detailSortBy(groupItem(group))"
 									:sort-direction="c.detailSortDirection(groupItem(group))"
-									mode="loan-balance"
+									loan-balance
 									@load-more="c.loadDetails(groupItem(group), true)"
 									@retry="c.retryDetails(groupItem(group))"
 									@sort="c.setDetailSort(groupItem(group), $event)"
@@ -1460,8 +1498,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 										(doctype, name) => emit('openDocument', doctype, name)
 									"
 									@open-loan="emit('openLoan', $event)"
-								>
-								</MovementHistoryTable>
+								/>
 							</div>
 						</article>
 					</div>
@@ -1479,8 +1516,44 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 					>
 						当前范围没有未结清借用记录。可在筛选中切换到“借出与归还全部记录”查看历史。
 					</p>
+					<div
+						v-if="canShowItemCards && browseView === 'card'"
+						class="browse-card-grid operation-item-card-grid"
+					>
+						<BrowseCard
+							v-for="group in mobileItemGroups"
+							:key="group.id"
+							:row-key="group.id"
+							variant="card"
+							:selecting="family === 'loans' && c.selecting.value"
+							:selected="c.selected.value.includes(group.id)"
+							:select-label="`选择物品 ${group.label}`"
+							:stale="result.stale"
+							@toggle="toggleMobileLoanItem(group)"
+							@open="openItemGroup(group)"
+						>
+							<template #media
+								><div class="browse-card-media">
+									<ItemImage
+										v-if="c.stockItem(groupItem(group))"
+										:item="c.stockItem(groupItem(group))!"
+									/></div
+							></template>
+							<div class="operation-item-card-content">
+								<strong>{{ group.label }}</strong
+								><small>{{ group.count }} 条明细</small>
+								<span>{{ groupSummaryDisplay(group) }}</span>
+								<small v-if="family === 'loans'">{{
+									group.value?.outcome_key === "outstanding" ? "未归还" : "借出"
+								}}</small>
+							</div>
+						</BrowseCard>
+					</div>
 					<DataTable
-						v-if="!records && !showMobileItemCards"
+						v-if="
+							!records &&
+							(!canShowItemCards || (browseView === 'table' && !showMobileItemCards))
+						"
 						data-browse-scroll="operation-items"
 						ariaLabel="物品流动汇总"
 						table-class="browse-table"
@@ -2028,8 +2101,96 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							</div>
 						</template>
 					</DataTable>
+					<div
+						v-if="
+							records && isMobile && !query.groupBy.length && browseView === 'card'
+						"
+						class="browse-card-grid operation-record-list"
+					>
+						<BrowseCard
+							v-for="row in result.rows"
+							:key="row.id"
+							:row-key="row.id"
+							variant="row"
+							:selecting="family === 'loans' && c.selecting.value"
+							:selected="c.selected.value.includes(row.id)"
+							:select-label="`选择记录 ${row.document || row.id}`"
+							:stale="result.stale"
+							@toggle="c.setSelected(row.id, !c.selected.value.includes(row.id))"
+							@open="openedRecord(row)"
+						>
+							<div class="operation-record-row-content">
+								<strong>{{
+									family === "loans"
+										? row.borrower || "借用单据"
+										: `${enumPresentationLabel("kind", String(row.kind || ""), query)} · ${row.item_name || "库存记录"}`
+								}}</strong
+								><NativeStatusBadge :status="row.docstatus" />
+								<small
+									>{{
+										formatSiteDateTime(
+											row.posting_timestamp || row.date,
+											reference.timezone,
+										) ||
+										row.date ||
+										"—"
+									}}
+									· {{ row.activity_title || row.document || "" }} ·
+									{{
+										recordUnitSummary(row) || `${row.item_count || 0} 种物品`
+									}}</small
+								>
+							</div>
+						</BrowseCard>
+						<p v-if="result.initialized && !result.rows.length" class="browse-empty">
+							没有匹配的记录
+						</p>
+					</div>
+					<Overlay
+						v-if="itemGroupOverlay"
+						:title="`${itemGroupOverlay.label} · 明细`"
+						adaptive-creation
+						@close="itemGroupOverlay = undefined"
+					>
+						<RouterLink
+							class="browse-row-link mobile-operation-item-link"
+							:to="
+								routeTarget('item-detail', {
+									code: String(
+										itemGroupOverlay.value?.item_code ||
+											itemGroupOverlay.label,
+									),
+								})
+							"
+							>查看物品</RouterLink
+						>
+						<ItemGroupLines
+							v-if="details[groupItem(itemGroupOverlay).id]"
+							:rows="details[groupItem(itemGroupOverlay).id]!.rows as HistoryRow[]"
+							:total="details[groupItem(itemGroupOverlay).id]!.total"
+							:next="details[groupItem(itemGroupOverlay).id]!.next"
+							:loading="details[groupItem(itemGroupOverlay).id]!.loading"
+							:error="details[groupItem(itemGroupOverlay).id]!.error"
+							:initialized="details[groupItem(itemGroupOverlay).id]!.initialized"
+							:stale="result.stale"
+							:history-complete="
+								details[groupItem(itemGroupOverlay).id]!.historyComplete
+							"
+							:sort-by="c.detailSortBy(groupItem(itemGroupOverlay))"
+							:sort-direction="c.detailSortDirection(groupItem(itemGroupOverlay))"
+							:loan-balance="family === 'loans'"
+							@load-more="c.loadDetails(groupItem(itemGroupOverlay!), true)"
+							@retry="c.retryDetails(groupItem(itemGroupOverlay!))"
+							@sort="c.setDetailSort(groupItem(itemGroupOverlay!), $event)"
+							@open-document="(doctype, name) => emit('openDocument', doctype, name)"
+							@open-loan="emit('openLoan', $event)"
+						/>
+					</Overlay>
 					<DataTable
-						v-if="records"
+						v-if="
+							records &&
+							(!isMobile || browseView === 'table' || query.groupBy.length)
+						"
 						data-browse-scroll="operations"
 						:ariaLabel="family === 'movements' ? '货物流动记录' : '借用记录'"
 						table-class="browse-table"

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { showPhoneTable } from "./support/phoneTableView";
 import { defineComponent, h } from "vue";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import NativeRecordsPage from "../src/features/drafts/NativeRecordsPage.vue";
@@ -22,6 +23,7 @@ beforeEach(() => localStorage.clear());
 afterEach(() => {
   wrappers.splice(0).forEach((wrapper) => wrapper.unmount());
   localStorage.clear();
+  vi.unstubAllGlobals();
   document.body.innerHTML = "";
 });
 const nativeRow = {
@@ -72,7 +74,15 @@ function setup(
   mode: "drafts" | "counts" = "drafts",
   query?: ReturnType<typeof newReportQuery>,
   routeQuery?: string,
+  desktop = false,
 ) {
+  if (desktop) {
+    vi.stubGlobal("matchMedia", () => ({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+  }
   const reference = createReferenceData();
   Object.assign(reference, {
     user: "volunteer",
@@ -100,6 +110,17 @@ function setup(
   return { wrapper, page, c: page.vm.controller, reference, call };
 }
 describe("native drafts and count records", () => {
+  it("offers phone draft rows and a table alternative", async () => {
+    const { wrapper } = setup(
+      vi.fn(async () => response),
+      "drafts",
+    );
+    await flushPromises();
+    expect(wrapper.find(".draft-entry-row-list").text()).toContain("法会供灯");
+    expect(await showPhoneTable(wrapper)).toBe(true);
+    await flushPromises();
+    expect(wrapper.find('[aria-label="草稿列表"] table').exists()).toBe(true);
+  });
   it("shows count record times with padded hours and seconds", async () => {
     const row = { ...nativeRow, date: "2026-10-31", time: "6:07:00" };
     const { wrapper } = setup(
@@ -107,7 +128,23 @@ describe("native drafts and count records", () => {
       "counts",
     );
     await flushPromises();
+    await showPhoneTable(wrapper);
+    await flushPromises();
     expect(wrapper.text()).toContain("2026-10-31 06:07:00");
+  });
+  it("defaults phone count records to rows and keeps the table available", async () => {
+    const { wrapper } = setup(
+      vi.fn(async () => response),
+      "counts",
+    );
+    await flushPromises();
+    expect(wrapper.find(".native-record-row-list").text()).toContain("STE/A,1");
+    expect(wrapper.find(".native-record-row-list").text()).toContain(
+      "2026-10-16 10:01:02",
+    );
+    expect(await showPhoneTable(wrapper)).toBe(true);
+    await flushPromises();
+    expect(wrapper.find(".count-records-table").exists()).toBe(true);
   });
 
   it("uses the account's count period on entry and when clearing filters", async () => {
@@ -148,6 +185,8 @@ describe("native drafts and count records", () => {
       vi.fn(async () => ({ ...response, rows: [count] })),
       "counts",
     );
+    await flushPromises();
+    await showPhoneTable(wrapper);
     await flushPromises();
     expect(wrapper.get(".browse-result-summary").text()).toContain(
       "205 条盘点记录",
@@ -298,7 +337,13 @@ describe("native drafts and count records", () => {
           }
         : response,
     );
-    const { wrapper, c, page } = setup(call);
+    const { wrapper, c, page } = setup(
+      call,
+      "drafts",
+      undefined,
+      undefined,
+      true,
+    );
     expect(wrapper.find(".skeleton-block--list").exists()).toBe(true);
     expect(wrapper.text()).not.toContain("没有符合条件");
     await flushPromises();
@@ -346,7 +391,13 @@ describe("native drafts and count records", () => {
       },
     };
     createRecoveryStore("site", "volunteer", localStorage).save(newerSnapshot);
-    const { wrapper, c } = setup();
+    const { wrapper, c } = setup(
+      vi.fn(async () => response),
+      "drafts",
+      undefined,
+      undefined,
+      true,
+    );
     await flushPromises();
     expect(wrapper.findAll(".browse-controls")).toHaveLength(1);
     expect(wrapper.text()).not.toContain("份记录");
@@ -419,7 +470,13 @@ describe("native drafts and count records", () => {
       account: "another",
       editorId: "other",
     });
-    const { c, reference, wrapper, page } = setup();
+    const { c, reference, wrapper, page } = setup(
+      vi.fn(async () => response),
+      "drafts",
+      undefined,
+      undefined,
+      true,
+    );
     await flushPromises();
     expect(c.localEntries.value).toHaveLength(1);
     const resume = wrapper

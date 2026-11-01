@@ -2,7 +2,11 @@ import { test, expect, type Page } from "@playwright/test";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { nativeUiSession, sampleWarehouses } from "./fixtures/nativeUi";
+import {
+  nativeUiSession,
+  sampleWarehouses,
+  showPhoneTable,
+} from "./fixtures/nativeUi";
 import { newReportQuery } from "../../src/lib/reportContract";
 
 // Review the actual built bundle, with controlled native HTTP responses.
@@ -360,6 +364,8 @@ for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 1000 });
     const errors = await prepare(page);
     await page.goto("/inventory/movements?view=records");
+    // Phones open record lists as rows; these checks cover the table.
+    if (width < 1024) await showPhoneTable(page);
     await expect(page.locator("[data-browse-row]")).toHaveCount(3);
     const headers = (
       await page
@@ -441,6 +447,8 @@ for (const width of [1440, 390]) {
       await page.setViewportSize({ width: loanWidth, height: 1000 });
       const errors = await prepare(page);
       await page.goto("/inventory/loans?view=records");
+      // Phones open record lists as rows; these checks cover the table.
+      if (loanWidth < 1024) await showPhoneTable(page);
       const loanRows = page.locator("[data-browse-row]");
       await expect(loanRows).toHaveCount(3);
       await expect(

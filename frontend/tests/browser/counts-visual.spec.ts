@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { nativeUiSession } from "./fixtures/nativeUi";
+import { nativeUiSession, showPhoneTable } from "./fixtures/nativeUi";
 
 const reviewRows = [
   {
@@ -292,6 +292,8 @@ test("fixture count editor and detail render the review layouts at desktop and p
 
   await page.setViewportSize({ width: 430, height: 932 });
   await page.goto("/inventory/counts");
+  // Phones open the counts list as rows; the pinning check covers the table.
+  await showPhoneTable(page);
   await expect(page.getByText("MAT-RECO-2026-00023")).toBeVisible();
   const countId = page
     .locator(".count-records-table .count-record-id-column")

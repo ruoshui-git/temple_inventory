@@ -25,6 +25,8 @@ import { useConfirm } from "../../services/confirm";
 import type { useActivitiesController } from "./useActivitiesController";
 import DataTable from "../../components/ui/DataTable.vue";
 import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
+import BrowseCard from "../../components/ui/BrowseCard.vue";
+import ViewModeMenuItem from "../../components/ui/ViewModeMenuItem.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import type {
 	DataColumn,
@@ -99,6 +101,7 @@ const {
 	movement,
 	removeSecondary,
 	more,
+	view,
 } = props.controller;
 async function confirmActivityDelete() {
 	if (
@@ -244,6 +247,7 @@ const activityExportColumns = computed(() => {
 		>
 			<template #actions>
 				<BrowseOverflowMenu>
+					<ViewModeMenuItem v-if="isMobile && !report.groupBy.length" v-model="view" />
 					<RouterLink :to="{ name: 'activity-types' }">管理活动类型</RouterLink>
 					<QuickExport
 						:query="report"
@@ -365,9 +369,54 @@ const activityExportColumns = computed(() => {
 				v-if="projection.result.snapshot"
 				:label="`${projection.result.total} 个活动 · 标签数字为全部已提交单据，不随日期筛选`"
 				:metrics="[]"
+			></BrowseResultSummary>
+			<SkeletonBlock
+				v-if="
+					isMobile &&
+					!report.groupBy.length &&
+					view === 'card' &&
+					projection.result.loading &&
+					!projection.result.snapshot
+				"
+				variant="list"
+				:rows="5"
 			/>
+			<div
+				v-if="
+					isMobile &&
+					!report.groupBy.length &&
+					view === 'card' &&
+					projection.result.snapshot
+				"
+				class="activity-row-list"
+			>
+				<BrowseCard
+					v-for="activity in filtered"
+					:key="activity.id"
+					:row-key="activity.id"
+					variant="row"
+					:selecting="false"
+					:selected="false"
+					select-label="打开活动"
+					@open="open(activity.id)"
+				>
+					<div class="activity-row-content">
+						<strong>{{ activity.title }}</strong
+						><span
+							class="browse-badge"
+							:class="activity.status === 'archived' ? 'is-neutral' : 'is-success'"
+							>{{ activity.status === "archived" ? "已归档" : "进行中" }}</span
+						>
+						<small
+							>{{ activity.start || activity.end || "—" }} ·
+							{{ activityTypeLabel(activity.typeId) }}</small
+						>
+					</div>
+				</BrowseCard>
+			</div>
 			<div class="activity-list-scroll" data-browse-scroll="activities">
 				<DataTable
+					v-if="!isMobile || view === 'table' || report.groupBy.length"
 					ariaLabel="活动列表"
 					table-class="browse-table"
 					:columns="activityColumns"

@@ -20,6 +20,8 @@ import ItemImage from "../../components/ItemImage.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
+import BrowseCard from "../../components/ui/BrowseCard.vue";
+import ViewModeToggle from "../../components/ui/ViewModeToggle.vue";
 import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
 import ReportTable from "../../components/ui/ReportTable.vue";
 import SortControl from "../../components/ui/SortControl.vue";
@@ -55,7 +57,7 @@ const emit = defineEmits<{
 	];
 }>();
 const c = props.controller,
-	{ query, scope, routeError, result, reference, chips, metrics, dimension, analysis } = c;
+	{ query, scope, routeError, result, reference, chips, metrics, dimension, analysis, view } = c;
 const { isMobile } = useResponsiveLayout();
 function clearExpiryFilters() {
 	c.reset();
@@ -518,6 +520,11 @@ function canExpiryAction() {
 				:loading="result.loading || result.stale"
 			>
 				<template #controls>
+					<ViewModeToggle
+						v-if="!query.groupBy.length"
+						v-model="view"
+						ariaLabel="效期批次视图"
+					/>
 					<SortControl
 						v-if="isMobile"
 						v-model:field="query.sortBy"
@@ -568,29 +575,71 @@ function canExpiryAction() {
 				@toggle="toggleFilter"
 			/>
 			<div id="expiry-results-panel" role="tabpanel" class="browse-results">
-				<div v-if="isMobile && !query.groupBy.length" class="expiry-mobile">
-					<article
+				<div
+					v-if="view === 'card' && !query.groupBy.length"
+					class="browse-card-grid expiry-card-grid"
+				>
+					<BrowseCard
 						v-for="row in result.rows"
 						:key="String(row.id)"
-						:data-browse-row="String(row.id)"
-						:tabindex="c.selecting.value ? 0 : -1"
-						@click="activateExpiryCard($event, row as unknown as ReportRow)"
-						@keydown="keyExpiryCard($event, row as unknown as ReportRow)"
-						class="browse-card expiry-phone-card"
+						:row-key="String(row.id)"
+						variant="card"
+						:selecting="c.selecting.value"
+						:selected="c.selected.value.includes(String(row.id))"
+						:select-label="`选择批次 ${row.batch_no || ''}`"
+						:stale="result.stale"
+						@toggle="toggleExpiryRow(row as unknown as ReportRow)"
+						@open="openItem(row)"
 					>
-						<label v-if="c.selecting.value" class="stock-list-checkbox" @click.stop>
-							<input
-								type="checkbox"
-								:checked="c.selected.value.includes(String(row.id))"
-								:aria-label="`选择批次 ${row.batch_no || ''}`"
-								@change="
-									c.setSelected(
-										String(row.id),
-										($event.target as HTMLInputElement).checked,
-									)
-								"
-							/>
-						</label>
+						<template #media
+							><div class="browse-card-media"><ItemImage :item="c.item(row)" /></div
+						></template>
+						<template #badges
+							><span
+								class="browse-badge"
+								:class="expiryStatus(row as unknown as ReportRow).tone"
+								>{{ expiryStatus(row as unknown as ReportRow).label }}</span
+							></template
+						>
+						<div class="expiry-card-content">
+							<strong>{{ row.item_name }}</strong
+							><small>{{ row.item_code }}</small>
+							<button class="browse-row-link" @click.stop="openBatch(row)">
+								批次 {{ row.batch_no }}
+							</button>
+							<span>{{
+								typeof row.remaining_days === "number"
+									? expiryRemaining(row.remaining_days)
+									: "—"
+							}}</span>
+							<span>{{
+								warehouseLabel(
+									String(row.warehouse || ""),
+									reference.warehouses,
+									String(row.warehouse_label || ""),
+								)
+							}}</span>
+							<UnitText :name="row.stock_uom" :qty="Number(row.stock_qty || 0)" />
+						</div>
+					</BrowseCard>
+				</div>
+				<div
+					v-if="view === 'table' && isMobile && !query.groupBy.length"
+					class="expiry-mobile"
+				>
+					<BrowseCard
+						v-for="row in result.rows"
+						:key="String(row.id)"
+						:row-key="String(row.id)"
+						variant="row"
+						:selecting="c.selecting.value"
+						:selected="c.selected.value.includes(String(row.id))"
+						:select-label="`选择批次 ${row.batch_no || ''}`"
+						:stale="result.stale"
+						class="browse-card expiry-phone-card"
+						@toggle="toggleExpiryRow(row as unknown as ReportRow)"
+						@open="openItem(row)"
+					>
 						<div class="expiry-phone-identity">
 							<div class="browse-group-thumbnail">
 								<ItemImage :item="c.item(row)" />
@@ -649,11 +698,11 @@ function canExpiryAction() {
 								>{{ expiryRemaining(row.remaining_days) }}</small
 							>
 						</div>
-					</article>
+					</BrowseCard>
 				</div>
 				<!-- Phones show ungrouped results as cards; grouped results stay tabular. -->
 				<DataTable
-					v-if="!isMobile || query.groupBy.length"
+					v-if="(view === 'table' && !isMobile) || query.groupBy.length"
 					data-browse-scroll="expiry-table"
 					ariaLabel="效期批次"
 					table-class="browse-table"
