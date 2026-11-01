@@ -116,7 +116,8 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 | All matching rows, not only loaded rows | ✅ | e.g. 2,651 movement lines from a page showing 30 |
 | Chinese headers and display labels (no ERPNext names, `Receive`, `1`) | ✅ | 🔁 Headers equal the page's column labels (checked per page by a parity test) |
 | Per-unit 合计 rows | ✅ | |
-| 导出说明 sheet: page, filters, grouping, sort, period, time, account, row count | ✅ | XLSX only |
+| 导出说明 sheet: page, filters, grouping, sort, period, time, account, row count | ✅ | XLSX sheet; PDF shows rows, time, filters and grouping in one line under the title |
+| 🆕 PDF: same rows, visible columns and grouping as XLSX, leading #, Letter, no files; 版式 物资表格 or (stock data) 盘点表 with 实盘/备注 and signatures; Desk-customized formats listed | ✅ | 2026-11-01. Columns sized to content; capped by Temple Inventory Settings → PDF 最多行数 (default 5,000) |
 | Readable filename: page–period–time | ✅ | e.g. `货物流动 · 明细-2026-10-01至2026-10-29-20261029-0019.xlsx` |
 | Grouped XLSX: grey "[group] (N)" rows, subtotals, collapsible outline | ✅ | Opens expanded; CSV stays flat |
 | 附带文件: images / images + attachments as ZIP, de-duplicated by reference | ✅ | `images/<物品编号>.*`, `attachments/items/<物品编号>/`, `attachments/records/<编号>/` |
