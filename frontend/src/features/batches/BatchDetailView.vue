@@ -19,6 +19,7 @@ import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import { useOptionalInventoryServices } from "../../services/contracts";
 import FormField from "../../components/ui/FormField.vue";
 import { sortByUnit, unitLabel } from "../../lib/units";
+import { expiryStatus } from "../../lib/stockPresentation";
 const props = defineProps<{ controller: BatchDetailController }>();
 const emit = defineEmits<{
 	back: [];
@@ -40,7 +41,10 @@ const locationColumns = computed<DataColumn[]>(() => [
 	},
 	{ id: "stock_qty", label: "批次数量", defaultVisible: true, sortable: true },
 	{ id: "available", label: "可用数量", defaultVisible: true, sortable: true },
-	{ id: "stock_uom", label: "单位", defaultVisible: true, sortable: true },
+	...(new Set((c.batch.value?.locations.summary || []).map((row) => String(row.stock_uom || "")))
+		.size > 1
+		? [{ id: "stock_uom", label: "单位", defaultVisible: true, sortable: true } as DataColumn]
+		: []),
 ]);
 const locationRows = computed<DataTableRecord[]>(() =>
 	(c.batch.value?.locations.rows || []).map((row) => ({
@@ -81,6 +85,41 @@ const batchMetrics = computed(() => [
 		})),
 	},
 ]);
+const expiryDisplay = computed(() => {
+	const date = c.batch.value?.expiry_date;
+	if (!date) return undefined;
+	const today = new Date(`${reference.siteDate}T00:00:00Z`).getTime();
+	const expiry = new Date(`${date}T00:00:00Z`).getTime();
+	const days = Math.round((expiry - today) / 86_400_000);
+	const label = expiryStatus(
+		{
+			code: c.batch.value!.item_code,
+			name: c.batch.value!.item.item_name,
+			category: "",
+			uom: "",
+			tracksBatch: true,
+			tracksExpiry: true,
+			locations: [
+				{
+					location: "",
+					available: 0,
+					loaned: 0,
+					damaged: 0,
+					batches: [{ id: c.batch.value!.name, available: 0, expiry: date }],
+				},
+			],
+			available: 0,
+			loaned: 0,
+			damaged: 0,
+		},
+		reference.siteDate,
+	);
+	return {
+		label: label === "已过期" ? label : days <= 30 ? "即将到期" : "未过期",
+		days: days < 0 ? `过期${Math.abs(days)}天` : days === 0 ? "今天到期" : `剩${days}天`,
+		tone: days < 0 ? "is-danger" : days <= 30 ? "is-warning" : "is-success",
+	};
+});
 function openDocument(row: Record<string, unknown>) {
 	emit("openDocument", documentDestination(String(row.doctype), String(row.document)));
 }
@@ -91,7 +130,7 @@ function openDocument(row: Record<string, unknown>) {
 			<template #back><BackButton @click="emit('back')" /></template>
 			<template #actions>
 				<UiButton
-					v-if="c.batch.value && !c.editing.value"
+					v-if="c.batch.value?.can_edit && !c.editing.value"
 					variant="primary"
 					@click="c.beginEdit"
 					>编辑</UiButton
@@ -109,9 +148,6 @@ function openDocument(row: Record<string, unknown>) {
 					>
 				</template>
 			</template>
-			<template #subtitle
-				><p v-if="c.batch.value">批次资料 · {{ c.batch.value.item_code }}</p></template
-			>
 		</PageHeader>
 		<SkeletonBlock
 			v-if="c.loading.value && !c.batch.value"
@@ -151,8 +187,11 @@ function openDocument(row: Record<string, unknown>) {
 					{{ c.batch.value.disabled ? "已停用" : "正常使用" }}
 				</span>
 			</p>
+			<span v-if="expiryDisplay" class="browse-badge" :class="expiryDisplay.tone"
+				>{{ expiryDisplay.label }} · {{ expiryDisplay.days }}</span
+			>
 			<QuantitySummary :metrics="batchMetrics" label="批次数量汇总" />
-			<dl v-if="!c.editing.value" class="batch-detail-meta">
+			<dl v-if="!c.editing.value" class="browse-detail-grid batch-detail-meta">
 				<div>
 					<dt>生产日期</dt>
 					<dd>{{ c.batch.value.manufacturing_date || "未填写" }}</dd>
@@ -195,9 +234,15 @@ function openDocument(row: Record<string, unknown>) {
 					></FormField>
 				</form>
 			</template>
-			<p v-else-if="c.batch.value.description" class="batch-description-preview">
-				{{ c.batch.value.description }}
-			</p>
+			<dl
+				v-if="!c.editing.value && c.batch.value.description"
+				class="browse-detail-grid batch-detail-meta"
+			>
+				<div>
+					<dt>批次说明</dt>
+					<dd class="content-long-text">{{ c.batch.value.description }}</dd>
+				</div>
+			</dl>
 		</section>
 		<section v-if="c.batch.value" class="batch-detail-card">
 			<h2>存放位置 · {{ c.batch.value.locations.matched_count }} 处</h2>
@@ -260,3 +305,11 @@ function openDocument(row: Record<string, unknown>) {
 		</section>
 	</section>
 </template>
+
+<style scoped>
+.batch-detail-meta {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+	gap: var(--p-space-4);
+}
+</style>

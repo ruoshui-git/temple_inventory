@@ -5,6 +5,7 @@ import {
 } from "../../services/contracts";
 import {
   presentCatalogItem,
+  type NativeFile,
   type CatalogItem,
 } from "../../lib/catalogPresentation";
 import { newReportQuery, type ReportDataset } from "../../lib/reportContract";
@@ -23,6 +24,7 @@ export function useProductDetail(props: { code: string; tab?: string }) {
         tracking_changeable?: boolean;
         tracking_change_reason?: string;
         can_delete?: boolean;
+        has_serial_no?: boolean;
       }
     >(),
     loading = ref(false),
@@ -122,7 +124,7 @@ export function useProductDetail(props: { code: string; tab?: string }) {
       files.clear();
     }
     try {
-      const [loaded, lifecycle] = await Promise.all([
+      const [loaded, lifecycle, attachmentFiles] = await Promise.all([
         loadItem(props.code, request.signal),
         services.call<{
           disabled: boolean;
@@ -130,11 +132,21 @@ export function useProductDetail(props: { code: string; tab?: string }) {
           tracking_change_reason: string;
           can_delete: boolean;
         }>("catalog.item_lifecycle", { item_code: props.code }, request.signal),
+        services
+          .call<NativeFile[]>(
+            "native_files.attachments",
+            { doctype: "Item", name: props.code },
+            request.signal,
+          )
+          .catch(() => []),
       ]);
       const result = { ...loaded, ...lifecycle };
       if (!active() || current !== generation) return;
       item.value = result;
-      files.load(result.attachments || [], result.image);
+      files.load(
+        attachmentFiles.length ? attachmentFiles : result.attachments || [],
+        result.image,
+      );
     } catch (reason) {
       if (active() && current === generation)
         error.value =

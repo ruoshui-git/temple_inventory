@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { productBatchColumns } from "../src/features/items/itemDetailColumns";
 
 const root = join(process.cwd(), "src");
 function readTree(directory: string): string[] {
@@ -19,6 +20,12 @@ function readTree(directory: string): string[] {
 const imageBranch = /column(?:\.id)?\s*===\s*["']image["']/;
 
 describe("item image columns", () => {
+  it("hides stock unit by default while retaining it as an export field", () => {
+    const unit = productBatchColumns.find((column) => column.id === "uom");
+    expect(unit?.defaultVisible).toBe(false);
+    expect(unit?.export).toContain("stock_uom");
+  });
+
   it("renders ItemImage in every page or table component that declares an image column", () => {
     const branchFiles = readTree(root).filter((filename) =>
       imageBranch.test(readFileSync(filename, "utf8")),

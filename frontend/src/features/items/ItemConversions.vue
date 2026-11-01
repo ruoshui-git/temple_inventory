@@ -43,12 +43,17 @@ function edit() {
 }
 </script>
 <template>
-	<DisclosureSection
+	<component
+		:is="inline ? 'div' : DisclosureSection"
 		v-if="item"
-		title="计量单位与换算"
-		:count="item.alternateUnits?.length || 0"
+		class="item-conversions"
+		v-bind="
+			inline
+				? undefined
+				: { title: '计量单位与换算', count: item.alternateUnits?.length || 0 }
+		"
 	>
-		<p>库存单位：{{ unitLabel(item.uom) }}（只读）</p>
+		<p v-if="!inline">库存单位：{{ unitLabel(item.uom) }}（只读）</p>
 		<p v-for="row in item.alternateUnits" :key="row.uom">
 			{{
 				formatConversion({ qty: 1, uom: row.uom, factor: row.factor, stockUom: item.uom })
@@ -72,5 +77,5 @@ function edit() {
 			</div>
 			<template #footer><UiButton @click="close">关闭换算</UiButton></template>
 		</Overlay>
-	</DisclosureSection>
+	</component>
 </template>

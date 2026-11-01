@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
-import { defineComponent, h, reactive } from "vue";
+import { defineComponent, h, nextTick, reactive } from "vue";
 import {
   createReferenceData,
   provideInventoryServices,
@@ -26,6 +26,9 @@ function loan(name = "LOAN-A", docstatus: 0 | 1 | 2 = 1): LoanDocument {
     ti_borrower: "借用方甲",
     ti_activity: "ACT-A",
     activity_title: "秋季法会",
+    ti_handler_name: "经办人甲",
+    ti_purpose_text: "仪式使用",
+    remarks: "领用前检查",
     balance_at: "2026-10-16 11:00:00",
     items: ["Nos", "Kg"].map((uom, index) => ({
       name: `${name}-CHILD-${index}`,
@@ -46,6 +49,12 @@ function loan(name = "LOAN-A", docstatus: 0 | 1 | 2 = 1): LoanDocument {
           borrowed_qty: 5,
           outstanding_qty: docstatus === 1 ? 2 : 0,
           outcomes: { Returned: 1, Damaged: 1, Lost: 1 },
+        },
+        {
+          batch_no: `BATCH-${index}-2`,
+          borrowed_qty: 1,
+          outstanding_qty: docstatus === 1 ? 1 : 0,
+          outcomes: { Returned: 0, Damaged: 0, Lost: 0 },
         },
       ],
     })),
@@ -169,6 +178,10 @@ describe("native loan details", () => {
     expect(wrapper.text()).not.toContain("LOAN-A-CHILD-1");
     expect(wrapper.text()).toContain("BATCH-1");
     expect(wrapper.text()).toContain("原存放");
+    expect(wrapper.findAll(".loan-status")).toHaveLength(1);
+    expect(wrapper.text()).toContain("经办人甲");
+    expect(wrapper.text()).toContain("仪式使用");
+    expect(wrapper.text()).toContain("领用前检查");
     expect(wrapper.text()).not.toContain("实际借出位置");
     expect(wrapper.text()).not.toContain("填写 5");
     const historySummary = wrapper
@@ -191,6 +204,19 @@ describe("native loan details", () => {
       .find((button) => button.text() === "登记损坏归还")!;
     await damaged.trigger("click");
     expect(settle).toHaveBeenCalledWith("LOAN-A", "damaged");
+  });
+
+  it("hides allocation rows for a single allocation and summary disclosure for one line", async () => {
+    const { c, wrapper } = setup(undefined, { view: true });
+    await flushPromises();
+    const firstLine = c.loan.value!.items[0]!;
+    c.loan.value!.items.splice(1);
+    firstLine.allocations.splice(1);
+    await nextTick();
+    expect(wrapper.text()).not.toContain("BATCH-0");
+    expect(wrapper.text()).not.toContain("按库存单位汇总");
+    expect(wrapper.text()).toContain("原存放");
+    expect(wrapper.text()).toContain("借出 5");
   });
   it("offers no settlement for draft/cancelled loans or missing native operation permissions", async () => {
     const { c, reference, props } = setup(

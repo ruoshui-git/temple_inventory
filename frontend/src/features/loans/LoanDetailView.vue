@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import PageHeader from "../../components/ui/PageHeader.vue";
 import BackButton from "../../components/ui/BackButton.vue";
-import { formatSiteDateTime, formatSiteTime } from "../../lib/nativeTime";
+import { formatSiteDateTime } from "../../lib/nativeTime";
 import { computed } from "vue";
 import type { ReportQuery } from "../../lib/reportContract";
 import type { LoanDetail, SettlementAction } from "./useLoanDetail";
@@ -11,7 +11,6 @@ import QuantitySummary from "../../components/ui/QuantitySummary.vue";
 import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
 import Attachments from "../../components/Attachments.vue";
 import QuickExport from "../../components/QuickExport.vue";
-import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 import ItemImage from "../../components/ItemImage.vue";
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import LocationEndpoint from "../../components/ui/LocationEndpoint.vue";
@@ -76,10 +75,7 @@ function settle(action: SettlementAction) {
 			<span v-if="loading" class="sr-only" role="status">借出结余刷新中。</span>
 			<div class="browse-card-heading">
 				<div>
-					<span class="eyebrow"
-						>{{ loan.name }} · {{ loan.posting_date }}
-						{{ formatSiteTime(loan.posting_time) }}</span
-					>
+					<span class="eyebrow">{{ loan.name }}</span>
 					<h2>{{ loan.ti_borrower }}</h2>
 					<UiButton
 						variant="ghost"
@@ -93,12 +89,17 @@ function settle(action: SettlementAction) {
 						{{ loan.ti_activity ? `活动 ${loan.ti_activity}` : "未关联活动" }}
 					</p>
 				</div>
-				<div class="loan-detail-status">
-					<NativeStatusBadge :status="loan.docstatus" />
-					<span v-if="loan.docstatus === 1" class="browse-badge is-warning">{{
-						status
-					}}</span>
-				</div>
+				<span
+					class="browse-badge loan-status"
+					:class="
+						loan.docstatus === 0 || loan.docstatus === 2
+							? 'is-neutral'
+							: status === '未结清'
+								? 'is-warning'
+								: 'is-success'
+					"
+					>{{ status }}</span
+				>
 			</div>
 			<p class="browse-note">
 				借出日期为原记录日期；结余按当前已提交且未取消的处理记录计算。{{
@@ -107,6 +108,24 @@ function settle(action: SettlementAction) {
 						: ""
 				}}
 			</p>
+			<dl class="browse-detail-grid loan-key-facts">
+				<div>
+					<dt>借出时间</dt>
+					<dd>{{ formatSiteDateTime(`${loan.posting_date} ${loan.posting_time}`) }}</dd>
+				</div>
+				<div>
+					<dt>经办人</dt>
+					<dd>{{ loan.ti_handler_name || "未填写" }}</dd>
+				</div>
+				<div>
+					<dt>用途</dt>
+					<dd class="content-long-text">{{ loan.ti_purpose_text || "未填写" }}</dd>
+				</div>
+				<div>
+					<dt>备注</dt>
+					<dd class="content-long-text">{{ loan.remarks || "未填写" }}</dd>
+				</div>
+			</dl>
 			<div
 				v-for="line in loan.items"
 				:key="line.name"
@@ -176,22 +195,33 @@ function settle(action: SettlementAction) {
 								})
 							}}</small
 						>
-						<div
-							v-for="allocation in line.allocations"
-							:key="allocation.batch_no"
-							class="browse-note"
-						>
-							{{ allocation.batch_no ? `批次 ${allocation.batch_no}` : "不分批次" }}
-							· 借出 {{ allocation.borrowed_qty }} · 未结清
-							{{ allocation.outstanding_qty }} · 完好归还
-							{{ allocation.outcomes.Returned }} · 损坏
-							{{ allocation.outcomes.Damaged }} · 遗失 {{ allocation.outcomes.Lost }}
-							<UnitText :name="line.stock_uom" />
-						</div>
+						<template v-if="line.allocations.length > 1">
+							<div
+								v-for="allocation in line.allocations"
+								:key="allocation.batch_no"
+								class="browse-note"
+							>
+								{{
+									allocation.batch_no
+										? `批次 ${allocation.batch_no}`
+										: "不分批次"
+								}}
+								· 借出 {{ allocation.borrowed_qty }} · 未结清
+								{{ allocation.outstanding_qty }} · 完好归还
+								{{ allocation.outcomes.Returned }} · 损坏
+								{{ allocation.outcomes.Damaged }} · 遗失
+								{{ allocation.outcomes.Lost }}
+								<UnitText :name="line.stock_uom" />
+							</div>
+						</template>
 					</DisclosureSection>
 				</div>
 			</div>
-			<DisclosureSection title="按库存单位汇总" :summary="`${metrics.length} 种库存单位`">
+			<DisclosureSection
+				v-if="loan.items.length > 1"
+				title="按库存单位汇总"
+				:summary="`${metrics.length} 种库存单位`"
+			>
 				<div class="detail-stat-grid">
 					<QuantitySummary :metrics="metrics" />
 				</div>
@@ -236,12 +266,9 @@ function settle(action: SettlementAction) {
 				<dl class="browse-detail-grid">
 					<div
 						v-for="(value, label) in {
-							用途: loan.ti_purpose_text,
 							记录人: loan.ti_recorder_name,
-							经办人: loan.ti_handler_name,
 							复核人: loan.ti_reviewer_name,
 							系统录入账户: loan.owner,
-							备注: loan.remarks,
 							修订自: loan.amended_from,
 						}"
 						:key="label"
@@ -272,15 +299,6 @@ function settle(action: SettlementAction) {
 		</article>
 	</section>
 </template>
-
-<style scoped>
-.loan-detail-status {
-	display: flex;
-	align-items: center;
-	flex-wrap: wrap;
-	gap: 6px;
-}
-</style>
 
 <style scoped>
 .browse-card-heading > div,

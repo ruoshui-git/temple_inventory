@@ -50,7 +50,7 @@ export const productBatchColumns: DataColumn[] = [
   {
     id: "uom",
     label: "库存单位",
-    defaultVisible: true,
+    defaultVisible: false,
     sortable: true,
     export: ["stock_uom"],
   },
@@ -110,7 +110,7 @@ export const productLocationColumns: DataColumn[] = [
   {
     id: "uom",
     label: "库存单位",
-    defaultVisible: true,
+    defaultVisible: false,
     sortable: true,
     export: ["stock_uom"],
   },

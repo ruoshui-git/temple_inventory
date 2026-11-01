@@ -6,7 +6,7 @@ import { warehouseLabel } from "../../lib/warehouseLabel";
 import { computed } from "vue";
 import type { ProductDetail } from "./useProductDetail";
 import type { ReportQuery } from "../../lib/reportContract";
-import ItemImage from "../../components/ItemImage.vue";
+import ItemGallery from "../../components/ItemGallery.vue";
 import Attachments from "../../components/Attachments.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import UiButton from "../../components/ui/UiButton.vue";
@@ -20,11 +20,9 @@ import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import { useOptionalInventoryServices } from "../../services/contracts";
 import { useArrayTableSort } from "../../composables/useArrayTableSort";
-import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import PopupMenu from "../../components/ui/PopupMenu.vue";
 import { useConfirm } from "../../services/confirm";
 import { showToast } from "../../services/toast";
-import { unitLabel } from "../../lib/units";
 import UnitText from "../../components/ui/UnitText.vue";
 import { productBatchColumns, productLocationColumns } from "./itemDetailColumns";
 import { exportFields } from "../../lib/exportColumns";
@@ -43,7 +41,6 @@ const emit = defineEmits<{
 	deleted: [];
 }>();
 const c = props.controller;
-const { isMobile } = useResponsiveLayout();
 const { confirm } = useConfirm();
 const { stockItem: item, loading, error, tab, batches, files } = c;
 const metrics = computed(() =>
@@ -68,6 +65,17 @@ const lifecycleItem = computed(() => c.item.value);
 const hasStock = computed(() =>
 	Boolean(item.value && (item.value.available || item.value.loaned || item.value.damaged)),
 );
+const trackingLabel = computed(() => {
+	if (!item.value) return "";
+	if (c.item.value?.has_serial_no) return "序列号";
+	if (item.value.tracksBatch && item.value.tracksExpiry) return "批次 + 效期";
+	if (item.value.tracksBatch) return "批次";
+	return "不追踪";
+});
+const nonImageFiles = computed(() =>
+	files.files.filter((file) => !file.type.startsWith("image/")),
+);
+const nonImageFilesController = computed(() => ({ ...files, files: nonImageFiles.value }));
 async function toggleDisabled() {
 	const current = lifecycleItem.value;
 	if (!current) return;
@@ -164,7 +172,7 @@ const productExportColumns = computed(() => {
 	const order = batchPrefs?.order.value.length
 		? batchPrefs.order.value
 		: productBatchColumns.map((column) => String(column.id));
-	return exportFields(productBatchColumns, order, visible);
+	return exportFields(productBatchColumns, order, [...new Set([...visible, "uom"])]);
 });
 </script>
 <template>
@@ -181,91 +189,87 @@ const productExportColumns = computed(() => {
 					table="locations"
 					:columns="productExportColumns"
 					title="物品详情"
-					:active="active" /></template
-		></PageHeader>
+					:active="active"
+				/>
+				<UiButton v-if="item" @click="emit('edit', item.code)">编辑物品资料</UiButton>
+				<PopupMenu v-if="item" label="物品操作" align="end" sheet>
+					<button
+						type="button"
+						:disabled="
+							c.lifecycleBusy.value ||
+							(lifecycleItem?.disabled === false && hasStock)
+						"
+						@click="toggleDisabled"
+					>
+						{{ lifecycleItem?.disabled ? "启用物品" : "停用物品" }}
+					</button>
+					<button
+						type="button"
+						class="danger"
+						:disabled="c.lifecycleBusy.value || lifecycleItem?.can_delete !== true"
+						@click="removeItem"
+					>
+						删除物品
+					</button>
+				</PopupMenu>
+			</template></PageHeader
+		>
 		<SkeletonBlock v-if="loading && !item" variant="detail" :count="3" :rows="4" />
 		<p v-if="error" class="notice-bar danger" role="alert">
 			{{ error }} <UiButton @click="c.load">重新读取</UiButton>
 		</p>
-		<article v-if="item" class="browse-detail-card">
-			<div class="browse-item-detail-head">
-				<div class="browse-detail-image">
-					<ItemImage :item="item" :fit="isMobile ? 'cover' : 'contain'" />
-				</div>
-				<div class="browse-grow">
-					<span class="eyebrow"
-						>{{ item.category ? `${item.category} · ` : "" }}{{ item.code }}</span
-					>
-					<h2>{{ item.name }}</h2>
-					<p class="muted">按物品代码汇总的库存、借用与损坏情况</p>
-					<span v-if="lifecycleItem?.disabled" class="item-disabled-badge">已停用</span>
-				</div>
-				<div class="item-detail-actions">
-					<UiButton @click="emit('edit', item.code)">编辑物品资料</UiButton
-					><PopupMenu label="物品操作" align="end" sheet
-						><button
-							type="button"
-							:disabled="
-								c.lifecycleBusy.value ||
-								(lifecycleItem?.disabled === false && hasStock)
-							"
-							@click="toggleDisabled"
+		<article v-if="item" class="browse-detail-card item-detail-card">
+			<div class="item-detail-top">
+				<ItemGallery class="browse-detail-image" :item="item" :attachments="files.files" />
+				<div class="item-detail-facts">
+					<div class="browse-grow">
+						<span class="eyebrow"
+							>{{ item.category ? `${item.category} · ` : "" }}{{ item.code }}</span
 						>
-							<span class="menu-item-stack"
-								>{{ lifecycleItem?.disabled ? "启用物品" : "停用物品"
-								}}<small
-									v-if="lifecycleItem?.disabled === false && hasStock"
-									class="menu-item-hint"
-									>仍有库存（含借出、损坏），清零后才能停用</small
-								></span
-							></button
-						><button
-							type="button"
-							class="danger"
-							:disabled="c.lifecycleBusy.value || lifecycleItem?.can_delete !== true"
-							@click="removeItem"
+						<h2>{{ item.name }}</h2>
+						<span v-if="lifecycleItem?.disabled" class="item-disabled-badge"
+							>已停用</span
 						>
-							<span class="menu-item-stack"
-								>删除物品<small
-									v-if="lifecycleItem?.can_delete === false"
-									class="menu-item-hint"
-									>已被单据或其它记录引用，不能删除</small
-								></span
-							>
-						</button></PopupMenu
-					>
-				</div>
-			</div>
-			<ItemConversions
-				:item="item"
-				@updated="c.conversionsUpdated"
-				@dirty-change="c.conversionDirty.value = $event"
-			/>
-			<DisclosureSection title="物品资料与文件" :count="files.files.length">
-				<dl class="browse-detail-grid">
-					<div
-						v-for="(value, label) in {
-							物品编号: item.code,
-							单位: item.uom,
-							批次管理: item.tracksBatch ? '启用' : '不启用',
-							记录效期: item.tracksExpiry ? '启用' : '不启用',
-							条码: item.barcode || '未设置',
-							说明: item.description || '无',
-						}"
-						:key="label"
-					>
-						<dt>{{ label }}</dt>
-						<dd class="content-long-text">{{ value }}</dd>
 					</div>
-				</dl>
-				<h3>主图</h3>
-				<Attachments :controller="files" images-only image-role="main" mode="display" />
-				<h3>附件</h3>
-				<Attachments :controller="files" image-role="attachments" mode="display" />
-			</DisclosureSection>
-			<div class="detail-stat-grid">
-				<QuantitySummary :metrics="metrics" />
+					<div class="detail-stat-grid"><QuantitySummary :metrics="metrics" /></div>
+					<dl class="browse-detail-grid item-facts-grid">
+						<div v-if="item.barcode">
+							<dt>条码</dt>
+							<dd>{{ item.barcode }}</dd>
+						</div>
+						<div>
+							<dt>单位</dt>
+							<dd>
+								<UnitText :name="item.uom" /><ItemConversions
+									:item="item"
+									inline
+									@updated="c.conversionsUpdated"
+									@dirty-change="c.conversionDirty.value = $event"
+								/>
+							</dd>
+						</div>
+						<div>
+							<dt>追踪</dt>
+							<dd>{{ trackingLabel }}</dd>
+						</div>
+						<div v-if="item.description">
+							<dt>说明</dt>
+							<dd class="content-long-text">{{ item.description }}</dd>
+						</div>
+					</dl>
+				</div>
 			</div>
+			<DisclosureSection
+				v-if="nonImageFiles.length"
+				title="附件"
+				:count="nonImageFiles.length"
+			>
+				<Attachments
+					:controller="nonImageFilesController"
+					image-role="attachments"
+					mode="display"
+				/>
+			</DisclosureSection>
 			<nav class="browse-tabs" aria-label="物品库存视图">
 				<button
 					:aria-current="tab === 'overview' ? 'page' : undefined"
@@ -409,13 +413,32 @@ const productExportColumns = computed(() => {
 </template>
 
 <style scoped>
-.item-detail-actions {
-	display: flex;
-	align-items: center;
-	gap: 8px;
+.item-detail-top {
+	display: grid;
+	grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+	gap: var(--p-space-6);
+	align-items: start;
 }
-.item-detail-actions :deep(.ui-button) {
-	white-space: nowrap;
+.item-detail-facts {
+	min-width: 0;
+}
+.item-detail-top > .browse-detail-image {
+	width: 100%;
+	flex: initial;
+	border-radius: 0;
+	overflow: visible;
+}
+.item-facts-grid {
+	margin-top: var(--p-space-3);
+}
+.item-facts-grid dd {
+	overflow-wrap: anywhere;
+}
+.item-facts-grid dd :deep(.item-conversions) {
+	margin-top: 4px;
+}
+.item-detail-card > :deep(.browse-tabs) {
+	margin-top: var(--p-space-4);
 }
 .item-disabled-badge {
 	display: inline-flex;
@@ -426,46 +449,12 @@ const productExportColumns = computed(() => {
 	font-size: 0.8rem;
 }
 @media (max-width: 1023px) {
+	.item-detail-top {
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--p-space-3);
+	}
 	.browse-detail-card {
 		margin-top: 8px;
-	}
-	.browse-item-detail-head {
-		row-gap: 8px;
-		margin-bottom: 12px;
-	}
-	.browse-item-detail-head h2 {
-		margin-block: 2px 4px;
-	}
-	.browse-item-detail-head .muted {
-		margin: 0;
-	}
-	.browse-detail-image {
-		height: 140px;
-		overflow: visible;
-	}
-	.browse-detail-image :deep(.item-image-button),
-	.browse-detail-image :deep(.item-image) {
-		position: relative;
-		width: 100%;
-		height: 100%;
-		aspect-ratio: 1;
-	}
-	.browse-detail-image :deep(.item-image-detail) {
-		display: block;
-		width: 100%;
-		aspect-ratio: 1;
-	}
-	.browse-detail-image :deep(.item-image-enlarge) {
-		position: absolute;
-		right: 4px;
-		bottom: 4px;
-		z-index: 1;
-	}
-	.browse-detail-image :deep(.item-image-button .image-magnifier) {
-		position: absolute;
-		right: 8px;
-		bottom: 24px;
-		z-index: 1;
 	}
 	.detail-stat-grid :deep(.quantity-summary) {
 		grid-template-columns: repeat(3, minmax(0, 1fr));
