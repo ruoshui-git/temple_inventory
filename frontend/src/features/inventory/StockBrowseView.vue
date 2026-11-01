@@ -14,6 +14,8 @@ import { removeGroupByField } from "../../lib/groupBy";
 import { groupLabels } from "../../lib/reportContract";
 import ReportTable from "../../components/ui/ReportTable.vue";
 import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
+import BrowseCard from "../../components/ui/BrowseCard.vue";
+import ViewModeToggle from "../../components/ui/ViewModeToggle.vue";
 import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
 import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
 import FilterDisclosure from "../../components/ui/FilterDisclosure.vue";
@@ -266,33 +268,15 @@ function setSelected(code: string, checked: boolean) {
 	const isSelected = selected.value.includes(code);
 	if (checked !== isSelected) props.controller.toggle(code);
 }
-type StockCardRow = (typeof rows.value)[number];
-function activateStockRow(event: MouseEvent, item: StockCardRow) {
-	const target = event.target;
-	if (
-		target instanceof Element &&
-		target.closest("input, select, textarea, [contenteditable='true']")
-	)
-		return;
-	if (selecting.value) {
-		props.controller.toggle(item.code);
-		return;
-	}
-	if (target instanceof Element && target.closest("button, a")) return;
-	openItem(item);
-}
-function keyStockRow(event: KeyboardEvent, item: StockCardRow) {
-	if (!selecting.value || !["Enter", " "].includes(event.key)) return;
-	if (event.target !== event.currentTarget) return;
-	event.preventDefault();
-	props.controller.toggle(item.code);
-}
-const allStockRowsSelected = computed(
-	() => rows.value.length > 0 && rows.value.every((item) => selected.value.includes(item.code)),
+const allStockRowsSelected = computed(() =>
+	props.controller.allSelected(rows.value.map((item) => item.code)),
 );
 function selectAllStockRows(event: Event) {
 	const checked = (event.target as HTMLInputElement).checked;
-	rows.value.forEach((item) => setSelected(item.code, checked));
+	props.controller.setManySelected(
+		rows.value.map((item) => item.code),
+		checked,
+	);
 }
 
 const results = ref<HTMLElement>();
@@ -498,24 +482,7 @@ watch([() => props.active, isMobile], () => {
 				:loading="false"
 			>
 				<template #controls>
-					<div class="segmented stock-view-icons" aria-label="库存显示方式">
-						<button
-							:aria-label="'卡片视图'"
-							:title="'卡片'"
-							:aria-pressed="view === 'card'"
-							@click="view = 'card'"
-						>
-							<InventoryIcon name="card" /><span>卡片</span>
-						</button>
-						<button
-							:aria-label="'列表视图'"
-							:title="'列表'"
-							:aria-pressed="view === 'table'"
-							@click="view = 'table'"
-						>
-							<InventoryIcon name="table" /><span>列表</span>
-						</button>
-					</div>
+					<ViewModeToggle v-model="view" :ariaLabel="'库存显示方式'" />
 					<SortControl
 						v-if="isMobile || view === 'card'"
 						v-model:field="sort"
@@ -587,7 +554,7 @@ watch([() => props.active, isMobile], () => {
 							'stock-grid-skeleton',
 							isMobile && view === 'table'
 								? 'stock-list stock-list-skeleton'
-								: 'stock-grid',
+								: 'browse-card-grid stock-grid',
 						]"
 						role="status"
 						aria-label="库存结果加载中"
@@ -622,38 +589,39 @@ watch([() => props.active, isMobile], () => {
 					<template v-else>
 						<div
 							v-if="!quickReportQuery.groupBy.length && view === 'card'"
-							class="stock-grid"
+							class="browse-card-grid stock-grid"
 							:class="{ refreshing: data.stale }"
 							:inert="data.stale || undefined"
 						>
-							<article
+							<BrowseCard
 								v-for="item in rows"
-								:data-browse-row="item.code"
-								:tabindex="selecting ? 0 : -1"
-								@click="activateStockRow($event, item)"
-								@keydown="keyStockRow($event, item)"
 								:key="item.code"
+								:row-key="item.code"
+								:selecting="selecting"
+								:selected="selected.includes(item.code)"
+								:select-label="`选择${item.name}`"
+								variant="card"
 								class="stock-card"
-								:class="{ selected: selected.includes(item.code) }"
+								@toggle="toggle(item.code)"
+								@open="openItem(item)"
 							>
-								<div class="stock-card-image">
-									<ItemImage
-										:has-artwork="!!hasArtwork?.(item)"
-										frame
-										:item="item"
-										interaction="detail"
-										@detail="!selecting && openItem(item)"
-										><template #artwork
-											><slot
-												name="artwork"
-												:item="item" /></template></ItemImage
-									><label v-if="selecting" class="card-checkbox" @click.stop
-										><input
-											type="checkbox"
-											:checked="selected.includes(item.code)"
-											:aria-label="`选择${item.name}`"
-											@change="toggle(item.code)" /></label
-									><span
+								<template #media>
+									<div class="stock-card-image">
+										<ItemImage
+											:has-artwork="!!hasArtwork?.(item)"
+											frame
+											:item="item"
+											interaction="detail"
+											@detail="!selecting && openItem(item)"
+										>
+											<template #artwork
+												><slot name="artwork" :item="item"
+											/></template>
+										</ItemImage>
+									</div>
+								</template>
+								<template #badges>
+									<span
 										v-if="expiryStatus(item)"
 										class="badge art-badge"
 										:class="
@@ -665,46 +633,48 @@ watch([() => props.active, isMobile], () => {
 										"
 										>{{ expiryStatus(item) }}</span
 									>
-								</div>
-								<div class="stock-card-content">
-									<span class="eyebrow"
-										><span class="stock-card-category">{{
-											item.category
-										}}</span>
-										<span class="stock-card-code">{{ item.code }}</span></span
-									><button
-										class="item-name"
-										@click.stop="
-											selecting
-												? controller.toggle(item.code)
-												: openItem(item)
-										"
-									>
-										{{ item.name }}
-									</button>
-									<span v-if="item.disabled" class="badge neutral">已停用</span>
-									<div class="stock-number">
-										<span
-											><strong>{{ item.available }}</strong>
-											<UnitText :name="item.uom" /></span
-										><small>可用库存</small>
+								</template>
+								<template #default="{ activate }">
+									<div class="stock-card-content">
+										<span class="eyebrow"
+											><span class="stock-card-category">{{
+												item.category
+											}}</span>
+											<span class="stock-card-code">{{
+												item.code
+											}}</span></span
+										>
+										<button class="item-name" @click="activate">
+											{{ item.name }}
+										</button>
+										<span v-if="item.disabled" class="badge neutral"
+											>已停用</span
+										>
+										<div class="stock-number">
+											<span
+												><strong>{{ item.available }}</strong>
+												<UnitText :name="item.uom"
+											/></span>
+											<small>可用库存</small>
+										</div>
+										<div class="stock-secondary">
+											<span
+												>总量
+												{{
+													item.available + item.loaned + item.damaged
+												}}</span
+											><span>借出 {{ item.loaned }}</span
+											><span>损坏 {{ item.damaged }}</span>
+										</div>
+										<StockDetails
+											:item="item"
+											:loading="status === 'refresh'"
+											:initialized="Boolean(data.snapshot)"
+											:stale="data.stale"
+										/>
 									</div>
-									<div class="stock-secondary">
-										<span
-											>总量
-											{{ item.available + item.loaned + item.damaged }}</span
-										><span>借出 {{ item.loaned }}</span
-										><span>损坏 {{ item.damaged }}</span>
-									</div>
-
-									<StockDetails
-										:item="item"
-										:loading="status === 'refresh'"
-										:initialized="Boolean(data.snapshot)"
-										:stale="data.stale"
-									/>
-								</div>
-							</article>
+								</template>
+							</BrowseCard>
 						</div>
 						<div
 							v-if="!quickReportQuery.groupBy.length && isMobile && view === 'table'"
@@ -712,67 +682,66 @@ watch([() => props.active, isMobile], () => {
 							:class="{ refreshing: data.stale }"
 							:inert="data.stale || undefined"
 						>
-							<article
+							<BrowseCard
 								v-for="item in rows"
 								:key="item.code"
-								:data-browse-row="item.code"
-								:tabindex="selecting ? 0 : -1"
-								@click="activateStockRow($event, item)"
-								@keydown="keyStockRow($event, item)"
+								:row-key="item.code"
+								:selecting="selecting"
+								:selected="selected.includes(item.code)"
+								:select-label="`选择${item.name}`"
+								variant="row"
 								class="stock-list-row"
-								:class="{ selected: selected.includes(item.code) }"
+								@toggle="toggle(item.code)"
+								@open="openItem(item)"
 							>
-								<div class="stock-list-image" @click.stop>
-									<ItemImage
-										:has-artwork="!!hasArtwork?.(item)"
-										:item="item"
-										:thumbnail-size="64"
-									>
-										<template #artwork
-											><slot name="artwork" :item="item"
-										/></template>
-									</ItemImage>
-								</div>
-								<button
-									class="stock-list-open"
-									@click.stop="
-										selecting ? controller.toggle(item.code) : openItem(item)
-									"
-								>
-									<span class="stock-list-identity">
-										<strong class="stock-list-name">{{ item.name }}</strong>
-										<span v-if="item.disabled" class="badge neutral"
-											>已停用</span
+								<template #media>
+									<div class="stock-list-image">
+										<ItemImage
+											:has-artwork="!!hasArtwork?.(item)"
+											:item="item"
+											:thumbnail-size="64"
 										>
-										<span class="stock-list-meta"
-											>{{ item.code
-											}}{{
-												item.category ? ` · ${item.category}` : ""
-											}}</span
-										>
-									</span>
-									<span class="stock-list-quantity">
-										<strong
-											><UnitText :name="item.uom" :qty="item.available"
-										/></strong>
-										<span
-											v-if="item.loaned || item.damaged"
-											class="stock-list-status"
-										>
-											<span v-if="item.loaned">借 {{ item.loaned }}</span>
-											<span v-if="item.damaged">损 {{ item.damaged }}</span>
+											<template #artwork
+												><slot name="artwork" :item="item"
+											/></template>
+										</ItemImage>
+									</div>
+								</template>
+								<template #default="{ activate }">
+									<button class="stock-list-open" @click="activate">
+										<span class="stock-list-identity">
+											<strong class="stock-list-name">{{
+												item.name
+											}}</strong>
+											<span v-if="item.disabled" class="badge neutral"
+												>已停用</span
+											>
+											<span class="stock-list-meta"
+												>{{ item.code
+												}}{{
+													item.category ? ` · ${item.category}` : ""
+												}}</span
+											>
 										</span>
-									</span>
-								</button>
-								<label v-if="selecting" class="stock-list-checkbox" @click.stop>
-									<input
-										type="checkbox"
-										:checked="selected.includes(item.code)"
-										:aria-label="`选择${item.name}`"
-										@change="toggle(item.code)"
-									/>
-								</label>
-							</article>
+										<span class="stock-list-quantity">
+											<strong
+												><UnitText :name="item.uom" :qty="item.available"
+											/></strong>
+											<span
+												v-if="item.loaned || item.damaged"
+												class="stock-list-status"
+											>
+												<span v-if="item.loaned"
+													>借 {{ item.loaned }}</span
+												>
+												<span v-if="item.damaged"
+													>损 {{ item.damaged }}</span
+												>
+											</span>
+										</span>
+									</button>
+								</template>
+							</BrowseCard>
 						</div>
 						<DataTable
 							v-if="

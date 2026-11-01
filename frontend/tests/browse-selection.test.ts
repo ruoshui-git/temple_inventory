@@ -26,6 +26,12 @@ describe("browse selection state", () => {
     selection.enter();
     selection.set("row-a", true);
     selection.set("row-b", true);
+    expect(selection.allSelected(["row-a", "row-b"])).toBe(true);
+    expect(selection.allSelected([])).toBe(false);
+    selection.setMany(["row-a", "row-b", "row-c"], false);
+    expect(selection.selected.value).toEqual([]);
+    selection.setMany(["row-a", "row-c"], true);
+    expect(selection.selected.value).toEqual(["row-a", "row-c"]);
     selection.retain(["row-a"]);
     expect(selection.selecting.value).toBe(true);
     expect(selection.selected.value).toEqual(["row-a"]);

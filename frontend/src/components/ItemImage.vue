@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from "vue";
+import { computed, inject, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from "vue";
 import { useItemArtwork } from "../services/itemArtwork";
+import { browseSelectingKey } from "../composables/useBrowseSelection";
 import AsyncImage from "./ui/AsyncImage.vue";
 import Overlay from "./ui/Overlay.vue";
 import InventoryIcon from "./InventoryIcon.vue";
@@ -19,6 +20,7 @@ const props = withDefaults(
 );
 const emit = defineEmits<{ detail: [] }>();
 const artwork = useItemArtwork();
+const selecting = inject(browseSelectingKey, null);
 const hasArtwork = computed(() => props.hasArtwork || artwork?.has(props.item.code));
 const open = ref(false);
 const source = computed(() => props.item.image || "");
@@ -68,13 +70,37 @@ onBeforeUnmount(() => {
 watch([source, () => props.item.code], () => {
 	open.value = false;
 });
+watch(
+	() => selecting?.value,
+	(value) => {
+		if (value) open.value = false;
+	},
+);
 onDeactivated(() => {
 	open.value = false;
 });
 </script>
 <template>
 	<div
-		v-if="interaction === 'detail'"
+		v-if="selecting"
+		class="item-image"
+		ref="displayHost"
+		:class="{ 'item-image--frame': frame }"
+		:style="targetSize ? { width: `${targetSize}px`, height: `${targetSize}px` } : undefined"
+	>
+		<slot v-if="hasArtwork && !source" name="artwork"
+			><component v-if="artwork" :is="artwork.component" :code="item.code" /></slot
+		><AsyncImage
+			v-else
+			:src="derivativeSource"
+			:alt="item.name"
+			:fit="fit"
+			:width="thumbnailSize || '100%'"
+			:height="thumbnailSize || '100%'"
+		/>
+	</div>
+	<div
+		v-else-if="interaction === 'detail'"
 		class="item-image"
 		ref="displayHost"
 		:class="{ 'item-image--frame': frame }"

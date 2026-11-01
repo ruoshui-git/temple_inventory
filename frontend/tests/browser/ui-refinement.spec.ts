@@ -6,7 +6,7 @@ import {
   requiredAuditCjkFont,
 } from "./fixtures/nativeUi";
 const font = requiredAuditCjkFont();
-const selectionShots = "/tmp/codex-runs/browse-mobile-shots";
+const selectionShots = "/tmp/codex-runs/browse-cards-shots";
 mkdirSync(selectionShots, { recursive: true });
 async function setup(
   page: Page,
@@ -628,6 +628,12 @@ test("stock selection screenshots cover desktop and phone surfaces", async ({
     name: "更多操作",
     exact: true,
   });
+  await page.getByRole("button", { name: "卡片视图", exact: true }).click();
+  await expect(page.locator(".stock-card")).toHaveCount(20);
+  await page.screenshot({
+    path: `${selectionShots}/stock-normal-phone-card.png`,
+  });
+  await page.getByRole("button", { name: "列表视图", exact: true }).click();
   await page.screenshot({ path: `${selectionShots}/stock-normal-phone.png` });
   await phoneActions.click();
   await page.getByRole("menuitem", { name: "选择", exact: true }).click();
@@ -672,6 +678,17 @@ test("stock card selection uses the whole card and select all covers loaded card
   await page.locator(".browse-select-visible input").uncheck();
   await page.getByRole("button", { name: "卡片视图", exact: true }).click();
   await expect(page.locator(".stock-card")).toHaveCount(20);
+  await page.locator(".stock-card-image").first().click();
+  await expect(
+    page.getByRole("region", { name: "已选物品操作" }),
+  ).toContainText("已选择 1 项");
+  await page.screenshot({
+    path: info.outputPath("stock-card-thumbnail-selection-phone.png"),
+  });
+  await page.locator(".stock-card-image").first().click();
+  await expect(
+    page.getByRole("region", { name: "已选物品操作" }),
+  ).toContainText("已选择 0 项");
   await page.locator(".stock-card .item-name").first().click();
   await expect(
     page.getByRole("region", { name: "已选物品操作" }),
@@ -684,8 +701,18 @@ test("stock card selection uses the whole card and select all covers loaded card
     path: info.outputPath("stock-cards-selection-phone.png"),
   });
   await page.setViewportSize({ width: 1280, height: 900 });
+  await page.getByRole("button", { name: "卡片视图", exact: true }).click();
+  await expect(page.locator(".stock-card")).toHaveCount(20);
   await page.screenshot({
     path: info.outputPath("stock-cards-selection-desktop.png"),
+  });
+  await page.locator(".browse-select-visible input").uncheck();
+  await page.locator(".stock-card-image").first().click();
+  await expect(
+    page.getByRole("region", { name: "已选物品操作" }),
+  ).toContainText("已选择 1 项");
+  await page.screenshot({
+    path: info.outputPath("stock-card-thumbnail-selection-desktop.png"),
   });
   await page.getByRole("button", { name: "列表视图", exact: true }).click();
   await page.screenshot({

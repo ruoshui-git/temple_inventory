@@ -598,6 +598,16 @@ for (const width of [1440, 390]) {
       path: info.outputPath("expiry.png"),
       fullPage: true,
     });
+    await page
+      .getByRole("button", { name: /放大查看.*图片/ })
+      .first()
+      .click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe("/inventory/stock/expiry");
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: /关闭/ })
+      .click();
     if (width < 1024) {
       await page.getByRole("button", { name: "更多操作", exact: true }).click();
       await page.getByRole("menuitem", { name: "选择", exact: true }).click();
@@ -612,16 +622,11 @@ for (const width of [1440, 390]) {
     await page.screenshot({
       path: path.join(selectionShots, `expiry-select-${width}.png`),
     });
-    await page
-      .getByRole("button", { name: /放大查看.*图片/ })
-      .first()
-      .click();
-    await expect(page.getByRole("dialog")).toBeVisible();
-    expect(new URL(page.url()).pathname).toBe("/inventory/stock/expiry");
-    await page
-      .getByRole("dialog")
-      .getByRole("button", { name: /关闭/ })
-      .click();
+    // Select mode makes thumbnails part of the row: tapping them selects, so no
+    // separate enlarge control is offered until selection ends.
+    await expect(
+      page.getByRole("button", { name: /放大查看.*图片/ }),
+    ).toHaveCount(0);
     await page
       .getByRole("region", { name: "批次批量操作" })
       .getByRole("button", { name: "取消", exact: true })

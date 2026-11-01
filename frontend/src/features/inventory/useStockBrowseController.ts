@@ -22,6 +22,7 @@ import { onCategoryRenamed } from "../../lib/categoryRename";
 import { useReportGroups } from "../../composables/useReportGroups";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import { useBrowseSelection } from "../../composables/useBrowseSelection";
+import { useBrowseViewMode } from "../../composables/useBrowseViewMode";
 import {
   useInventoryServices,
   useReferenceData,
@@ -60,16 +61,9 @@ export function useStockBrowseController(
         : ""),
   );
   const { isMobile } = useResponsiveLayout();
-  const search = ref(""),
-    phoneView = ref<"table" | "card">("table"),
-    desktopView = ref<"table" | "card">("table"),
-    view = computed({
-      get: () => (isMobile.value ? phoneView.value : desktopView.value),
-      set: (value: "table" | "card") => {
-        if (isMobile.value) phoneView.value = value;
-        else desktopView.value = value;
-      },
-    }),
+  const browseViewMode = useBrowseViewMode(isMobile),
+    search = ref(""),
+    { view } = browseViewMode,
     sort = ref("item_name"),
     descending = ref(false),
     selection = useBrowseSelection(),
@@ -143,18 +137,13 @@ export function useStockBrowseController(
     "inventory",
     () => query.value,
     () => ({
-      phoneView: phoneView.value,
-      desktopView: desktopView.value,
+      ...browseViewMode.snapshot(),
       selecting: selection.selecting.value,
       selected: selection.selected.value,
       dimension: analysisDimension.value,
     }),
     (value) => {
-      phoneView.value = value.phoneView === "card" ? "card" : "table";
-      desktopView.value =
-        value.desktopView === "card" || value.view === "card"
-          ? "card"
-          : "table";
+      browseViewMode.restore(value);
       selection.selecting.value = value.selecting === true;
       selection.selected.value = selection.selecting.value
         ? ((value.selected || []) as string[])
@@ -440,6 +429,8 @@ export function useStockBrowseController(
     enterSelection: selection.enter,
     exitSelection: selection.exit,
     setSelected: selection.set,
+    allSelected: selection.allSelected,
+    setManySelected: selection.setMany,
     stockState,
     setItemStatus,
     analysisDimension,
