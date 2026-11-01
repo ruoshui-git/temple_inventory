@@ -161,7 +161,7 @@ Submitted stock records follow ERPNext: drafts can be edited or deleted; submitt
 |---|---|
 | 用户账号 | Create in ERPNext Desk; frontend accounts are System Managers |
 | 初始数据 / 批量导入 | Prepared in Excel with images named by 物品编号; loaded by a script after launch. The export ZIP layout (`images/<物品编号>.*`) is the intended input layout |
-| 活动类型 | Managed in Desk |
+| 活动类型 | Managed in the app at 活动 → 管理活动类型: create, rename, reorder, disable; delete only when unused |
 
 ## Open items
 
