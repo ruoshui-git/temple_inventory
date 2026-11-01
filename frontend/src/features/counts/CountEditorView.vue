@@ -39,6 +39,8 @@ import { personDestination } from "../../lib/nativeNavigation";
 import { exportFields } from "../../lib/exportColumns";
 import { countEditorColumns } from "./countEditorColumns";
 import { formatQuantity } from "../../lib/formatQuantity";
+import { useRecordPrint } from "../print/useRecordPrint";
+import PdfPreviewDialog from "../../components/PdfPreviewDialog.vue";
 const props = withDefaults(defineProps<{ controller: CountEditor; active?: boolean }>(), {
 	active: true,
 });
@@ -49,6 +51,7 @@ const emit = defineEmits<{
 	openDocument: [doctype: string, name: string];
 }>();
 const c = props.controller;
+const recordPrint = useRecordPrint();
 const personTo = (name: string, role: "recorder" | "handler" | "reviewer") =>
 	personDestination(name, role);
 const { isMobile } = useResponsiveLayout();
@@ -73,6 +76,7 @@ const {
 	supportingDirty,
 	leaveRequested,
 } = c;
+const printDirty = computed(() => c.dirty.value || supportingDirty.value);
 const initialExistingLoad = computed(
 	() => loading.value && c.existingDocument.value && !state.server,
 );
@@ -404,6 +408,14 @@ async function back() {
 			</div>
 			<template #back><BackButton @click="back" /></template>
 			<template #actions>
+				<UiButton
+					v-if="state.identity && state.server"
+					icon="print"
+					:disabled="printDirty || recordPrint.loading.value"
+					:title="printDirty ? '请先保存后再打印' : undefined"
+					@click="recordPrint.open('Stock Reconciliation', state.identity.name)"
+					>打印</UiButton
+				>
 				<QuickExport
 					v-if="!loading && countExportQuery"
 					:query="countExportQuery"
@@ -972,6 +984,12 @@ async function back() {
 			></Overlay
 		>
 	</section>
+	<PdfPreviewDialog
+		v-if="recordPrint.url.value"
+		:url="recordPrint.url.value"
+		:number="recordPrint.number.value"
+		@close="recordPrint.close"
+	/>
 </template>
 
 <style scoped>

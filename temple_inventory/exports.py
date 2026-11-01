@@ -7,7 +7,6 @@ import json
 import re
 import shutil
 import tempfile
-import unicodedata
 import zipfile
 from contextvars import ContextVar
 from pathlib import Path
@@ -19,6 +18,7 @@ import xlsxwriter
 from temple_inventory.export_columns import DEFAULT_COLUMNS, LABELS, allowed_columns, default_columns, label
 from temple_inventory.native_access import check_document_scope, check_item, check_version, require_app
 from temple_inventory.native_stock import MOVEMENT_LABELS
+from temple_inventory.printing import _pdf_layout
 from temple_inventory.projections import (
 	COUNT_SUMS,
 	HISTORY_SUMS,
@@ -741,124 +741,6 @@ def _pdf_context(projection, doc, columns, table, rows, count, info):
 		"rows": rows,
 		"count_sheet": count_sheet,
 		**layout,
-	}
-
-
-# Measured table width on Letter inside Frappe's Chrome print margins, in points.
-PDF_PAGE_WIDTH_PT = {"portrait": 525.0, "landscape": 700.0}
-# Horizontal cell padding plus border, in points.
-PDF_CELL_EXTRA_PT = 8.5
-# Safety margin on estimated text widths so nowrap text stays inside its fixed column.
-PDF_TEXT_MARGIN = 1.06
-# Count sheets leave room to handwrite 实盘 and 备注, in em.
-PDF_COUNT_SHEET_EM = (5.0, 8.0)
-
-
-def _text_em(text):
-	"""Estimate rendered width in em: CJK glyphs are full width, Latin about half."""
-	width = 0.0
-	for char in str(text):
-		if unicodedata.east_asian_width(char) in ("W", "F"):
-			width += 1.0
-		elif char.isupper() or char.isdigit():
-			width += 0.62
-		else:
-			width += 0.5
-	return width
-
-
-def _pdf_layout(columns, rows, *, subtotal_span, count_sheet, wrappable):
-	"""Size every column to its content so only the main column absorbs spare page width.
-
-	Try the largest font in portrait, then landscape, then smaller fonts. When the widest
-	values do not fit, size columns to their typical (90th percentile) value and let the
-	rare longer values wrap; as a last resort cap the widest non-number columns.
-	"""
-	header = [_text_em(column["label"]) * 1.08 for column in columns]
-	values = [[] for _ in columns]
-	sequence = 0
-	for row in rows:
-		style = row["style"]
-		if style.startswith("group-"):
-			continue
-		if style == "row":
-			sequence = row.get("sequence") or sequence
-		for index, value in enumerate(row["values"]):
-			if style == "subtotal" and index < subtotal_span:
-				continue
-			if style == "total":
-				# Grand totals may list several units; their cells wrap instead of widening columns.
-				continue
-			if value != "":
-				values[index].append(_text_em(value))
-	widest = [max([header[index], *found]) for index, found in enumerate(values)]
-	typical = [
-		max(header[index], sorted(found)[int(len(found) * 0.9)] if found else 0.0)
-		for index, found in enumerate(values)
-	]
-	main = next((index for index, column in enumerate(columns) if column["is_main"]), None)
-	seq_em = max(1.2, _text_em(sequence) * 0.85)
-	extra_em = list(PDF_COUNT_SHEET_EM) if count_sheet else []
-	fonts = (11.0, 10.0, 9.5, 9.0, 8.5) if count_sheet else (9.5, 8.5, 8.0, 7.5)
-	attempts = [("portrait", fonts[0]), *(("landscape", font) for font in fonts)]
-
-	def total_width(widths, font, main_em):
-		fixed = sum(width for index, width in enumerate(widths) if index != main)
-		ems = (fixed + seq_em) * PDF_TEXT_MARGIN + sum(extra_em) + (main_em if main is not None else 0)
-		return ems * font + PDF_CELL_EXTRA_PT * (len(widths) + 1 + len(extra_em))
-
-	def first_fit(widths, main_em):
-		return next(
-			(
-				(orientation, font)
-				for orientation, font in attempts
-				if total_width(widths, font, main_em) <= PDF_PAGE_WIDTH_PT[orientation]
-			),
-			None,
-		)
-
-	# The main column wraps, so it only needs room for a short name beside the rest.
-	main_em = min(widest[main], 10.0) if main is not None else 0.0
-	widths = list(widest)
-	fit = first_fit(widths, main_em)
-	if not fit:
-		widths = [
-			widest[index] if columns[index]["align"] == "number" else typical[index]
-			for index in range(len(columns))
-		]
-		fit = first_fit(widths, main_em)
-	if not fit:
-		orientation, font = attempts[-1]
-		main_em = min(main_em, 8.0)
-		capable = [
-			index for index in range(len(columns)) if index != main and columns[index]["align"] != "number"
-		]
-		# Text columns give way before codes and dates.
-		capable.sort(key=lambda index: (index not in wrappable, -widths[index]))
-		for index in capable:
-			if total_width(widths, font, main_em) <= PDF_PAGE_WIDTH_PT[orientation]:
-				break
-			widths[index] = min(widths[index], max(header[index], 6.0 if index in wrappable else 7.0))
-		overflow = total_width(widths, font, main_em) - PDF_PAGE_WIDTH_PT[orientation]
-		if overflow > 0:
-			# Still too wide: shrink the other columns evenly so the main column keeps its room.
-			shrinkable = sum(widths[index] for index in capable) * font * PDF_TEXT_MARGIN
-			ratio = max(0.5, 1 - overflow / shrinkable) if shrinkable else 1
-			for index in capable:
-				widths[index] *= ratio
-		fit = (orientation, font)
-	orientation, font = fit
-	for index, column in enumerate(columns):
-		column["wrap"] = index != main and widest[index] > widths[index] + 0.01
-		column["width_pt"] = (
-			None if index == main else round(widths[index] * font * PDF_TEXT_MARGIN + PDF_CELL_EXTRA_PT, 1)
-		)
-	return {
-		"orientation": orientation,
-		"font_pt": font,
-		"head_font_pt": font + 0.5,
-		"seq_width_pt": round(seq_em * font * PDF_TEXT_MARGIN + PDF_CELL_EXTRA_PT, 1),
-		"extra_widths_pt": [round(em * font + PDF_CELL_EXTRA_PT, 1) for em in extra_em],
 	}
 
 

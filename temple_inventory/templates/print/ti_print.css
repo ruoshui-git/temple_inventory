@@ -246,3 +246,16 @@
 	font-size: 8pt;
 	text-align: right;
 }
+
+.ti-slip .ti-table { font-size: 12pt; }
+.ti-slip .ti-table th, .ti-slip .ti-table td { padding: 1.4px 3px; line-height: 1.12; }
+.ti-slip .ti-table .ti-title-row th { padding: 4px 120px 4px 5px; font-size: 20pt; }
+.ti-slip .ti-title-row .ti-docno { bottom: 4px; font-size: 9pt; }
+.ti-slip .ti-table .ti-head-row th { font-size: 11pt; }
+.ti-slip .ti-table .ti-main { min-width: 35mm; }
+.ti-slip .ti-subtotal td { font-size: 11pt; }
+.ti-slip .ti-note-row td { white-space: normal; }
+.ti-slip-signatures { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 10pt; }
+.ti-slip-signatures > span { white-space: nowrap; }
+.ti-slip-signatures strong { font-weight: 700; }
+.ti-slip-meta { margin-top: 4px; font-size: 10pt; }

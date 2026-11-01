@@ -19,6 +19,8 @@ import { formatConversion } from "../../lib/conversionText";
 import { RouterLink } from "vue-router";
 import { personDestination } from "../../lib/nativeNavigation";
 import UnitText from "../../components/ui/UnitText.vue";
+import { useRecordPrint } from "../print/useRecordPrint";
+import PdfPreviewDialog from "../../components/PdfPreviewDialog.vue";
 const props = withDefaults(defineProps<{ controller: LoanDetail; active?: boolean }>(), {
 	active: true,
 });
@@ -31,6 +33,7 @@ const emit = defineEmits<{
 	openExport: [query: ReportQuery];
 }>();
 const c = props.controller;
+const recordPrint = useRecordPrint();
 const { loan, loading, error, files, status, metrics } = c;
 const actions = [
 	["returned", "登记归还"],
@@ -56,6 +59,12 @@ function settle(action: SettlementAction) {
 			><h1 tabindex="-1">借用详情</h1>
 			<template #back><BackButton @click="emit('back')" /></template
 			><template #actions
+				><UiButton
+					v-if="loan && !loading"
+					icon="print"
+					:disabled="recordPrint.loading.value"
+					@click="recordPrint.open('Stock Entry', loan.name)"
+					>打印</UiButton
 				><QuickExport
 					v-if="loan && !loading"
 					:query="c.exportQuery.value"
@@ -298,6 +307,12 @@ function settle(action: SettlementAction) {
 			</div>
 		</article>
 	</section>
+	<PdfPreviewDialog
+		v-if="recordPrint.url.value"
+		:url="recordPrint.url.value"
+		:number="recordPrint.number.value"
+		@close="recordPrint.close"
+	/>
 </template>
 
 <style scoped>

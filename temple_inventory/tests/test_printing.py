@@ -12,17 +12,168 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
+from uuid import uuid4
 
 import frappe
 from bs4 import BeautifulSoup
 from frappe.utils import nowdate
 from pypdf import PdfReader
 
-from temple_inventory.printing import render_pdf, ti_print_css
+from temple_inventory.printing import print_record, render_pdf, ti_print_css, ti_record
 from temple_inventory.tests.test_native_documents import NativeDocumentTests
 
 
 class PrintingTests(NativeDocumentTests):
+	def test_shipped_movement_slip_renders_letter_portrait_and_permission_scoped_data(self):
+		from pypdf import PdfReader
+
+		frappe.db.set_value("Item", self.item, "item_name", "礼堂折叠椅")
+		frappe.clear_document_cache("Item", self.item)
+		receipt = self.receipt(1)
+		document = frappe.get_doc("Stock Entry", receipt["identity"]["name"])
+		payload = ti_record(document)
+		self.assertEqual(payload["kind_label"], "入库")
+		self.assertEqual(payload["scope"], payload["to"])
+		self.assertEqual(payload["line_count"], 1)
+		pdf = render_pdf("Stock Entry", document.name, "物资单据", document)
+		self.assertTrue(pdf.startswith(b"%PDF"))
+		page = PdfReader(io.BytesIO(pdf)).pages[0]
+		self.assertAlmostEqual(float(page.mediabox.width), 612, delta=1)
+		self.assertAlmostEqual(float(page.mediabox.height), 792, delta=1)
+		text = page.extract_text() or ""
+		self.assertIn("登记表", text)
+		self.assertIn(document.name, text)
+		self.assertIn("#", text)
+		self.assertIn("礼堂折叠椅", text)
+		self.assertIn(self.item, text)
+
+	def test_shipped_slip_fits_thirty_one_lines_on_at_most_two_letter_pages(self):
+		data = self.movement()
+		data["items"] = [
+			{
+				"item_code": self.item,
+				"qty": 1,
+				"uom": "Nos",
+				"conversion_factor": 1,
+				"t_warehouse": self.a,
+				"basic_rate": 10,
+			}
+			for _ in range(31)
+		]
+		draft = self.create(data)
+		document = frappe.get_doc("Stock Entry", draft["identity"]["name"])
+		pdf = print_record("Stock Entry", document.name)
+		reader = PdfReader(io.BytesIO(pdf))
+		self.assertLessEqual(len(reader.pages), 2)
+		for page in reader.pages:
+			text = page.extract_text() or ""
+			self.assertIn("登记表", text)
+			self.assertIn(document.name, text)
+			self.assertIn("草稿", unicodedata.normalize("NFKC", text))
+
+	def test_record_print_rejects_unsupported_doctype(self):
+		with patch("temple_inventory.printing.require_app"), self.assertRaises(frappe.ValidationError):
+			print_record("Item", "missing")
+
+	def test_record_print_rejects_an_unauthorized_account(self):
+		user = frappe.get_doc(
+			{
+				"doctype": "User",
+				"email": f"ti-print-{self.token}@example.test",
+				"first_name": "Print user",
+				"send_welcome_email": 0,
+				"roles": [{"role": "Stock User"}],
+			}
+		).insert()
+		frappe.set_user(user.name)
+		try:
+			with self.assertRaises(frappe.PermissionError):
+				print_record("Stock Entry", "MAT-STE-UNKNOWN")
+		finally:
+			frappe.set_user("Administrator")
+
+	def test_record_print_refuses_a_document_with_a_hidden_warehouse_line(self):
+		receipt = self.receipt(1)
+		from temple_inventory.native_topology import _visible_warehouses
+
+		visible = _visible_warehouses()
+		visible.pop(self.a, None)
+		with (
+			patch("temple_inventory.native_topology._visible_warehouses", return_value=visible),
+			self.assertRaises(frappe.PermissionError),
+		):
+			print_record("Stock Entry", receipt["identity"]["name"])
+
+	def test_record_default_print_format_uses_enabled_doctype_default(self):
+		from temple_inventory.printing import _record_format
+
+		custom = frappe.get_doc(
+			{
+				"doctype": "Print Format",
+				"name": f"TI Default {self.token}",
+				"doc_type": "Stock Entry",
+				"custom_format": 1,
+				"print_format_type": "Jinja",
+				"html": "ok",
+			}
+		).insert(ignore_permissions=True)
+		setter = frappe.get_doc(
+			{
+				"doctype": "Property Setter",
+				"doctype_or_field": "DocType",
+				"doc_type": "Stock Entry",
+				"property": "default_print_format",
+				"property_type": "Link",
+				"value": custom.name,
+			}
+		).insert(ignore_permissions=True)
+		try:
+			frappe.clear_cache(doctype="Stock Entry")
+			self.assertEqual(_record_format("Stock Entry"), custom.name)
+		finally:
+			frappe.delete_doc("Property Setter", setter.name, ignore_permissions=True)
+			frappe.delete_doc("Print Format", custom.name, ignore_permissions=True)
+			frappe.clear_cache(doctype="Stock Entry")
+
+	def test_shipped_loan_slip_contains_borrower(self):
+		loan = self.loan(5, borrower=f"借用人-{self.token}")
+		document = frappe.get_doc("Stock Entry", loan["identity"]["name"])
+		payload = ti_record(document)
+		self.assertEqual(payload["kind_label"], "借用")
+		self.assertEqual(payload["signature_names"][0], document.ti_borrower)
+		pdf = render_pdf("Stock Entry", document.name, "物资单据", document)
+		text = unicodedata.normalize(
+			"NFKC", "".join(page.extract_text() or "" for page in PdfReader(io.BytesIO(pdf)).pages)
+		)
+		self.assertIn(document.ti_borrower, text)
+
+	def test_shipped_count_slip_shows_book_actual_and_signed_difference(self):
+		from temple_inventory import counts
+
+		self.receipt(10)
+		count = counts.save_count(str(uuid4()), self.count_data(8, "Reviewed"))
+		document = frappe.get_doc("Stock Reconciliation", count["name"])
+		payload = ti_record(document)
+		self.assertIn("账面", [column["label"] for column in payload["columns"]])
+		self.assertEqual(payload["lines"][0]["difference"], "-2")
+		pdf = render_pdf("Stock Reconciliation", document.name, "盘点单", document)
+		text = unicodedata.normalize(
+			"NFKC", "".join(page.extract_text() or "" for page in PdfReader(io.BytesIO(pdf)).pages)
+		)
+		for label in ("账面", "实盘", "差异", "-2"):
+			self.assertIn(label, text)
+
+	def test_slip_escapes_an_item_name_from_jinja(self):
+		receipt = self.receipt(1)
+		document = frappe.get_doc("Stock Entry", receipt["identity"]["name"])
+		hostile = '<img onerror="alert(1)">'
+		frappe.db.set_value("Item", self.item, "item_name", hostile)
+		frappe.clear_document_cache("Item", self.item)
+		template = frappe.get_doc("Print Format", "物资单据").html
+		rendered = frappe.get_jenv().from_string(template).render(doc=document)
+		self.assertNotIn(hostile, rendered)
+		self.assertIn("&lt;img", rendered)
+
 	def test_print_css_helper_and_template_escape_untrusted_item_names(self):
 		from frappe.utils.jinja import get_jenv
 

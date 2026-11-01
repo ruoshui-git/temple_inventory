@@ -143,7 +143,11 @@ add_to_apps_screen = [
 # 	"filters": "temple_inventory.utils.jinja_filters"
 # }
 jinja = {
-	"methods": ["temple_inventory.printing.ti_print_css", "temple_inventory.exports.ti_export"],
+	"methods": [
+		"temple_inventory.printing.ti_print_css",
+		"temple_inventory.printing.ti_record",
+		"temple_inventory.exports.ti_export",
+	],
 }
 
 # Installation

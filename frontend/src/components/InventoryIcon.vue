@@ -43,6 +43,7 @@ const paths: Record<string, string> = {
 	disposal: "M4 7h16m-14 0 1 14h10l1-14M9 7V4h6v3m-5 4v7m4-7v7",
 	outside: "M13 4h7v16h-7M4 12h12m-5-5 5 5-5 5M4 4v4m0 8v4",
 	export: "M14 3H6v18h12V7l-4-4Zm0 0v4h4m-8 7h8m-4-4 4 4-4 4",
+	print: "M6 9V3h12v6M6 17H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2m-12-4h12v8H6v-8Zm12-1h.01",
 	report: "M4 20V10h4v10H4Zm6 0V4h4v16h-4Zm6 0v-7h4v7h-4Z",
 	refresh: "M20 7v5h-5M4 17v-5h5m10-2a7 7 0 0 0-12-3L4 9m16 6-3 3a7 7 0 0 1-12-3",
 	download: "M12 3v10m0 0 4-4m-4 4-4-4M4 16v4h16v-4",

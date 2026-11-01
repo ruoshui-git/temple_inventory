@@ -38,6 +38,8 @@ import { showToast } from "../../services/toast";
 import PopupMenu from "../../components/ui/PopupMenu.vue";
 import { router } from "../../router";
 import { duplicateOperationTarget } from "./operationRoutes";
+import { useRecordPrint } from "../print/useRecordPrint";
+import PdfPreviewDialog from "../../components/PdfPreviewDialog.vue";
 import {
 	borrowerLoanPageState,
 	type BorrowerLoanPageState,
@@ -151,6 +153,8 @@ const receive = computed(() => draft.value.kind === "Receive"),
 		() => operationLabels[draft.value.kind] || String(state.server?.purpose || "库存记录"),
 	);
 const { supportingDirty, leaveRequested: leaveOpen } = c;
+const recordPrint = useRecordPrint();
+const printDirty = computed(() => dirty.value || supportingDirty.value);
 const reviewShortcutTitle = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘+Enter" : "Ctrl+Enter";
 function reviewShortcut(event: KeyboardEvent) {
 	if (
@@ -633,6 +637,14 @@ async function lifecycle() {
 							target="_blank"
 							rel="noopener"
 							>在 ERPNext 查看</a
+						>
+						<UiButton
+							v-if="state.identity && state.server"
+							icon="print"
+							:disabled="printDirty || recordPrint.loading.value"
+							:title="printDirty ? '请先保存后再打印' : undefined"
+							@click="recordPrint.open(state.server.doctype, state.server.name)"
+							>打印</UiButton
 						>
 						<QuickExport
 							v-if="!loading && c.savedExportQuery.value"
@@ -1372,6 +1384,12 @@ async function lifecycle() {
 			></Overlay
 		>
 	</section>
+	<PdfPreviewDialog
+		v-if="recordPrint.url.value"
+		:url="recordPrint.url.value"
+		:number="recordPrint.number.value"
+		@close="recordPrint.close"
+	/>
 </template>
 
 <style scoped>
