@@ -160,7 +160,10 @@ function show() {
 	draft.value = { ...props.modelValue };
 	error.value = "";
 	open.value = true;
-	void nextTick(reposition);
+	void nextTick(() => {
+		popover.value = document.querySelector<HTMLElement>(".period-filter-overlay") || undefined;
+		reposition();
+	});
 }
 function apply() {
 	if (draft.value.key === "custom" && (!draft.value.from || !draft.value.to)) {
@@ -225,6 +228,7 @@ function cancel() {
 			v-if="open"
 			:title="label"
 			:transient-owner="owner"
+			panel-class="period-filter-overlay"
 			:drawer="isMobile"
 			:panel-style="
 				isMobile
@@ -240,7 +244,7 @@ function cancel() {
 			"
 			@close="cancel"
 		>
-			<form ref="popover" :id="`${formId}-range`" @submit.prevent="apply">
+			<form :id="`${formId}-range`" @submit.prevent="apply">
 				<PeriodEditor v-model="draft" :label="label" :today="today" />
 				<p v-if="error" role="alert">{{ error }}</p>
 			</form>

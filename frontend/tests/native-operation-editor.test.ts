@@ -162,6 +162,67 @@ function addLine(c: ReturnType<typeof useOperationEditor>) {
   });
 }
 describe("native movement editor integration", () => {
+  it("only labels generated batches for items that track batches", async () => {
+    const call = vi.fn(async (method: string) => {
+      if (method === "catalog.operation_items")
+        return { items: [item], errors: [] };
+      if (method === "native_files.attachments") return [];
+      throw new Error(`Unexpected ${method}`);
+    });
+    const { controller: c } = setup(
+      () => useOperationEditor({ kind: "Receive", initialItems: ["ITEM-A"] }),
+      call,
+      vi.fn(),
+      (controller) => h(AllocationSummary, { draft: controller.draft.value }),
+    );
+    await flushPromises();
+    const wrapper = wrappers.at(-1)!;
+    c.draft.value.items[0]!.location = "ROOM-A";
+    await flushPromises();
+    expect(wrapper.text()).not.toContain("自动生成");
+
+    c.stock[0]!.tracksBatch = true;
+    c.draft.value.items[0]!.displayTracksBatch = true;
+    await flushPromises();
+    expect(wrapper.text()).toContain("自动生成");
+  });
+
+  it("opens review before background balance checks finish and reports their failure", async () => {
+    let rejectBalance!: (error: Error) => void;
+    const call = vi.fn((method: string) => {
+      if (method === "catalog.operation_items")
+        return Promise.resolve({ items: [item], errors: [] });
+      if (method === "native_api.loan_detail")
+        return new Promise((_, reject) => {
+          rejectBalance = reject;
+        });
+      if (method === "native_files.attachments") return Promise.resolve([]);
+      throw new Error(`Unexpected ${method}`);
+    });
+    const { controller: c } = setup(
+      () => useOperationEditor({ kind: "Receive", initialItems: ["ITEM-A"] }),
+      call,
+    );
+    await flushPromises();
+    const line = c.draft.value.items[0]!;
+    c.draft.value.kind = "Return";
+    line.loanName = "LOAN-1";
+    line.originalLoanLine = "LOAN-LINE-1";
+    line.sourceLocation = "LEASED";
+    line.location = "ROOM-A";
+    line.outstanding = 5;
+
+    await c.review();
+    expect(c.reviewOpen.value).toBe(true);
+    expect(c.reviewChecking.value).toBe(true);
+    expect(c.busy.value).toBe(false);
+    rejectBalance(new Error("最新借出记录暂时无法读取"));
+    await flushPromises();
+    expect(c.reviewOpen.value).toBe(true);
+    expect(c.reviewChecking.value).toBe(false);
+    expect(c.state.error).toBe("最新借出记录暂时无法读取");
+  });
+
   it("shows native saved item names immediately in read-only documents without sequential catalog loads", async () => {
     const original = {
       ...document({

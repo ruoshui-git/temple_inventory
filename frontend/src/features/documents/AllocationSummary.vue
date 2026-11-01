@@ -114,7 +114,10 @@ function lineBatch(line: AllocationLine) {
 			?.map((allocation) => allocation.batch)
 			.filter(Boolean)
 			.join(" · ") ||
-		(props.draft.kind === "Receive" && props.draft.status === "draft" && !line.nativeBundle
+		(props.draft.kind === "Receive" &&
+		props.draft.status === "draft" &&
+		!line.nativeBundle &&
+		(line.displayTracksBatch ?? item(line.code)?.tracksBatch)
 			? "自动生成"
 			: "")
 	);

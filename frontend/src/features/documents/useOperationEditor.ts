@@ -57,6 +57,7 @@ export function useOperationEditor(props: {
   const stock = reactive<StockItem[]>([]),
     loading = ref(false),
     busy = ref(false),
+    reviewChecking = ref(false),
     savePending = ref(0),
     showError = ref(false),
     reviewOpen = ref(false),
@@ -637,27 +638,38 @@ export function useOperationEditor(props: {
   async function review() {
     showError.value = true;
     if (!writable.value || !canSubmit.value || busy.value) return;
-    busy.value = true;
-    try {
-      await Promise.all(
+    if (issues(draft.value).length) return;
+    reviewOpen.value = true;
+    reviewChecking.value = true;
+    state.error = "";
+    void Promise.allSettled([
+      Promise.all(
         [...new Set(draft.value.items.map((line) => line.code))].map(ensure),
-      );
-      await refreshLoanBalances();
-      if (draft.value.timeMode === "current") {
-        const clock = await services.call<{ timestamp: string }>(
-          "native_api.editor_clock",
+      ),
+      refreshLoanBalances(),
+    ])
+      .then((checks) => {
+        const failure = checks.find(
+          (check): check is PromiseRejectedResult =>
+            check.status === "rejected",
         );
-        draft.value.postingDate = clock.timestamp.split(" ")[0]!;
-        draft.value.postingTime = clock.timestamp.split(" ")[1]!;
-      }
-      if (!issues(draft.value).length && active()) reviewOpen.value = true;
-    } catch (reason) {
-      if (active())
-        state.error =
-          reason instanceof Error ? reason.message : "复核失败，请重试";
-    } finally {
-      if (active()) busy.value = false;
-    }
+        if (failure) throw failure.reason;
+        if (!active()) return;
+        const issue = issues(draft.value)[0];
+        if (issue) {
+          reviewOpen.value = false;
+          showError.value = true;
+          state.error = issue.message;
+        }
+      })
+      .catch((reason) => {
+        if (active())
+          state.error =
+            reason instanceof Error ? reason.message : "复核失败，请重试";
+      })
+      .finally(() => {
+        if (active()) reviewChecking.value = false;
+      });
   }
   async function confirm() {
     if (!active() || busy.value) return;
@@ -771,39 +783,47 @@ export function useOperationEditor(props: {
     draft.value.items.push(...additions);
   }
   async function refreshLoanBalances() {
-    for (const name of new Set(
-      draft.value.items.flatMap((line) =>
-        line.loanName ? [line.loanName] : [],
-      ),
-    )) {
-      const loan = await services.call<NativeDocument>(
-        "native_api.loan_detail",
-        { name },
-      );
-      for (const line of draft.value.items.filter(
-        (line) => line.loanName === name,
-      )) {
-        const row = loan.items.find(
-          (row) => row.name === line.originalLoanLine,
+    const checks = await Promise.allSettled(
+      [
+        ...new Set(
+          draft.value.items.flatMap((line) =>
+            line.loanName ? [line.loanName] : [],
+          ),
+        ),
+      ].map(async (name) => {
+        const loan = await services.call<NativeDocument>(
+          "native_api.loan_detail",
+          { name },
         );
-        const allocation = (
-          row?.allocations as
-            { batch_no: string; outstanding_qty: number }[] | undefined
-        )?.find((row) => row.batch_no === (line.batch || ""));
-        const saved =
-          state.server?.items
-            .filter(
-              (row) =>
-                row.loanName === name &&
-                row.originalLoanLine === line.originalLoanLine &&
-                row.batch === line.batch,
-            )
-            .reduce((total, row) => total + Number(row.qty), 0) || 0;
-        line.outstanding =
-          Number(allocation?.outstanding_qty || 0) +
-          (state.server?.docstatus === 1 ? saved : 0);
-      }
-    }
+        for (const line of draft.value.items.filter(
+          (line) => line.loanName === name,
+        )) {
+          const row = loan.items.find(
+            (row) => row.name === line.originalLoanLine,
+          );
+          const allocation = (
+            row?.allocations as
+              { batch_no: string; outstanding_qty: number }[] | undefined
+          )?.find((row) => row.batch_no === (line.batch || ""));
+          const saved =
+            state.server?.items
+              .filter(
+                (row) =>
+                  row.loanName === name &&
+                  row.originalLoanLine === line.originalLoanLine &&
+                  row.batch === line.batch,
+              )
+              .reduce((total, row) => total + Number(row.qty), 0) || 0;
+          line.outstanding =
+            Number(allocation?.outstanding_qty || 0) +
+            (state.server?.docstatus === 1 ? saved : 0);
+        }
+      }),
+    );
+    const failure = checks.find(
+      (check): check is PromiseRejectedResult => check.status === "rejected",
+    );
+    if (failure) throw failure.reason;
   }
   async function recover(snapshot: RecoverySnapshot) {
     ready = false;
@@ -943,6 +963,7 @@ export function useOperationEditor(props: {
     loading,
     hydrating,
     busy,
+    reviewChecking,
     savePending,
     writable,
     knownKind,

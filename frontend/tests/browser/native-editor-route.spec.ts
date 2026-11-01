@@ -1,5 +1,5 @@
 import { sampleWarehouses } from "./fixtures/nativeUi";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Request } from "@playwright/test";
 
 // Production routing/transport exercise with controlled native responses.
 // Real native interoperability is validated separately on development.localhost.
@@ -13,6 +13,7 @@ test("save, reload and amendment keep the current native identity in the URL", a
   let creates = 0,
     amendments = 0;
   const loadedNames: string[] = [];
+  let editorClockCalls = 0;
   const permissions = {
     write: true,
     submit: true,
@@ -130,9 +131,10 @@ test("save, reload and amendment keep the current native identity in the URL", a
       };
     else if (method === "temple_inventory.native_files.attachments")
       message = [];
-    else if (method === "temple_inventory.native_api.editor_clock")
+    else if (method === "temple_inventory.native_api.editor_clock") {
+      editorClockCalls++;
       message = { timestamp: "2026-10-16 12:00:00" };
-    else if (method === "temple_inventory.native_api.create_document") {
+    } else if (method === "temple_inventory.native_api.create_document") {
       creates++;
       document = {
         ...args.data,
@@ -353,7 +355,23 @@ test("save, reload and amendment keep the current native identity in the URL", a
     page.getByRole("button", { name: "复核并确认", exact: true }),
   ).toBeVisible();
   expect(creates).toBe(1);
+  const reviewRequests: string[] = [];
+  const recordReviewRequests = (request: Request) => {
+    if (request.url().includes("/api/method/"))
+      reviewRequests.push(request.url());
+  };
+  page.on("request", recordReviewRequests);
+  const reviewStarted = Date.now();
   await page.getByRole("button", { name: "复核并确认", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("确认时的当前时间");
+  const clickToPanelMs = Date.now() - reviewStarted;
+  expect(clickToPanelMs).toBeLessThan(1000);
+  expect(editorClockCalls).toBe(0);
+  expect(reviewRequests).toEqual([]);
+  console.info(
+    `REVIEW_PANEL_TIMING ${JSON.stringify({ clickToPanelMs, requests: reviewRequests.length })}`,
+  );
+  page.off("request", recordReviewRequests);
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "确认提交", exact: true })

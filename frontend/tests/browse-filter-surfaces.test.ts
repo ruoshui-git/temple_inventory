@@ -107,6 +107,41 @@ it("shows relative and calendar period keys without the old shortcut rows", asyn
   wrapper.unmount();
 });
 
+it("keeps the date preset overlay open through Apply and emits the selected preset", async () => {
+  const applied = ref({ key: "this_month" as const, from: "", to: "" });
+  const wrapper = mount(
+    defineComponent({
+      setup() {
+        return () =>
+          h(PeriodFilter, {
+            modelValue: applied.value,
+            label: "流动日期",
+            today: "2026-10-20",
+            "onUpdate:modelValue": (value) => (applied.value = value),
+          });
+      },
+    }),
+    { attachTo: document.body },
+  );
+  filterWrappers.push(wrapper);
+  await wrapper.get(".period-trigger").trigger("click");
+  await flushPromises();
+  const select = document.querySelector<HTMLSelectElement>(
+    '.period-filter-overlay select[aria-label="流动日期时间范围预设"]',
+  )!;
+  select.value = "all";
+  select.dispatchEvent(new Event("change", { bubbles: true }));
+  await flushPromises();
+  document
+    .querySelector<HTMLButtonElement>(
+      ".period-filter-overlay .ui-button--primary",
+    )!
+    .click();
+  await flushPromises();
+  expect(applied.value).toEqual({ key: "all", from: "", to: "" });
+  wrapper.unmount();
+});
+
 it("keeps disclosure headings single while remote controls retain accessible names", async () => {
   const load = vi.fn(async () => ({ rows: [], total: 0, next: null }));
   const itemPanel = mount(FilterDisclosure, {

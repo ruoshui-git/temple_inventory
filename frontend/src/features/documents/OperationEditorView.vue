@@ -66,6 +66,7 @@ const {
 	loading,
 	hydrating,
 	busy,
+	reviewChecking,
 	writable,
 	dirty,
 	files,
@@ -1297,8 +1298,11 @@ async function lifecycle() {
 			:title="`检查并确认${title}`"
 			@close="!busy && (reviewOpen = false)"
 			><p>
-				{{ draft.postingDate }} ·
-				{{ draft.timeMode === "current" ? "确认时的当前时间" : draft.postingTime }}
+				{{
+					draft.timeMode === "current"
+						? "确认时的当前时间"
+						: `${draft.postingDate} · ${draft.postingTime}`
+				}}
 			</p>
 			<p>{{ itemCount }} 种物品 · {{ draft.items.length }} 条明细 · {{ totals }}</p>
 			<AllocationSummary :draft="draft" :link-items="false" />
@@ -1324,8 +1328,12 @@ async function lifecycle() {
 			<p v-if="state.error" class="notice-bar danger" role="alert">{{ state.error }}</p>
 			<template #footer
 				><UiButton :disabled="busy" @click="reviewOpen = false">返回检查</UiButton
-				><UiButton variant="primary" :loading="busy" @click="confirm"
-					>确认提交</UiButton
+				><UiButton
+					variant="primary"
+					:disabled="busy || reviewChecking"
+					:loading="busy || reviewChecking"
+					@click="confirm"
+					>{{ reviewChecking ? "正在核对最新库存…" : "确认提交" }}</UiButton
 				></template
 			></Overlay
 		>

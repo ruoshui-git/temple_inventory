@@ -195,6 +195,67 @@ test("dashboard retains applied scope and its open filter across 1024px", async 
   expect(errors).toEqual([]);
 });
 
+test("dashboard movement period presets reload the card with their selected key", async ({
+  page,
+}) => {
+  const reads: Record<string, any>[] = [];
+  await nativeUiSession(page);
+  await page.route(
+    "**/api/method/temple_inventory.browse.dashboard_card",
+    async (route) => {
+      const args = route.request().postDataJSON();
+      reads.push(args);
+      const count =
+        args.movement_period?.key === "all"
+          ? 1581
+          : args.movement_period?.key === "last_7_days"
+            ? 26
+            : 114;
+      await route.fulfill({
+        json: {
+          message: {
+            query: newReportQuery("movements"),
+            snapshot: "2026-10-16 12:00",
+            rows: [],
+            expiry_rows: { expired: [], upcoming: [] },
+            kind_counts: { Receive: count },
+            totals: [],
+            buckets: [],
+            matched_count: count,
+            item_count: 1,
+            expired_count: 0,
+            damaged_item_count: 0,
+          },
+        },
+      });
+    },
+  );
+  await page.goto("/inventory/");
+  const movement = page.locator('[data-section="movement"]');
+  await expect(movement).toContainText("114 笔记录");
+  await movement.getByRole("button", { name: /流动日期/ }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("流动日期时间范围预设").selectOption("all");
+  await dialog.getByRole("button", { name: "应用", exact: true }).click();
+  await expect
+    .poll(() => reads.some((args) => args.movement_period?.key === "all"))
+    .toBe(true);
+  await expect(movement).toContainText("1581 笔记录");
+
+  await movement.getByRole("button", { name: /流动日期/ }).click();
+  const nextDialog = page.getByRole("dialog");
+  await nextDialog
+    .getByLabel("流动日期时间范围预设")
+    .selectOption("last_7_days");
+  await nextDialog.getByRole("button", { name: "应用", exact: true }).click();
+  await expect
+    .poll(() =>
+      reads.some((args) => args.movement_period?.key === "last_7_days"),
+    )
+    .toBe(true);
+  await expect(movement).toContainText("26 笔记录");
+});
+
 test("movement tiles are scoped browse links with a separate unit disclosure", async ({
   page,
 }, info) => {
