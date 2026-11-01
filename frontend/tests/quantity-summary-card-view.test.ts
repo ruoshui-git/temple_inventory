@@ -176,8 +176,11 @@ describe("native quantity summaries and inventory cards", () => {
     expect(wrapper.text()).toContain("已选择 1 项");
     await wrapper.get(".item-name").trigger("click");
     expect(
-      wrapper.findComponent(StockBrowsePage).emitted("openItem")?.[0],
-    ).toEqual(["ITEM-A"]);
+      wrapper.findComponent(StockBrowsePage).vm.controller.selected.value,
+    ).toEqual([]);
+    expect(
+      wrapper.findComponent(StockBrowsePage).emitted("openItem"),
+    ).toBeUndefined();
   });
   it("defaults phones to list rows with separate image, row and selection targets, then switches to two-column cards", async () => {
     vi.stubGlobal("matchMedia", () => ({
@@ -203,6 +206,15 @@ describe("native quantity summaries and inventory cards", () => {
     expect(
       wrapper.findComponent(StockBrowsePage).emitted("openItem"),
     ).toBeUndefined();
+    await wrapper.get(".stock-list-open").trigger("click");
+    expect(
+      wrapper.findComponent(StockBrowsePage).vm.controller.selected.value,
+    ).toEqual([]);
+    expect(
+      wrapper.findComponent(StockBrowsePage).emitted("openItem"),
+    ).toBeUndefined();
+    wrapper.findComponent(StockBrowsePage).vm.controller.exitSelection();
+    await flushPromises();
     await wrapper.get(".stock-list-open").trigger("click");
     expect(
       wrapper.findComponent(StockBrowsePage).emitted("openItem")?.at(-1),

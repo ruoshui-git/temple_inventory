@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import InventoryIcon from "../InventoryIcon.vue";
 import {
 	computed,
 	nextTick,
@@ -238,6 +239,13 @@ defineExpose({ editFilter });
 					@scroll="measureChips"
 				>
 					<slot name="chips" :open-filters="openFilters" :edit-filter="editFilter" />
+					<span
+						v-if="isMobile && chipOverflowEnd"
+						class="browse-chip-scroll-hint"
+						aria-hidden="true"
+					>
+						<InventoryIcon name="chevron-right" />
+					</span>
 				</div>
 				<label class="browse-persistent-search">
 					<span class="sr-only">{{ searchLabel }}</span>

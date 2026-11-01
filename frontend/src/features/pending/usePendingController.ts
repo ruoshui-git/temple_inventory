@@ -78,6 +78,11 @@ export function usePendingController(
     personalViews: false,
     enabled: computed(() => valid.value && analysisOpen.value),
   });
+  watch(
+    () => report.mainTable.value?.rows.map((row) => String(row.id)) || [],
+    (keys) => selection.retain(keys),
+    { deep: true, immediate: true },
+  );
   useBrowseState(
     "pending",
     () => query.value,

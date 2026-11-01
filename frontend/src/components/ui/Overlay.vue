@@ -44,6 +44,38 @@ const props = withDefaults(
 const emit = defineEmits<{ close: [] }>();
 const panel = ref<HTMLElement>();
 let backdropPointerStarted = false;
+let lastTouchPoint: { x: number; y: number; at: number } | undefined;
+let removeGhostTapShield: (() => void) | undefined;
+function installGhostTapShield() {
+	const point = lastTouchPoint;
+	if (!point || Date.now() - point.at > 400) return;
+	removeGhostTapShield?.();
+	const expires = Date.now() + 400;
+	const swallow = (event: Event) => {
+		if (Date.now() > expires) {
+			removeGhostTapShield?.();
+			return;
+		}
+		if (
+			event instanceof MouseEvent &&
+			Math.hypot(event.clientX - point.x, event.clientY - point.y) > 36
+		)
+			return;
+		event.preventDefault();
+		event.stopImmediatePropagation();
+	};
+	document.addEventListener("click", swallow, true);
+	document.addEventListener("pointerdown", swallow, true);
+	removeGhostTapShield = () => {
+		document.removeEventListener("click", swallow, true);
+		document.removeEventListener("pointerdown", swallow, true);
+	};
+	setTimeout(() => removeGhostTapShield?.(), 400);
+}
+function overlayPointerDown(event: PointerEvent) {
+	if (event.pointerType === "touch" || event.pointerType === "pen")
+		lastTouchPoint = { x: event.clientX, y: event.clientY, at: Date.now() };
+}
 function backdropPointerDown(event: PointerEvent) {
 	backdropPointerStarted = event.target === event.currentTarget;
 }
@@ -68,6 +100,7 @@ const panelClasses = computed(() => [
 // Nested overlays are separate modal layers. The previous overlay is inerted by
 // the top layer and becomes active again when that layer closes.
 function requestClose() {
+	installGhostTapShield();
 	if (activeStage.value) activeStage.value.close();
 	else if (props.dismissible) emit("close");
 }
@@ -264,6 +297,7 @@ onMounted(async () => {
 	focusInitial();
 });
 onBeforeUnmount(() => {
+	installGhostTapShield();
 	if (closeHistoryTimer) clearTimeout(closeHistoryTimer);
 	unregisterMarker?.();
 	unregisterMarker = undefined;
@@ -330,6 +364,7 @@ onBeforeUnmount(() => {
 	>
 		<div
 			:class="parentStage ? 'overlay-stage' : 'ui-overlay'"
+			@pointerdown.capture="overlayPointerDown"
 			@pointerdown="backdropPointerDown"
 			@pointercancel="backdropPointerStarted = false"
 			@click="backdropClick"

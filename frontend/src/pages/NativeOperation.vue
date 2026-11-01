@@ -48,8 +48,11 @@ const valid = computed(
 onBeforeRouteLeave(() => editor.value?.controller.requestLeave() ?? true);
 onBeforeRouteUpdate(() => editor.value?.controller.requestLeave() ?? true);
 function back() {
-	if (window.history.state.back) router.back();
-	else void router.push(routeTarget("movements", {}, { view: "records" }));
+	const state = window.history.state as { back?: unknown; tiOverlay?: unknown };
+	if (state.back) {
+		if (state.tiOverlay) window.history.go(-2);
+		else router.back();
+	} else void router.push(routeTarget("movements", {}, { view: "records" }));
 }
 </script>
 <template>

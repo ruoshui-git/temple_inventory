@@ -13,6 +13,7 @@ import { newReportQuery } from "../src/lib/reportContract";
 import { hydrateUiPreferences } from "../src/lib/uiPreferences";
 import { defaultDisplayPreferences } from "../src/lib/displayPreferences";
 import { useStockBrowseController } from "../src/features/inventory/useStockBrowseController";
+import { usePendingController } from "../src/features/pending/usePendingController";
 import { useReportController } from "../src/features/export/useReportController";
 import { useDashboardController } from "../src/features/dashboard/useDashboardController";
 import { useQuickExport } from "../src/features/export/useQuickExport";
@@ -1140,5 +1141,31 @@ describe("native dashboard cards", () => {
     controller.filters.warehouses = ["ROOM"];
     await flushPromises();
     expect(service.call).toHaveBeenCalledTimes(6);
+  });
+
+  it("prunes pending selection when filtering removes a loaded row", async () => {
+    const service = services();
+    vi.mocked(service.report).mockImplementation(async (value) =>
+      page({
+        query: value,
+        scope: value.scope,
+        table: "locations",
+        columns: ["id", "item_code"],
+        rows: value.search
+          ? []
+          : [{ id: "DAMAGED-A", item_code: "ITEM-A", damaged: 2 }],
+        matched_count: value.search ? 0 : 1,
+        next_start: null,
+        tables: [
+          { id: "locations", label: "待处理", count: value.search ? 0 : 1 },
+        ],
+      }),
+    );
+    const controller = setup(service, () => usePendingController({}, vi.fn()));
+    await flushPromises();
+    controller.setSelected("DAMAGED-A", true);
+    expect(controller.selected.value).toEqual(["DAMAGED-A"]);
+    controller.query.value.search = "没有匹配项";
+    await vi.waitFor(() => expect(controller.selected.value).toEqual([]));
   });
 });

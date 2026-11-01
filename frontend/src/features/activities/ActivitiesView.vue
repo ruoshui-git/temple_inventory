@@ -14,6 +14,7 @@ import PeriodFilter from "../../components/ui/PeriodFilter.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
+import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
 import { movementLabels } from "../../lib/presentationLabels";
 import { periodLabels } from "../../lib/sitePeriod";
 import type { ReportQuery } from "../../lib/reportContract";
@@ -211,13 +212,11 @@ const activityExportColumns = computed(() => {
 			><div>
 				<h1 tabindex="-1">
 					{{
-						page === "activity-list"
-							? "活动"
-							: page === "activity-form"
-								? isEditing
-									? "编辑活动"
-									: "新建活动"
-								: current?.title || (loading ? "正在加载活动…" : "活动不可用")
+						page === "activity-form"
+							? isEditing
+								? "编辑活动"
+								: "新建活动"
+							: current?.title || (loading ? "正在加载活动…" : "活动不可用")
 					}}
 				</h1>
 			</div>
@@ -227,12 +226,8 @@ const activityExportColumns = computed(() => {
 					:query="report"
 					title="活动"
 					:active="active"
-				/>
-				<UiButton v-if="page === 'activity-list'" variant="primary" @click="newActivity"
-					>新建活动</UiButton
-				></template
-			></PageHeader
-		>
+				/> </template
+		></PageHeader>
 		<BrowseToolbar
 			v-else
 			title="活动"
@@ -257,7 +252,13 @@ const activityExportColumns = computed(() => {
 						:active="active"
 					/>
 				</BrowseOverflowMenu>
-				<UiButton variant="primary" @click="newActivity">新建活动</UiButton>
+				<BrowseSplitButton
+					label="新建活动"
+					kind="Activity"
+					icon="calendar"
+					:options="[]"
+					@select="newActivity"
+				/>
 			</template>
 			<template #filters>
 				<div v-if="mode === 'list'" data-filter-field="groupBy" tabindex="-1">

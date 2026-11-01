@@ -115,10 +115,9 @@ describe("category management", () => {
     });
     const { wrapper } = setup(call);
     await flushPromises();
-    await wrapper
-      .findAll("button")
-      .find((button) => button.text() === "新建分类")!
-      .trigger("click");
+    document.body
+      .querySelector<HTMLButtonElement>(".browse-split-button > .ui-button")!
+      .click();
     await flushPromises();
     const editor = dialog();
     const name = editor.querySelector<HTMLInputElement>(

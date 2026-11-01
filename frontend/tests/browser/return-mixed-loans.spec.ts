@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { nativeUiSession } from "./fixtures/nativeUi";
 
-const shots = "/tmp/codex-runs/browse-selection-shots";
+const shots = "/tmp/codex-runs/browse-mobile-shots";
 mkdirSync(shots, { recursive: true });
 
 const sessionMethods = [

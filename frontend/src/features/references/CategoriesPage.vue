@@ -9,6 +9,7 @@ import CategoryFormFields from "./CategoryFormFields.vue";
 import type { useCategoriesController } from "./useCategoriesController";
 import PopupMenu from "../../components/ui/PopupMenu.vue";
 import SearchField from "../../components/ui/SearchField.vue";
+import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
 
 const props = defineProps<{ controller: ReturnType<typeof useCategoriesController> }>();
 const c = props.controller;
@@ -39,9 +40,14 @@ const {
 		<PageHeader title="分类">
 			<p class="muted">管理物品分类层级。删除受物品引用或下级分类保护。</p>
 			<template #actions>
-				<UiButton v-if="canCreate" variant="primary" @click="c.openCreate()"
-					>新建分类</UiButton
-				>
+				<BrowseSplitButton
+					v-if="canCreate"
+					label="新建分类"
+					kind="Category"
+					icon="tag"
+					:options="[]"
+					@select="c.openCreate()"
+				/>
 			</template>
 		</PageHeader>
 		<p v-if="success" role="status">{{ success }}</p>

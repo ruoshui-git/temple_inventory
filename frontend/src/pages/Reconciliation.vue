@@ -14,8 +14,11 @@ const name = computed(() => (route.params.name ? String(route.params.name) : und
 onBeforeRouteLeave(() => editor.value?.controller.requestLeave() ?? true);
 onBeforeRouteUpdate(() => editor.value?.controller.requestLeave() ?? true);
 function back() {
-	if (window.history.state.back) router.back();
-	else void router.push(routeTarget("counts"));
+	const state = window.history.state as { back?: unknown; tiOverlay?: unknown };
+	if (state.back) {
+		if (state.tiOverlay) window.history.go(-2);
+		else router.back();
+	} else void router.push(routeTarget("counts"));
 }
 function nextCount() {
 	void router.push(routeTarget("count-new", {}, { editor: crypto.randomUUID() }));

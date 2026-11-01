@@ -65,7 +65,7 @@ export function useFocusVisibility(
     if (fixedReview() && reviewRect) obstructions.push(reviewRect);
     for (const action of Array.from(
       document.querySelectorAll<HTMLElement>(
-        ".current-fab > button, .browse-mobile-fab-trigger, .return-top",
+        ".current-fab > button, .return-top",
       ),
     )) {
       if (action === field || !action.getClientRects().length) continue;

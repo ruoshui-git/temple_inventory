@@ -266,6 +266,34 @@ function setSelected(code: string, checked: boolean) {
 	const isSelected = selected.value.includes(code);
 	if (checked !== isSelected) props.controller.toggle(code);
 }
+type StockCardRow = (typeof rows.value)[number];
+function activateStockRow(event: MouseEvent, item: StockCardRow) {
+	const target = event.target;
+	if (
+		target instanceof Element &&
+		target.closest("input, select, textarea, [contenteditable='true']")
+	)
+		return;
+	if (selecting.value) {
+		props.controller.toggle(item.code);
+		return;
+	}
+	if (target instanceof Element && target.closest("button, a")) return;
+	openItem(item);
+}
+function keyStockRow(event: KeyboardEvent, item: StockCardRow) {
+	if (!selecting.value || !["Enter", " "].includes(event.key)) return;
+	if (event.target !== event.currentTarget) return;
+	event.preventDefault();
+	props.controller.toggle(item.code);
+}
+const allStockRowsSelected = computed(
+	() => rows.value.length > 0 && rows.value.every((item) => selected.value.includes(item.code)),
+);
+function selectAllStockRows(event: Event) {
+	const checked = (event.target as HTMLInputElement).checked;
+	rows.value.forEach((item) => setSelected(item.code, checked));
+}
 
 const results = ref<HTMLElement>();
 useFocusVisibility(
@@ -438,6 +466,17 @@ watch([() => props.active, isMobile], () => {
 					role="region"
 					aria-label="已选物品操作"
 				>
+					<label
+						v-if="view === 'card' || (isMobile && view === 'table')"
+						class="browse-select-visible"
+					>
+						<input
+							type="checkbox"
+							:checked="allStockRowsSelected"
+							@change="selectAllStockRows"
+						/>
+						选择当前 {{ rows.length }} 项
+					</label>
 					<span role="status">已选择 {{ selected.length }} 项</span>
 					<UiButton
 						v-for="item in controller.selectedActions.value"
@@ -590,6 +629,9 @@ watch([() => props.active, isMobile], () => {
 							<article
 								v-for="item in rows"
 								:data-browse-row="item.code"
+								:tabindex="selecting ? 0 : -1"
+								@click="activateStockRow($event, item)"
+								@keydown="keyStockRow($event, item)"
 								:key="item.code"
 								class="stock-card"
 								:class="{ selected: selected.includes(item.code) }"
@@ -600,12 +642,12 @@ watch([() => props.active, isMobile], () => {
 										frame
 										:item="item"
 										interaction="detail"
-										@detail="openItem(item)"
+										@detail="!selecting && openItem(item)"
 										><template #artwork
 											><slot
 												name="artwork"
 												:item="item" /></template></ItemImage
-									><label v-if="selecting" class="card-checkbox"
+									><label v-if="selecting" class="card-checkbox" @click.stop
 										><input
 											type="checkbox"
 											:checked="selected.includes(item.code)"
@@ -626,9 +668,18 @@ watch([() => props.active, isMobile], () => {
 								</div>
 								<div class="stock-card-content">
 									<span class="eyebrow"
-										>{{ item.category ? `${item.category} · ` : ""
-										}}{{ item.code }}</span
-									><button class="item-name" @click="openItem(item)">
+										><span class="stock-card-category">{{
+											item.category
+										}}</span>
+										<span class="stock-card-code">{{ item.code }}</span></span
+									><button
+										class="item-name"
+										@click.stop="
+											selecting
+												? controller.toggle(item.code)
+												: openItem(item)
+										"
+									>
 										{{ item.name }}
 									</button>
 									<span v-if="item.disabled" class="badge neutral">已停用</span>
@@ -665,6 +716,9 @@ watch([() => props.active, isMobile], () => {
 								v-for="item in rows"
 								:key="item.code"
 								:data-browse-row="item.code"
+								:tabindex="selecting ? 0 : -1"
+								@click="activateStockRow($event, item)"
+								@keydown="keyStockRow($event, item)"
 								class="stock-list-row"
 								:class="{ selected: selected.includes(item.code) }"
 							>
@@ -679,7 +733,12 @@ watch([() => props.active, isMobile], () => {
 										/></template>
 									</ItemImage>
 								</div>
-								<button class="stock-list-open" @click="openItem(item)">
+								<button
+									class="stock-list-open"
+									@click.stop="
+										selecting ? controller.toggle(item.code) : openItem(item)
+									"
+								>
 									<span class="stock-list-identity">
 										<strong class="stock-list-name">{{ item.name }}</strong>
 										<span v-if="item.disabled" class="badge neutral"

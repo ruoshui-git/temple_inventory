@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { nativeUiSession } from "./fixtures/nativeUi";
-const selectionShots = "/tmp/codex-runs/browse-selection-shots";
+const selectionShots = "/tmp/codex-runs/browse-mobile-shots";
 mkdirSync(selectionShots, { recursive: true });
 
 async function setup(page: Page, scale = 100, density = "balanced") {

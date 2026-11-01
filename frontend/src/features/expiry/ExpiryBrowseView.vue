@@ -60,6 +60,42 @@ const { isMobile } = useResponsiveLayout();
 function clearExpiryFilters() {
 	c.reset();
 }
+function activateExpiryCard(event: MouseEvent, row: ReportRow) {
+	const target = event.target;
+	if (
+		target instanceof Element &&
+		target.closest("input, select, textarea, [contenteditable='true']")
+	)
+		return;
+	if (c.selecting.value) {
+		c.setSelected(String(row.id), !c.selected.value.includes(String(row.id)));
+		return;
+	}
+	if (target instanceof Element && target.closest("button, a")) return;
+	openItem(row);
+}
+function keyExpiryCard(event: KeyboardEvent, row: ReportRow) {
+	if (
+		!c.selecting.value ||
+		!["Enter", " "].includes(event.key) ||
+		event.target !== event.currentTarget
+	)
+		return;
+	event.preventDefault();
+	c.setSelected(String(row.id), !c.selected.value.includes(String(row.id)));
+}
+function toggleExpiryRow(row: ReportRow) {
+	c.setSelected(String(row.id), !c.selected.value.includes(String(row.id)));
+}
+const allExpiryRowsSelected = computed(
+	() =>
+		result.rows.length > 0 &&
+		result.rows.every((row) => c.selected.value.includes(String(row.id))),
+);
+function selectAllExpiryRows(event: Event) {
+	const checked = (event.target as HTMLInputElement).checked;
+	result.rows.forEach((row) => c.setSelected(String(row.id), checked));
+}
 const {
 	open: filterOpen,
 	toggle: toggleFilter,
@@ -327,11 +363,6 @@ function canExpiryAction() {
 						:columns="expiryExportColumns"
 						:active="active"
 					/>
-					<UiButton
-						v-if="reference.operations.Receive"
-						@click="emit('newOperation', 'Receive')"
-						>入库</UiButton
-					>
 				</BrowseOverflowMenu>
 				<UiButton
 					v-if="!isMobile"
@@ -348,6 +379,14 @@ function canExpiryAction() {
 					role="region"
 					aria-label="批次批量操作"
 				>
+					<label v-if="isMobile && !query.groupBy.length" class="browse-select-visible">
+						<input
+							type="checkbox"
+							:checked="allExpiryRowsSelected"
+							@change="selectAllExpiryRows"
+						/>
+						选择当前 {{ result.rows.length }} 项
+					</label>
 					<span role="status">已选择 {{ c.selected.value.length }} 项</span>
 					<UiButton
 						v-for="action in [
@@ -534,6 +573,9 @@ function canExpiryAction() {
 						v-for="row in result.rows"
 						:key="String(row.id)"
 						:data-browse-row="String(row.id)"
+						:tabindex="c.selecting.value ? 0 : -1"
+						@click="activateExpiryCard($event, row as unknown as ReportRow)"
+						@keydown="keyExpiryCard($event, row as unknown as ReportRow)"
 						class="browse-card expiry-phone-card"
 					>
 						<label v-if="c.selecting.value" class="stock-list-checkbox" @click.stop>
@@ -556,7 +598,11 @@ function canExpiryAction() {
 							<button
 								class="browse-row-link"
 								:disabled="result.stale"
-								@click="openItem(row)"
+								@click.stop="
+									c.selecting.value
+										? toggleExpiryRow(row as unknown as ReportRow)
+										: openItem(row)
+								"
 							>
 								<strong>{{ row.item_name }}</strong
 								><small>{{ row.category }}</small>
@@ -566,15 +612,31 @@ function canExpiryAction() {
 							class="browse-row-link expiry-phone-batch"
 							:aria-label="`查看批次 ${row.batch_no}`"
 							:disabled="result.stale"
-							@click="openBatch(row)"
+							@click.stop="
+								c.selecting.value
+									? toggleExpiryRow(row as unknown as ReportRow)
+									: openBatch(row)
+							"
 						>
 							批次 {{ row.batch_no }}
 						</button>
 						<div class="expiry-phone-meta">
 							<span>{{ row.expiry_date || "无效期" }}</span>
-							<span
+							<span class="expiry-phone-quantity"
 								><UnitText :name="row.stock_uom" :qty="Number(row.stock_qty || 0)"
 							/></span>
+							<span
+								class="expiry-phone-location"
+								:title="String(row.warehouse_path || '')"
+							>
+								{{
+									warehouseLabel(
+										String(row.warehouse || ""),
+										reference.warehouses,
+										String(row.warehouse_label || ""),
+									)
+								}}
+							</span>
 							<span
 								class="browse-badge"
 								:class="expiryStatus(row as unknown as ReportRow).tone"
@@ -827,10 +889,12 @@ function canExpiryAction() {
 @media (max-width: 1023px) {
 	.expiry-phone-card {
 		display: grid;
-		gap: 6px;
-		padding: 10px;
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: 4px 10px;
+		padding: 8px 10px;
 	}
 	.expiry-phone-identity {
+		grid-column: 1 / -1;
 		display: grid;
 		grid-template-columns: 40px minmax(0, 1fr);
 		align-items: center;
@@ -857,20 +921,47 @@ function canExpiryAction() {
 		color: var(--p-muted);
 	}
 	.expiry-phone-batch {
+		grid-column: 1 / -1;
 		justify-self: start;
 		min-height: 32px;
 		padding: 0;
 		font-size: 0.84rem;
 	}
 	.expiry-phone-meta {
-		display: flex;
+		grid-column: 1 / -1;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
 		align-items: center;
-		flex-wrap: wrap;
-		gap: 6px 10px;
+		gap: 3px 8px;
 		font-size: 0.84rem;
+	}
+	.expiry-phone-quantity {
+		grid-column: 2;
+		grid-row: 1;
+		font-size: 1.05rem;
+		font-weight: 700;
+		text-align: right;
+	}
+	.expiry-phone-location {
+		grid-column: 1 / -1;
+		color: var(--p-muted);
+		font-size: var(--p-small);
 	}
 	.expiry-phone-meta small {
 		color: var(--p-muted);
+	}
+	.expiry-phone-meta .browse-badge {
+		justify-self: start;
+	}
+	/* In selection mode the checkbox sits beside the identity instead of on its own row. */
+	.expiry-phone-card > .stock-list-checkbox {
+		grid-column: 2;
+		grid-row: 1;
+		align-self: center;
+	}
+	.expiry-phone-card:has(> .stock-list-checkbox) > .expiry-phone-identity {
+		grid-column: 1;
+		grid-row: 1;
 	}
 }
 </style>

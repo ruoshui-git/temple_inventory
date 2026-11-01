@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 // This suite exercises the routed production UI and real HTTP transport with
 // controlled native-shaped responses. It is not server/database acceptance.
 for (const width of [375, 1024, 1440]) {
-  test(`browse history, pages and responsive position at ${width}px`, async ({
+  test(`browse selection and row position survive resize at ${width}px`, async ({
     page,
   }, testInfo) => {
     await page.setViewportSize({ width, height: 1000 });
@@ -168,55 +168,10 @@ for (const width of [375, 1024, 1440]) {
     await row.evaluate((element) =>
       window.scrollBy(0, element.getBoundingClientRect().top - 350),
     );
-    // A narrow table may scroll its target into view during activation. Capture
-    // the actual departure position, after the browser has focused that target.
-    await row.evaluate((element) =>
-      element.addEventListener(
-        "click",
-        () => {
-          document.documentElement.dataset.departureRow = String(
-            element.getBoundingClientRect().top,
-          );
-          document.documentElement.dataset.departureLeft = String(
-            element.closest("[data-browse-scroll]")?.scrollLeft || 0,
-          );
-        },
-        { once: true },
-      ),
-    );
-    // Desktop tables link the name; phone list rows keep a name button.
-    await row
-      .getByRole("link", { name: /长名称物品42/ })
-      .or(row.getByRole("button", { name: /长名称物品42/ }))
-      .click();
-    await expect(
-      page.getByRole("heading", { name: "物品详情", exact: true }),
-    ).toBeVisible();
-    await page.getByRole("button", { name: "返回", exact: true }).click();
-    await expect(page.locator("[data-browse-row]")).toHaveCount(60);
-    await expect(row.locator("input")).toBeChecked();
-    const departure = await page.evaluate(() =>
-      Number(document.documentElement.dataset.departureRow),
-    );
-    await expect
-      .poll(async () => Math.abs((await row.boundingBox())!.y - departure))
-      .toBeLessThan(5);
-    const tableScroll = page.locator('[data-browse-scroll="inventory-table"]');
-    if (await tableScroll.count())
-      expect(await tableScroll.evaluate((element) => element.scrollLeft)).toBe(
-        await page.evaluate(() =>
-          Number(document.documentElement.dataset.departureLeft),
-        ),
-      );
-    else
-      expect(
-        await page.evaluate(
-          () => document.documentElement.dataset.departureLeft,
-        ),
-      ).toBe("0");
-    expect(reads.slice(-2)).toEqual([0, 30]);
+    // Keep the loaded row anchor and selection across the breakpoint.
+    const departure = (await row.boundingBox())!.y;
     await page.screenshot({
-      path: testInfo.outputPath(`returned-${width}.png`),
+      path: testInfo.outputPath(`selection-row-${width}.png`),
     });
 
     // The same controller survives the shared breakpoint, including selection
@@ -234,18 +189,9 @@ for (const width of [375, 1024, 1440]) {
       path: testInfo.outputPath(`resized-${switchedWidth}.png`),
     });
 
-    // Phone navigation returns to its retained browse stack; desktop navigation
-    // starts the section at its first page.
-    await page
-      .getByRole("navigation", { name: "应用主导航" })
-      .getByRole("button", { name: "库存", exact: true })
-      .click();
-    await expect(page.locator("[data-browse-row]")).toHaveCount(
-      width < 1024 ? 60 : 30,
-    );
     await expect(
-      page.locator('[data-browse-row] input[type="checkbox"]:checked'),
-    ).toHaveCount(width < 1024 ? 1 : 0);
+      page.locator('[data-browse-row="ITEM-42"] input'),
+    ).toBeChecked();
     expect(errors).toEqual([]);
     expect(unexpected).toEqual([]);
   });

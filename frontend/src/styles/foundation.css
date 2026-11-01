@@ -2350,8 +2350,19 @@ button {
 		color: var(--p-ink);
 		font-weight: 700;
 	}
+	.mobile-context-back {
+		justify-content: flex-start;
+		border-bottom: 0;
+		margin-bottom: 4px;
+	}
+	.mobile-context-back a {
+		flex: 0 0 auto;
+		justify-items: start;
+		border-bottom: 0;
+		color: var(--p-accent-strong);
+		font-weight: 700;
+	}
 }
-
 
 .form-field.form-field {
 	display: grid;
@@ -2898,8 +2909,7 @@ button {
 }
 .results-region [data-browse-row] {
 	scroll-margin-block-start: calc(
-		var(--app-desktop-nav-height, 0px) + var(--browse-toolbar-height, 0px) +
-			var(--p-space-3)
+		var(--app-desktop-nav-height, 0px) + var(--browse-toolbar-height, 0px) + var(--p-space-3)
 	);
 }
 .app-breadcrumb a {

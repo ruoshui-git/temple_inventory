@@ -106,6 +106,10 @@ test("units filters and category groups show loaded rows", async ({
   await page.setViewportSize({ width: 430, height: 932 });
   await page.goto("/inventory/stock/units");
   await expect(page.locator(".units-phone-row")).toHaveCount(2);
+  await expect(page.locator(".mobile-context-back")).toContainText("库存");
+  await expect(
+    page.locator(".mobile-context:not(.mobile-context-back) a"),
+  ).toHaveCount(0);
   await page.getByRole("button", { name: "筛选" }).click();
   const panel = page.getByRole("dialog");
   await panel.getByLabel("单位类别").selectOption("计数");

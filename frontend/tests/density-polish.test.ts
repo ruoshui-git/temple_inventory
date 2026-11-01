@@ -63,6 +63,20 @@ it("fires the default action from the mobile FAB and hides it while an overlay i
   overlay.remove();
 });
 
+it("renders a plain FAB when there are no secondary creation actions", async () => {
+  const wrapper = mount(BrowseSplitButton, {
+    attachTo: document.body,
+    props: { label: "新建盘点", kind: "Count", icon: "count", options: [] },
+  });
+  wrappers.push(wrapper);
+  expect(
+    document.querySelector(".browse-split-button .popup-menu-trigger"),
+  ).toBeNull();
+  expect(
+    document.querySelectorAll(".browse-split-button > .ui-button"),
+  ).toHaveLength(1);
+});
+
 it("merges result count with a short multi-unit preview and discloses full quantities", async () => {
   const wrapper = mount(BrowseResultSummary, {
     props: {

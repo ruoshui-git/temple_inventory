@@ -43,7 +43,7 @@ function close(restoreFocus = false) {
 }
 async function toggle() {
 	if (open.value) return close();
-	useSheet.value = props.sheet && responsive.isSurface("mobile");
+	useSheet.value = responsive.isSurface("mobile");
 	anchoredOpen.value = !useSheet.value;
 	open.value = true;
 	emit("open");

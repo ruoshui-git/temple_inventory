@@ -60,6 +60,7 @@ function choose(kind: string) {
 		<div class="browse-split-button" :class="{ 'is-hidden': hidden }">
 			<UiButton variant="primary" :icon="icon" @click="choose(kind)">{{ label }}</UiButton>
 			<PopupMenu
+				v-if="props.options.length"
 				label="选择新建类型"
 				variant="split"
 				align="end"

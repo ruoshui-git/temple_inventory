@@ -27,7 +27,10 @@ watch(
 	() => `${String(route.name)}:${JSON.stringify(route.params)}`,
 	() => (breadcrumbLabel.value = undefined),
 );
-const inventorySection = computed(() => inventorySectionForRoute(String(route.name || "")));
+const referenceRoute = computed(() => ["categories", "units"].includes(String(route.name || "")));
+const inventorySection = computed(() =>
+	referenceRoute.value ? "" : inventorySectionForRoute(String(route.name || "")),
+);
 const hidePhoneBreadcrumb = computed(() => isMobile.value);
 const stockTabLabels: Record<string, string> = {
 	stock: "库存",
@@ -62,7 +65,7 @@ async function navigate(target: Parameters<typeof router.push>[0]) {
 		<PushPrompt />
 		<RouteBreadcrumbs v-if="!hidePhoneBreadcrumb" />
 		<nav
-			v-if="isMobile && active === 'inventory'"
+			v-if="isMobile && active === 'inventory' && !referenceRoute"
 			class="mobile-context"
 			aria-label="库存子页面"
 		>
@@ -73,6 +76,9 @@ async function navigate(target: Parameters<typeof router.push>[0]) {
 				:aria-current="inventorySection === item.key ? 'page' : undefined"
 				>{{ stockTabLabels[item.key] }}</RouterLink
 			>
+		</nav>
+		<nav v-else-if="isMobile && referenceRoute" class="mobile-context mobile-context-back">
+			<RouterLink :to="{ name: 'stock' }">‹ 库存</RouterLink>
 		</nav>
 		<slot />
 	</AppFrame>

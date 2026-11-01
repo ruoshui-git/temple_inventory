@@ -6,7 +6,7 @@ import {
   requiredAuditCjkFont,
 } from "./fixtures/nativeUi";
 const font = requiredAuditCjkFont();
-const selectionShots = "/tmp/codex-runs/browse-selection-shots";
+const selectionShots = "/tmp/codex-runs/browse-mobile-shots";
 mkdirSync(selectionShots, { recursive: true });
 async function setup(
   page: Page,
@@ -645,6 +645,328 @@ test("stock selection screenshots cover desktop and phone surfaces", async ({
     }),
   ).toBeVisible();
   await page.screenshot({ path: `${selectionShots}/stock-select-desktop.png` });
+});
+
+test("stock card selection uses the whole card and select all covers loaded cards", async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 430, height: 932 });
+  await setup(page);
+  await page.goto("/inventory/stock");
+  await expect(page.locator(".stock-list-row")).toHaveCount(20);
+  await page.screenshot({ path: info.outputPath("stock-chip-row-phone.png") });
+  await page.getByRole("button", { name: "更多操作", exact: true }).click();
+  await page.getByRole("menuitem", { name: "选择", exact: true }).click();
+  await page.locator(".stock-list-open").first().click();
+  await expect(
+    page.getByRole("region", { name: "已选物品操作" }),
+  ).toContainText("已选择 1 项");
+  await expect(page).toHaveURL(/\/inventory\/stock$/);
+  await page.locator(".browse-select-visible input").check();
+  await expect(
+    page.getByRole("region", { name: "已选物品操作" }),
+  ).toContainText("已选择 20 项");
+  await page.screenshot({
+    path: info.outputPath("stock-list-selection-phone.png"),
+  });
+  await page.locator(".browse-select-visible input").uncheck();
+  await page.getByRole("button", { name: "卡片视图", exact: true }).click();
+  await expect(page.locator(".stock-card")).toHaveCount(20);
+  await page.locator(".stock-card .item-name").first().click();
+  await expect(
+    page.getByRole("region", { name: "已选物品操作" }),
+  ).toContainText("已选择 1 项");
+  await page.locator(".browse-select-visible input").check();
+  await expect(
+    page.getByRole("region", { name: "已选物品操作" }),
+  ).toContainText("已选择 20 项");
+  await page.screenshot({
+    path: info.outputPath("stock-cards-selection-phone.png"),
+  });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.screenshot({
+    path: info.outputPath("stock-cards-selection-desktop.png"),
+  });
+  await page.getByRole("button", { name: "列表视图", exact: true }).click();
+  await page.screenshot({
+    path: info.outputPath("stock-table-selection-desktop.png"),
+  });
+  await page.getByRole("button", { name: "卡片视图", exact: true }).click();
+  await page.getByRole("button", { name: "取消", exact: true }).click();
+  await page.locator(".stock-card .item-name").first().click();
+  await expect(page).toHaveURL(/\/inventory\/stock\/items\/ITEM-0$/);
+});
+
+test("loan phone item cards toggle selection across the whole card", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 430, height: 932 });
+  await setup(page, 100, "balanced", { Loan: true, Return: true });
+  await page.route(
+    "**/api/method/temple_inventory.projections.group_page",
+    (route) => {
+      const args = route.request().postDataJSON() || {};
+      return route.fulfill({
+        json: {
+          message: {
+            rows: [
+              {
+                id: "item:ITEM-0",
+                row_grain: "group",
+                group_field: "item",
+                group_depth: 1,
+                group_path: ["item:ITEM-0"],
+                group_label: "供灯用品",
+                item_code: "ITEM-0",
+                item_name: "供灯用品",
+                row_count: 1,
+                display_count: 1,
+                item_count: 1,
+                document_count: 1,
+                has_children: true,
+              },
+            ],
+            matched_count: 1,
+            next_start: null,
+            parent_path: args.parent_path || [],
+            query: args.query,
+            row_grain: "group",
+            leaf_columns: [],
+          },
+        },
+      });
+    },
+  );
+  await page.goto("/inventory/loans?view=items");
+  await page.getByRole("button", { name: /筛选/ }).click();
+  const filters = page.getByRole("dialog");
+  await filters
+    .getByRole("group", { name: "结果分组" })
+    .getByLabel("第一级")
+    .selectOption("item");
+  await page.keyboard.press("Escape");
+  const card = page.locator(".browse-group--mobile-list");
+  await expect(card).toContainText("供灯用品");
+  await page.getByRole("button", { name: "更多操作", exact: true }).click();
+  await page.getByRole("menuitem", { name: "选择", exact: true }).click();
+  const box = (await card.boundingBox())!;
+  await card.click({ position: { x: 8, y: box.height - 6 } });
+  await expect(
+    page.getByRole("region", { name: "借用批量操作" }),
+  ).toContainText("已选择 1 项");
+  await card.focus();
+  await page.keyboard.press("Space");
+  await expect(
+    page.getByRole("region", { name: "借用批量操作" }),
+  ).toContainText("已选择 0 项");
+  await card.locator(".browse-group-trigger").click();
+  await expect(
+    page.getByRole("region", { name: "借用批量操作" }),
+  ).toContainText("已选择 1 项");
+  await page.locator(".browse-select-visible input").check();
+  await expect(
+    page.getByRole("region", { name: "借用批量操作" }),
+  ).toContainText("已选择 1 项");
+});
+
+test("expiry phone cards show loaded location and right-aligned quantity", async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 430, height: 932 });
+  await setup(page);
+  await page.route(
+    "**/api/method/temple_inventory.browse.expiry_page",
+    (route) => {
+      const args = route.request().postDataJSON() || {};
+      return route.fulfill({
+        json: {
+          message: {
+            rows: [
+              {
+                id: "ITEM-0::BATCH-0::ROOM-A",
+                item_code: "ITEM-0",
+                item_name: "法会供灯与日常储备用品长名称0",
+                category: "供灯用品",
+                batch_no: "BATCH-0",
+                expiry_date: "2026-11-18",
+                remaining_days: 18,
+                stock_qty: 24,
+                stock_uom: "个",
+                warehouse: "ROOM-TEST",
+                warehouse_label: "演示室甲",
+                warehouse_path: "东院 / 演示室甲 / 第一层",
+              },
+            ],
+            matched_count: 1,
+            item_count: 1,
+            batch_count: 1,
+            next_start: null,
+            snapshot: "2026-10-31 10:00:00",
+            query: args.query,
+            totals: [],
+            facets: {},
+            summary: [],
+            analysis: {},
+          },
+        },
+      });
+    },
+  );
+  await page.goto("/inventory/stock/expiry");
+  const card = page.locator(".expiry-phone-card");
+  await expect(card).toContainText("BATCH-0");
+  await expect(card).toContainText("演示室甲");
+  await expect(card.locator(".expiry-phone-quantity")).toContainText("24 个");
+  await page.getByRole("button", { name: "更多操作", exact: true }).click();
+  await page.getByRole("menuitem", { name: "选择", exact: true }).click();
+  await card.locator(".expiry-phone-batch").click();
+  await expect(
+    page.getByRole("region", { name: "批次批量操作" }),
+  ).toContainText("已选择 1 项");
+  await page.locator(".browse-select-visible input").check();
+  await page.screenshot({ path: info.outputPath("expiry-cards-phone.png") });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect(page.locator("tbody [data-browse-row]")).toContainText(
+    "BATCH-0",
+  );
+  await page.screenshot({ path: info.outputPath("expiry-table-desktop.png") });
+});
+
+test("activities and categories use the phone FAB with loaded browse data", async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 430, height: 932 });
+  await setup(page);
+  await page.route(
+    "**/api/method/temple_inventory.projections.report_page",
+    (route) => {
+      const args = route.request().postDataJSON() || {};
+      const query = args.query;
+      return route.fulfill({
+        json: {
+          message: {
+            query,
+            scope: query.scope,
+            period: { key: "all", date_from: "", date_to: "" },
+            snapshot: "2026-10-31 10:00:00",
+            table: "metadata",
+            columns: ["title", "activity_type", "status", "start_date"],
+            sortable_columns: ["title", "start_date"],
+            rows: [
+              {
+                id: "ACT-1",
+                activity: "ACT-1",
+                title: "秋季法会物资支持",
+                activity_type: "TYPE-A",
+                activity_type_label: "活动",
+                status: "Active",
+                start_date: "2026-10-01",
+                end_date: "2026-10-31",
+              },
+            ],
+            matched_count: 1,
+            next_start: null,
+            summary: [],
+            tables: [{ id: "metadata", label: "活动", count: 1 }],
+          },
+        },
+      });
+    },
+  );
+  await page.route(
+    "**/api/method/temple_inventory.catalog.category_tree",
+    (route) =>
+      route.fulfill({
+        json: {
+          message: [
+            {
+              name: "供灯用品",
+              label: "供灯用品",
+              parent: "",
+              is_group: false,
+            },
+          ],
+        },
+      }),
+  );
+  await page.goto("/inventory/activities");
+  await expect(page.locator("[data-browse-row='ACT-1']")).toContainText(
+    "秋季法会物资支持",
+  );
+  await expect(page.locator(".browse-split-button > .ui-button")).toBeVisible();
+  await page.screenshot({ path: info.outputPath("activities-fab-phone.png") });
+  await page.goto("/inventory/stock/categories");
+  await expect(page.locator(".category-row")).toContainText("供灯用品");
+  await expect(page.locator(".browse-split-button > .ui-button")).toBeVisible();
+  await expect(page.locator(".mobile-context-back")).toContainText("库存");
+  await expect(
+    page.locator(".mobile-context:not(.mobile-context-back) a"),
+  ).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath("categories-fab-phone.png") });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/inventory/activities");
+  await expect(page.locator("[data-browse-row='ACT-1']")).toContainText(
+    "秋季法会物资支持",
+  );
+  await page.screenshot({
+    path: info.outputPath("activities-create-desktop.png"),
+  });
+  await page.goto("/inventory/stock/categories");
+  await expect(page.locator(".app-breadcrumb")).toContainText("分类");
+  await expect(
+    page.locator(".inventory-menu [aria-current='page']"),
+  ).toHaveCount(0);
+  await page.screenshot({
+    path: info.outputPath("categories-create-desktop.png"),
+  });
+});
+
+test("touching 完成 in the phone filter sheet does not activate 更多", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    baseURL: "http://127.0.0.1:8081",
+    viewport: { width: 430, height: 932 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  const page = await context.newPage();
+  try {
+    await setup(page);
+    await page.goto("/inventory/stock");
+    await expect(page.locator(".stock-list-row")).toHaveCount(20);
+    await page.getByRole("button", { name: /筛选/ }).tap();
+    const sheet = page.getByRole("dialog", { name: /筛选/ });
+    await expect(sheet).toBeVisible();
+    await sheet.getByRole("button", { name: "完成", exact: true }).tap();
+    await expect(sheet).toHaveCount(0);
+    await expect(page).toHaveURL(/\/inventory\/stock$/);
+    await expect(
+      page.getByRole("button", { name: "库存", exact: true }),
+    ).toHaveAttribute("aria-current", "page");
+  } finally {
+    await context.close();
+  }
+});
+
+test("phone action sheets close on Back while desktop menus stay anchored", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 430, height: 932 });
+  await setup(page);
+  await page.goto("/inventory/stock");
+  await expect(page.locator(".stock-list-row")).toHaveCount(20);
+  await page.getByRole("button", { name: "更多操作", exact: true }).click();
+  await expect(page.locator(".popup-menu-sheet-overlay")).toBeVisible();
+  await page.goBack();
+  await expect(page.locator(".popup-menu-sheet-overlay")).toHaveCount(0);
+  await expect(page).toHaveURL(/\/inventory\/stock$/);
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.getByRole("button", { name: "更多操作", exact: true }).click();
+  await expect(page.locator(".popup-menu-panel:visible").last()).toBeVisible();
+  expect(await page.evaluate(() => history.state?.tiOverlay)).toBeUndefined();
+  await page.keyboard.press("Escape");
 });
 
 test("stock state and open filter survive the shared breakpoint", async ({

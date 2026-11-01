@@ -657,7 +657,9 @@ describe("shared data table", () => {
         cancelable: true,
       }),
     );
-    expect(linkClick).toHaveBeenCalledOnce();
+    expect(linkClick).not.toHaveBeenCalled();
+    expect(wrapper.emitted("select")?.at(-1)).toEqual(["A", true]);
+    await wrapper.setProps({ selectedKeys: ["A"] });
     rowElements()[0]!.element.dispatchEvent(
       new KeyboardEvent("keydown", {
         key: " ",
@@ -665,7 +667,7 @@ describe("shared data table", () => {
         cancelable: true,
       }),
     );
-    expect(wrapper.emitted("select")?.at(-1)).toEqual(["A", true]);
+    expect(wrapper.emitted("select")?.at(-1)).toEqual(["A", false]);
 
     const checkbox = wrapper.get('input[aria-label="选择记录 A"]');
     checkbox.element.dispatchEvent(
@@ -865,6 +867,36 @@ describe("shared data table", () => {
       "保留当前结果，更新完成后可用",
     );
     expect(wrapper.text()).toContain("网络暂不可用");
+  });
+
+  it("toggles selection from a noninteractive table row target and keeps controls independent", async () => {
+    const openItem = vi.fn();
+    const wrapper = mount(DataTable, {
+      props: {
+        ariaLabel: "整行选择",
+        columns,
+        rows: [{ kind: "record", id: "row-a", value: { item: "纸张" } }],
+        selectionEnabled: true,
+      },
+      slots: {
+        cell: () =>
+          h(
+            "button",
+            { class: "browse-row-link", onClick: openItem },
+            "打开物品",
+          ),
+      },
+    });
+    wrappers.push(wrapper);
+    await wrapper
+      .get("tbody tr[data-row-id='row-a'] td:nth-child(2)")
+      .trigger("click");
+    expect(wrapper.emitted("select")?.[0]).toEqual(["row-a", true]);
+    await wrapper.get(".browse-row-link").trigger("click");
+    expect(openItem).not.toHaveBeenCalled();
+    expect(wrapper.emitted("select")).toHaveLength(2);
+    await wrapper.get('input[aria-label="选择记录 row-a"]').trigger("click");
+    expect(wrapper.emitted("select")).toHaveLength(2);
   });
 
   it("spans through the group label after a leading thumbnail column", () => {

@@ -39,8 +39,11 @@ function selection(warehouse: string, search: string) {
 	void router.replace({ query: { ...route.query, warehouse, search: search || undefined } });
 }
 function back() {
-	if (window.history.state.back) router.back();
-	else void router.push(routeTarget("warehouses"));
+	const state = window.history.state as { back?: unknown; tiOverlay?: unknown };
+	if (state.back) {
+		if (state.tiOverlay) window.history.go(-2);
+		else router.back();
+	} else void router.push(routeTarget("warehouses"));
 }
 function count(warehouse: string) {
 	void router.push(countDestination({ warehouse, editor: crypto.randomUUID() }));

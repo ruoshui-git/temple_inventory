@@ -9,7 +9,7 @@ import { newReportQuery } from "../../src/lib/reportContract";
 const appRoot = fileURLToPath(new URL("../../..", import.meta.url));
 const publicRoot = path.join(appRoot, "temple_inventory/public/frontend");
 const indexPath = path.join(publicRoot, "index.html");
-const selectionShots = "/tmp/codex-runs/browse-selection-shots";
+const selectionShots = "/tmp/codex-runs/browse-mobile-shots";
 mkdirSync(selectionShots, { recursive: true });
 const fontPath = [
   process.env.TEMPLE_UI_CJK_FONT,
@@ -621,6 +621,10 @@ for (const width of [1440, 390]) {
     await page
       .getByRole("dialog")
       .getByRole("button", { name: /关闭/ })
+      .click();
+    await page
+      .getByRole("region", { name: "批次批量操作" })
+      .getByRole("button", { name: "取消", exact: true })
       .click();
     await page
       .getByRole("button", { name: /BATCH-001/ })

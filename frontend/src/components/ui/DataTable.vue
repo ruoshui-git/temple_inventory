@@ -206,7 +206,30 @@ function onRowFocus(entry: DataTableEntry, event: FocusEvent) {
 	focusedRowId.value = entry.id;
 	focusedRowElement.value = event.currentTarget as HTMLTableRowElement;
 }
+function onRowClick(entry: DataTableEntry, event: MouseEvent) {
+	if (!props.selectionEnabled || entry.kind !== "record" || entry.selectable === false) return;
+	const openTarget = event.target instanceof Element && event.target.closest(".browse-row-link");
+	if (isInteractiveTarget(event.target) && !openTarget) return;
+	event.preventDefault();
+	const key = keyFor(entry);
+	emit("select", key, !props.selectedKeys.includes(key));
+	if (openTarget) event.stopPropagation();
+}
 function onRowKeydown(entry: DataTableEntry, event: KeyboardEvent) {
+	const openTarget = event.target instanceof Element && event.target.closest(".browse-row-link");
+	if (
+		props.selectionEnabled &&
+		entry.kind === "record" &&
+		entry.selectable !== false &&
+		openTarget &&
+		(event.key === "Enter" || event.key === " ")
+	) {
+		event.preventDefault();
+		event.stopPropagation();
+		const key = keyFor(entry);
+		emit("select", key, !props.selectedKeys.includes(key));
+		return;
+	}
 	if (isInteractiveTarget(event.target)) return;
 	const index = bodyRows.value.findIndex((row) => row.id === entry.id);
 	if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -237,6 +260,12 @@ function onRowKeydown(entry: DataTableEntry, event: KeyboardEvent) {
 	if (event.key === "Enter") {
 		if (group(entry)) {
 			activateGroupKey(entry, event);
+			return;
+		}
+		if (props.selectionEnabled && entry.kind === "record" && entry.selectable !== false) {
+			event.preventDefault();
+			const key = keyFor(entry);
+			emit("select", key, !props.selectedKeys.includes(key));
 			return;
 		}
 		event.preventDefault();
@@ -794,6 +823,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 								:aria-expanded="
 									group(entry) && entry.hasChildren ? entry.expanded : undefined
 								"
+								@click.capture="onRowClick(entry, $event)"
 								@click="group(entry) && activateGroup(entry, $event)"
 								@focus="onRowFocus(entry, $event)"
 								@pointerdown="onRowPointerDown(entry, $event)"

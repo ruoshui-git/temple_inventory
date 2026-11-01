@@ -77,6 +77,35 @@ describe("Overlay history", () => {
     expect(back).toHaveBeenCalledTimes(1);
   });
 
+  it("swallows a touch click that follows an overlay close at the same point", async () => {
+    vi.useFakeTimers();
+    const wrapper = openOverlay();
+    await wrapper.vm.$nextTick();
+    const overlay = document.querySelector<HTMLElement>(".ui-overlay")!;
+    const touchDown = new Event("pointerdown", { bubbles: true });
+    Object.assign(touchDown, {
+      pointerType: "touch",
+      clientX: 20,
+      clientY: 30,
+    });
+    overlay.dispatchEvent(touchDown);
+    document.querySelector<HTMLElement>(".dialog-heading .ui-button")!.click();
+    const target = document.createElement("button");
+    const activated = vi.fn();
+    target.addEventListener("click", activated);
+    document.body.append(target);
+    const trailingClick = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 20,
+      clientY: 30,
+    });
+    target.dispatchEvent(trailingClick);
+    expect(activated).not.toHaveBeenCalled();
+    expect(trailingClick.defaultPrevented).toBe(true);
+    await vi.runAllTimersAsync();
+  });
+
   it("hides a same-URL close popstate from Vue Router guards", async () => {
     history.replaceState(null, "", "/beneath");
     router = createRouter({
