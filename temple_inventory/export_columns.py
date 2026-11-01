@@ -30,6 +30,7 @@ LABELS = {
 	"destination_warehouse_native_name": "去向 ERPNext 库位",
 	"origin_warehouse": "原位置",
 	"batch_no": "批次编号",
+	"serial_nos": "序列号",
 	"expiry_date": "到期日期",
 	"remaining_days": "剩余天数",
 	"expiry_state": "到期状态",
@@ -414,7 +415,7 @@ DATASET_DEFAULT_COLUMNS = {
 # identifiers carried by the native projection are never accepted from a client.
 EXTRA_COLUMNS = {
 	"summary": {"document_count"},
-	"locations": {"manufacturing_date", "warehouse", "warehouse_path", "warehouse_native_name"},
+	"locations": {"manufacturing_date", "warehouse", "warehouse_path", "warehouse_native_name", "serial_nos"},
 	"batches": {
 		"manufacturing_date",
 		"warehouse_label",
@@ -450,6 +451,7 @@ EXTRA_COLUMNS = {
 		"origin_warehouse_native_name",
 	},
 	"lines": {
+		"serial_nos",
 		"category",
 		"line_name",
 		"entered_qty",
@@ -473,6 +475,7 @@ EXTRA_COLUMNS = {
 		"original_loan",
 	},
 	"history": {
+		"serial_nos",
 		"category",
 		"activity_title",
 		"notes",
@@ -487,6 +490,7 @@ EXTRA_COLUMNS = {
 		"original_loan",
 	},
 	"loan_history": {
+		"serial_nos",
 		"category",
 		"time",
 		"destination_warehouse",
@@ -501,6 +505,7 @@ EXTRA_COLUMNS = {
 		"origin_warehouse_native_name",
 	},
 	"outcomes": {
+		"serial_nos",
 		"category",
 		"batch_no",
 		"loan_status",
@@ -515,8 +520,9 @@ EXTRA_COLUMNS = {
 	},
 	"loan_items": {"category", "document_count"},
 	"balances": {"batch_no"},
-	"ledger": set(),
+	"ledger": {"serial_nos"},
 	"settlements": {
+		"serial_nos",
 		"docstatus",
 		"category",
 		"source_warehouse_path",

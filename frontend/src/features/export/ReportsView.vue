@@ -145,6 +145,9 @@ const reportColumns = computed<DataColumn[]>(() => {
 	const table = result.tables.find((candidate) => candidate.id === result.main);
 	return table ? reportExportColumns(table, dataset.value) : [];
 });
+const serialForcedColumns = computed(() =>
+	query.value.scope.tracking === "serial" ? ["serial_nos"] : [],
+);
 const exportServices = useOptionalInventoryServices();
 const reportPrefs = exportServices
 	? useColumnPreferences(
@@ -152,13 +155,14 @@ const reportPrefs = exportServices
 			reportColumns,
 			reference,
 			exportServices,
+			serialForcedColumns,
 		)
 	: undefined;
 const exportColumns = computed(() => {
 	if (!reportColumns.value.length) return undefined;
 	const columns = reportColumns.value;
-	const visible = reportPrefs?.visible.value.length
-		? reportPrefs.visible.value
+	const visible = reportPrefs?.effectiveVisible.value.length
+		? reportPrefs.effectiveVisible.value
 		: columns
 				.filter((column) => column.defaultVisible !== false || column.required)
 				.map((column) => String(column.id));
@@ -744,6 +748,7 @@ function setGroup(index: number, value: string) {
 				<ReportTable
 					v-if="mainTable"
 					:table="mainTable"
+					:forced-visible="serialForcedColumns"
 					:preference-id="`reports.${query.dataset}.${query.view}.${mainTable.id}`"
 					:total="mainTable.total"
 					:loading="mainTable.loading || result.loading"
@@ -786,6 +791,7 @@ function setGroup(index: number, value: string) {
 					</summary>
 					<ReportTable
 						:table="table"
+						:forced-visible="serialForcedColumns"
 						:preference-id="`reports.${query.dataset}.${query.view}.${table.id}`"
 						:total="table.total"
 						:loading="table.loading"

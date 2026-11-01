@@ -440,7 +440,7 @@ onScopeDispose(() => {
 });
 
 const orderedColumns = computed(() => {
-	const visible = preferences.value?.visible.value;
+	const visible = preferences.value?.effectiveVisible?.value ?? preferences.value?.visible.value;
 	const order = preferences.value?.order.value;
 	const byId = new Map(props.columns.map((column) => [String(column.id), column]));
 	if (!visible || !order)
@@ -559,12 +559,17 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 						<label>
 							<input
 								type="checkbox"
-								:checked="preferences.visible.value.includes(column)"
+								:checked="
+									(
+										preferences.effectiveVisible?.value ||
+										preferences.visible.value
+									).includes(column)
+								"
 								:disabled="
 									Boolean(
 										props.columns.find((item) => String(item.id) === column)
 											?.required,
-									)
+									) || preferences.forcedVisible?.value.includes(column)
 								"
 								@change="preferences.toggle(column)"
 							/>

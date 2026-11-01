@@ -23,6 +23,11 @@ import { useReportGroups } from "../../composables/useReportGroups";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import { useBrowseSelection } from "../../composables/useBrowseSelection";
 import { useBrowseViewMode } from "../../composables/useBrowseViewMode";
+import type {
+  DataTableEntry,
+  DataTableGroup,
+  DataTableRecord,
+} from "../../lib/dataTable";
 import {
   useInventoryServices,
   useReferenceData,
@@ -41,6 +46,22 @@ interface BulkAction {
   name: string;
   kind: string;
   icon: string;
+}
+export function stockGroupedCardSections(entries: DataTableEntry[]) {
+  const sections: { group: DataTableGroup; rows: DataTableRecord[] }[] = [];
+  for (const entry of entries) {
+    if (entry.kind === "group") sections.push({ group: entry, rows: [] });
+    else sections.at(-1)?.rows.push(entry);
+  }
+  return sections;
+}
+
+export function stockGroupedSelectionKeys(entries: DataTableEntry[]) {
+  return entries
+    .filter((entry): entry is DataTableRecord => entry.kind === "record")
+    .map((entry) =>
+      String(entry.value.code || entry.value.item_code || entry.id),
+    );
 }
 export function useStockBrowseController(
   props: { active?: boolean; initialQuery?: ReportQuery; queryError?: string },
@@ -189,7 +210,7 @@ export function useStockBrowseController(
       const result = await services.call<InventoryPage>(
         "browse.inventory_page",
         {
-          query: query.value,
+          query: { ...query.value, view: "summary", groupBy: [] },
           start: more ? data.next : 0,
           page_length: 30,
           ...(refresh ? { refresh: true } : {}),

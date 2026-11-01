@@ -909,6 +909,37 @@ strong {
 	);
 	gap: var(--p-card-gap);
 }
+.stock-card-groups {
+	display: grid;
+	gap: var(--p-card-gap);
+}
+.stock-card-group {
+	min-width: 0;
+}
+.stock-card-group.is-nested {
+	margin-inline-start: 1rem;
+}
+.stock-card-group-heading {
+	display: flex;
+	align-items: baseline;
+	flex-wrap: wrap;
+	gap: 0.4rem 0.75rem;
+	width: 100%;
+	margin-block-end: 0.75rem;
+	padding: 0.65rem 0;
+	border: 0;
+	border-bottom: 1px solid var(--p-border);
+	background: transparent;
+	color: var(--p-ink);
+	text-align: left;
+}
+.stock-card-group-summary {
+	color: var(--p-muted);
+	font-size: 0.875em;
+}
+.stock-card-group-actions {
+	margin-block: 0.5rem;
+}
 .browse-card-item {
 	min-width: 0;
 }

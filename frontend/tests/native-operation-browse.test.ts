@@ -17,6 +17,7 @@ import { newReportQuery, type ReportQuery } from "../src/lib/reportContract";
 import { decodeReportQuery } from "../src/lib/reportQuery";
 import { createRecoveryStore } from "../src/lib/browserRecovery";
 import QuickExport from "../src/components/QuickExport.vue";
+import ScanPanel from "../src/features/scanner/ScanPanel.vue";
 const wrappers: VueWrapper[] = [];
 const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
 afterEach(() => {
@@ -1892,5 +1893,31 @@ describe("native operation browsing", () => {
     expect(drafts.textContent).toContain("草稿");
     expect(drafts.querySelector(".menu-item-icon")).toBeTruthy();
     expect(drafts.querySelector(".menu-item-meta")?.textContent).toBe("4");
+  });
+  it("filters serial scans to the item, exact serial and authorized location", async () => {
+    const { wrapper } = setup(
+      service(),
+      reactive({ family: "movements" as const, records: false }),
+      true,
+    );
+    await flushPromises();
+    const surface = wrapper.getComponent(OperationBrowsePage);
+    wrapper
+      .getComponent(ScanPanel)
+      .vm.$emit("item", "ITEM-A", undefined, undefined, "ITEM-A-SN-1", {
+        name: "SHELF-1",
+        label: "演示室甲 / 演示架1",
+        is_group: false,
+      });
+    await flushPromises();
+
+    expect(surface.vm.controller.query.value.scope).toMatchObject({
+      item: "ITEM-A",
+      tracking: "serial",
+      warehouses: ["SHELF-1"],
+      sources: [],
+      destinations: [],
+    });
+    expect(surface.vm.controller.query.value.search).toBe("ITEM-A-SN-1");
   });
 });

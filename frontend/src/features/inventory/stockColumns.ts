@@ -69,6 +69,12 @@ export function inventoryColumnsForPage(
       export: ["batch_no"],
     },
     {
+      id: "serial_nos",
+      label: "序列号",
+      defaultVisible: false,
+      export: ["serial_nos"],
+    },
+    {
       id: "warehouse_path",
       label: "完整位置",
       defaultVisible: false,

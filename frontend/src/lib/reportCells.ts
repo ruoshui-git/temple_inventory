@@ -34,6 +34,7 @@ export const reportColumnLabels: Record<string, string> = {
   origin_warehouse_path: "原位置完整位置",
   origin_warehouse_native_name: "原位置 ERPNext 库位",
   batch_no: "批次编号",
+  serial_nos: "序列号",
   expiry_date: "到期日期",
   manufacturing_date: "生产日期",
   remaining_days: "剩余天数",

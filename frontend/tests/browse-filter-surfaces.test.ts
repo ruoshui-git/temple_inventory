@@ -697,7 +697,7 @@ it("keeps selected scope values editable while toolbar chips summarize fields", 
   expect(unresolvedLocation[0]?.label).toContain("AUTHORIZED-LOCATION-ID");
 });
 
-it("offers expiry-only tracking choices and emits the shared tracking key", async () => {
+it("offers tracking choices and serial mode while keeping expiry choices scoped", async () => {
   const reference = reactive(createReferenceData());
   const services = {
     call: vi.fn(async () => []),
@@ -731,6 +731,33 @@ it("offers expiry-only tracking choices and emits the shared tracking key", asyn
       ?.at(-1)?.[0],
   ).toMatchObject({ tracking: "batch_only" });
   wrapper.unmount();
+
+  const ordinary = mount(
+    defineComponent({
+      setup() {
+        provideInventoryServices(services, reference);
+        return () =>
+          h(BrowseFilters, {
+            modelValue: emptyScope(),
+            fields: ["tracking"],
+            disclosureMode: true,
+            "onUpdate:modelValue": (value) => value,
+          });
+      },
+    }),
+  );
+  const ordinarySelect = ordinary.get('select[aria-label="物品追踪"]');
+  expect(ordinarySelect.text()).toContain("按序列号管理");
+  await ordinarySelect.setValue("serial");
+  expect(
+    ordinary
+      .findComponent(BrowseFilters)
+      .emitted("update:modelValue")
+      ?.at(-1)?.[0],
+  ).toMatchObject({
+    tracking: "serial",
+  });
+  ordinary.unmount();
 });
 
 it("labels the active tracking scope in its editable toolbar chip", () => {

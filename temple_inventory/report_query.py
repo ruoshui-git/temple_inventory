@@ -508,7 +508,7 @@ def validate_query(value):
 			query["scope"][field] = scope[field]
 		else:
 			frappe.throw("筛选范围无效")
-	if query["scope"]["tracking"] not in ("all", "batch", "expiry", "none", "batch_only"):
+	if query["scope"]["tracking"] not in ("all", "batch", "expiry", "none", "batch_only", "serial"):
 		frappe.throw("请选择有效的物品追踪方式")
 	if query["scope"]["tracking"] == "batch_only" and dataset != "expiry":
 		frappe.throw("此数据集不支持该物品追踪筛选")

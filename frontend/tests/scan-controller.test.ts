@@ -55,6 +55,37 @@ function setup(
 }
 
 describe("rapid scan lookup queue", () => {
+  it("routes serial scans to their item and authorized location without a batch value", async () => {
+    const call = vi.fn<InventoryServices["call"]>().mockResolvedValue({
+      unknown: false,
+      barcode: "LAMP-SN-001",
+      matches: [{ item_code: "ITEM-LAMP", has_batch_no: false }],
+      batches: ["LAMP-SN-001"],
+      serial: "LAMP-SN-001",
+      serial_location: {
+        name: "SHELF-1",
+        label: "演示室甲 / 演示架1",
+        is_group: false,
+      },
+    });
+    const { controller, items } = setup(call);
+
+    controller.scan("LAMP-SN-001");
+    await flushPromises();
+
+    expect(items).toHaveBeenCalledWith(
+      "ITEM-LAMP",
+      undefined,
+      undefined,
+      "LAMP-SN-001",
+      {
+        name: "SHELF-1",
+        label: "演示室甲 / 演示架1",
+        is_group: false,
+      },
+    );
+  });
+
   it("resolves rapid scans in order without aborting the lookup already in flight", async () => {
     const requests: Array<ReturnType<typeof deferred<unknown>>> = [];
     const signals: AbortSignal[] = [];

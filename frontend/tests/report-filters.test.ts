@@ -135,7 +135,7 @@ it("labels and clears person, borrower, item status and tracking filters", () =>
   query.person = { name: "张三", role: "handler" };
   query.borrower = "办公室";
   query.itemStatus = "disabled";
-  query.scope.tracking = "expiry";
+  query.scope.tracking = "serial";
   query.loanOutcome = "returned";
   const chips = reportFilterChips(query, createReferenceData());
   expect(chips.map((chip) => chip.label)).toEqual(
@@ -143,6 +143,7 @@ it("labels and clears person, borrower, item status and tracking filters", () =>
       "经手人：张三",
       "借用方：办公室",
       "物品状态：停用",
+      "物品追踪：按序列号管理",
       "归还结果：正常归还",
     ]),
   );

@@ -169,7 +169,7 @@ export function reportExportColumns(
       label:
         tableLabels[tableId]?.[field] ||
         (field === "image" ? "图片" : reportColumnLabels[field] || field),
-      defaultVisible: true,
+      defaultVisible: field !== "serial_nos",
       export: field === "image" ? [] : [field],
       quantity: quantityFields.has(field),
     }));

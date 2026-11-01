@@ -104,7 +104,7 @@ describe("canonical routed report queries", () => {
   });
   it("round trips item tracking, person, borrower and item status filters", () => {
     const query = newReportQuery("loans");
-    query.scope.tracking = "expiry";
+    query.scope.tracking = "serial";
     query.person = { name: "张三", role: "handler" };
     query.borrower = "办公室";
     query.loanOutcome = "damaged";

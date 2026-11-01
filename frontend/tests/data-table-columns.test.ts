@@ -3,6 +3,7 @@ import { countEditorColumns } from "../src/features/counts/countEditorColumns";
 import { nativeRecordColumns } from "../src/features/drafts/nativeRecordColumns";
 import { expiryColumnDefinitions } from "../src/features/expiry/expiryColumns";
 import { inventoryColumnsForPage } from "../src/features/inventory/stockColumns";
+import { productLocationColumns } from "../src/features/items/itemDetailColumns";
 import {
   operationColumnsFor,
   operationItemColumnsFor,
@@ -68,6 +69,21 @@ describe("DataTable column presentation metadata", () => {
   });
 
   it("keeps export-only browse columns hidden by default with current labels", () => {
+    expect(
+      column(inventoryColumnsForPage(true), "serial_nos").defaultVisible,
+    ).toBe(false);
+    expect(
+      column(warehouseColumnDefinitions, "serial_nos").defaultVisible,
+    ).toBe(false);
+    expect(column(productLocationColumns, "serial_nos").defaultVisible).toBe(
+      false,
+    );
+    expect(
+      column(
+        operationItemColumnsFor("movements", "history", false),
+        "serial_nos",
+      ).defaultVisible,
+    ).toBe(false);
     expect(column(expiryColumnDefinitions, "expiry_date").label).toBe(
       "到期日期",
     );

@@ -41,8 +41,9 @@ export function scopeValueLabel(
       (
         {
           batch: "按批次管理",
+          serial: "按序列号管理",
           expiry: "记录效期",
-          none: "不按批次管理",
+          none: "不追踪",
           batch_only: "仅批次（不记录效期）",
         } as Record<string, string>
       )[value] || value

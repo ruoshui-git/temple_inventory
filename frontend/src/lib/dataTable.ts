@@ -238,6 +238,8 @@ interface ReconciledColumns {
 export interface ColumnPreferencesController {
   order: { value: string[] };
   visible: { value: string[] };
+  effectiveVisible?: { value: string[] };
+  forcedVisible?: { value: string[] };
   saveState: { value: "saved" | "saving" | "error" };
   saveError: { value: string };
   toggle: (id: string) => void;

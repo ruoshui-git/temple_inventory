@@ -80,12 +80,19 @@ export function useColumnPreferences(
   columns: Readonly<Ref<DataColumn[]>>,
   reference: ReferenceData,
   services: InventoryServices,
+  forcedVisible: Readonly<Ref<string[]>> = ref([]),
 ) {
   const currentTableId = computed(() =>
     typeof tableId === "string" ? tableId : tableId.value,
   );
   const order = ref<string[]>([]);
   const visible = ref<string[]>([]);
+  const effectiveVisible = computed(() => {
+    const forced = new Set(forcedVisible.value);
+    return order.value.filter(
+      (id) => visible.value.includes(id) || forced.has(id),
+    );
+  });
   const saveState = ref<ColumnSaveState>("saved");
   const saveError = ref("");
   const isReady = ref(false);
@@ -323,6 +330,8 @@ export function useColumnPreferences(
   return {
     order,
     visible,
+    effectiveVisible,
+    forcedVisible,
     isReady,
     saveState,
     saveError,

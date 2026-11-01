@@ -26,7 +26,7 @@ import { compactGroupSummary } from "../../lib/groupSummary";
 import ItemImage from "../../components/ItemImage.vue";
 import StockDetails from "../../components/StockDetails.vue";
 import QuickExport from "../../components/QuickExport.vue";
-import Scanner from "../../components/Scanner.vue";
+import ScanPanel from "../scanner/ScanPanel.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import SortControl from "../../components/ui/SortControl.vue";
 import DataTable from "../../components/ui/DataTable.vue";
@@ -50,7 +50,11 @@ import DetailPopover from "../../components/ui/DetailPopover.vue";
 import { formatQuantity } from "../../lib/formatQuantity";
 
 import type { StockItem } from "../../lib/stockPresentation";
-import type { useStockBrowseController } from "./useStockBrowseController";
+import {
+	stockGroupedCardSections,
+	stockGroupedSelectionKeys,
+	type useStockBrowseController,
+} from "./useStockBrowseController";
 import { inventoryColumnsForPage } from "./stockColumns";
 import { stockStateLabels } from "../../lib/presentationLabels";
 const props = withDefaults(
@@ -100,6 +104,7 @@ const desktopColumnsVisible = computed(() => !isMobile.value || isSurface("deskt
 const inventoryRoot = ref<HTMLElement>();
 const toolbar = ref<InstanceType<typeof BrowseToolbar>>();
 const browseHeader = computed(() => toolbar.value?.$el as HTMLElement | undefined);
+const scan = ref<InstanceType<typeof ScanPanel>>();
 const sortDirection = computed({
 	get: () => (descending.value ? "desc" : "asc"),
 	set: (value: "asc" | "desc") => (descending.value = value === "desc"),
@@ -133,6 +138,9 @@ const browseTableRows = computed<DataTableEntry[]>(() =>
 	quickReportQuery.value.groupBy.length ? groupPages.entries.value : tableRows.value,
 );
 const groupRoot = computed(() => groupPages.pages.value["[[],null]"]);
+const groupedCardSections = computed(() => {
+	return stockGroupedCardSections(groupPages.entries.value);
+});
 function groupNumber(value: unknown) {
 	const quantity = Number(value || 0);
 	return `${quantity < 0 ? "−" : ""}${formatQuantity(Math.abs(quantity))}`;
@@ -176,6 +184,27 @@ function stockSelectionKey(row: StockTableRow) {
 }
 function stockIdentity(row: StockTableRow) {
 	return { code: stockCode(row), name: stockName(row), image: String(row.image || "") };
+}
+function serialPreview(row: StockTableRow) {
+	const locations = Array.isArray(row.locations)
+		? (row.locations as Record<string, unknown>[])
+		: [];
+	const serials = [
+		String(row.serial_nos || ""),
+		...locations.map((location) => String(location.serial_nos || "")),
+	]
+		.flatMap((value) => value.split("、"))
+		.map((value) => value.trim())
+		.filter(Boolean);
+	const sorted = [...new Set(serials)].sort();
+	return {
+		visible: sorted.slice(0, 2).join("、"),
+		extra: Math.max(0, sorted.length - 2),
+		title: sorted.join("、"),
+	};
+}
+function openGroupedStock(row: StockTableRow) {
+	props.controller.openItemCode(stockCode(row));
 }
 function isStockItemRow(row: StockTableRow): row is StockTableRow & StockItem {
 	return Array.isArray(row.locations);
@@ -228,13 +257,22 @@ function stockExpiryLabel(row: StockTableRow) {
 	return date ? (date < reference.siteDate ? "已过期" : "未过期") : "无效期";
 }
 const services = useOptionalInventoryServices();
+const serialForcedColumns = computed(() =>
+	quickReportQuery.value.scope.tracking === "serial" ? ["serial_nos"] : [],
+);
 const tablePreferences = services
-	? useColumnPreferences("stock.summary", inventoryColumns, reference, services)
+	? useColumnPreferences(
+			"stock.summary",
+			inventoryColumns,
+			reference,
+			services,
+			serialForcedColumns,
+		)
 	: undefined;
 const stockExportVisible = computed(() => {
 	const columns = inventoryColumns.value;
-	return tablePreferences?.visible.value.length
-		? tablePreferences.visible.value
+	return tablePreferences?.effectiveVisible.value.length
+		? tablePreferences.effectiveVisible.value
 		: columns
 				.filter((column) => column.defaultVisible !== false || column.required)
 				.map((column) => String(column.id));
@@ -250,6 +288,7 @@ const stockExportTable = computed(() =>
 			"locations",
 			"warehouse_label",
 			"batch_no",
+			"serial_nos",
 			"expiry",
 			"expiry_date",
 			"remaining_days",
@@ -268,15 +307,15 @@ function setSelected(code: string, checked: boolean) {
 	const isSelected = selected.value.includes(code);
 	if (checked !== isSelected) props.controller.toggle(code);
 }
-const allStockRowsSelected = computed(() =>
-	props.controller.allSelected(rows.value.map((item) => item.code)),
+const allStockRowsSelected = computed(() => props.controller.allSelected(visibleStockKeys.value));
+const visibleStockKeys = computed(() =>
+	quickReportQuery.value.groupBy.length
+		? stockGroupedSelectionKeys(groupPages.entries.value)
+		: rows.value.map((item) => item.code),
 );
 function selectAllStockRows(event: Event) {
 	const checked = (event.target as HTMLInputElement).checked;
-	props.controller.setManySelected(
-		rows.value.map((item) => item.code),
-		checked,
-	);
+	props.controller.setManySelected(visibleStockKeys.value, checked);
 }
 
 const results = ref<HTMLElement>();
@@ -294,12 +333,32 @@ const {
 	saveError: filtersSaveError,
 	retry: retryFiltersSave,
 } = useFilterRailPreference("stock.items", reference, true);
-const scanOpen = ref(false);
 const filterSheetOpen = ref(false);
 watch([() => props.active, isMobile], () => {
-	scanOpen.value = false;
+	scan.value?.finishScanning();
 	analysisOpen.value = false;
 });
+function acceptBrowseScan(
+	code: string,
+	batch?: string,
+	_context?: unknown,
+	serial?: string,
+	serialLocation?: { name: string; label: string; is_group: boolean },
+) {
+	if (!serial) {
+		search.value = batch || code;
+		return;
+	}
+	scope.value.item = code;
+	scope.value.tracking = "serial";
+	scope.value.warehouses = serialLocation ? [serialLocation.name] : [];
+	search.value = serial;
+	scan.value?.finishScanning();
+}
+function acceptBrowseLocation(name: string) {
+	scope.value.warehouses = [name];
+	scan.value?.finishScanning();
+}
 </script>
 <template>
 	<div ref="inventoryRoot" class="inventory-example">
@@ -322,7 +381,7 @@ watch([() => props.active, isMobile], () => {
 			:retry-sidebar-save="retryFiltersSave"
 			sidebar-available
 			scannable
-			@scan="scanOpen = true"
+			@scan="scan?.show()"
 			@filter-open="filterSheetOpen = $event"
 		>
 			<template #chips="{ editFilter }">
@@ -459,7 +518,7 @@ watch([() => props.active, isMobile], () => {
 							:checked="allStockRowsSelected"
 							@change="selectAllStockRows"
 						/>
-						选择当前 {{ rows.length }} 项
+						选择当前 {{ visibleStockKeys.length }} 项
 					</label>
 					<span role="status">已选择 {{ selected.length }} 项</span>
 					<UiButton
@@ -588,6 +647,129 @@ watch([() => props.active, isMobile], () => {
 					</div>
 					<template v-else>
 						<div
+							v-if="quickReportQuery.groupBy.length && view === 'card'"
+							class="stock-card-groups"
+						>
+							<section
+								v-for="section in groupedCardSections"
+								:key="section.group.id"
+								class="stock-card-group"
+								:class="{ 'is-nested': section.group.depth > 1 }"
+							>
+								<button
+									class="stock-card-group-heading"
+									:aria-expanded="section.group.expanded"
+									@click="groupPages.toggleGroup(section.group.id)"
+								>
+									<strong>{{ section.group.label }}</strong>
+									<span>{{ section.group.count }} 项</span>
+									<span class="stock-card-group-summary">{{
+										groupSummaryDisplay(section.group)
+									}}</span>
+								</button>
+								<div v-if="section.group.error" class="stock-card-group-actions">
+									<UiButton @click="groupPages.retry(section.group.id)"
+										>重试</UiButton
+									>
+								</div>
+								<div
+									v-if="section.rows.length"
+									class="browse-card-grid stock-grid"
+								>
+									<BrowseCard
+										v-for="entry in section.rows"
+										:key="entry.id"
+										:row-key="stockSelectionKey(entry.value)"
+										:selecting="selecting"
+										:selected="
+											selected.includes(stockSelectionKey(entry.value))
+										"
+										:select-label="`选择${stockName(entry.value)}`"
+										variant="card"
+										class="stock-card"
+										@toggle="toggle(stockSelectionKey(entry.value))"
+										@open="openGroupedStock(entry.value)"
+									>
+										<template #media>
+											<div class="stock-card-image">
+												<ItemImage
+													:item="stockIdentity(entry.value)"
+													frame
+												/>
+											</div>
+										</template>
+										<template #default="{ activate }">
+											<div class="stock-card-content">
+												<span class="eyebrow"
+													><span class="stock-card-category">{{
+														entry.value.category || "未分类"
+													}}</span
+													><span class="stock-card-code">{{
+														stockCode(entry.value)
+													}}</span></span
+												>
+												<button class="item-name" @click="activate">
+													{{ stockName(entry.value) }}
+												</button>
+												<div class="stock-number">
+													<span
+														><strong>{{
+															entry.value.available
+														}}</strong>
+														<UnitText
+															:name="
+																String(
+																	entry.value.uom ||
+																		entry.value.stock_uom ||
+																		'',
+																)
+															" /></span
+													><small>可用库存</small>
+												</div>
+												<div class="stock-secondary">
+													<span
+														>总量
+														{{
+															Number(entry.value.available || 0) +
+															Number(entry.value.loaned || 0) +
+															Number(entry.value.damaged || 0)
+														}}</span
+													><span>借出 {{ entry.value.loaned || 0 }}</span
+													><span
+														>损坏 {{ entry.value.damaged || 0 }}</span
+													>
+												</div>
+												<small
+													v-if="
+														quickReportQuery.scope.tracking ===
+															'serial' &&
+														serialPreview(entry.value).title
+													"
+													class="stock-serial-preview"
+													:title="serialPreview(entry.value).title"
+												>
+													{{ serialPreview(entry.value).visible }}
+													<span v-if="serialPreview(entry.value).extra"
+														>+{{
+															serialPreview(entry.value).extra
+														}}</span
+													>
+												</small>
+											</div>
+										</template>
+									</BrowseCard>
+								</div>
+								<UiButton
+									v-if="groupPages.hasMore(section.group.id)"
+									:loading="Boolean(section.group.loading)"
+									@click="groupPages.loadMore(section.group.id)"
+									>加载更多此分组 ·
+									{{ groupPages.progress(section.group.id).loaded }} /
+									{{ groupPages.progress(section.group.id).total }}</UiButton
+								>
+							</section>
+						</div>
+						<div
 							v-if="!quickReportQuery.groupBy.length && view === 'card'"
 							class="browse-card-grid stock-grid"
 							:class="{ refreshing: data.stale }"
@@ -666,6 +848,19 @@ watch([() => props.active, isMobile], () => {
 											><span>借出 {{ item.loaned }}</span
 											><span>损坏 {{ item.damaged }}</span>
 										</div>
+										<small
+											v-if="
+												quickReportQuery.scope.tracking === 'serial' &&
+												serialPreview(item).title
+											"
+											class="stock-serial-preview"
+											:title="serialPreview(item).title"
+										>
+											{{ serialPreview(item).visible }}
+											<span v-if="serialPreview(item).extra"
+												>+{{ serialPreview(item).extra }}</span
+											>
+										</small>
 										<StockDetails
 											:item="item"
 											:loading="status === 'refresh'"
@@ -722,6 +917,19 @@ watch([() => props.active, isMobile], () => {
 													item.category ? ` · ${item.category}` : ""
 												}}</span
 											>
+											<small
+												v-if="
+													quickReportQuery.scope.tracking === 'serial' &&
+													serialPreview(item).title
+												"
+												class="stock-serial-preview"
+												:title="serialPreview(item).title"
+											>
+												{{ serialPreview(item).visible }}
+												<span v-if="serialPreview(item).extra"
+													>+{{ serialPreview(item).extra }}</span
+												>
+											</small>
 										</span>
 										<span class="stock-list-quantity">
 											<strong
@@ -745,7 +953,8 @@ watch([() => props.active, isMobile], () => {
 						</div>
 						<DataTable
 							v-if="
-								quickReportQuery.groupBy.length || (!isMobile && view === 'table')
+								(quickReportQuery.groupBy.length && view === 'table') ||
+								(!quickReportQuery.groupBy.length && !isMobile && view === 'table')
 							"
 							data-browse-scroll="inventory-table"
 							ariaLabel="库存物品"
@@ -1037,16 +1246,13 @@ watch([() => props.active, isMobile], () => {
 			</footer>
 		</section>
 		<ReturnToTop :active="active !== false" :hidden="isMobile && filterSheetOpen" />
-		<Scanner
-			v-if="scanOpen"
-			presentation="modal"
-			@close="scanOpen = false"
-			@scan="
-				(value) => {
-					search = value;
-					scanOpen = false;
-				}
-			"
+		<ScanPanel
+			ref="scan"
+			hide-trigger
+			auto-unique
+			auto-camera
+			@item="acceptBrowseScan"
+			@location="acceptBrowseLocation"
 		/>
 	</div>
 </template>

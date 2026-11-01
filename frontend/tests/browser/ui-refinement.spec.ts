@@ -8,7 +8,9 @@ import {
 } from "./fixtures/nativeUi";
 const font = requiredAuditCjkFont();
 const selectionShots = "/tmp/codex-runs/browse-cards-shots";
+const groupedCardShots = "/tmp/codex-runs/grouped-cards-shots";
 mkdirSync(selectionShots, { recursive: true });
+mkdirSync(groupedCardShots, { recursive: true });
 async function setup(
   page: Page,
   scale = 100,
@@ -654,6 +656,109 @@ test("stock selection screenshots cover desktop and phone surfaces", async ({
     }),
   ).toBeVisible();
   await page.screenshot({ path: `${selectionShots}/stock-select-desktop.png` });
+});
+
+test("stock grouped cards use lazy warehouse groups on desktop and phone", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await setup(page);
+  await page.route(
+    "**/api/method/temple_inventory.projections.group_page",
+    async (route) => {
+      const args = route.request().postDataJSON() || {};
+      const child = (args.parent_path || []).length > 0;
+      const secondLocation = (args.parent_path || []).includes(
+        "location:ROOM-B",
+      );
+      const itemCode = secondLocation
+        ? "ITEM-2"
+        : args.start
+          ? "ITEM-1"
+          : "ITEM-0";
+      return route.fulfill({
+        json: {
+          message: {
+            rows: child
+              ? [
+                  {
+                    id: itemCode,
+                    row_grain: "detail",
+                    code: itemCode,
+                    item_code: itemCode,
+                    item_name: `供灯用品 ${itemCode}`,
+                    category: "供灯用品",
+                    stock_uom: "个",
+                    available: 7,
+                    loaned: 2,
+                    damaged: 1,
+                  },
+                ]
+              : ["ROOM-A", "ROOM-B"].map((room, index) => ({
+                  id: `location:${room}`,
+                  row_grain: "group",
+                  group_depth: 1,
+                  group_path: [`location:${room}`],
+                  group_label: index ? "西-库房" : "东-库房",
+                  group_field: "location",
+                  row_count: index ? 1 : 2,
+                  display_count: index ? 1 : 2,
+                  has_children: true,
+                  unit_totals: [
+                    {
+                      stock_uom: "个",
+                      available: index ? 7 : 14,
+                      loaned: index ? 2 : 4,
+                      damaged: 1,
+                      stock_qty: index ? 10 : 20,
+                    },
+                  ],
+                })),
+            matched_count: child ? (secondLocation ? 1 : 2) : 2,
+            next_start: child && !secondLocation && !args.start ? 1 : null,
+            parent_path: args.parent_path || [],
+            query: args.query,
+            row_grain: child ? "detail" : "group",
+            leaf_columns: [],
+          },
+        },
+      });
+    },
+  );
+  await page.goto(
+    "/inventory/stock?view=locations&query=%7B%22groupBy%22%3A%5B%22location%22%5D%7D",
+  );
+  await page.getByRole("button", { name: "卡片视图", exact: true }).click();
+  const heading = page.getByRole("button", { name: /东-库房/ });
+  await expect(heading).toContainText("2 项");
+  await expect(heading).toContainText("可用 14 个");
+  await heading.click();
+  await expect(page.locator(".stock-card")).toHaveCount(1);
+  await heading.click();
+  await expect(page.locator(".stock-card")).toHaveCount(0);
+  await heading.click();
+  await page
+    .getByRole("button", { name: /加载更多此分组/ })
+    .first()
+    .click();
+  await expect(page.locator(".stock-card")).toHaveCount(2);
+  await page.getByRole("button", { name: /西-库房/ }).click();
+  await expect(page.locator(".stock-card")).toHaveCount(3);
+  await page.screenshot({
+    path: `${groupedCardShots}/grouped-location-desktop.png`,
+  });
+  await page.getByRole("button", { name: "选择", exact: true }).click();
+  await page.locator(".browse-select-visible input").check();
+  await expect(
+    page.getByRole("region", { name: "已选物品操作" }),
+  ).toContainText("已选择 3 项");
+  await page.screenshot({
+    path: `${groupedCardShots}/grouped-location-select-desktop.png`,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({
+    path: `${groupedCardShots}/grouped-location-select-phone.png`,
+  });
 });
 
 test("stock card selection uses the whole card and select all covers loaded cards", async ({

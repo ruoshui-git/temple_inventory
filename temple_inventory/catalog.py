@@ -124,6 +124,159 @@ def item_detail(item_code):
 
 
 @frappe.whitelist()
+def item_serials(item_code, status="Active", search="", start=0, limit=50):
+	"""Page native Serial No rows visible in the caller's authorized warehouse leaves."""
+	from frappe.utils import cint
+
+	from temple_inventory.native_stock import _check_leaf, warehouse_scopes
+	from temple_inventory.native_topology import present_locations
+
+	require_app()
+	item = check_item(item_code)
+	if not item.has_serial_no:
+		frappe.throw("此物品未启用序列号管理")
+	settings, visible, physical, leased, damaged = warehouse_scopes()
+	leaves = set(physical) | set(leased) | set(damaged)
+	labels = {row["name"]: row["label"] for row in present_locations(visible, settings=settings)}
+	status = str(status or "Active").strip()
+	if status not in (
+		"Active",
+		"Loaned",
+		"Damaged",
+		"Inactive",
+		"Consumed",
+		"Delivered",
+		"Expired",
+		"all",
+	):
+		frappe.throw("请选择有效的序列号状态")
+	start = max(0, cint(start))
+	limit = min(100, max(1, cint(limit)))
+	filters = {"item_code": item.name}
+	if status in ("Inactive", "Consumed", "Delivered", "Expired"):
+		filters["status"] = (
+			["in", ["Inactive", "Consumed", "Delivered", "Expired"]] if status == "Inactive" else status
+		)
+	elif status in ("Active", "Loaned", "Damaged"):
+		filters["status"] = "Active"
+	search = str(search or "").strip()
+	if search:
+		filters["name"] = ["like", f"%{search}%"]
+	serials = frappe.get_list(
+		"Serial No",
+		filters=filters,
+		fields=["name", "status", "warehouse"],
+		order_by="name asc",
+		limit_page_length=0,
+	)
+	rows = []
+	for serial in serials:
+		warehouse = serial.warehouse or ""
+		if serial.status == "Active" and not warehouse:
+			continue
+		if warehouse:
+			if warehouse not in visible or warehouse not in leaves:
+				continue
+			_check_leaf(warehouse, leaves, visible)
+		if status == "Loaned" and warehouse not in leased:
+			continue
+		if status == "Damaged" and warehouse not in damaged:
+			continue
+		if status in ("Active", "Loaned", "Damaged") and serial.status != "Active":
+			continue
+		status_label = (
+			"借出"
+			if serial.status == "Active" and warehouse in leased
+			else "损坏"
+			if serial.status == "Active" and warehouse in damaged
+			else "在库"
+			if serial.status == "Active"
+			else "已出库"
+		)
+		rows.append(
+			{
+				"serial": serial.name,
+				"status": status_label,
+				"location": labels.get(warehouse, "") if warehouse else "",
+				"last_movement": None,
+				"_warehouse": warehouse,
+			}
+		)
+	page = rows[start : start + limit]
+	serial_names = [row["serial"] for row in page]
+	entries = frappe.get_all(
+		"Serial and Batch Entry",
+		filters={"serial_no": ["in", serial_names or [""]]},
+		fields=["name", "serial_no", "parent"],
+		order_by="modified desc, name desc",
+		limit_page_length=0,
+	)
+	bundle_names = list(dict.fromkeys(row.parent for row in entries))
+	bundles = {
+		row.name: row
+		for row in frappe.get_all(
+			"Serial and Batch Bundle",
+			filters={"name": ["in", bundle_names or [""]]},
+			fields=["name", "voucher_type", "voucher_no"],
+			limit_page_length=0,
+		)
+	}
+	from temple_inventory.report_query import validate_query
+	from temple_inventory.report_sources import ReportContext
+
+	report_context = ReportContext(
+		validate_query({"dataset": "movements", "view": "lines"}),
+		load_item_attachments=False,
+		load_item_children=False,
+	)
+	for doctype in ("Stock Entry", "Stock Reconciliation"):
+		report_context.preload_parents(
+			doctype,
+			{
+				bundle.voucher_no
+				for bundle in bundles.values()
+				if bundle.voucher_type == doctype and bundle.voucher_no
+			},
+		)
+	last_by_serial = {}
+	for entry in entries:
+		bundle = bundles.get(entry.parent)
+		if bundle and entry.serial_no not in last_by_serial:
+			last_by_serial[entry.serial_no] = bundle
+	for row in page:
+		bundle = last_by_serial.get(row["serial"])
+		if bundle and bundle.voucher_type in ("Stock Entry", "Stock Reconciliation"):
+			movement = report_context._preloaded_parents.get((bundle.voucher_type, bundle.voucher_no))
+			if movement and movement.company == report_context.company:
+				try:
+					movement.check_permission("read")
+					allowed = True
+					for line in [*(movement.get("items") or []), *(movement.get("ti_count_review") or [])]:
+						if not report_context.item(line.item_code):
+							allowed = False
+							break
+						if any(
+							warehouse and warehouse not in report_context.warehouses
+							for warehouse in (
+								line.get("warehouse"),
+								line.get("s_warehouse"),
+								line.get("t_warehouse"),
+							)
+						):
+							allowed = False
+							break
+					if allowed:
+						row["last_movement"] = {
+							"doctype": bundle.voucher_type,
+							"name": bundle.voucher_no,
+						}
+				except frappe.PermissionError:
+					pass
+		row.pop("_warehouse", None)
+	return {"rows": page, "next": start + limit if len(rows) > start + limit else None}
+
+
+@frappe.whitelist()
 def item_lifecycle(item_code):
 	require_app()
 	item = check_item(item_code)
@@ -1106,6 +1259,7 @@ def scan_code(value):
 		frappe.get_doc("Batch", batch.name).check_permission("read")
 		codes.add(batch.item)
 	serial = None
+	serial_location = None
 	if frappe.db.exists("Serial No", value):
 		serial_doc = frappe.get_doc("Serial No", value)
 		serial_doc.check_permission("read")
@@ -1117,6 +1271,15 @@ def scan_code(value):
 			if serial_doc.warehouse not in visible:
 				frappe.throw("无权访问此库存位置", frappe.PermissionError)
 			_check_leaf(serial_doc.warehouse, physical | leased | damaged, visible)
+			from temple_inventory.native_topology import present_locations
+
+			settings = frappe.get_single("Temple Inventory Settings")
+			labels = {row["name"]: row["label"] for row in present_locations(visible, settings=settings)}
+			serial_location = {
+				"name": serial_doc.warehouse,
+				"label": labels.get(serial_doc.warehouse, serial_doc.warehouse),
+				"is_group": False,
+			}
 		codes.add(item.name)
 		serial = serial_doc.name
 	for code in codes:
@@ -1155,6 +1318,7 @@ def scan_code(value):
 		"matches": matches,
 		"batches": [batch.name for batch in batches] + ([serial] if serial else []),
 		"serial": serial,
+		"serial_location": serial_location,
 		"warehouse": warehouse,
 	}
 

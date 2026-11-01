@@ -365,6 +365,12 @@ export function operationItemColumnsFor(
           export: ["destination_warehouse"],
         },
         {
+          id: "serial_nos",
+          label: "序列号",
+          defaultVisible: false,
+          export: ["serial_nos"],
+        },
+        {
           id: "source_warehouse_path",
           label: "来源完整位置",
           defaultVisible: false,
@@ -511,6 +517,12 @@ export function operationItemColumnsFor(
           label: "去向位置",
           defaultVisible: true,
           export: ["destination_warehouse"],
+        },
+        {
+          id: "serial_nos",
+          label: "序列号",
+          defaultVisible: false,
+          export: ["serial_nos"],
         },
         {
           id: "source_warehouse_path",

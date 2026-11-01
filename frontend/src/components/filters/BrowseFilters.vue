@@ -43,9 +43,10 @@ const trackingLabel = computed(() => {
 	const labels: Record<string, string> = {
 		all: "全部物品",
 		batch: "按批次管理",
+		serial: "按序列号管理",
 		batch_only: "仅批次（不记录效期）",
 		expiry: "记录效期",
-		none: "不按批次管理",
+		none: "不追踪",
 	};
 	return labels[scope.value.tracking] || "全部物品";
 });
@@ -185,9 +186,10 @@ function selectedSummary(values: string[], options: HierarchyFilterNode[]) {
 				>
 					<option value="all">全部物品</option>
 					<option v-if="!expiryOnly" value="batch">按批次管理</option>
+					<option v-if="!expiryOnly" value="serial">按序列号管理</option>
 					<option value="expiry">记录效期</option>
 					<option v-if="expiryOnly" value="batch_only">仅批次（不记录效期）</option>
-					<option v-if="!expiryOnly" value="none">不按批次管理</option>
+					<option v-if="!expiryOnly" value="none">不追踪</option>
 				</select></label
 			>
 		</FilterDisclosure>

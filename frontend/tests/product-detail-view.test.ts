@@ -71,6 +71,20 @@ describe("ProductDetailView", () => {
       error: ref(""),
       tab: ref("overview"),
       batches: ref([]),
+      serialRows: ref([
+        {
+          serial: "SN-ITEM-01",
+          status: "在库",
+          location: "一层货架",
+          last_movement: { doctype: "Stock Entry", name: "STE-0001" },
+        },
+      ]),
+      serialStatus: ref("Active"),
+      serialSearch: ref(""),
+      serialError: ref(""),
+      serialNext: ref<number | null>(null),
+      serialLoading: ref(false),
+      loadSerials() {},
       files: {
         files: attachments,
         error: ref(""),
@@ -141,5 +155,11 @@ describe("ProductDetailView", () => {
         .findAll("summary")
         .some((summary) => summary.text().includes("计量单位与换算")),
     ).toBe(false);
+    controller.item.value.has_serial_no = true;
+    controller.tab.value = "serials";
+    await flushPromises();
+    expect(wrapper.text()).toContain("序列号");
+    expect(wrapper.text()).toContain("SN-ITEM-01");
+    expect(wrapper.text()).toContain("在库");
   });
 });

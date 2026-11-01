@@ -206,9 +206,9 @@ export function decodeReportQuery(
       query.scope.uncategorized = false;
     }
     if (
-      !(["all", "batch", "expiry", "none", "batch_only"] as string[]).includes(
-        query.scope.tracking,
-      )
+      !(
+        ["all", "batch", "expiry", "none", "batch_only", "serial"] as string[]
+      ).includes(query.scope.tracking)
     )
       throw new Error("物品追踪筛选无效");
     if (query.scope.tracking === "batch_only" && query.dataset !== "expiry")

@@ -197,4 +197,20 @@ describe("exportFields", () => {
     expect(contract.allowed_columns).toHaveProperty("inventory");
     expect(contract.allowed_columns).toHaveProperty("movements");
   });
+
+  it("exports 序列号 only when the optional report column is visible", () => {
+    const columns = reportExportColumns(
+      { id: "lines", label: "库存明细", columns: ["serial_nos"], rows: [] },
+      "movements",
+    );
+    expect(columns[0]).toMatchObject({
+      id: "serial_nos",
+      label: "序列号",
+      defaultVisible: false,
+    });
+    expect(exportFields(columns, ["serial_nos"], [])).toEqual([]);
+    expect(exportFields(columns, ["serial_nos"], ["serial_nos"])).toEqual([
+      "serial_nos",
+    ]);
+  });
 });

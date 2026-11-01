@@ -2,7 +2,7 @@
 import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
 import BrowseChip from "../../components/ui/BrowseChip.vue";
 import { useFilterRailPreference } from "../../composables/useFilterRailPreference";
-import Scanner from "../../components/Scanner.vue";
+import ScanPanel from "../scanner/ScanPanel.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import RelatedLoanPreview from "../loans/RelatedLoanPreview.vue";
 import { warehouseLabel } from "../../lib/warehouseLabel";
@@ -228,6 +228,9 @@ function beginSelectedReturn() {
 }
 const itemColumns = computed<DataColumn[]>(() =>
 	operationItemColumnsFor(props.family, query.value.view, wideScreen.value),
+);
+const serialForcedColumns = computed(() =>
+	!props.records && query.value.scope.tracking === "serial" ? ["serial_nos"] : [],
 );
 function historyRecord(row: Record<string, unknown>, item: OperationGroup): DataTableRecord {
 	const quantity = Number(row.quantity ?? row.stock_qty ?? row.borrowed ?? 0);
@@ -774,7 +777,13 @@ const operationPreferences = services
 		)
 	: undefined;
 const itemPreferences = services
-	? useColumnPreferences(`operations.${props.family}.items`, itemColumns, reference, services)
+	? useColumnPreferences(
+			`operations.${props.family}.items`,
+			itemColumns,
+			reference,
+			services,
+			serialForcedColumns,
+		)
 	: undefined;
 function visibleExportColumns(columns: DataColumn[], order: string[], visible: string[]) {
 	return visible.length
@@ -804,7 +813,7 @@ const itemExportVisible = computed(() =>
 	visibleExportColumns(
 		itemColumns.value,
 		itemExportOrder.value,
-		itemPreferences?.visible.value || [],
+		itemPreferences?.effectiveVisible.value || itemPreferences?.visible.value || [],
 	),
 );
 const operationExportColumns = computed(() =>
@@ -846,15 +855,42 @@ const {
 	reference,
 	false,
 );
-const scanOpen = ref(false);
 const filterSheetOpen = ref(false);
 const analysisOpen = ref(false);
 const itemGroupOverlay = ref<DataTableGroup>();
+const scan = ref<InstanceType<typeof ScanPanel>>();
 watch([() => props.active, isMobile], () => {
-	scanOpen.value = false;
+	scan.value?.finishScanning();
 	analysisOpen.value = false;
 	c.relatedLoans.close();
 });
+function acceptBrowseScan(
+	code: string,
+	batch?: string,
+	_context?: unknown,
+	serial?: string,
+	serialLocation?: { name: string; label: string; is_group: boolean },
+) {
+	if (!serial) {
+		search.value = batch || code;
+		scan.value?.finishScanning();
+		return;
+	}
+	scope.value = {
+		...scope.value,
+		item: code,
+		tracking: "serial",
+		warehouses: serialLocation ? [serialLocation.name] : [],
+		sources: [],
+		destinations: [],
+	};
+	search.value = serial;
+	scan.value?.finishScanning();
+}
+function acceptBrowseLocation(name: string) {
+	scope.value.warehouses = [name];
+	scan.value?.finishScanning();
+}
 const dimensions: Record<string, string> = {
 	category: "类别 / 单位",
 	location: "来源位置 / 单位",
@@ -1039,7 +1075,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 				:summary="family === 'movements' ? '货物流动' : '借用'"
 				:active="active"
 				:filter-count="extraChips.length + scopeChips.length"
-				@scan="scanOpen = true"
+				@scan="scan?.show()"
 				@filter-open="filterSheetOpen = $event"
 			>
 				<template #actions>
@@ -2477,14 +2513,13 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 			:disabled="result.stale"
 			@open-full="emit('openLoan', $event)"
 		/>
-		<Scanner
-			v-if="scanOpen"
-			presentation="modal"
-			@close="scanOpen = false"
-			@scan="
-				search = $event;
-				scanOpen = false;
-			"
+		<ScanPanel
+			ref="scan"
+			hide-trigger
+			auto-unique
+			auto-camera
+			@item="acceptBrowseScan"
+			@location="acceptBrowseLocation"
 		/>
 	</section>
 </template>

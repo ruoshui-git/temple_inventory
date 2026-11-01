@@ -72,6 +72,7 @@ class ReportContext:
 		self._permitted_item_attachments = defaultdict(list)
 		self._bundle_cache = {}
 		self._preloaded_bundles = {}
+		self._serial_by_bundle_entry = {}
 		self._preloaded_batches = {}
 		self.activity = lru_cache(maxsize=512)(self.activity)
 		self.parent = lru_cache(maxsize=4096)(self.parent)
@@ -258,7 +259,13 @@ class ReportContext:
 				doc = frappe.get_doc(payload)
 				for field in child_fields:
 					doc.__dict__[field] = [
-						_PreloadedRow({**child, "_parent_docstatus": row.docstatus})
+						_PreloadedRow(
+							{
+								**child,
+								"doctype": meta.get_field(field).options,
+								"_parent_docstatus": row.docstatus,
+							}
+						)
 						for child in children[field].get(row.name, [])
 					]
 				doc.__islocal = 0
@@ -429,6 +436,8 @@ class ReportContext:
 					limit_page_length=0,
 				):
 					entries[row.parent].append(_PreloadedRow(dict(row)))
+					if row.get("serial_no"):
+						self._serial_by_bundle_entry[row.name] = row.serial_no
 			for row in bundles:
 				payload = {**dict(row), "doctype": "Serial and Batch Bundle"}
 				doc = frappe.get_doc(payload)
@@ -454,6 +463,24 @@ class ReportContext:
 
 	def bundle(self, name):
 		return self._preloaded_bundles.get(name)
+
+	def bundle_serials(self, name, batch_no=None):
+		bundle = self.bundle(name)
+		if not bundle:
+			return ""
+		return "、".join(
+			sorted(
+				{
+					entry.serial_no
+					for entry in bundle.entries or []
+					if entry.get("serial_no")
+					and (batch_no is None or (entry.get("batch_no") or "") == batch_no)
+				}
+			)
+		)
+
+	def entry_serial(self, name):
+		return self._serial_by_bundle_entry.get(name, "")
 
 	def item_fields(self, item):
 		return self._item_fields(item.name)
@@ -514,11 +541,13 @@ class ReportContext:
 		tracking = self.scope.get("tracking", "all")
 		if tracking == "batch" and not item.has_batch_no:
 			return False
+		if tracking == "serial" and not item.has_serial_no:
+			return False
 		if tracking == "expiry" and not item.has_expiry_date:
 			return False
 		if tracking == "batch_only" and (not item.has_batch_no or item.has_expiry_date):
 			return False
-		if tracking == "none" and (item.has_batch_no or item.has_expiry_date):
+		if tracking == "none" and (item.has_batch_no or item.has_expiry_date or item.has_serial_no):
 			return False
 		status = query.get("itemStatus", "enabled")
 		if status == "enabled" and item.disabled:
@@ -542,9 +571,11 @@ class ReportContext:
 				return False
 		return True
 
-	def matches_search(self, values, *, related=False, item_code=None):
+	def matches_search(self, values, *, related=False, item_code=None, serial_values=()):
 		term = self.query["relatedSearch" if related else "search"].strip().casefold()
 		if not term or term in " ".join(str(value or "") for value in values).casefold():
+			return True
+		if term in {str(value or "").casefold() for value in serial_values}:
 			return True
 		# A scanned or typed barcode finds its Item on every item-based page.
 		return bool(item_code) and item_code in self.barcode_matches(related)
@@ -621,7 +652,11 @@ class ReportContext:
 			or any(location in self.damaged for location in locations)
 		):
 			return False
-		return not apply_search or self.matches_search(row.values(), item_code=row.get("item_code"))
+		return not apply_search or self.matches_search(
+			(value for key, value in row.items() if key != "serial_nos"),
+			item_code=row.get("item_code"),
+			serial_values=(row.get("serial_nos") or "").split("、"),
+		)
 
 
 def stock_pairs(context, item_codes=None):
@@ -653,6 +688,29 @@ def stock_rows(context, *, item_codes=None):
 	context.preload_items(codes)
 	if context.load_item_attachments:
 		context.preload_item_attachments(codes)
+	serials_by_location = defaultdict(list)
+	authorized_leaves = (
+		set(getattr(context, "physical", ()))
+		| set(getattr(context, "leased", ()))
+		| set(getattr(context, "damaged", ()))
+	)
+	if not authorized_leaves:
+		authorized_leaves = set(context.selected)
+	serial_warehouses = sorted(context.selected & authorized_leaves)
+	serial_filters = {
+		"status": "Active",
+		"warehouse": ["in", serial_warehouses or [""]],
+	}
+	if codes:
+		serial_filters["item_code"] = ["in", sorted(codes)]
+	for serial in frappe.get_list(
+		"Serial No",
+		filters=serial_filters,
+		fields=["name", "item_code", "warehouse"],
+		order_by="item_code asc, warehouse asc, name asc",
+		limit_page_length=0,
+	):
+		serials_by_location[(serial.item_code, serial.warehouse)].append(serial.name)
 	rows_by_item = defaultdict(list)
 	for code, warehouse, bin_quantity in pairs:
 		if not context.matches_item(code, warehouse):
@@ -711,8 +769,17 @@ def stock_rows(context, *, item_codes=None):
 				batch = context.batch(batch_name)
 			expiry = str(batch.expiry_date or "") if batch else ""
 			if not context.matches_search(
-				[code, item.item_name, item.description, item.item_group, warehouse, batch_name, expiry],
+				[
+					code,
+					item.item_name,
+					item.description,
+					item.item_group,
+					warehouse,
+					batch_name,
+					expiry,
+				],
 				item_code=code,
+				serial_values=serials_by_location[(code, warehouse)],
 			):
 				continue
 			if query["dataset"] == "expiry":
@@ -750,6 +817,9 @@ def stock_rows(context, *, item_codes=None):
 					"warehouse_label": context.label(warehouse),
 					**context.location_fields(warehouse),
 					"batch_no": batch_name or "",
+					"serial_nos": "、".join(serials_by_location[(code, warehouse)])
+					if getattr(item, "has_serial_no", False)
+					else "",
 					"manufacturing_date": str(batch.manufacturing_date or "") if batch else "",
 					"expiry_date": expiry,
 					"remaining_days": (getdate(expiry) - getdate(nowdate())).days if expiry else None,
@@ -1144,6 +1214,7 @@ def movement_rows(
 						**context.location_fields(line.get("t_warehouse") or "", "destination_"),
 						**context.location_fields(line.get("warehouse") or ""),
 						"batch_no": batch,
+						"serial_nos": context.entry_serial(bundle_line),
 						"entered_qty": float(line.qty or 0),
 						"entered_uom": line.get("uom") or item.stock_uom,
 						"entered_uom_label": uom_label(line.get("uom") or item.stock_uom),
@@ -1234,6 +1305,7 @@ def loan_rows(context, item_codes=None, activity_names=None):
 				continue
 			for batch, batch_quantity in batch_quantities(line).items():
 				outcomes = balances[(line.name, batch)]
+				serial_nos = context.bundle_serials(line.get("serial_and_batch_bundle"), batch)
 				borrowed = float(batch_quantity)
 				outstanding = borrowed - float(sum(outcomes.values())) if loan.docstatus == 1 else 0
 				if query["loanStatus"] == "outstanding" and outstanding <= 0:
@@ -1252,6 +1324,7 @@ def loan_rows(context, item_codes=None, activity_names=None):
 					**context.location_fields(line.s_warehouse or "", "source_"),
 					**context.location_fields(line.t_warehouse or "", "destination_"),
 					"batch_no": batch,
+					"serial_nos": serial_nos,
 					"entered_qty": borrowed / float(line.conversion_factor),
 					"native_line_entered_qty": float(line.qty),
 					"entered_uom": line.uom,
@@ -1422,10 +1495,48 @@ def linked_settlement_rows(context):
 
 def count_rows(context):
 	query = context.query
-	for value in paged(
-		"Stock Reconciliation", filters={"company": context.company, "docstatus": ["in", query["statuses"]]}
-	):
-		doc = context.parent("Stock Reconciliation", value.name)
+	values = list(
+		paged(
+			"Stock Reconciliation",
+			filters={"company": context.company, "docstatus": ["in", query["statuses"]]},
+		)
+	)
+	context.preload_parents("Stock Reconciliation", [value.name for value in values])
+	documents = [context.parent("Stock Reconciliation", value.name) for value in values]
+	lines = [
+		line
+		for doc in documents
+		if doc
+		for field in ("items", "ti_count_review")
+		for line in doc.get(field) or []
+	]
+	cancelled_names = [doc.name for doc in documents if doc and doc.docstatus == 2]
+	if cancelled_names:
+		cancelled_bundles = frappe.get_all(
+			"Serial and Batch Bundle",
+			filters={"voucher_type": "Stock Reconciliation", "voucher_no": ["in", cancelled_names]},
+			fields=["name", "voucher_no", "voucher_detail_no", "type_of_transaction"],
+			limit_page_length=0,
+		)
+		bundle_by_line = defaultdict(list)
+		for bundle in cancelled_bundles:
+			bundle_by_line[(bundle.voucher_no, bundle.voucher_detail_no, bundle.type_of_transaction)].append(
+				bundle.name
+			)
+		for doc in documents:
+			if not doc or doc.docstatus != 2:
+				continue
+			for line in doc.get("items") or []:
+				actual_bundles = bundle_by_line[(doc.name, line.name, "Inward")]
+				current_bundles = bundle_by_line[(doc.name, line.name, "Outward")]
+				line["serial_and_batch_bundle"] = line.get("serial_and_batch_bundle") or (
+					actual_bundles[0] if len(actual_bundles) == 1 else None
+				)
+				line["current_serial_and_batch_bundle"] = line.get("current_serial_and_batch_bundle") or (
+					current_bundles[0] if len(current_bundles) == 1 else None
+				)
+	context.preload_bundles(lines)
+	for doc in documents:
 		if (
 			not doc
 			or doc.purpose not in ("Stock Reconciliation", "Opening Stock")
@@ -1453,16 +1564,37 @@ def count_rows(context):
 				"reason": line.get("reason") or "",
 			}
 			if custom:
-				baseline = float(line.baseline_qty or 0)
-				actual = float(line.actual_qty or 0) if state != "Unreviewed" else None
-				allocations = [
-					{
-						"batch_no": line.batch_no or "",
-						"baseline_qty": baseline,
-						"actual_qty": actual,
-						"difference": actual - baseline if actual is not None else None,
-					}
-				]
+				native_line = next((native for native in doc.items if native.name == line.name), None)
+				if not native_line:
+					native_line = next(
+						(
+							native
+							for native in doc.items
+							if native.item_code == line.item_code
+							and native.warehouse == line.warehouse
+							and (native.batch_no or "") == (line.batch_no or "")
+						),
+						None,
+					)
+				# Only the line's own native row: another location's row would misstate this one.
+				if native_line:
+					allocations = reconciliation_allocations(
+						native_line,
+						batch_checker=context.batch,
+						bundle_cache=context._bundle_cache,
+						bundle_loader=context.bundle,
+					)
+				else:
+					baseline = float(line.baseline_qty or 0)
+					actual = float(line.actual_qty or 0) if state != "Unreviewed" else None
+					allocations = [
+						{
+							"batch_no": line.batch_no or "",
+							"baseline_qty": baseline,
+							"actual_qty": actual,
+							"difference": actual - baseline if actual is not None else None,
+						}
+					]
 			else:
 				allocations = reconciliation_allocations(
 					line,
@@ -1477,7 +1609,26 @@ def count_rows(context):
 						"baseline_qty": 0.0,
 						"difference": float(allocation["actual_qty"] or 0),
 					}
-				row = {**base, **allocation, "stock_qty": allocation["difference"] or 0}
+				row = {
+					**base,
+					**allocation,
+					"stock_qty": allocation["difference"] or 0,
+					"serial_nos": "、".join(
+						sorted(
+							{
+								serial
+								for bundle_name in (
+									line.get("serial_and_batch_bundle"),
+									line.get("current_serial_and_batch_bundle"),
+								)
+								for serial in context.bundle_serials(
+									bundle_name, allocation.get("batch_no") or ""
+								).split("、")
+								if serial
+							}
+						)
+					),
+				}
 				if allocation["batch_no"]:
 					row["id"] += ":" + allocation["batch_no"]
 				if review_filter == "difference" and not allocation["difference"]:
@@ -1537,30 +1688,34 @@ def historical_rows(context):
 		running_quantity = opening
 		with tempfile.SpooledTemporaryFile(max_size=1024 * 1024, mode="w+", encoding="utf-8") as entries:
 			authorized = True
-			for ledger in paged(
-				"Stock Ledger Entry",
-				filters={
-					**filters,
-					"item_code": code,
-					"warehouse": warehouse,
-					"posting_date": ["between", [start, end]],
-				},
-				fields=[
-					"name",
-					"voucher_type",
-					"voucher_no",
-					"voucher_detail_no",
-					"posting_date",
-					"posting_time",
-					"posting_datetime",
-					"actual_qty",
-					"qty_after_transaction",
-					"batch_no",
-					"serial_and_batch_bundle",
-					"creation",
-				],
-				order_by="posting_datetime asc, creation asc, name asc",
-			):
+			ledger_rows = list(
+				paged(
+					"Stock Ledger Entry",
+					filters={
+						**filters,
+						"item_code": code,
+						"warehouse": warehouse,
+						"posting_date": ["between", [start, end]],
+					},
+					fields=[
+						"name",
+						"voucher_type",
+						"voucher_no",
+						"voucher_detail_no",
+						"posting_date",
+						"posting_time",
+						"posting_datetime",
+						"actual_qty",
+						"qty_after_transaction",
+						"batch_no",
+						"serial_and_batch_bundle",
+						"creation",
+					],
+					order_by="posting_datetime asc, creation asc, name asc",
+				)
+			)
+			context.preload_bundles(ledger_rows)
+			for ledger in ledger_rows:
 				parent = context.parent(ledger.voucher_type, ledger.voucher_no)
 				if not parent:
 					# A hidden voucher cannot be exposed through its quantities/identities.
@@ -1599,6 +1754,9 @@ def historical_rows(context):
 							if parent.doctype in ("Stock Entry", "Stock Reconciliation")
 							else parent.doctype,
 							"batch_no": ledger.batch_no or "",
+							"serial_nos": context.bundle_serials(
+								ledger.serial_and_batch_bundle, ledger.batch_no or ""
+							),
 							"serial_and_batch_bundle": ledger.serial_and_batch_bundle or "",
 							"stock_qty": quantity,
 							"adjustment": quantity if is_adjustment else 0,

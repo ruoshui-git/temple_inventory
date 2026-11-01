@@ -76,6 +76,13 @@ export const productBatchColumns: DataColumn[] = [
 
 export const productLocationColumns: DataColumn[] = [
   {
+    id: "serial_nos",
+    label: "序列号",
+    defaultVisible: false,
+    sortable: true,
+    export: ["serial_nos"],
+  },
+  {
     id: "location",
     label: "库位",
     required: true,
@@ -113,5 +120,30 @@ export const productLocationColumns: DataColumn[] = [
     defaultVisible: false,
     sortable: true,
     export: ["stock_uom"],
+  },
+];
+
+export const productSerialColumns: DataColumn[] = [
+  {
+    id: "serial",
+    label: "序列号",
+    required: true,
+    defaultVisible: true,
+    sortable: true,
+    export: ["serial"],
+  },
+  {
+    id: "status",
+    label: "状态",
+    defaultVisible: true,
+    sortable: true,
+    export: ["status"],
+  },
+  { id: "location", label: "位置", defaultVisible: true, export: ["location"] },
+  {
+    id: "last_movement",
+    label: "最近流动",
+    defaultVisible: true,
+    export: ["last_movement"],
   },
 ];

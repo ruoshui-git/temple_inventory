@@ -30,9 +30,20 @@ export function useProductDetail(props: { code: string; tab?: string }) {
     loading = ref(false),
     error = ref(""),
     lifecycleBusy = ref(false),
-    tab = ref(props.tab === "batches" ? "batches" : "overview"),
+    tab = ref(
+      ["batches", "serials"].includes(props.tab || "")
+        ? props.tab!
+        : "overview",
+    ),
+    serialRows = ref<Array<Record<string, unknown>>>([]),
+    serialStatus = ref("Active"),
+    serialSearch = ref(""),
+    serialNext = ref<number | null>(null),
+    serialLoading = ref(false),
+    serialError = ref(""),
     conversionDirty = ref(false);
   let generation = 0,
+    serialGeneration = 0,
     disposed = false,
     request: AbortController | undefined;
   const active = () => !disposed && reference.user === account;
@@ -59,6 +70,35 @@ export function useProductDetail(props: { code: string; tab?: string }) {
   const stockItem = computed(() =>
     item.value ? presentCatalogItem(item.value) : undefined,
   );
+  async function loadSerials(reset = true) {
+    if (!item.value?.has_serial_no) return;
+    const current = ++serialGeneration;
+    serialLoading.value = true;
+    serialError.value = "";
+    try {
+      const result = await services.call<{
+        rows: Array<Record<string, unknown>>;
+        next: number | null;
+      }>("catalog.item_serials", {
+        item_code: props.code,
+        status: serialStatus.value,
+        search: serialSearch.value,
+        start: reset ? 0 : serialNext.value || 0,
+        limit: 50,
+      });
+      if (current !== serialGeneration || !active()) return;
+      serialRows.value = reset
+        ? result.rows
+        : [...serialRows.value, ...result.rows];
+      serialNext.value = result.next;
+    } catch (reason) {
+      if (current === serialGeneration)
+        serialError.value =
+          reason instanceof Error ? reason.message : "序列号读取失败";
+    } finally {
+      if (current === serialGeneration) serialLoading.value = false;
+    }
+  }
   const batches = computed(
     () =>
       stockItem.value?.locations.flatMap((place) =>
@@ -115,6 +155,9 @@ export function useProductDetail(props: { code: string; tab?: string }) {
   );
   async function load() {
     const current = ++generation;
+    serialGeneration++;
+    serialRows.value = [];
+    serialNext.value = null;
     request?.abort();
     request = new AbortController();
     loading.value = true;
@@ -143,6 +186,8 @@ export function useProductDetail(props: { code: string; tab?: string }) {
       const result = { ...loaded, ...lifecycle };
       if (!active() || current !== generation) return;
       item.value = result;
+      if (tab.value === "serials" && result.has_serial_no)
+        void loadSerials(true);
       files.load(
         attachmentFiles.length ? attachmentFiles : result.attachments || [],
         result.image,
@@ -198,7 +243,9 @@ export function useProductDetail(props: { code: string; tab?: string }) {
   watch(
     () => props.code,
     () => {
-      tab.value = props.tab === "batches" ? "batches" : "overview";
+      tab.value = ["batches", "serials"].includes(props.tab || "")
+        ? props.tab!
+        : "overview";
       void load();
     },
     { immediate: true },
@@ -206,9 +253,14 @@ export function useProductDetail(props: { code: string; tab?: string }) {
   watch(
     () => props.tab,
     (value) => {
-      tab.value = value === "batches" ? "batches" : "overview";
+      tab.value = ["batches", "serials"].includes(value || "")
+        ? value!
+        : "overview";
     },
   );
+  watch([tab, serialStatus, serialSearch], () => {
+    if (tab.value === "serials") void loadSerials(true);
+  });
   onBeforeUnmount(() => {
     stopCategoryRename();
     disposed = true;
@@ -222,6 +274,13 @@ export function useProductDetail(props: { code: string; tab?: string }) {
     error,
     tab,
     batches,
+    serialRows,
+    serialStatus,
+    serialSearch,
+    serialNext,
+    serialLoading,
+    serialError,
+    loadSerials,
     files,
     exportQuery,
     movementQuery,

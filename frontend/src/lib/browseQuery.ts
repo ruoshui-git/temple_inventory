@@ -33,7 +33,7 @@ export interface BrowseScope {
   sources: string[];
   destinations: string[];
   kinds: string[];
-  tracking: "all" | "batch" | "expiry" | "none" | "batch_only";
+  tracking: "all" | "batch" | "expiry" | "none" | "batch_only" | "serial";
 }
 export const emptyScope = (): BrowseScope => ({
   period: { key: "all", from: "", to: "" },

@@ -35,6 +35,69 @@ const columns: DataColumn[] = [
 ];
 
 describe("table column contracts", () => {
+  it("forces columns onscreen without changing the saved visibility choice", async () => {
+    const reference = createReferenceData();
+    Object.assign(reference, {
+      site: "forced-columns.local",
+      user: "table-user",
+    });
+    const forcedVisible = ref<string[]>([]);
+    const serialColumns: DataColumn[] = [
+      { id: "item", label: "物品", required: true },
+      { id: "serial_nos", label: "序列号", defaultVisible: false },
+    ];
+    const call = vi.fn(async (method: string) =>
+      method.endsWith("get_column_preferences") ? undefined : null,
+    );
+    let preferences!: ReturnType<typeof useColumnPreferences>;
+    const root = defineComponent({
+      setup() {
+        const services = { call, report: vi.fn(), upload: vi.fn() };
+        provideInventoryServices(services, reference);
+        preferences = useColumnPreferences(
+          "reports.serial-forced",
+          ref(serialColumns),
+          reference,
+          services,
+          forcedVisible,
+        );
+        return () =>
+          h(DataTable, {
+            ariaLabel: "序列号表格",
+            columns: serialColumns,
+            rows: [
+              {
+                kind: "record",
+                id: "serial-row",
+                value: { item: "照明设备", serial_nos: "SN-001" },
+              },
+            ],
+            columnPreferences: preferences,
+          });
+      },
+    });
+    const wrapper = mount(root);
+    wrappers.push(wrapper);
+    await flushPromises();
+    expect(wrapper.text()).not.toContain("序列号");
+    expect(preferences.visible.value).not.toContain("serial_nos");
+
+    forcedVisible.value = ["serial_nos"];
+    await nextTick();
+    expect(wrapper.text()).toContain("序列号");
+    expect(wrapper.text()).toContain("SN-001");
+    expect(preferences.visible.value).not.toContain("serial_nos");
+    expect(
+      call.mock.calls.filter(([method]) =>
+        method.endsWith("save_column_preferences"),
+      ),
+    ).toHaveLength(0);
+
+    forcedVisible.value = [];
+    await nextTick();
+    expect(wrapper.text()).not.toContain("SN-001");
+  });
+
   it("titles chip cells only with plain text, never [object Object]", async () => {
     vi.stubGlobal(
       "matchMedia",

@@ -8,6 +8,8 @@ export interface ScanResult {
   matches: CatalogItem[];
   batches: string[];
   warehouse?: { name: string; label: string; is_group: boolean };
+  serial?: string | null;
+  serial_location?: { name: string; label: string; is_group: boolean } | null;
   scanContext?: unknown;
 }
 
@@ -16,6 +18,8 @@ type ScanAcknowledger = (
   code: string,
   batch?: string,
   context?: unknown,
+  serial?: string,
+  serialLocation?: ScanResult["serial_location"],
 ) => void | Promise<void>;
 type LocationAcknowledger = (
   name: string,
@@ -54,6 +58,7 @@ export function useScanController(
   }
   function canResolveAutomatically(data: ScanResult) {
     if (!props.autoUnique) return false;
+    if (data.serial) return data.matches.length === 1;
     if (data.matches.length === 1 && !data.warehouse) return true;
     return (
       !data.matches.length &&
@@ -68,8 +73,11 @@ export function useScanController(
     batch: string | undefined,
     context: unknown,
     ownGeneration: number,
+    serial?: string,
+    serialLocation?: ScanResult["serial_location"],
   ) {
-    await item(code, batch, context);
+    if (serial) await item(code, undefined, context, serial, serialLocation);
+    else await item(code, batch, context);
     return !disposed && ownGeneration === generation;
   }
   async function acknowledgeLocation(
@@ -125,9 +133,15 @@ export function useScanController(
               const matched = data.matches[0]!;
               await acknowledgeItem(
                 matched.item_code,
-                data.batches.length === 1 ? data.batches[0] : undefined,
+                data.serial
+                  ? undefined
+                  : data.batches.length === 1
+                    ? data.batches[0]
+                    : undefined,
                 current.context,
                 ownGeneration,
+                data.serial || undefined,
+                data.serial_location || undefined,
               );
             } else if (data.warehouse) {
               await acknowledgeLocation(
@@ -184,14 +198,23 @@ export function useScanController(
       if (!currentResult.matches.some((match) => match.item_code === code))
         return;
       try {
-        await item(
-          code,
-          batch ||
-            (currentResult.batches.length === 1
-              ? currentResult.batches[0]
-              : undefined),
-          current.context,
-        );
+        if (currentResult.serial)
+          await item(
+            code,
+            undefined,
+            current.context,
+            currentResult.serial,
+            currentResult.serial_location || undefined,
+          );
+        else
+          await item(
+            code,
+            batch ||
+              (currentResult.batches.length === 1
+                ? currentResult.batches[0]
+                : undefined),
+            current.context,
+          );
       } catch (reason) {
         if (disposed || result.value !== currentResult || queue[0] !== current)
           return;

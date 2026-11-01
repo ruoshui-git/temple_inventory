@@ -33,6 +33,7 @@ const props = withDefaults(
 		table: ReportTableData;
 		hiddenColumns?: string[];
 		preferenceId?: string;
+		forcedVisible?: string[];
 		limit?: number;
 		total?: number;
 		loading?: boolean;
@@ -165,10 +166,11 @@ const columnPreferences =
 				columns,
 				reference,
 				services,
+				computed(() => props.forcedVisible || []),
 			)
 		: undefined;
 function columnIsVisible(id: string) {
-	if (columnPreferences) return columnPreferences.visible.value.includes(id);
+	if (columnPreferences) return columnPreferences.effectiveVisible.value.includes(id);
 	return columns.value.some((column) => String(column.id) === id && column.defaultVisible);
 }
 function unitForQuantity(column: string, row: Record<string, unknown>) {

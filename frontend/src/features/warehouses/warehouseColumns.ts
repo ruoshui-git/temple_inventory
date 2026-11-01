@@ -19,6 +19,12 @@ export const warehouseColumnDefinitions: DataColumn[] = [
   },
   { id: "batch_no", label: "批次编号", sortable: true, export: ["batch_no"] },
   {
+    id: "serial_nos",
+    label: "序列号",
+    defaultVisible: false,
+    export: ["serial_nos"],
+  },
+  {
     id: "stock_qty",
     quantity: true,
     label: "合计",

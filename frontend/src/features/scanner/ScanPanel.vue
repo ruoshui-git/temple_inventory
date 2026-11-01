@@ -13,15 +13,28 @@ const props = defineProps<{
 	allowCreate?: boolean;
 	paused?: boolean;
 	hideTrigger?: boolean;
+	autoCamera?: boolean;
 	autoUnique?: boolean;
 	inline?: boolean;
 	hideFinishAction?: boolean;
 	captureContext?: () => unknown;
-	acceptItem?: (code: string, batch?: string, context?: unknown) => void | Promise<void>;
+	acceptItem?: (
+		code: string,
+		batch?: string,
+		context?: unknown,
+		serial?: string,
+		serialLocation?: { name: string; label: string; is_group: boolean },
+	) => void | Promise<void>;
 	acceptLocation?: (name: string, context?: unknown) => void | Promise<void>;
 }>();
 const emit = defineEmits<{
-	item: [code: string, batch?: string, context?: unknown];
+	item: [
+		code: string,
+		batch?: string,
+		context?: unknown,
+		serial?: string,
+		serialLocation?: { name: string; label: string; is_group: boolean },
+	];
 	location: [name: string, context?: unknown];
 	create: [barcode: string, context?: unknown];
 	close: [];
@@ -49,10 +62,16 @@ const {
 	resume,
 } = useScanController(
 	props,
-	(code, batch, context) =>
-		props.acceptItem
-			? props.acceptItem(code, batch, context)
-			: emit("item", code, batch, context),
+	(code, batch, context, serial, serialLocation) => {
+		if (props.acceptItem) {
+			return serial
+				? props.acceptItem(code, batch, context, serial, serialLocation || undefined)
+				: props.acceptItem(code, batch, context);
+		}
+		return serial
+			? emit("item", code, batch, context, serial, serialLocation || undefined)
+			: emit("item", code, batch, context);
+	},
 	(name, context) =>
 		props.acceptLocation
 			? props.acceptLocation(name, context)
@@ -240,10 +259,12 @@ watch(
 	},
 );
 onDeactivated(closeScan);
+function show() {
+	open.value = true;
+	if (props.autoCamera) camera.value = true;
+}
 defineExpose({
-	show: () => {
-		open.value = true;
-	},
+	show,
 	resumeAfterCreate,
 	finishScanning,
 	pendingCount,
@@ -251,9 +272,7 @@ defineExpose({
 </script>
 
 <template>
-	<UiButton v-if="!hideTrigger" icon="scan" @click="open = true">
-		扫描物品 / 批次 / 库位
-	</UiButton>
+	<UiButton v-if="!hideTrigger" icon="scan" @click="show"> 扫描物品 / 批次 / 库位 </UiButton>
 	<component
 		:is="inline ? 'section' : Overlay"
 		v-if="open"

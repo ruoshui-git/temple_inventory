@@ -24,7 +24,12 @@ import PopupMenu from "../../components/ui/PopupMenu.vue";
 import { useConfirm } from "../../services/confirm";
 import { showToast } from "../../services/toast";
 import UnitText from "../../components/ui/UnitText.vue";
-import { productBatchColumns, productLocationColumns } from "./itemDetailColumns";
+import {
+	productBatchColumns,
+	productLocationColumns,
+	productSerialColumns,
+} from "./itemDetailColumns";
+import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import { exportFields } from "../../lib/exportColumns";
 const props = withDefaults(defineProps<{ controller: ProductDetail; active?: boolean }>(), {
 	active: true,
@@ -40,7 +45,18 @@ const emit = defineEmits<{
 	openBatch: [name: string];
 	deleted: [];
 }>();
+function serialMovementName(value: unknown) {
+	return value && typeof value === "object" && "name" in value
+		? String((value as { name: unknown }).name)
+		: "";
+}
+function openSerialMovement(value: unknown) {
+	if (!value || typeof value !== "object" || !("doctype" in value) || !("name" in value)) return;
+	const movement = value as { doctype: string; name: string };
+	emit("openDocument", movement.doctype, movement.name);
+}
 const c = props.controller;
+const { isMobile } = useResponsiveLayout();
 const { confirm } = useConfirm();
 const { stockItem: item, loading, error, tab, batches, files } = c;
 const metrics = computed(() =>
@@ -120,6 +136,14 @@ async function removeItem() {
 }
 const batchColumns = computed<DataColumn[]>(() => productBatchColumns);
 const locationColumns = computed<DataColumn[]>(() => productLocationColumns);
+const serialColumns = computed<DataColumn[]>(() => productSerialColumns);
+const serialTableRows = computed<DataTableRecord[]>(() =>
+	c.serialRows.value.map((serial) => ({
+		kind: "record",
+		id: String(serial.serial),
+		value: serial,
+	})),
+);
 const batchRows = computed<DataTableRecord[]>(() =>
 	batches.value.map((batch, index) => ({
 		kind: "record",
@@ -131,7 +155,16 @@ const locationRows = computed<DataTableRecord[]>(() =>
 	(item.value?.locations || []).map((place) => ({
 		kind: "record",
 		id: place.location,
-		value: { ...place, uom: item.value?.uom || "" } as unknown as Record<string, unknown>,
+		value: {
+			...place,
+			serial_nos: (c.item.value?.stock || [])
+				.filter((row) => row.warehouse === place.location)
+				.flatMap((row) => String(row.serial_nos || "").split("、"))
+				.filter(Boolean)
+				.sort()
+				.join("、"),
+			uom: item.value?.uom || "",
+		} as unknown as Record<string, unknown>,
 	})),
 );
 const batchSort = useArrayTableSort(batchRows, "batch_no", [
@@ -161,6 +194,7 @@ const locationPrefs =
 				locationColumns,
 				warehouseReference,
 				services,
+				computed(() => (c.item.value?.has_serial_no ? ["serial_nos"] : [])),
 			)
 		: undefined;
 const productExportColumns = computed(() => {
@@ -281,9 +315,71 @@ const productExportColumns = computed(() => {
 					:aria-current="tab === 'batches' ? 'page' : undefined"
 					@click="emit('tab', 'batches')"
 				>
-					批次信息
+					批次信息</button
+				><button
+					v-if="c.item.value?.has_serial_no"
+					:aria-current="tab === 'serials' ? 'page' : undefined"
+					@click="emit('tab', 'serials')"
+				>
+					序列号
 				</button>
 			</nav>
+			<section v-if="tab === 'serials'" class="browse-table-wrap" aria-label="物品序列号">
+				<div class="browse-card-heading">
+					<label class="form-field"
+						>搜索序列号<input v-model="c.serialSearch.value" type="search"
+					/></label>
+					<label class="form-field"
+						>状态<select v-model="c.serialStatus.value">
+							<option value="Active">在库 / 借出 / 损坏</option>
+							<option value="Loaned">借出</option>
+							<option value="Damaged">损坏</option>
+							<option value="Inactive">已出库</option>
+							<option value="all">全部状态</option>
+						</select></label
+					>
+				</div>
+				<p v-if="c.serialError.value" class="notice-bar danger" role="alert">
+					{{ c.serialError.value }}
+					<UiButton @click="c.loadSerials(true)">重试</UiButton>
+				</p>
+				<DataTable
+					v-if="!isMobile"
+					ariaLabel="物品序列号"
+					table-class="browse-table"
+					:columns="serialColumns"
+					:rows="serialTableRows"
+					:loading="c.serialLoading.value"
+					:initialized="true"
+					empty-text="没有符合条件的序列号。"
+				>
+					<template #cell="{ column, row }">
+						<UiButton
+							v-if="column.id === 'last_movement' && row.last_movement"
+							@click="openSerialMovement(row.last_movement)"
+							>{{ serialMovementName(row.last_movement) }}</UiButton
+						>
+						<template v-else>{{ row[column.id] || "—" }}</template>
+					</template>
+				</DataTable>
+				<ul v-else class="item-serial-rows">
+					<li v-for="serial in c.serialRows.value" :key="String(serial.serial)">
+						<strong>{{ serial.serial }}</strong
+						><span>{{ serial.status }} · {{ serial.location || "—" }}</span>
+						<UiButton
+							v-if="serial.last_movement"
+							@click="openSerialMovement(serial.last_movement)"
+							>最近流动：{{ serialMovementName(serial.last_movement) }}</UiButton
+						>
+					</li>
+				</ul>
+				<UiButton
+					v-if="c.serialNext.value !== null"
+					:disabled="c.serialLoading.value"
+					@click="c.loadSerials(false)"
+					>加载更多</UiButton
+				>
+			</section>
 			<div v-if="tab === 'batches'" class="browse-table-wrap">
 				<DataTable
 					ariaLabel="物品批次库存"
@@ -323,7 +419,7 @@ const productExportColumns = computed(() => {
 				</DataTable>
 				<p v-if="!batches.length" class="browse-note">当前没有可显示的批次库存。</p>
 			</div>
-			<div v-else class="browse-table-wrap">
+			<div v-else-if="tab === 'overview'" class="browse-table-wrap">
 				<DataTable
 					ariaLabel="物品库位余额"
 					table-class="browse-table"
