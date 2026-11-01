@@ -17,6 +17,7 @@ import {
 import type { NativeDocument } from "../src/features/documents/nativeEditor";
 import { useAttachments } from "../src/features/attachments/useAttachments";
 import AllocationSummary from "../src/features/documents/AllocationSummary.vue";
+import OperationLines from "../src/features/documents/OperationLines.vue";
 const wrappers: VueWrapper[] = [];
 function setDesktop(matches: boolean) {
   vi.stubGlobal(
@@ -187,6 +188,35 @@ describe("native movement editor integration", () => {
     expect(wrapper.text()).toContain("自动生成");
   });
 
+  it("shows serials in the allocation review with a compact +N disclosure", async () => {
+    const call = vi.fn(async (method: string) => {
+      if (method === "catalog.operation_items")
+        return { items: [item], errors: [] };
+      if (method === "native_files.attachments") return [];
+      throw new Error(`Unexpected ${method}`);
+    });
+    const { controller: c } = setup(
+      () => useOperationEditor({ kind: "Issue", initialItems: ["ITEM-A"] }),
+      call,
+      vi.fn(),
+      (controller) => h(AllocationSummary, { draft: controller.draft.value }),
+    );
+    await flushPromises();
+    c.draft.value.items[0]!.serials = [
+      "SER-1",
+      "SER-2",
+      "SER-3",
+      "SER-4",
+      "SER-5",
+    ];
+    await flushPromises();
+    const wrapper = wrappers.at(-1)!;
+    expect(wrapper.text()).toContain("SER-1 · SER-2 · SER-3 +2");
+    expect(wrapper.find("details").exists()).toBe(true);
+    await wrapper.get("summary").trigger("click");
+    expect(wrapper.text()).toContain("SER-1 · SER-2 · SER-3 · SER-4 · SER-5");
+  });
+
   it("keeps serial tracking and its series when the operation editor loads catalog Items", async () => {
     const call = vi.fn(async (method: string) => {
       if (method === "catalog.operation_items")
@@ -209,6 +239,112 @@ describe("native movement editor integration", () => {
       serialNoSeries: "MIC-.####",
     });
     expect(c.draft.value.items[0]?.displayTracksSerial).toBe(true);
+  });
+
+  it("prefills a serial Return with outstanding serials so removing a chip settles partially", async () => {
+    const base = service();
+    const call = vi.fn(async (method, args) => {
+      if (method === "native_api.loan_detail")
+        return {
+          name: args.name,
+          doctype: "Stock Entry",
+          kind: "Loan",
+          docstatus: 1,
+          ti_borrower: "借用方甲",
+          ti_activity: "ACT-A",
+          items: [
+            {
+              name: "SERIAL-LOAN-LINE",
+              item_code: "ITEM-A",
+              s_warehouse: "ROOM-A",
+              t_warehouse: "LEASED",
+              stock_uom: "Nos",
+              uom: "Nos",
+              conversion_factor: 1,
+              outstanding_serials: ["SERIAL-A", "SERIAL-B", "SERIAL-C"],
+              allocations: [{ batch_no: "", outstanding_qty: 3 }],
+            },
+          ],
+        };
+      if (method === "catalog.operation_items")
+        return {
+          items: [{ ...item, has_serial_no: true }],
+          errors: [],
+        };
+      return base(method, args);
+    });
+    const { controller: c } = setup(
+      () => useOperationEditor({ kind: "Return", originalLoan: "LOAN-SERIAL" }),
+      call,
+      vi.fn(),
+      (controller) => h(OperationLines, { draft: controller.draft.value }),
+    );
+    await flushPromises();
+    expect(c.draft.value.items[0]).toMatchObject({
+      serials: ["SERIAL-A", "SERIAL-B", "SERIAL-C"],
+      outstandingSerials: ["SERIAL-A", "SERIAL-B", "SERIAL-C"],
+      qty: 3,
+    });
+    const wrapper = wrappers.at(-1)!;
+    await wrapper.get('[aria-label="移除序列号 SERIAL-B"]').trigger("click");
+    expect(c.draft.value.items[0]!.qty).toBe(2);
+    const serialSearch = wrapper.get('input[aria-label*="未归还序列号"]');
+    await serialSearch.trigger("focus");
+    await flushPromises();
+    expect(
+      wrapper.findAll('button[role="option"]').map((button) => button.text()),
+    ).toEqual(["SERIAL-A", "SERIAL-B", "SERIAL-C"]);
+  });
+
+  it("prefills serials when a Return starts from selected loaned Items", async () => {
+    const base = service();
+    const call = vi.fn(async (method, args) => {
+      if (method === "temple_inventory.loans.outstanding_lines")
+        return [
+          {
+            loan: "LOAN-SELECTED-SERIAL",
+            original_loan_line: "SELECTED-SERIAL-LINE",
+            item_code: "ITEM-A",
+            batch_no: "",
+            qty: 2,
+          },
+        ];
+      if (method === "native_api.loan_detail")
+        return {
+          name: args.name,
+          doctype: "Stock Entry",
+          kind: "Loan",
+          docstatus: 1,
+          items: [
+            {
+              name: "SELECTED-SERIAL-LINE",
+              item_code: "ITEM-A",
+              s_warehouse: "ROOM-A",
+              t_warehouse: "LEASED",
+              stock_uom: "Nos",
+              uom: "Nos",
+              conversion_factor: 1,
+              outstanding_serials: ["SELECTED-A", "SELECTED-B"],
+              allocations: [{ batch_no: "", outstanding_qty: 2 }],
+            },
+          ],
+        };
+      if (method === "catalog.operation_items")
+        return { items: [{ ...item, has_serial_no: true }], errors: [] };
+      return base(method, args);
+    });
+    const { controller: c } = setup(
+      () => useOperationEditor({ kind: "Return", initialItems: ["ITEM-A"] }),
+      call,
+    );
+    await flushPromises();
+    expect(c.draft.value.items[0]).toMatchObject({
+      loanName: "LOAN-SELECTED-SERIAL",
+      originalLoanLine: "SELECTED-SERIAL-LINE",
+      serials: ["SELECTED-A", "SELECTED-B"],
+      outstandingSerials: ["SELECTED-A", "SELECTED-B"],
+      qty: 2,
+    });
   });
 
   it("opens review before background balance checks finish and reports their failure", async () => {

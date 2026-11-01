@@ -188,12 +188,29 @@ const reviewedRows = computed(() => rows.value.filter((row) => row.review_state 
 const unchangedReviewedCount = computed(
 	() =>
 		rows.value.filter(
-			(row) => row.review_state === "Reviewed" && row.actual_qty === row.baseline_qty,
+			(row) =>
+				row.review_state === "Reviewed" &&
+				(row.is_serial
+					? JSON.stringify(row.actual_serials || []) ===
+						JSON.stringify(row.baseline_serials || [])
+					: row.actual_qty === row.baseline_qty),
 		).length,
 );
 const readOnlyLines = computed<Record<string, unknown>[]>(() =>
 	values.value.items
-		.filter((row) => Number(row.qty || 0) !== Number(row.current_qty || 0))
+		.filter((row) => {
+			if (Number(row.qty || 0) !== Number(row.current_qty || 0)) return true;
+			const allocation = (
+				Array.isArray(row.recorded_count_serial_allocations)
+					? row.recorded_count_serial_allocations
+					: []
+			)[0] as { baseline_serials?: string[]; actual_serials?: string[] } | undefined;
+			return Boolean(
+				allocation &&
+				JSON.stringify(allocation.baseline_serials || []) !==
+					JSON.stringify(allocation.actual_serials || []),
+			);
+		})
 		.map((line): Record<string, unknown> => {
 			const reviewed = rows.value.find(
 				(row) =>
@@ -864,6 +881,7 @@ async function back() {
 							row.item_code
 						}}</strong>
 						<small>{{ row.item_code }}</small>
+						<NativeCountAllocations :row="row" />
 					</div>
 					<template v-else-if="column.id === 'warehouse'">{{
 						warehouseLabel(String(row.warehouse || ""), c.reference.warehouses)
@@ -875,24 +893,25 @@ async function back() {
 						row.current_qty ?? 0
 					}}</template>
 					<template v-else-if="column.id === 'qty'">{{ row.qty ?? 0 }}</template>
-					<span
-						v-else-if="column.id === 'difference'"
-						:class="[
-							'stock-effect',
-							Number(row.difference) > 0
-								? 'is-increase'
-								: Number(row.difference) < 0
-									? 'is-decrease'
-									: 'is-neutral',
-						]"
-						>{{
-							Number(row.difference) > 0
-								? "+"
-								: Number(row.difference) < 0
-									? "−"
-									: ""
-						}}{{ formatQuantity(Math.abs(Number(row.difference))) }}</span
-					>
+					<div v-else-if="column.id === 'difference'" class="count-readonly-difference">
+						<span
+							:class="[
+								'stock-effect',
+								Number(row.difference) > 0
+									? 'is-increase'
+									: Number(row.difference) < 0
+										? 'is-decrease'
+										: 'is-neutral',
+							]"
+							>{{
+								Number(row.difference) > 0
+									? "+"
+									: Number(row.difference) < 0
+										? "−"
+										: ""
+							}}{{ formatQuantity(Math.abs(Number(row.difference))) }}</span
+						>
+					</div>
 					<template v-else-if="column.id === 'reason'">{{
 						row.reason || row.ti_notes || "—"
 					}}</template>
@@ -999,6 +1018,11 @@ async function back() {
 }
 .count-readonly-unchanged {
 	margin: 12px 0 0;
+}
+.count-readonly-difference {
+	display: grid;
+	justify-items: start;
+	gap: 4px;
 }
 .count-readonly-item small {
 	display: block;

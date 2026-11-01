@@ -21,6 +21,11 @@ export interface LoanAllocation {
   outstanding_qty: number;
   outcomes: LoanOutcomes;
 }
+export interface LoanSerialOutcomes {
+  Returned: string[];
+  Damaged: string[];
+  Lost: string[];
+}
 export interface LoanLine extends Record<string, unknown> {
   name: string;
   item_code: string;
@@ -35,6 +40,9 @@ export interface LoanLine extends Record<string, unknown> {
   outstanding_qty: number;
   outcomes: LoanOutcomes;
   allocations: LoanAllocation[];
+  lent_serials: string[];
+  outstanding_serials: string[];
+  settled_serials: LoanSerialOutcomes;
 }
 export interface LoanDocument extends NativeDocument {
   items: LoanLine[];

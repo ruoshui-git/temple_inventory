@@ -642,6 +642,8 @@ export function useOperationEditor(props: {
         }
         for (const name of [...new Set(loanNames)]) await appendLoan(name);
       }
+      if (draft.value.items.some((line) => line.loanName))
+        await refreshLoanBalances();
     } catch (reason) {
       state.error =
         reason instanceof Error ? reason.message : "操作资料读取失败";
@@ -763,10 +765,15 @@ export function useOperationEditor(props: {
     const additions = [];
     for (const row of loan.items) {
       const item = await ensure(String(row.item_code));
+      const serialTracked = Boolean(
+        (item as StockItem & { tracksSerial?: boolean }).tracksSerial,
+      );
       const allocations = row.allocations as {
         batch_no: string;
         outstanding_qty: number;
       }[];
+      const outstandingSerials =
+        (row.outstanding_serials as string[] | undefined) || [];
       for (const allocation of allocations || []) {
         const selectedAllocation = selectedAllocations?.find(
           (entry) =>
@@ -784,9 +791,14 @@ export function useOperationEditor(props: {
           )
         )
           continue;
-        const id = crypto.randomUUID(),
-          factor = Number(row.conversion_factor),
-          qty = selectedAllocation?.qty ?? allocation.outstanding_qty;
+        const id = crypto.randomUUID();
+        const factor = Number(row.conversion_factor);
+        let qty = selectedAllocation?.qty ?? allocation.outstanding_qty;
+        const serials = serialTracked
+          ? outstandingSerials.slice(0, Math.max(0, Math.floor(qty)))
+          : undefined;
+        if (serialTracked) qty = serials?.length || 0;
+        if (qty <= 0) continue;
         additions.push({
           id,
           localId: id,
@@ -808,6 +820,9 @@ export function useOperationEditor(props: {
           loanActivityTitle: String(loan.activity_title || ""),
           originalLoanLine: String(row.name),
           batch: allocation.batch_no,
+          ...(serialTracked
+            ? { serials, outstandingSerials: [...outstandingSerials] }
+            : {}),
           returnOutcome:
             draft.value.kind === "Loss"
               ? ("lost" as const)
@@ -857,6 +872,8 @@ export function useOperationEditor(props: {
           line.outstanding =
             Number(allocation?.outstanding_qty || 0) +
             (state.server?.docstatus === 1 ? saved : 0);
+          line.outstandingSerials =
+            (row?.outstanding_serials as string[] | undefined) || [];
         }
       }),
     );

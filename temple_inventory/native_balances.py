@@ -211,6 +211,103 @@ def batch_balances(item_code, warehouse, timestamp, *, lock=False, include_zero=
 	]
 
 
+def serial_balances(item_code, warehouse, timestamp, *, lock=False, include_zero=False):
+	"""Resolve serial ownership at a posting boundary from signed native bundle entries."""
+	from frappe.query_builder.functions import Sum
+
+	ledger = frappe.qb.DocType("Stock Ledger Entry")
+	entry = frappe.qb.DocType("Serial and Batch Entry")
+	query = (
+		frappe.qb.from_(ledger)
+		.join(entry)
+		.on(ledger.serial_and_batch_bundle == entry.parent)
+		.select(entry.serial_no, Sum(entry.qty).as_("qty"))
+		.where(
+			(ledger.item_code == item_code)
+			& (ledger.warehouse == warehouse)
+			& (ledger.is_cancelled == 0)
+			& (ledger.docstatus == 1)
+			& (ledger.posting_datetime <= get_datetime(timestamp))
+			& entry.serial_no.isnotnull()
+			& (entry.docstatus == 1)
+			& (entry.is_cancelled == 0)
+		)
+		.groupby(entry.serial_no)
+	)
+	if lock:
+		query = query.for_update()
+	return [
+		{"serial_no": row.serial_no, "qty": float(row.qty or 0)}
+		for row in query.run(as_dict=True)
+		if row.qty or include_zero
+	]
+
+
+def serial_balances_by_location(warehouses, timestamp, *, lock=False, include_zero=False):
+	"""Resolve all serialized Item/warehouse balances at one posting boundary."""
+	from frappe.query_builder.functions import Sum
+
+	ledger = frappe.qb.DocType("Stock Ledger Entry")
+	entry = frappe.qb.DocType("Serial and Batch Entry")
+	item = frappe.qb.DocType("Item")
+	query = (
+		frappe.qb.from_(ledger)
+		.join(entry)
+		.on(ledger.serial_and_batch_bundle == entry.parent)
+		.join(item)
+		.on(item.name == ledger.item_code)
+		.select(ledger.item_code, ledger.warehouse, entry.serial_no, Sum(entry.qty).as_("qty"))
+		.where(
+			(ledger.warehouse.isin(warehouses))
+			& (ledger.is_cancelled == 0)
+			& (ledger.docstatus == 1)
+			& (ledger.posting_datetime <= get_datetime(timestamp))
+			& entry.serial_no.isnotnull()
+			& (entry.docstatus == 1)
+			& (entry.is_cancelled == 0)
+			& (item.has_serial_no == 1)
+			& (item.disabled == 0)
+			& (item.is_stock_item == 1)
+		)
+		.groupby(ledger.item_code, ledger.warehouse, entry.serial_no)
+	)
+	if lock:
+		query = query.for_update()
+	return [
+		{
+			"item_code": row.item_code,
+			"warehouse": row.warehouse,
+			"serial_no": row.serial_no,
+			"qty": float(row.qty or 0),
+		}
+		for row in query.run(as_dict=True)
+		if row.qty or include_zero
+	]
+
+
+def reconciliation_serial_allocations(row, *, bundle_cache=None, bundle_loader=None):
+	"""Join the book and counted serial sets stored in native reconciliation bundles."""
+	current = entry_bundle(
+		row,
+		"current_serial_and_batch_bundle",
+		bundle_cache=bundle_cache,
+		bundle_loader=bundle_loader,
+	)
+	actual = entry_bundle(row, bundle_cache=bundle_cache, bundle_loader=bundle_loader)
+	book = sorted({entry.serial_no for entry in current.entries if entry.serial_no} if current else [])
+	present = sorted(
+		{entry.serial_no for entry in actual.entries if entry.serial_no}
+		if actual
+		else set(filter(None, (row.get("serial_no") or "").splitlines()))
+	)
+	return {
+		"baseline_serials": book,
+		"actual_serials": present,
+		"missing_serials": sorted(set(book) - set(present)),
+		"found_serials": sorted(set(present) - set(book)),
+	}
+
+
 def lock_stock_locations(doc, method=None):
 	"""Coordinate counts with ordinary native stock submissions in either editor."""
 	if doc.doctype not in (

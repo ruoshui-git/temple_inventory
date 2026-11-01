@@ -89,6 +89,7 @@ let currentReference: ReturnType<typeof createReferenceData> | undefined;
 function service() {
   let saved: Record<string, unknown>;
   return vi.fn(async (method: string, args: Record<string, any>) => {
+    if (method === "counts.count_serial_details") return [];
     if (method === "counts.count_baseline") {
       const previous = (args.previous_rows as CountRow[]) || [];
       return {

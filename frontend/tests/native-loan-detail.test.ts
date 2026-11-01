@@ -43,6 +43,16 @@ function loan(name = "LOAN-A", docstatus: 0 | 1 | 2 = 1): LoanDocument {
       t_warehouse: `LEASED-${index}`,
       outstanding_qty: docstatus === 1 ? 2 : 0,
       outcomes: { Returned: 1, Damaged: 1, Lost: 1 },
+      lent_serials:
+        index === 0 ? ["SER-1", "SER-2", "SER-3", "SER-4", "SER-5"] : [],
+      outstanding_serials:
+        index === 0 && docstatus === 1 ? ["SER-4", "SER-5"] : [],
+      settled_serials: {
+        Returned:
+          index === 0 ? ["SER-1", "SER-2", "SER-3", "SER-4", "SER-5"] : [],
+        Damaged: [],
+        Lost: [],
+      },
       allocations: [
         {
           batch_no: `BATCH-${index}`,
@@ -177,6 +187,8 @@ describe("native loan details", () => {
     ]);
     expect(wrapper.text()).not.toContain("LOAN-A-CHILD-1");
     expect(wrapper.text()).toContain("BATCH-1");
+    expect(wrapper.text()).toContain("SER-4 · SER-5");
+    expect(wrapper.text()).toContain("SER-1 · SER-2 · SER-3 +2");
     expect(wrapper.text()).toContain("原存放");
     expect(wrapper.findAll(".loan-status")).toHaveLength(1);
     expect(wrapper.text()).toContain("经办人甲");

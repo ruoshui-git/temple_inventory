@@ -35,6 +35,7 @@ export interface AllocationLine {
   loanedLocation?: string;
   batch?: string;
   serials?: string[];
+  outstandingSerials?: string[];
   autoSerialCount?: number;
   expiry?: string;
   manufacturingDate?: string;

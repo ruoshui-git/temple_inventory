@@ -180,6 +180,8 @@ const columns = computed<DataColumn[]>(() => {
 	];
 	if (lines.some((line) => lineBatch(line)))
 		list.splice(2, 0, { id: "batch", label: "批次", kind: "code", defaultVisible: true });
+	if (lines.some((line) => line.serials?.length))
+		list.push({ id: "serials", label: "序列号", kind: "text", defaultVisible: true });
 	if (lines.some((line) => lineExpiry(line)))
 		list.splice(3, 0, { id: "expiry", label: "效期", kind: "date", defaultVisible: true });
 	if (lines.some((line) => lineManufacturingDate(line)))
@@ -292,6 +294,16 @@ function quantityText(line: AllocationLine) {
 function lineFor(row: Record<string, unknown>) {
 	return row.line as AllocationLine;
 }
+function lineSerials(line: AllocationLine) {
+	return [...new Set(line.serials || [])];
+}
+function serialSummary(line: AllocationLine) {
+	return lineSerials(line).slice(0, 3).join(" · ");
+}
+function serialRemainder(line: AllocationLine) {
+	const count = lineSerials(line).length;
+	return count > 3 ? ` +${count - 3}` : "";
+}
 function itemFor(row: Record<string, unknown>) {
 	const code = String(row.code || "");
 	return {
@@ -390,6 +402,15 @@ function itemFor(row: Record<string, unknown>) {
 								<span v-else>{{ detail }}</span>
 							</template>
 						</div>
+						<div v-if="lineSerials(line).length" class="allocation-serial-summary">
+							<details v-if="lineSerials(line).length > 3">
+								<summary>
+									{{ serialSummary(line) }}{{ serialRemainder(line) }}
+								</summary>
+								<span>{{ lineSerials(line).join(" · ") }}</span>
+							</details>
+							<span v-else>{{ lineSerials(line).join(" · ") }}</span>
+						</div>
 					</div>
 				</article>
 			</div>
@@ -470,6 +491,20 @@ function itemFor(row: Record<string, unknown>) {
 			</template>
 			<template v-else-if="column.id === 'quantity'">
 				<span class="allocation-quantity">{{ quantityText(lineFor(row)) }}</span>
+			</template>
+			<template v-else-if="column.id === 'serials'">
+				<details
+					v-if="lineSerials(lineFor(row)).length > 3"
+					class="allocation-serial-summary"
+				>
+					<summary>
+						{{ serialSummary(lineFor(row)) }}{{ serialRemainder(lineFor(row)) }}
+					</summary>
+					<span>{{ lineSerials(lineFor(row)).join(" · ") }}</span>
+				</details>
+				<span v-else class="allocation-serial-summary">{{
+					lineSerials(lineFor(row)).join(" · ")
+				}}</span>
 			</template>
 			<template v-else-if="column.id === 'destination'">
 				<LocationEndpoint
@@ -554,6 +589,12 @@ function itemFor(row: Record<string, unknown>) {
 }
 .allocation-batch-link {
 	white-space: nowrap;
+}
+.allocation-serial-summary {
+	max-width: 24rem;
+	color: var(--p-muted);
+	font-size: var(--p-small);
+	word-break: break-word;
 }
 .allocation-summary-table :deep(td.data-column-code > .allocation-batch-entry) {
 	width: max-content;

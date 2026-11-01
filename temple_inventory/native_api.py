@@ -493,8 +493,12 @@ def loan_detail(name):
 			data["activity_title"] = activity.title
 	balances = loan_balances(name)
 	batch_balances = loan_balances(name, by_batch=True)
+	serial_balances = loan_balances(name, by_serial=True)
 	for row in data["items"]:
 		outcomes = balances[row.name]
+		serial_outcomes = serial_balances[row.name]
+		lent_serials = list(row.get("serials") or [])
+		settled_serials = set().union(*serial_outcomes.values()) if serial_outcomes else set()
 		row["outcomes"] = {key: float(value) for key, value in outcomes.items()}
 		row["outstanding_qty"] = (
 			float(row.transfer_qty) - float(sum(outcomes.values())) if loan.docstatus == 1 else 0
@@ -510,6 +514,13 @@ def loan_detail(name):
 			}
 			for batch, quantity in batch_quantities(row).items()
 		]
+		row["lent_serials"] = lent_serials
+		row["settled_serials"] = {
+			key: sorted(serial_outcomes.get(key, set())) for key in ("Returned", "Damaged", "Lost")
+		}
+		row["outstanding_serials"] = (
+			sorted(set(lent_serials) - settled_serials) if loan.docstatus == 1 else []
+		)
 	return data
 
 

@@ -331,6 +331,14 @@ const serialLoading = ref<Record<string, boolean>>({});
 async function loadSerials(line: AllocationLine, more = false) {
 	const source = line.sourceLocation || line.location;
 	if (receive.value || !source || serialLoading.value[line.id]) return;
+	if (line.loanName) {
+		const query = (serialSearch.value[line.id] || "").trim().toLocaleLowerCase();
+		serialOptions.value[line.id] = (line.outstandingSerials || []).filter(
+			(serial) => !query || serial.toLocaleLowerCase().includes(query),
+		);
+		serialNext.value[line.id] = null;
+		return;
+	}
 	const start = more ? serialNext.value[line.id] : 0;
 	if (more && start == null) return;
 	serialLoading.value[line.id] = true;
@@ -1946,8 +1954,10 @@ function receiveBatchChanged(line: AllocationLine) {
 								</div>
 								<input
 									v-model="serialSearch[line.id]"
-									:aria-label="`${lineName(line)}搜索可用序列号`"
-									placeholder="搜索可用序列号"
+									:aria-label="`${lineName(line)}搜索${line.loanName ? '未归还' : '可用'}序列号`"
+									:placeholder="
+										line.loanName ? '搜索未归还序列号' : '搜索可用序列号'
+									"
 									:disabled="disabled || hydrating"
 									@focus="loadSerials(line)"
 									@input="

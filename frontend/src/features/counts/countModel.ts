@@ -10,6 +10,11 @@ export interface CountRow {
   batch_no: string | null;
   stock_uom: string;
   baseline_qty: number;
+  is_serial?: boolean;
+  baseline_serials?: string[];
+  actual_serials?: string[] | null;
+  missing_serials?: string[];
+  found_serials?: string[];
   actual_qty: number | null;
   review_state: ReviewState;
   reason: string;
@@ -47,7 +52,14 @@ export function countSummary(rows: CountRow[]) {
     reviewed++;
     actual.set(unit, (actual.get(unit) || 0) + row.actual_qty);
     const delta = row.actual_qty - row.baseline_qty;
-    if (delta !== 0) changed++;
+    const serialDifference = row.is_serial ? serialCountDifference(row) : null;
+    if (
+      delta !== 0 ||
+      (serialDifference &&
+        (serialDifference.missing.length > 0 ||
+          serialDifference.found.length > 0))
+    )
+      changed++;
     difference.set(unit, (difference.get(unit) || 0) + delta);
     if (delta > 0) gains.set(unit, (gains.get(unit) || 0) + delta);
     else if (delta < 0) losses.set(unit, (losses.get(unit) || 0) + delta);
@@ -64,6 +76,15 @@ export function countSummary(rows: CountRow[]) {
     losses: [...losses],
   };
 }
+
+export function serialCountDifference(row: CountRow) {
+  const baseline = new Set(row.baseline_serials || []);
+  const actual = new Set(row.actual_serials || []);
+  return {
+    missing: [...baseline].filter((serial) => !actual.has(serial)).sort(),
+    found: [...actual].filter((serial) => !baseline.has(serial)).sort(),
+  };
+}
 export function countIssues(
   rows: CountRow[],
   units: { name: string; whole: boolean }[],
@@ -71,6 +92,20 @@ export function countIssues(
   const issues: { key: string; message: string }[] = [];
   for (const row of rows) {
     if (row.review_state === "Unreviewed") continue;
+    if (row.is_serial) {
+      if (row.actual_serials === null || row.actual_serials === undefined) {
+        issues.push({
+          key: countKey(row),
+          message: "请核对每个序列号，或明确盘点为 0",
+        });
+      } else if (row.actual_qty !== row.actual_serials.length) {
+        issues.push({
+          key: countKey(row),
+          message: "序列号数量与实点数量不一致",
+        });
+      }
+      continue;
+    }
     let message = "";
     if (
       row.actual_qty === null ||

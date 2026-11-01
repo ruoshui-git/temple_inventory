@@ -40,6 +40,7 @@ const actions = [
 	["damaged", "登记损坏归还"],
 	["lost", "记录遗失"],
 ] as const;
+const serialOutcomeKeys = ["Returned", "Damaged", "Lost"] as const;
 const deskLink = computed(() =>
 	loan.value ? `/app/stock-entry/${encodeURIComponent(loan.value.name)}` : "",
 );
@@ -51,6 +52,12 @@ function personRole(label: string): "recorder" | "handler" | "reviewer" | undefi
 const initialLoad = computed(() => loading.value && !loan.value);
 function settle(action: SettlementAction) {
 	if (loan.value && c.canSettle(action)) emit("settle", loan.value.name, action);
+}
+function serialSummary(serials: string[]) {
+	return serials.slice(0, 3).join(" · ");
+}
+function serialRemainder(serials: string[]) {
+	return serials.length > 3 ? ` +${serials.length - 3}` : "";
 }
 </script>
 <template>
@@ -222,6 +229,35 @@ function settle(action: SettlementAction) {
 								{{ allocation.outcomes.Lost }}
 								<UnitText :name="line.stock_uom" />
 							</div>
+						</template>
+					</DisclosureSection>
+					<DisclosureSection
+						v-if="line.lent_serials?.length"
+						title="序列号"
+						:summary="`${line.outstanding_serials?.length || 0} 个未结清`"
+					>
+						<details v-if="line.outstanding_serials?.length">
+							<summary>
+								未结清 {{ serialSummary(line.outstanding_serials || [])
+								}}{{ serialRemainder(line.outstanding_serials || []) }}
+							</summary>
+							<p>{{ (line.outstanding_serials || []).join(" · ") }}</p>
+						</details>
+						<template v-for="outcome in serialOutcomeKeys" :key="outcome">
+							<details v-if="line.settled_serials?.[outcome]?.length">
+								<summary>
+									{{
+										outcome === "Returned"
+											? "完好归还"
+											: outcome === "Damaged"
+												? "损坏"
+												: "遗失"
+									}}
+									{{ serialSummary(line.settled_serials[outcome])
+									}}{{ serialRemainder(line.settled_serials[outcome]) }}
+								</summary>
+								<p>{{ line.settled_serials[outcome].join(" · ") }}</p>
+							</details>
 						</template>
 					</DisclosureSection>
 				</div>

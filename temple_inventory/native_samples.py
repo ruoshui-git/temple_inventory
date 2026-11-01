@@ -1315,6 +1315,13 @@ def _count(company, rooms, items):
 		if row["warehouse"] not in warehouses:
 			# The count lists every physical leaf; leaves outside this joint count stay blank.
 			copy.update(actual_qty=None, review_state="Unreviewed", reason="")
+		elif row.get("is_serial"):
+			copy.update(
+				actual_qty=len(row.get("baseline_serials") or []),
+				actual_serials=list(row.get("baseline_serials") or []),
+				review_state="Reviewed",
+				reason="核对无差异",
+			)
 		elif row["item_code"] == items["N-WORKFLOW"]["item_code"]:
 			copy.update(
 				actual_qty=float(row["baseline_qty"]) + (-1 if row["warehouse"] == rooms["DEMO_A"] else 1),

@@ -14,7 +14,12 @@ from temple_inventory.native_access import (
 	require_app,
 	retry_native_request,
 )
-from temple_inventory.native_balances import lock_stock_locations
+from temple_inventory.native_balances import (
+	entry_bundle,
+	lock_stock_locations,
+	reconciliation_serial_allocations,
+	serial_balances_by_location,
+)
 from temple_inventory.native_stock import (
 	number,
 	validate_precision,
@@ -51,7 +56,7 @@ def _baseline(timestamp, *, lock=False, previous_rows=None):
 	posting = get_datetime(timestamp)
 	if not timestamp:
 		frappe.throw("请选择盘点时间")
-	previous = {_key(row): row for row in (previous_rows or [])}
+	previous = {_key(row): row for row in (previous_rows or []) if row.get("warehouse") in warehouses}
 	added = {key[0] for key in previous}
 	where_args = {"warehouses": tuple(warehouses), "posting": posting}
 	# The native balance is the latest entry's running qty (get_previous_sle's order), not a sum:
@@ -90,9 +95,19 @@ def _baseline(timestamp, *, lock=False, previous_rows=None):
 	for entry in batch_rows:
 		key = (entry.item_code, entry.warehouse, entry.batch_no or "")
 		quantities[key] = quantities.get(key, 0) + float(entry.qty or 0)
+	serial_sets = {}
+	for entry in serial_balances_by_location(warehouses, posting, lock=lock):
+		if entry["qty"] > 0:
+			serial_sets.setdefault((entry["item_code"], entry["warehouse"]), []).append(entry["serial_no"])
+	for serials in serial_sets.values():
+		serials.sort()
 	for key in previous:
 		quantities.setdefault(key, 0)
-	selected = sorted({key[0] for key, qty in quantities.items() if qty} | added)
+	selected = sorted(
+		{key[0] for key, qty in quantities.items() if qty}
+		| {key[0] for key, serials in serial_sets.items() if serials}
+		| added
+	)
 	items = frappe.get_list(
 		"Item",
 		filters={"name": ["in", selected or [""]], "disabled": 0, "is_stock_item": 1},
@@ -110,10 +125,20 @@ def _baseline(timestamp, *, lock=False, previous_rows=None):
 	rows = []
 	for code in sorted(items_by_name):
 		item = items_by_name[code]
-		if item.has_serial_no:
-			frappe.throw("物资管理暂不支持序列号盘点")
 		display = display_items.get(code, {})
-		for warehouse, batch, quantity in by_item.get(code, ()):
+		allocations = by_item.get(code, ())
+		if item.has_serial_no:
+			serial_warehouses = {
+				warehouse
+				for (item_code, warehouse), serials in serial_sets.items()
+				if item_code == code and serials
+			}
+			serial_warehouses.update(key[1] for key in previous if key[0] == code and not key[2])
+			allocations = [
+				(warehouse, "", float(len(serial_sets.get((code, warehouse), []))))
+				for warehouse in serial_warehouses
+			]
+		for warehouse, batch, quantity in allocations:
 			if item.has_batch_no != bool(batch):
 				continue
 			rows.append(
@@ -125,6 +150,9 @@ def _baseline(timestamp, *, lock=False, previous_rows=None):
 					"batch_no": batch or None,
 					"stock_uom": item.stock_uom,
 					"baseline_qty": float(quantity),
+					"baseline_serials": serial_sets.get((code, warehouse), []) if item.has_serial_no else [],
+					"is_serial": bool(item.has_serial_no),
+					"actual_serials": None if item.has_serial_no else [],
 					"actual_qty": None,
 					"review_state": "Unreviewed",
 					"reason": "",
@@ -186,20 +214,52 @@ def count_baseline(timestamp, previous_rows=None):
 		"Stock Reconciliation", "write"
 	):
 		frappe.throw("没有创建或编辑盘点的权限", frappe.PermissionError)
-	result = _baseline(timestamp, previous_rows=frappe.parse_json(previous_rows) or [])
-	previous = {_key(row): row for row in (frappe.parse_json(previous_rows) or [])}
+	previous_rows = frappe.parse_json(previous_rows) or []
+	result = _baseline(timestamp, previous_rows=previous_rows)
+	visible = set(result["warehouses"])
+	previous = {_key(row): row for row in previous_rows if row.get("warehouse") in visible}
 	for row in result["rows"]:
 		old = previous.get(_key(row))
 		if not old:
 			row["needs_review"] = True
 			continue
 		row.update({"actual_qty": old.get("actual_qty"), "reason": old.get("reason", "")})
-		changed = Decimal(str(old.get("baseline_qty"))) != Decimal(str(row["baseline_qty"]))
+		changed = Decimal(str(old.get("baseline_qty"))) != Decimal(str(row["baseline_qty"])) or (
+			row.get("is_serial")
+			and set(old.get("baseline_serials") or []) != set(row.get("baseline_serials") or [])
+		)
+		if row.get("is_serial"):
+			row["actual_serials"] = old.get("actual_serials")
+			if row["actual_serials"] is None and old.get("review_state") == "Reviewed":
+				if Decimal(str(old.get("actual_qty") or 0)) == Decimal(str(row["baseline_qty"])):
+					row["actual_serials"] = list(row.get("baseline_serials") or [])
 		row["needs_review"] = changed
 		row["review_state"] = "Unreviewed" if changed else old.get("review_state", "Unreviewed")
 	result["removed_rows"] = [
 		row for key, row in previous.items() if key not in {_key(r) for r in result["rows"]}
 	]
+	return result
+
+
+@frappe.whitelist()
+def count_serial_details(name):
+	"""Read original and counted serial sets from native reconciliation bundles."""
+	require_app()
+	doc = frappe.get_doc("Stock Reconciliation", name)
+	check_document_scope(doc)
+	doc.check_permission("read")
+	result = []
+	for row in doc.get("items"):
+		if not frappe.get_cached_value("Item", row.item_code, "has_serial_no"):
+			continue
+		result.append(
+			{
+				"item_code": row.item_code,
+				"warehouse": row.warehouse,
+				"batch_no": row.batch_no or None,
+				**reconciliation_serial_allocations(row),
+			}
+		)
 	return result
 
 
@@ -222,6 +282,31 @@ def _differences(review_rows, baseline_rows):
 			continue
 		if Decimal(str(row.get("baseline_qty"))) != Decimal(str(book["baseline_qty"])):
 			frappe.throw("账面数量已变化，请刷新并重新核对", frappe.TimestampMismatchError)
+		if book.get("is_serial") and set(row.get("baseline_serials") or []) != set(
+			book.get("baseline_serials") or []
+		):
+			frappe.throw("账面序列号已变化，请刷新并重新核对", frappe.TimestampMismatchError)
+		if book.get("is_serial"):
+			if state != "Reviewed":
+				frappe.throw("请核对每个序列号，或明确盘点为 0")
+			if row.get("actual_serials") is None:
+				frappe.throw("请核对每个序列号，或明确盘点为 0")
+			actual_serials = sorted(set(row.get("actual_serials") or []))
+			if len(actual_serials) != len(row.get("actual_serials") or []):
+				frappe.throw("序列号不能重复")
+
+			_validate_count_serials(row["item_code"], row["warehouse"], actual_serials)
+			actual = Decimal(len(actual_serials))
+			if row.get("actual_qty") not in (None, "") and Decimal(str(row["actual_qty"])) != actual:
+				frappe.throw("序列号数量与实点数量不一致")
+			row["actual_qty"] = int(actual)
+			reviewed += 1
+			if set(actual_serials) == set(book.get("baseline_serials") or []):
+				row["difference"] = 0
+				continue
+			differences.append({**book, "qty": float(actual), "serials": actual_serials})
+			row["difference"] = float(actual - Decimal(str(book["baseline_qty"])))
+			continue
 		if state != "Reviewed" or row.get("actual_qty") in (None, ""):
 			frappe.throw("请填写实点数量，或清空为未核对")
 		reviewed += 1
@@ -239,6 +324,84 @@ def _differences(review_rows, baseline_rows):
 	if not reviewed:
 		frappe.throw("请至少核对一条明细")
 	return differences
+
+
+def _validate_count_serials(item_code, warehouse, serials):
+	if not serials:
+		return
+	_settings, _visible, physical, _leased, _damaged = warehouse_scopes()
+	if warehouse not in physical:
+		frappe.throw("无权盘点此实体末级位置", frappe.PermissionError)
+	rows = frappe.db.get_all(
+		"Serial No",
+		filters={"name": ["in", serials]},
+		fields=["name", "item_code", "status", "warehouse"],
+		limit_page_length=0,
+	)
+	by_name = {row.name: row for row in rows}
+	from temple_inventory.native_topology import present_locations
+
+	settings = frappe.get_single("Temple Inventory Settings")
+	labels = {
+		row["name"]: row["label"]
+		for row in present_locations(
+			frappe.get_all(
+				"Warehouse",
+				filters={"company": settings.company},
+				fields=[
+					"name",
+					"warehouse_name",
+					"ti_label",
+					"ti_short_label",
+					"ti_direct_storage",
+					"parent_warehouse",
+					"is_group",
+				],
+				limit_page_length=0,
+			)
+		)
+	}
+	for serial in serials:
+		entry = by_name.get(serial)
+		if not entry:
+			frappe.throw(f"序列号 {serial} 不存在；盘点不能新建序列号，请先办理入库。")
+		if entry.item_code != item_code:
+			frappe.throw(f"序列号 {serial} 属于其他物品，不能计入本行。")
+		if entry.status == "Active" and entry.warehouse and entry.warehouse != warehouse:
+			if entry.warehouse not in physical:
+				frappe.throw("无权读取该序列号所在位置", frappe.PermissionError)
+			frappe.throw(f"序列号 {serial} 记录在 {labels.get(entry.warehouse, entry.warehouse)}，请先调拨")
+		if entry.status != "Active" or entry.warehouse != warehouse:
+			frappe.throw(f"序列号 {serial} 当前不在本盘点位置，不能计入实点。")
+
+
+@frappe.whitelist()
+def validate_count_serial(item_code, warehouse, serial):
+	require_app()
+	serial = str(serial or "").strip()
+	if not serial:
+		frappe.throw("请输入序列号")
+	_validate_count_serials(item_code, warehouse, [serial])
+	return {"valid": True}
+
+
+def _bundle_serials(row, fieldname):
+	bundle = entry_bundle(row, fieldname)
+	return sorted({entry.serial_no for entry in bundle.entries if entry.serial_no} if bundle else [])
+
+
+def _hydrate_serial_reviews(reviews, items):
+	by_key = {_key(row): row for row in items}
+	for review in reviews:
+		item = by_key.get(_key(review))
+		if not item:
+			continue
+		if item.get("current_serial_and_batch_bundle"):
+			review["baseline_serials"] = _bundle_serials(item, "current_serial_and_batch_bundle")
+			review["is_serial"] = True
+		if item.get("reconcile_all_serial_batch") or item.get("serial_no"):
+			review["actual_serials"] = sorted(filter(None, (item.get("serial_no") or "").splitlines()))
+			review["is_serial"] = True
 
 
 @frappe.whitelist(methods=["POST"])
@@ -261,6 +424,8 @@ def save_count(request_id, data, name=None, version=None):
 	# Matching counts must use the same current baseline and authorization checks
 	# as adjustments. They still create no document.
 	reviews = data.get("ti_count_review") or []
+	if existing:
+		_hydrate_serial_reviews(reviews, existing.get("items"))
 	_lock_count_locations()
 	baseline = _baseline(
 		f"{data.get('posting_date')} {data.get('posting_time')}",
@@ -273,7 +438,14 @@ def save_count(request_id, data, name=None, version=None):
 		for row in reviews
 		if row.get("review_state") == "Reviewed" and row.get("actual_qty") not in (None, "")
 		if _key(row) in current
-		and Decimal(str(row.get("baseline_qty") or 0)) != Decimal(str(current[_key(row)]["baseline_qty"]))
+		and (
+			Decimal(str(row.get("baseline_qty") or 0)) != Decimal(str(current[_key(row)]["baseline_qty"]))
+			or (
+				current[_key(row)].get("is_serial")
+				and set(row.get("baseline_serials") or [])
+				!= set(current[_key(row)].get("baseline_serials") or [])
+			)
+		)
 	]
 	if stale:
 		labels = _stale_labels(stale)
@@ -288,7 +460,9 @@ def save_count(request_id, data, name=None, version=None):
 			"warehouse": row["warehouse"],
 			"batch_no": row["batch_no"],
 			"qty": row["qty"],
-			"use_serial_batch_fields": 1,
+			"use_serial_batch_fields": 0 if row.get("is_serial") and not row["serials"] else 1,
+			"reconcile_all_serial_batch": 1 if row.get("is_serial") and not row["serials"] else 0,
+			"serial_no": "\n".join(row.get("serials") or []),
 		}
 		for row in differences
 	]
@@ -303,16 +477,26 @@ def save_count(request_id, data, name=None, version=None):
 			if _key(row) in by_key:
 				row["name"] = by_key[_key(row)]
 	frappe.flags.ti_count_baseline = baseline
+	frappe.flags.ti_count_review_input = reviews
 	try:
 		if name:
 			return native_api.save_document("Stock Reconciliation", name, version, data)
 		return native_api.create_document("Stock Reconciliation", request_id, data)
 	finally:
 		frappe.flags.pop("ti_count_baseline", None)
+		frappe.flags.pop("ti_count_review_input", None)
 
 
 def _native_values(doc):
-	return [(_key(row), row.qty) for row in doc.get("items")]
+	return [
+		(
+			_key(row),
+			row.qty,
+			"\n".join(sorted(filter(None, (row.serial_no or "").splitlines()))),
+			int(row.reconcile_all_serial_batch or 0),
+		)
+		for row in doc.get("items")
+	]
 
 
 def before_validate(doc, method=None):
@@ -329,7 +513,11 @@ def before_validate(doc, method=None):
 
 		old_review = [{field: row.get(field) for field in REVIEW_FIELDS} for row in previous.ti_count_review]
 		new_review = [{field: row.get(field) for field in REVIEW_FIELDS} for row in doc.ti_count_review]
-		if old_review == new_review and _native_values(previous) != _native_values(doc):
+		if (
+			old_review == new_review
+			and _native_values(previous) != _native_values(doc)
+			and not frappe.flags.get("ti_count_review_input")
+		):
 			# Ordinary Desk edits invalidate custom review context instead of presenting
 			# an earlier review as the result of the newly edited reconciliation.
 			doc.set("ti_count_review", [])
@@ -341,14 +529,34 @@ def before_validate(doc, method=None):
 			lock=True,
 			previous_rows=[row.as_dict() for row in doc.ti_count_review],
 		)
-	review_dicts = [row.as_dict() for row in doc.ti_count_review]
+	review_dicts = frappe.flags.get("ti_count_review_input") or [row.as_dict() for row in doc.ti_count_review]
 	current = {_key(row): row for row in baseline["rows"]}
+	_hydrate_serial_reviews(review_dicts, doc.get("items"))
+	for row in review_dicts:
+		book = current.get(_key(row))
+		if book and book.get("is_serial"):
+			row.setdefault("baseline_serials", book.get("baseline_serials") or [])
+			row["is_serial"] = True
+	actual_by_key = {
+		_key(row): sorted(filter(None, (row.serial_no or "").splitlines())) for row in doc.get("items")
+	}
+	for row in review_dicts:
+		book = current.get(_key(row))
+		if book and book.get("is_serial") and row.get("actual_serials") is None:
+			row["actual_serials"] = actual_by_key.get(_key(row), [])
 	stale = [
 		row
 		for row in review_dicts
 		if row.get("review_state") == "Reviewed" and row.get("actual_qty") not in (None, "")
 		if _key(row) in current
-		and Decimal(str(row.get("baseline_qty") or 0)) != Decimal(str(current[_key(row)]["baseline_qty"]))
+		and (
+			Decimal(str(row.get("baseline_qty") or 0)) != Decimal(str(current[_key(row)]["baseline_qty"]))
+			or (
+				current[_key(row)].get("is_serial")
+				and set(row.get("baseline_serials") or [])
+				!= set(current[_key(row)].get("baseline_serials") or [])
+			)
+		)
 	]
 	if stale:
 		labels = _stale_labels(stale)
@@ -356,7 +564,21 @@ def before_validate(doc, method=None):
 	differences = _differences(review_dicts, baseline["rows"])
 	for row, value in zip(doc.ti_count_review, review_dicts, strict=True):
 		row.difference = value["difference"]
-	actual = {_key(row): Decimal(str(row.qty)) for row in doc.get("items")}
-	expected = {_key(row): Decimal(str(row["qty"])) for row in differences}
-	if not differences or len(actual) != len(doc.get("items")) or actual != expected:
+	expected = {
+		(
+			_key(row),
+			Decimal(str(row["qty"])),
+			"\n".join(row.get("serials") or []),
+			int(bool(row.get("is_serial") and not row.get("serials"))),
+		)
+		for row in differences
+	}
+	by_key = {_key(row): row for row in differences}
+	for row in doc.get("items"):
+		counted = by_key.get(_key(row))
+		if counted and counted.get("is_serial"):
+			row.serial_no = "\n".join(counted.get("serials") or [])
+			row.use_serial_batch_fields = int(bool(counted.get("serials")))
+			row.reconcile_all_serial_batch = int(not counted.get("serials"))
+	if not differences or sorted(_native_values(doc), key=str) != sorted(expected, key=str):
 		frappe.throw("原生调整明细与已核对差异不一致，请重新核对")

@@ -26,6 +26,7 @@ import {
   countKey,
   countIssues,
   countSummary,
+  serialCountDifference,
   type CountRow,
   type CountValues,
 } from "./countModel";
@@ -88,6 +89,9 @@ export function useCountEditor(props: {
     ti_notes: "",
   };
   function decodeCount(doc: NativeDocument): NativeDocument {
+    const nativeItems = Array.isArray(doc.items)
+      ? (doc.items as Record<string, unknown>[])
+      : [];
     return {
       ...doc,
       posting_time: postingTime(doc.posting_time),
@@ -97,6 +101,26 @@ export function useCountEditor(props: {
         ? doc.ti_count_review.map((value) => {
             if (!value || typeof value !== "object") return value;
             const row = value as CountRow;
+            const native = nativeItems.find(
+              (item) =>
+                item.item_code === row.item_code &&
+                item.warehouse === row.warehouse &&
+                (item.batch_no || "") === (row.batch_no || ""),
+            );
+            const serialText = String(native?.serial_no || "");
+            const actualSerials = native
+              ? serialText
+                  .split(/\r?\n/)
+                  .map((serial) => serial.trim())
+                  .filter(Boolean)
+              : row.actual_serials;
+            if (
+              native &&
+              (native.reconcile_all_serial_batch || native.serial_no)
+            ) {
+              row.is_serial = true;
+              row.actual_serials = actualSerials || [];
+            }
             if (row.review_state === "Reviewed") return row;
             return {
               ...row,
@@ -283,7 +307,10 @@ export function useCountEditor(props: {
         (row) =>
           row.review_state !== "Unreviewed" &&
           row.actual_qty !== null &&
-          row.actual_qty !== row.baseline_qty,
+          (row.is_serial
+            ? serialCountDifference(row).missing.length > 0 ||
+              serialCountDifference(row).found.length > 0
+            : row.actual_qty !== row.baseline_qty),
       ),
   );
   const files = useAttachments({
@@ -390,6 +417,36 @@ export function useCountEditor(props: {
           discardDirty,
         );
       if (!active()) return;
+      if (state.identity?.doctype === "Stock Reconciliation") {
+        const serialDetails = await services.call<
+          (CountRow & {
+            actual_serials: string[];
+            missing_serials: string[];
+            found_serials: string[];
+          })[]
+        >("counts.count_serial_details", { name: state.identity.name });
+        if (!active()) return;
+        const byKey = new Map(serialDetails.map((row) => [countKey(row), row]));
+        for (const target of [state.values, state.server]) {
+          if (!target) continue;
+          const targetItems = (target.items || []) as Record<string, unknown>[];
+          for (const item of targetItems) {
+            const detail = byKey.get(countKey(item as unknown as CountRow));
+            if (detail) item.recorded_count_serial_allocations = [detail];
+          }
+          const reviews = (target.ti_count_review || []) as CountRow[];
+          for (const row of reviews) {
+            const detail = byKey.get(countKey(row));
+            if (detail) {
+              Object.assign(row, {
+                ...detail,
+                is_serial: true,
+                actual_qty: row.actual_qty ?? detail.actual_serials.length,
+              });
+            }
+          }
+        }
+      }
       if (state.identity) await files.fetch();
       state.recoveryError = recovery.list().error;
     } catch (reason) {
@@ -553,8 +610,16 @@ export function useCountEditor(props: {
     row.review_state = value === "" ? "Unreviewed" : "Reviewed";
     row.needs_review = false;
   }
+  function setSerials(row: CountRow, serials: string[] | null) {
+    const normalized = serials === null ? null : [...new Set(serials)].sort();
+    row.actual_serials = normalized;
+    row.actual_qty = normalized === null ? null : normalized.length;
+    row.review_state = serials === null ? "Unreviewed" : "Reviewed";
+    row.needs_review = false;
+  }
   function clearInput(row: CountRow) {
     row.actual_qty = null;
+    if (row.is_serial) row.actual_serials = null;
     row.review_state = "Unreviewed";
     row.reason = "";
     row.needs_review = false;
@@ -865,6 +930,7 @@ export function useCountEditor(props: {
     refresh,
     chooseItems,
     input,
+    setSerials,
     clearInput,
     rereview,
     openHistory,

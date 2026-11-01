@@ -13,7 +13,7 @@ from erpnext.stock.utils import get_stock_balance
 from frappe.utils import getdate, nowdate
 from PIL import Image
 
-from temple_inventory import configuration, native_files, native_samples, sample_install, sample_media
+from temple_inventory import configuration, counts, native_files, native_samples, sample_install, sample_media
 from temple_inventory.native_api import _request_key
 from temple_inventory.native_balances import batch_balances
 from temple_inventory.native_stock import MOVEMENT_PURPOSES
@@ -421,6 +421,11 @@ class NativeSampleTests(NativeDocumentTests):
 			)
 			self.assertEqual({row.qty for row in count.items}, {68, 7})
 			self.assertEqual(count.items[0].valuation_rate, 10)
+			serial_baseline = counts._baseline(f"{count.posting_date} {count.posting_time}")
+			# The sample count is posted before the later serial receipt and loan, so its historical
+			# baseline correctly excludes this Item rather than counting its current Serial No state.
+			self.assertFalse(any(row["item_code"] == serial_item.name for row in serial_baseline["rows"]))
+			self.assertNotIn(serial_item.name, {row.item_code for row in count.items})
 			mixed_count = frappe.get_doc("Stock Reconciliation", result["mixed_count"])
 			mixed_rows = mixed_count.ti_count_review
 			self.assertGreaterEqual(len({row.item_code for row in mixed_rows}), 40)

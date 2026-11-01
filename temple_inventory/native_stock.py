@@ -203,7 +203,10 @@ def _validate_tracking(row, item, posting_date, kind, source_warehouse, seen_ser
 				frappe.throw(f"序列号 {serial} 不属于物品 {item.item_name or item.name}")
 			serial_doc = frappe.get_doc("Serial No", serial)
 			serial_doc.check_permission("read")
-			if serial_doc.status != "Active" or serial_doc.warehouse != source_warehouse:
+			settlement_serial = kind in ("Return", "Damage", "Loss") and row.get("ti_original_loan")
+			if not settlement_serial and (
+				serial_doc.status != "Active" or serial_doc.warehouse != source_warehouse
+			):
 				frappe.throw(f"序列号 {serial} 不在所选来源库位或已不处于可用状态")
 		return
 	if row.get("serial_and_batch_bundle"):
@@ -374,12 +377,21 @@ def batch_quantities(row):
 	return result
 
 
-def loan_balances(loan_name, *, lock=False, by_batch=False):
+def _row_serials(row):
+	serials = _serial_values(row)
+	if serials or not row.get("serial_and_batch_bundle"):
+		return serials
+	bundle = frappe.get_doc("Serial and Batch Bundle", row.serial_and_batch_bundle)
+	return [entry.serial_no for entry in bundle.entries if entry.serial_no]
+
+
+def loan_balances(loan_name, *, lock=False, by_batch=False, by_serial=False):
 	"""Internal projection. Callers must authorize the original document and scope."""
 	rows = frappe.db.sql(
 		"""
 		select line.ti_original_loan_line as original_line, line.ti_settlement_outcome as outcome,
-		       line.item_code, line.transfer_qty, line.batch_no, line.serial_and_batch_bundle
+		       line.item_code, line.transfer_qty, line.batch_no, line.serial_no,
+	       line.serial_and_batch_bundle
 		from `tabStock Entry Detail` line
 		join `tabStock Entry` parent on parent.name = line.parent
 		join `tabStock Entry Detail` original on original.name = line.ti_original_loan_line
@@ -399,9 +411,15 @@ def loan_balances(loan_name, *, lock=False, by_batch=False):
 		loan_name,
 		as_dict=True,
 	)
-	result = defaultdict(lambda: {"Returned": Decimal(0), "Damaged": Decimal(0), "Lost": Decimal(0)})
+	if by_serial:
+		result = defaultdict(lambda: {"Returned": set(), "Damaged": set(), "Lost": set()})
+	else:
+		result = defaultdict(lambda: {"Returned": Decimal(0), "Damaged": Decimal(0), "Lost": Decimal(0)})
 	for row in rows:
-		if by_batch:
+		if by_serial:
+			for serial in _row_serials(row):
+				result[row.original_line].setdefault(row.outcome, set()).add(serial)
+		elif by_batch:
 			for batch, quantity in batch_quantities(row).items():
 				if row.outcome in result[(row.original_line, batch)]:
 					result[(row.original_line, batch)][row.outcome] += quantity
@@ -439,6 +457,25 @@ def validate_settlements(doc):
 		original = next((line for line in loan.items if line.name == row.ti_original_loan_line), None)
 		if not original or original.item_code != row.item_code:
 			frappe.throw("原借出明细与当前物品或批次不一致")
+		item = frappe.get_cached_doc("Item", original.item_code)
+		if item.has_serial_no:
+			outcomes = loan_balances(loan.name, lock=True, by_serial=True)[original.name]
+			settled_serials = set().union(*outcomes.values()) if outcomes else set()
+			if not doc.is_new() and frappe.db.get_value("Stock Entry", doc.name, "docstatus") == 1:
+				settled_serials.difference_update(
+					serial
+					for submitted in lines
+					if submitted.ti_original_loan == loan.name
+					and submitted.ti_original_loan_line == original.name
+					for serial in _row_serials(submitted)
+				)
+			outstanding_serials = set(_row_serials(original)) - settled_serials
+			for serial in _row_serials(row):
+				if serial not in outstanding_serials:
+					frappe.throw(f"序列号 {serial} 不在原借出 {loan.name} 的未归还序列号中")
+				serial_doc = frappe.get_doc("Serial No", serial)
+				if serial_doc.status != "Active" or serial_doc.warehouse != original.t_warehouse:
+					frappe.throw(f"序列号 {serial} 不在原借出 {loan.name} 的未归还序列号中")
 		original_batches = batch_quantities(original)
 		allocations = batch_quantities(row)
 		if sum(allocations.values()) != Decimal(str(row.transfer_qty)):

@@ -15,12 +15,14 @@ import type { CountRow } from "./countModel";
 import type { CountEditor } from "./useCountEditor";
 import DataTable from "../../components/ui/DataTable.vue";
 import { useOptionalInventoryServices } from "../../services/contracts";
-import type { DataColumn, DataTableEntry } from "../../lib/dataTable";
+import type { DataColumn, DataTableEntry, DataTableGroup } from "../../lib/dataTable";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import { showCountRowsOrEmpty } from "../documents/creationFormPresentation";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import { unitLabel } from "../../lib/units";
 import { formatQuantity } from "../../lib/formatQuantity";
+import SerialCountChecklist from "./SerialCountChecklist.vue";
+import { serialCountDifference } from "./countModel";
 
 const props = defineProps<{ controller: CountEditor }>();
 const emit = defineEmits<{ openDocument: [doctype: string, name: string] }>();
@@ -52,6 +54,7 @@ watch(search, (value) => {
 const reviewFilter = ref<"all" | "unreviewed" | "difference">("all");
 const groupBy = ref<"location" | "item" | "none">("location");
 const collapsedGroups = ref(new Set<string>());
+const serialDetailExpansion = ref(new Map<string, boolean>());
 const selectedLocations = ref<string[]>(c.warehouseFilter ? [c.warehouseFilter] : []);
 const sortBy = ref<"location" | "item_name" | "item_code" | "batch">("location");
 const sortDirection = ref<1 | -1>(1);
@@ -113,7 +116,10 @@ const filteredRows = computed(() => {
 			reviewFilter.value === "difference" &&
 			(row.review_state !== "Reviewed" ||
 				row.actual_qty === null ||
-				row.actual_qty === row.baseline_qty)
+				(row.is_serial
+					? !serialCountDifference(row).missing.length &&
+						!serialCountDifference(row).found.length
+					: row.actual_qty === row.baseline_qty))
 		)
 			return false;
 		const location = warehouseLabels.value.get(row.warehouse) || row.warehouse;
@@ -192,17 +198,50 @@ const countColumns = computed<DataColumn[]>(() => [
 	{ id: "batch", label: "批次", sortable: true },
 	{ id: "stock_uom", label: "库存单位" },
 	{ id: "baseline_qty", label: "账面数量", align: "end" },
-	{ id: "actual_qty", label: "实点数量", required: true },
+	{ id: "actual_qty", label: "实点数量", required: true, className: "count-actual-column" },
 	{ id: "difference", label: "差异", align: "end" },
 	{ id: "actions", label: "操作", required: true },
 ]);
 const countColumnPreferences = services
 	? useColumnPreferences("count.workspace", countColumns, reference, services)
 	: undefined;
+function serialDetailId(row: CountRow) {
+	return `count-serial-detail:${c.countKey(row)}`;
+}
+function isSerialDetailGroup(group: DataTableGroup) {
+	return group.id.startsWith("count-serial-detail:") && Boolean(group.value);
+}
+function serialDetailValue(group: DataTableGroup) {
+	return group.value as unknown as CountRow;
+}
+function serialDetailExpanded(row: CountRow) {
+	return (
+		serialDetailExpansion.value.get(serialDetailId(row)) ??
+		(!hasCountInput(row) || Boolean(serialDifferenceLabel(row)))
+	);
+}
+function toggleSerialDetail(row: CountRow) {
+	serialDetailExpansion.value.set(serialDetailId(row), !serialDetailExpanded(row));
+}
+function countTableEntry(row: CountRow): DataTableEntry {
+	if (!row.is_serial) return { kind: "record", id: c.countKey(row), value: row };
+	const expanded = serialDetailExpanded(row);
+	return {
+		kind: "group",
+		id: serialDetailId(row),
+		label: "",
+		labelColumn: "location",
+		depth: 0,
+		count: 1,
+		expanded,
+		hasChildren: true,
+		detailRow: expanded,
+		value: row,
+	};
+}
 const countTableRows = computed<DataTableEntry[]>(() => {
 	const page = visibleRows.value;
-	if (groupBy.value === "none")
-		return page.map((row) => ({ kind: "record", id: c.countKey(row), value: row }));
+	if (groupBy.value === "none") return page.map(countTableEntry);
 	const groups = new Map<string, CountRow[]>();
 	for (const row of page) {
 		const key = groupBy.value === "location" ? row.warehouse : row.item_code;
@@ -226,12 +265,16 @@ const countTableRows = computed<DataTableEntry[]>(() => {
 			hasChildren: grouped.length > 0,
 		});
 		if (collapsedGroups.value.has(`count-group:${groupBy.value}:${key}`)) continue;
-		for (const row of grouped)
-			result.push({ kind: "record", id: c.countKey(row), value: row });
+		for (const row of grouped) result.push(countTableEntry(row));
 	}
 	return result;
 });
 function toggleCountGroup(id: string) {
+	if (id.startsWith("count-serial-detail:")) {
+		const row = rows.value.find((item) => serialDetailId(item) === id);
+		if (row) toggleSerialDetail(row);
+		return;
+	}
 	const next = new Set(collapsedGroups.value);
 	if (next.has(id)) next.delete(id);
 	else next.add(id);
@@ -271,6 +314,18 @@ function input(row: CountRow, event: Event) {
 }
 function clear(row: CountRow) {
 	c.clearInput(row);
+}
+function serialsChanged(row: CountRow, serials: string[] | null) {
+	c.setSerials(row, serials);
+}
+function serialDifferenceLabel(row: CountRow) {
+	const difference = serialCountDifference(row);
+	return [
+		difference.missing.length ? `缺少 ${difference.missing.length}` : "",
+		difference.found.length ? `多出 ${difference.found.length}` : "",
+	]
+		.filter(Boolean)
+		.join(" · ");
 }
 async function nextCountInput(event: KeyboardEvent) {
 	event.preventDefault();
@@ -427,7 +482,7 @@ function itemImage(row: CountRow) {
 						}}</small>
 					</div>
 				</div>
-				<div class="count-card-counts">
+				<div class="count-card-counts" :class="{ 'is-serial': row.is_serial }">
 					<div class="count-card-book">
 						<span>账面</span
 						><strong
@@ -436,49 +491,74 @@ function itemImage(row: CountRow) {
 						>
 					</div>
 					<div class="count-card-entry">
-						<label :for="`count-input-${encodeURIComponent(c.countKey(row))}`"
-							>实点数量</label
-						>
-						<input
-							v-if="writable"
-							:id="`count-input-${encodeURIComponent(c.countKey(row))}`"
-							class="count-card-input"
-							type="number"
-							inputmode="decimal"
-							enterkeyhint="next"
-							min="0"
-							:step="
-								reference.units.find((unit) => unit.name === row.stock_uom)?.whole
-									? 1
-									: 'any'
-							"
-							:value="hasCountInput(row) ? row.actual_qty : ''"
-							:disabled="busy || baselineBusy"
-							:aria-label="`${row.item_name || names[row.item_code] || row.item_code}实点数量`"
-							:aria-invalid="
-								showError && issues.some((issue) => issue.key === c.countKey(row))
-							"
-							@input="input(row, $event)"
-							@keydown.enter="nextCountInput"
-						/>
-						<strong v-else
-							>{{ hasCountInput(row) ? row.actual_qty : "未核对" }}
-							{{ unitLabel(String(row.stock_uom || "")) }}</strong
-						>
-						<span
-							v-if="hasCountInput(row) && row.actual_qty !== row.baseline_qty"
-							class="count-card-difference"
-							:class="
-								row.actual_qty! > row.baseline_qty
-									? 'count-difference-positive'
-									: 'count-difference-negative'
-							"
-							>差异 {{ row.actual_qty! - row.baseline_qty > 0 ? "+" : ""
-							}}{{ row.actual_qty! - row.baseline_qty }}</span
-						>
-						<span v-else-if="!hasCountInput(row)" class="count-card-pending"
-							>未核对</span
-						>
+						<template v-if="row.is_serial">
+							<label>实点序列号</label>
+							<SerialCountChecklist
+								:row="row"
+								:writable="writable"
+								:busy="busy || baselineBusy"
+								@update="serialsChanged(row, $event)"
+							/>
+							<details
+								v-if="hasCountInput(row) && serialDifferenceLabel(row)"
+								class="serial-count-difference"
+							>
+								<summary>{{ serialDifferenceLabel(row) }}</summary>
+								<p v-if="serialCountDifference(row).missing.length">
+									缺少：{{ serialCountDifference(row).missing.join("、") }}
+								</p>
+								<p v-if="serialCountDifference(row).found.length">
+									多出：{{ serialCountDifference(row).found.join("、") }}
+								</p>
+							</details>
+						</template>
+						<template v-else>
+							<label :for="`count-input-${encodeURIComponent(c.countKey(row))}`"
+								>实点数量</label
+							>
+							<input
+								v-if="writable"
+								:id="`count-input-${encodeURIComponent(c.countKey(row))}`"
+								class="count-card-input"
+								type="number"
+								inputmode="decimal"
+								enterkeyhint="next"
+								min="0"
+								:step="
+									reference.units.find((unit) => unit.name === row.stock_uom)
+										?.whole
+										? 1
+										: 'any'
+								"
+								:value="hasCountInput(row) ? row.actual_qty : ''"
+								:disabled="busy || baselineBusy"
+								:aria-label="`${row.item_name || names[row.item_code] || row.item_code}实点数量`"
+								:aria-invalid="
+									showError &&
+									issues.some((issue) => issue.key === c.countKey(row))
+								"
+								@input="input(row, $event)"
+								@keydown.enter="nextCountInput"
+							/>
+							<strong v-else
+								>{{ hasCountInput(row) ? row.actual_qty : "未核对" }}
+								{{ unitLabel(String(row.stock_uom || "")) }}</strong
+							>
+							<span
+								v-if="hasCountInput(row) && row.actual_qty !== row.baseline_qty"
+								class="count-card-difference"
+								:class="
+									row.actual_qty! > row.baseline_qty
+										? 'count-difference-positive'
+										: 'count-difference-negative'
+								"
+								>差异 {{ row.actual_qty! - row.baseline_qty > 0 ? "+" : ""
+								}}{{ row.actual_qty! - row.baseline_qty }}</span
+							>
+							<span v-else-if="!hasCountInput(row)" class="count-card-pending"
+								>未核对</span
+							>
+						</template>
 					</div>
 				</div>
 				<div
@@ -554,32 +634,53 @@ function itemImage(row: CountRow) {
 					row.baseline_qty
 				}}</template>
 				<div v-else-if="column.id === 'actual_qty'" class="count-actual-cell">
-					<input
-						v-if="writable"
-						class="count-actual-input"
-						type="number"
-						inputmode="decimal"
-						enterkeyhint="next"
-						min="0"
-						:step="
-							reference.units.find((unit) => unit.name === row.stock_uom)?.whole
-								? 1
-								: 'any'
-						"
-						:value="hasCountInput(row as unknown as CountRow) ? row.actual_qty : ''"
-						:disabled="busy || baselineBusy"
-						:aria-label="`${row.item_name || names[String(row.item_code || '')] || row.item_code}实点数量`"
-						:aria-invalid="
-							showError &&
-							issues.some(
-								(issue) => issue.key === c.countKey(row as unknown as CountRow),
-							)
-						"
-						@input="input(row as unknown as CountRow, $event)"
-					/>
-					<span v-else>{{
-						row.review_state === "Unreviewed" ? "未核对" : row.actual_qty
-					}}</span>
+					<template v-if="(row as unknown as CountRow).is_serial">
+						<span
+							>实点 {{ (row as unknown as CountRow).actual_qty ?? "—" }} / 账面
+							{{ (row as unknown as CountRow).baseline_qty }}</span
+						>
+						<button
+							type="button"
+							class="serial-count-row-toggle"
+							:aria-expanded="serialDetailExpanded(row as unknown as CountRow)"
+							@click.stop="toggleSerialDetail(row as unknown as CountRow)"
+						>
+							{{
+								serialDetailExpanded(row as unknown as CountRow) ? "收起" : "展开"
+							}}
+						</button>
+					</template>
+					<template v-else>
+						<input
+							v-if="writable"
+							class="count-actual-input"
+							type="number"
+							inputmode="decimal"
+							enterkeyhint="next"
+							min="0"
+							:step="
+								reference.units.find((unit) => unit.name === row.stock_uom)?.whole
+									? 1
+									: 'any'
+							"
+							:value="
+								hasCountInput(row as unknown as CountRow) ? row.actual_qty : ''
+							"
+							:disabled="busy || baselineBusy"
+							:aria-label="`${row.item_name || names[String(row.item_code || '')] || row.item_code}实点数量`"
+							:aria-invalid="
+								showError &&
+								issues.some(
+									(issue) =>
+										issue.key === c.countKey(row as unknown as CountRow),
+								)
+							"
+							@input="input(row as unknown as CountRow, $event)"
+						/>
+						<span v-else>{{
+							row.review_state === "Unreviewed" ? "未核对" : row.actual_qty
+						}}</span>
+					</template>
 					<div
 						v-if="row.needs_review && row.actual_qty !== null"
 						class="count-baseline-warning"
@@ -608,7 +709,9 @@ function itemImage(row: CountRow) {
 					]"
 					>{{
 						hasCountInput(row as unknown as CountRow)
-							? `${Number(row.actual_qty) > Number(row.baseline_qty) ? "+" : Number(row.actual_qty) < Number(row.baseline_qty) ? "−" : ""}${formatQuantity(Math.abs(Number(row.actual_qty) - Number(row.baseline_qty)))}`
+							? (row as unknown as CountRow).is_serial
+								? serialDifferenceLabel(row as unknown as CountRow) || "一致"
+								: `${Number(row.actual_qty) > Number(row.baseline_qty) ? "+" : Number(row.actual_qty) < Number(row.baseline_qty) ? "−" : ""}${formatQuantity(Math.abs(Number(row.actual_qty) - Number(row.baseline_qty)))}`
 							: "待核对"
 					}}</span
 				>
@@ -632,6 +735,106 @@ function itemImage(row: CountRow) {
 						@click="notesTarget = row as unknown as CountRow"
 						>备注</UiButton
 					>
+				</div>
+			</template>
+			<template #group-label="{ group }">
+				<span v-if="isSerialDetailGroup(group)">{{
+					warehouseLabel(serialDetailValue(group).warehouse, reference.warehouses)
+				}}</span>
+			</template>
+			<template #group-column="{ group, column }">
+				<template v-if="isSerialDetailGroup(group)">
+					<template v-if="column.id === 'image'">
+						<div class="count-item-thumbnail">
+							<ItemImage :item="itemImage(serialDetailValue(group))" />
+						</div>
+					</template>
+					<strong v-else-if="column.id === 'item_name'">{{
+						serialDetailValue(group).item_name ||
+						names[serialDetailValue(group).item_code] ||
+						serialDetailValue(group).item_code
+					}}</strong>
+					<template v-else-if="column.id === 'item_code'">{{
+						serialDetailValue(group).item_code
+					}}</template>
+					<template v-else-if="column.id === 'batch'">{{
+						serialDetailValue(group).batch_no || "—"
+					}}</template>
+					<template v-else-if="column.id === 'stock_uom'">{{
+						unitLabel(serialDetailValue(group).stock_uom)
+					}}</template>
+					<template v-else-if="column.id === 'baseline_qty'">{{
+						serialDetailValue(group).baseline_qty
+					}}</template>
+					<div v-else-if="column.id === 'actual_qty'" class="serial-count-row-summary">
+						<span
+							>实点 {{ serialDetailValue(group).actual_qty ?? "—" }} / 账面
+							{{ serialDetailValue(group).baseline_qty }}</span
+						>
+						<button
+							type="button"
+							class="serial-count-row-toggle"
+							:aria-expanded="serialDetailExpanded(serialDetailValue(group))"
+							@click.stop="toggleSerialDetail(serialDetailValue(group))"
+						>
+							{{ serialDetailExpanded(serialDetailValue(group)) ? "收起" : "展开" }}
+						</button>
+					</div>
+					<span v-else-if="column.id === 'difference'" class="stock-effect">{{
+						hasCountInput(serialDetailValue(group))
+							? serialDifferenceLabel(serialDetailValue(group)) || "一致"
+							: "待核对"
+					}}</span>
+					<div v-else-if="column.id === 'actions'" class="count-row-actions-inner">
+						<UiButton
+							size="compact"
+							:disabled="busy || baselineBusy"
+							@click="c.openHistory(serialDetailValue(group))"
+							>历史</UiButton
+						>
+						<UiButton
+							v-if="writable"
+							size="compact"
+							:disabled="busy || baselineBusy"
+							@click="clear(serialDetailValue(group))"
+							>清除输入</UiButton
+						>
+						<UiButton
+							v-if="writable || serialDetailValue(group).reason"
+							size="compact"
+							@click="notesTarget = serialDetailValue(group)"
+							>备注</UiButton
+						>
+					</div>
+				</template>
+			</template>
+			<template #group="{ group }">
+				<div v-if="isSerialDetailGroup(group)" class="serial-count-detail-row">
+					<SerialCountChecklist
+						:row="serialDetailValue(group)"
+						:writable="writable"
+						:busy="busy || baselineBusy"
+						@update="serialsChanged(serialDetailValue(group), $event)"
+					/>
+					<details
+						v-if="
+							hasCountInput(serialDetailValue(group)) &&
+							serialDifferenceLabel(serialDetailValue(group))
+						"
+						class="serial-count-difference"
+					>
+						<summary>{{ serialDifferenceLabel(serialDetailValue(group)) }}</summary>
+						<p v-if="serialCountDifference(serialDetailValue(group)).missing.length">
+							缺少：{{
+								serialCountDifference(serialDetailValue(group)).missing.join("、")
+							}}
+						</p>
+						<p v-if="serialCountDifference(serialDetailValue(group)).found.length">
+							多出：{{
+								serialCountDifference(serialDetailValue(group)).found.join("、")
+							}}
+						</p>
+					</details>
 				</div>
 			</template>
 		</DataTable>
@@ -864,10 +1067,16 @@ function itemImage(row: CountRow) {
 	padding-top: 8px;
 	border-top: 1px solid var(--p-border);
 }
+.count-card-counts.is-serial {
+	grid-template-columns: minmax(0, 1fr);
+}
 .count-card-book,
 .count-card-entry {
 	display: grid;
 	gap: 3px;
+}
+.count-card-entry:has(.serial-count) {
+	min-width: 0;
 }
 .count-card-book span,
 .count-card-entry label,
@@ -894,6 +1103,48 @@ function itemImage(row: CountRow) {
 }
 .count-card-actions :deep(button) {
 	min-height: 36px;
+}
+.serial-count-row-summary {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	white-space: nowrap;
+}
+.serial-count-row-toggle {
+	min-height: 32px;
+	min-width: max-content;
+	flex: 0 0 auto;
+	border: 1px solid var(--p-border);
+	border-radius: var(--p-radius-control);
+	padding: 3px 8px;
+	color: var(--p-accent-strong);
+	background: var(--p-surface);
+	white-space: nowrap;
+}
+.serial-count-detail-row {
+	display: grid;
+	gap: 8px;
+	min-width: 0;
+	padding: 8px 12px;
+}
+:deep(.count-table tr[data-row-id^="count-serial-detail:"] .data-table-group-toggle) {
+	display: none;
+}
+:deep(.count-table tr[data-row-id^="count-serial-detail:"] .data-table-group-count) {
+	display: none;
+}
+:deep(.count-table .count-actual-column) {
+	min-width: 176px;
+}
+:deep(.count-table tr[data-row-id^="count-serial-detail:"] > td) {
+	font-weight: 400;
+	background: var(--p-surface);
+}
+:deep(.count-table tr[data-row-id^="count-serial-detail:"][aria-expanded="true"] > td) {
+	background: var(--p-surface);
+}
+:deep(.count-table .data-table-group-detail-row .data-table-group-detail-cell) {
+	padding: 10px 16px;
 }
 @media (max-width: 1023px) {
 	.count-filter-bar {
