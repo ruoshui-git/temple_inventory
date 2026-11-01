@@ -6,6 +6,7 @@ type DataColumnKind =
   | "code"
   | "date"
   | "datetime"
+  | "time"
   | "status"
   | "chip"
   | "thumb"
@@ -55,7 +56,6 @@ const dateColumns = new Set([
   "expiry",
 ]);
 const dateTimeColumns = new Set([
-  "time",
   "date_time",
   "posting_time",
   "posting_timestamp",
@@ -66,6 +66,7 @@ const dateTimeColumns = new Set([
   "created",
   "updated",
 ]);
+const timeColumns = new Set(["time", "posting_time"]);
 const primaryColumns = new Set([
   "item_name",
   "itemName",
@@ -96,6 +97,7 @@ export function dataColumnKind(
   )
     return "status";
   if (dateTimeColumns.has(id)) return "datetime";
+  if (timeColumns.has(id)) return "time";
   if (dateColumns.has(id)) return "date";
   if (primaryColumns.has(id)) return "primary";
   if (

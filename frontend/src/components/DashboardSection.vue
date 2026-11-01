@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { siteDateTime } from "../lib/nativeTime";
+import { formatSiteDateTime } from "../lib/nativeTime";
 import AsyncRegion from "./ui/AsyncRegion.vue";
 import BrowseRefreshNotice from "./ui/BrowseRefreshNotice.vue";
 interface DashboardSectionState {
@@ -86,7 +86,7 @@ const skeletonRows = [1, 2, 3, 4];
 			<div class="dashboard-result"><slot /></div>
 		</AsyncRegion>
 		<p v-if="snapshot && section.hasResult" class="browse-note">
-			范围快照（站点时间） {{ siteDateTime(snapshot) }}
+			范围快照（站点时间） {{ formatSiteDateTime(snapshot) }}
 		</p>
 	</article>
 </template>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { siteDateTime } from "../lib/nativeTime";
+import { formatSiteDateTime } from "../lib/nativeTime";
 import { scopeFilterChips, scopeFilterFieldChips } from "../lib/filterPresentation";
 import { reportFilterChips } from "../lib/reportFilters";
 import { reportDefinitions, type ReportDataset, type ReportQuery } from "../lib/reportContract";
@@ -227,7 +227,7 @@ defineExpose({ open: openDialog });
 					: job.status === "Failed"
 						? "生成失败"
 						: `${job.stage || "后台生成中"} · ${job.progress}%${job.progress_detail ? ` · ${job.progress_detail}` : ""}`
-			}}<span v-if="job.generated_at"> · {{ siteDateTime(job.generated_at) }}</span>
+			}}<span v-if="job.generated_at"> · {{ formatSiteDateTime(job.generated_at) }}</span>
 		</p>
 		<progress
 			v-if="generating && job"

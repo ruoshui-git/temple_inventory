@@ -35,6 +35,45 @@ const columns: DataColumn[] = [
 ];
 
 describe("table column contracts", () => {
+  it("titles chip cells only with plain text, never [object Object]", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    const wrapper = mount(DataTable, {
+      props: {
+        ariaLabel: "位置",
+        columns: [
+          { id: "name", label: "物品", required: true },
+          { id: "locations", label: "位置与批次", kind: "chip" },
+          { id: "category", label: "类别", kind: "chip" },
+        ],
+        rows: [
+          {
+            kind: "record",
+            id: "row-1",
+            value: {
+              name: "灯",
+              locations: [{ label: "A02", batches: [] }],
+              category: "供灯用品",
+            },
+          },
+        ],
+      },
+      attachTo: document.body,
+    });
+    wrappers.push(wrapper);
+    await flushPromises();
+    const titles = wrapper
+      .findAll("tbody td")
+      .map((cell) => cell.attributes("title"));
+    // The structured 位置与批次 cell renders its own detail, so it has no native tooltip.
+    expect(titles).toEqual(["灯", undefined, "供灯用品"]);
+  });
   it("measures horizontal overflow edges and scrolls by most of the visible width", async () => {
     vi.stubGlobal(
       "matchMedia",

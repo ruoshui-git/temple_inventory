@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { siteDateTime } from "../../lib/nativeTime";
+import { formatSiteDateTime } from "../../lib/nativeTime";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import { useFocusVisibility } from "../../composables/useFocusVisibility";

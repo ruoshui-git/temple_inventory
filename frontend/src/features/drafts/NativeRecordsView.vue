@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatSiteDateTime, formatSiteTime } from "../../lib/nativeTime";
 import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import UnitValues from "../../components/ui/UnitValues.vue";
 import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
@@ -249,7 +250,7 @@ const draftEntries = computed<DraftListEntry[]>(() => {
 		label: localTitle(entry),
 		summary: localSummary(entry),
 		updatedAt: entry.updatedAt,
-		absolute: new Date(entry.updatedAt).toLocaleString("zh-CN"),
+		absolute: formatSiteDateTime(entry.updatedAt, c.reference.timezone),
 		local: entry,
 	}));
 	const search = draftSearch.value.trim().toLocaleLowerCase();
@@ -913,7 +914,7 @@ function activityLabel(row: Record<string, unknown>) {
 								>
 							</div>
 							<template v-else-if="column.id === 'date'"
-								>{{ row.date }} {{ String(row.time || "").slice(0, 5) }}</template
+								>{{ row.date }} {{ formatSiteTime(row.time) }}</template
 							>
 							<div v-else-if="column.id === 'actions'" class="browse-row-actions">
 								<button class="browse-link" @click="open(nativeRow(row))">

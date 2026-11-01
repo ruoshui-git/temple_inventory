@@ -7,7 +7,7 @@ import BrowseFilters from "../../components/filters/BrowseFilters.vue";
 import ItemStatusFilter from "../../components/filters/ItemStatusFilter.vue";
 import { useFilterRailPreference } from "../../composables/useFilterRailPreference";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
-import { siteDateTime } from "../../lib/nativeTime";
+import { formatSiteDateTime } from "../../lib/nativeTime";
 import UiButton from "../../components/ui/UiButton.vue";
 import BrowseRefreshNotice from "../../components/ui/BrowseRefreshNotice.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
@@ -682,7 +682,7 @@ function setGroup(index: number, value: string) {
 			</label>
 		</div>
 		<p v-if="dataset === 'inventory' && query.view !== 'historical'" class="muted">
-			当前库存快照（站点时间）：{{ siteDateTime(result.snapshot) }}
+			当前库存快照（站点时间）：{{ formatSiteDateTime(result.snapshot) }}
 		</p>
 		<p v-if="dataset === 'loans'" class="muted">
 			按借出日期筛选；正常归还、损坏、遗失与未归还为当前结算余额。

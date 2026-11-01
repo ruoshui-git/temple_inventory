@@ -16,7 +16,7 @@ import frappe
 from frappe.utils import nowdate
 from openpyxl import load_workbook
 
-from temple_inventory import browse, counts, exports, native_api, native_files
+from temple_inventory import browse, counts, exports, native_api, native_files, report_sources
 from temple_inventory.export_columns import contract as export_contract
 from temple_inventory.export_columns import label as export_label
 from temple_inventory.projections import Projection, report_page
@@ -25,6 +25,25 @@ from temple_inventory.uom_labels import uom_label
 
 
 class NativeReportsExportsTests(NativeReportTestCase):
+	def test_browse_document_time_fields_are_padded_and_precise(self):
+		doc = frappe._dict(
+			doctype="Stock Entry",
+			name="STE-TIME-1",
+			docstatus=1,
+			posting_date="2026-10-31",
+			posting_time="6:07:00.250000",
+			modified="2026-10-31 06:07:08.123456",
+			owner="Administrator",
+			items=[],
+		)
+		context = Mock()
+		context.activity.return_value = None
+		row = report_sources.document_fields(context, doc)
+		# Payloads keep sub-second precision for ordering; the UI and exports show seconds.
+		self.assertEqual(row["time"], "06:07:00.250000")
+		self.assertEqual(row["posting_timestamp"], "2026-10-31 06:07:00.250000")
+		self.assertEqual(row["modified"], "2026-10-31 06:07:08.123456")
+
 	def test_checked_in_export_column_contract_is_current(self):
 		path = Path(__file__).resolve().parents[2] / "frontend/tests/fixtures/export-columns.json"
 		self.assertEqual(
@@ -605,6 +624,13 @@ class NativeReportsExportsTests(NativeReportTestCase):
 		self.assertEqual(exports._display_cell({"expiry_date": "2000-01-01"}, "expiry_state"), "已过期")
 		self.assertEqual(exports._display_cell({"expiry_date": "2999-01-01"}, "expiry_state"), "未过期")
 		self.assertEqual(exports._display_cell({}, "expiry_state"), "无效期")
+
+	def test_export_time_cells_use_site_wall_time_seconds(self):
+		self.assertEqual(exports._display_cell({"time": "6:07:00.123456"}, "time"), "06:07:00")
+		self.assertEqual(
+			exports._display_cell({"modified": "2026-10-31 06:07:00.123456"}, "modified"),
+			"2026-10-31 06:07:00",
+		)
 
 	def test_grouped_movement_export_uses_flat_history_rows_and_readable_cells(self):
 		self.receipt(12)

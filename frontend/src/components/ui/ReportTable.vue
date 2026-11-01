@@ -3,7 +3,7 @@ import { computed, ref, useSlots } from "vue";
 import { useOptionalInventoryServices, useOptionalReferenceData } from "../../services/contracts";
 import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
 import { nativeStatusLabel, tablePresentationLabel } from "../../lib/presentationLabels";
-import { siteDateTime } from "../../lib/nativeTime";
+import { formatSiteDateTime } from "../../lib/nativeTime";
 import { formatQuantity, formatQuantityWithUnit } from "../../lib/formatQuantity";
 import type {
 	DataColumn,
@@ -246,7 +246,7 @@ function cell(column: string, value: unknown, row: Record<string, unknown>) {
 			"date_time",
 		].includes(column)
 	)
-		return siteDateTime(value);
+		return formatSiteDateTime(value);
 	if (column === "quantity" && typeof value === "number") {
 		const amount = formatQuantity(Math.abs(value));
 		return `${row.signed && value > 0 ? "+" : value < 0 ? "−" : ""}${amount} ${String(row.stock_uom || "")}`.trim();

@@ -4,7 +4,7 @@ import PageHeader from "../../components/ui/PageHeader.vue";
 import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import BrowseChip from "../../components/ui/BrowseChip.vue";
-import { siteDateTime } from "../../lib/nativeTime";
+import { formatSiteDateTime } from "../../lib/nativeTime";
 import { computed, ref } from "vue";
 import { nextTableSort } from "../../composables/useArrayTableSort";
 import ActivityEditor from "./ActivityEditor.vue";
@@ -445,7 +445,7 @@ const activityExportColumns = computed(() => {
 							></template
 						>
 						<template v-else-if="column.id === 'modified'">{{
-							siteDateTime(String(row.modified || ""))
+							formatSiteDateTime(String(row.modified || ""))
 						}}</template>
 						<div v-else-if="column.id === 'actions'" class="activity-kind-summary">
 							<RouterLink
@@ -567,11 +567,13 @@ const activityExportColumns = computed(() => {
 					</div>
 					<div>
 						<dt>创建（站点时间）</dt>
-						<dd>{{ current.owner }} · {{ siteDateTime(current.created) }}</dd>
+						<dd>{{ current.owner }} · {{ formatSiteDateTime(current.created) }}</dd>
 					</div>
 					<div>
 						<dt>更新（站点时间）</dt>
-						<dd>{{ current.modifiedBy }} · {{ siteDateTime(current.modified) }}</dd>
+						<dd>
+							{{ current.modifiedBy }} · {{ formatSiteDateTime(current.modified) }}
+						</dd>
 					</div>
 				</dl>
 				<p class="content-long-text">{{ current.description || "未填写说明" }}</p>

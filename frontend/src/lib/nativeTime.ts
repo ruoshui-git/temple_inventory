@@ -1,19 +1,56 @@
 /** Normalize an input's hour width while preserving native second precision. */
 export function postingTime(value: unknown) {
-  const text = String(value || "");
-  return text.replace(/^(\d):/, "0$1:");
+  return formatSiteTime(value) || "00:00:00";
 }
 
 /** Native timestamps are site wall time: never reinterpret them in browser UTC/local time.
  * This is display-only; callers retain exact version and modification tokens.
  */
-export function siteDateTime(value: unknown): string {
+export function formatSiteTime(value: unknown): string {
+  const match = /^(\d{1,2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?$/.exec(
+    String(value || ""),
+  );
+  return match
+    ? `${match[1]!.padStart(2, "0")}:${match[2]}:${match[3] || "00"}`
+    : "";
+}
+
+export function formatSiteDateTime(value: unknown, timezone = ""): string {
   const text = String(value || "");
+  if (timezone && /(?:Z|[+-]\d{2}:?\d{2})$/.test(text)) {
+    const instant = new Date(text);
+    if (!Number.isNaN(instant.getTime())) {
+      try {
+        const parts = Object.fromEntries(
+          new Intl.DateTimeFormat("en-CA", {
+            timeZone: timezone,
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hourCycle: "h23",
+          })
+            .formatToParts(instant)
+            .filter((part) => part.type !== "literal")
+            .map((part) => [part.type, part.value]),
+        );
+        return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
+      } catch {
+        return "";
+      }
+    }
+  }
   const match =
-    /^(\d{4}-\d{2}-\d{2})[ T](\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?$/.exec(
+    /^(\d{4}-\d{2}-\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?$/.exec(
       text,
     );
-  return match ? `${match[1]} ${match[2]!.padStart(2, "0")}:${match[3]}` : text;
+  return match
+    ? `${match[1]} ${match[2]!.padStart(2, "0")}:${match[3]}:${match[4] || "00"}`
+    : /^\d{4}-\d{2}-\d{2}$/.test(text)
+      ? text
+      : "";
 }
 
 /** Convert a timezone-free site wall-time string to an epoch using the site timezone. */

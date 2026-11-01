@@ -1023,6 +1023,18 @@ def _sum_fields(table, query):
 
 
 def _display_cell(row, field, projection=None):
+	value = row.get(field)
+	if field in ("time", "posting_time") and value:
+		from frappe.utils import get_time
+
+		return get_time(value).strftime("%H:%M:%S")
+	if (
+		field in ("posting_timestamp", "modified", "creation", "created", "updated", "snapshot", "balance_at")
+		and value
+	):
+		from frappe.utils import get_datetime
+
+		return get_datetime(value).strftime("%Y-%m-%d %H:%M:%S")
 	if field.endswith("_warehouse") or field == "warehouse":
 		label_field = f"{field}_label"
 		if row.get(label_field):
@@ -1050,7 +1062,6 @@ def _display_cell(row, field, projection=None):
 		if not row.get("expiry_date"):
 			return "无效期"
 		return "已过期" if str(row["expiry_date"]) < frappe.utils.nowdate() else "未过期"
-	value = row.get(field)
 	if isinstance(value, list):
 		return "；".join(str(part) for part in value)
 	if isinstance(value, bool):

@@ -6,7 +6,7 @@ import tempfile
 from collections import defaultdict
 
 import frappe
-from frappe.utils import get_datetime, getdate, now_datetime, nowdate
+from frappe.utils import get_datetime, get_time, getdate, now_datetime, nowdate
 
 from temple_inventory.native_balances import (
 	batch_balances,
@@ -87,6 +87,7 @@ class ReportContext:
 		self.period = resolved_period(self.scope["period"])
 		self.related_period = resolved_period(query["relatedPeriod"])
 		self.snapshot_is_now = snapshot is None if snapshot_is_now is None else snapshot_is_now
+		# Full precision: the snapshot is the "as of" bound for balance queries.
 		self.snapshot = str(snapshot or now_datetime())
 		self.settings, self.warehouses, self.physical, self.leased, self.damaged = warehouse_scopes()
 		from temple_inventory.native_topology import present_locations
@@ -990,9 +991,10 @@ def document_fields(context, doc):
 		"docstatus": int(doc.docstatus),
 		"kind": document_kind(doc),
 		"date": str(doc.posting_date),
-		"time": str(doc.posting_time),
+		# Precise, zero-padded values keep sorting exact; displays format to seconds.
+		"time": get_time(doc.posting_time).isoformat(),
 		"posting_timestamp": str(get_datetime(f"{doc.posting_date} {doc.posting_time}")),
-		"modified": str(doc.modified),
+		"modified": str(get_datetime(doc.modified)),
 		**document_attribution(context, doc),
 		"source": doc.get("ti_source_text") or "",
 		"purpose": doc.get("ti_purpose_text") or "",
@@ -1591,7 +1593,7 @@ def historical_rows(context):
 							"document_id": f"{ledger.voucher_type}:{ledger.voucher_no}",
 							"line_name": ledger.voucher_detail_no,
 							"date": str(ledger.posting_date),
-							"time": str(ledger.posting_time),
+							"time": get_time(ledger.posting_time).isoformat(),
 							"docstatus": 1,
 							"kind": document_kind(parent)
 							if parent.doctype in ("Stock Entry", "Stock Reconciliation")

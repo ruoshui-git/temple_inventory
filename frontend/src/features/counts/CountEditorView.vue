@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatSiteTime } from "../../lib/nativeTime";
 import { unitLabel } from "../../lib/units";
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
@@ -894,7 +895,7 @@ async function back() {
 			<p v-if="!deskOrigin && values.ti_notes" class="content-long-text">
 				盘点备注：{{ values.ti_notes }}
 			</p>
-			<p>{{ values.posting_date }} {{ values.posting_time }}</p>
+			<p>{{ values.posting_date }} {{ formatSiteTime(values.posting_time) }}</p>
 			<div v-if="!deskOrigin" class="count-confirmation-rows">
 				<p v-for="row in reviewedRows" :key="c.countKey(row)">
 					{{ c.names[row.item_code] || row.item_code }} ·

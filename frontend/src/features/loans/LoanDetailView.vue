@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import PageHeader from "../../components/ui/PageHeader.vue";
 import BackButton from "../../components/ui/BackButton.vue";
-import { siteDateTime } from "../../lib/nativeTime";
+import { formatSiteDateTime, formatSiteTime } from "../../lib/nativeTime";
 import { computed } from "vue";
 import type { ReportQuery } from "../../lib/reportContract";
 import type { LoanDetail, SettlementAction } from "./useLoanDetail";
@@ -78,7 +78,7 @@ function settle(action: SettlementAction) {
 				<div>
 					<span class="eyebrow"
 						>{{ loan.name }} · {{ loan.posting_date }}
-						{{ loan.posting_time?.slice(0, 5) }}</span
+						{{ formatSiteTime(loan.posting_time) }}</span
 					>
 					<h2>{{ loan.ti_borrower }}</h2>
 					<UiButton
@@ -102,7 +102,9 @@ function settle(action: SettlementAction) {
 			</div>
 			<p class="browse-note">
 				借出日期为原记录日期；结余按当前已提交且未取消的处理记录计算。{{
-					loan.balance_at ? `结余快照（站点时间） ${siteDateTime(loan.balance_at)}` : ""
+					loan.balance_at
+						? `结余快照（站点时间） ${formatSiteDateTime(loan.balance_at)}`
+						: ""
 				}}
 			</p>
 			<div

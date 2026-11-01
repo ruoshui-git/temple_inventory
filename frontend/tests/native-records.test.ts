@@ -100,6 +100,16 @@ function setup(
   return { wrapper, page, c: page.vm.controller, reference, call };
 }
 describe("native drafts and count records", () => {
+  it("shows count record times with padded hours and seconds", async () => {
+    const row = { ...nativeRow, date: "2026-10-31", time: "6:07:00" };
+    const { wrapper } = setup(
+      vi.fn(async () => ({ ...response, rows: [row] })),
+      "counts",
+    );
+    await flushPromises();
+    expect(wrapper.text()).toContain("2026-10-31 06:07:00");
+  });
+
   it("uses the account's count period on entry and when clearing filters", async () => {
     hydrateUiPreferences("volunteer", {
       ...defaultDisplayPreferences,

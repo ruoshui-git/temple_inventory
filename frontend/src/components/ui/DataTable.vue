@@ -16,6 +16,7 @@ import { useOverflowEdges } from "../../composables/useOverflowEdges";
 import FloatingTableScrollbar from "./FloatingTableScrollbar.vue";
 import UnitText from "./UnitText.vue";
 import DetailPopover from "./DetailPopover.vue";
+import { formatSiteDateTime, formatSiteTime } from "../../lib/nativeTime";
 
 const props = withDefaults(
 	defineProps<{
@@ -497,6 +498,10 @@ function recordValue(entry: DataTableEntry): Record<string, unknown> {
 
 function cellValue(entry: DataTableEntry, column: DataColumn) {
 	return value(recordValue(entry), String(column.id));
+}
+/** Only plain text works as a native tooltip; structured cells render their own detail. */
+function cellTitle(cell: unknown) {
+	return typeof cell === "string" || typeof cell === "number" ? String(cell) : undefined;
 }
 
 function toggleVisible(event: Event) {
@@ -1052,7 +1057,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 											['primary', 'code', 'chip'].includes(
 												columnKind(column),
 											)
-												? String(cellValue(entry, column) ?? '')
+												? cellTitle(recordValue(entry)[String(column.id)])
 												: undefined
 										"
 									>
@@ -1066,6 +1071,15 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 											<template v-if="columnKind(column) === 'unit'"
 												><UnitText :name="cellValue(entry, column)"
 											/></template>
+											<template
+												v-else-if="columnKind(column) === 'datetime'"
+												>{{
+													formatSiteDateTime(cellValue(entry, column))
+												}}</template
+											>
+											<template v-else-if="columnKind(column) === 'time'">{{
+												formatSiteTime(cellValue(entry, column))
+											}}</template>
 											<template v-else>{{
 												cellValue(entry, column)
 											}}</template>

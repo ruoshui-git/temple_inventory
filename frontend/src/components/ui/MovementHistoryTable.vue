@@ -3,7 +3,7 @@ import { computed, useSlots } from "vue";
 import { useOptionalInventoryServices } from "../../services/contracts";
 import { formatQuantity } from "../../lib/formatQuantity";
 import { movementLabels } from "../../lib/presentationLabels";
-import { siteDateTime } from "../../lib/nativeTime";
+import { formatSiteDateTime } from "../../lib/nativeTime";
 import type { HistoryRow } from "../../features/movements/useMovementHistory";
 import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
 import UiButton from "./UiButton.vue";
@@ -217,7 +217,7 @@ function historyIcon(row: HistoryRow) {
 }
 
 function compactDate(value: string) {
-	const formatted = siteDateTime(value);
+	const formatted = formatSiteDateTime(value);
 	return formatted.length >= 16 ? formatted.slice(5, 16) : formatted;
 }
 
@@ -285,7 +285,7 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 					</div>
 				</template>
 				<template v-else-if="column.id === 'date_time'">{{
-					siteDateTime(row.date_time)
+					formatSiteDateTime(row.date_time)
 				}}</template>
 				<NativeStatusBadge v-else-if="column.id === 'docstatus'" :status="row.docstatus" />
 				<template v-else-if="column.id === 'image'">

@@ -13,7 +13,7 @@ import {
 } from "../src/services/contracts";
 import { savedDocumentExport } from "../src/features/documents/savedDocumentExport";
 import type { NativeDocument } from "../src/features/documents/nativeEditor";
-import { siteDateTime } from "../src/lib/nativeTime";
+import { formatSiteDateTime } from "../src/lib/nativeTime";
 import { decodeReportQuery } from "../src/lib/reportQuery";
 import { reportFilterChips } from "../src/lib/reportFilters";
 const wrappers: VueWrapper[] = [];
@@ -260,10 +260,10 @@ it("hides internal row keys from real API-shaped summary/group/detail tables", (
 });
 it("formats site wall time without changing exact concurrency tokens", () => {
   const doc = record("Stock Entry");
-  expect(siteDateTime(doc.version)).toBe("2026-10-17 14:34");
+  expect(formatSiteDateTime(doc.version)).toBe("2026-10-17 14:34:48");
   expect(doc.version).toBe("2026-10-17 14:34:48.267486");
-  expect(siteDateTime("2026-10-17 9:04:48")).toBe("2026-10-17 09:04");
-  expect(siteDateTime("2026-10-17")).toBe("2026-10-17");
+  expect(formatSiteDateTime("2026-10-17 9:04:48")).toBe("2026-10-17 09:04:48");
+  expect(formatSiteDateTime("2026-10-17")).toBe("2026-10-17");
 });
 
 describe("migration follow-up", () => {
