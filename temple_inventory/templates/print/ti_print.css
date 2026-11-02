@@ -8,8 +8,9 @@
 	color: #000;
 }
 
+/* Frappe sizes server PDFs from the .print-format page-width/orientation options;
+   browsers use their own paper size. Named @page rules would force a page break. */
 @page {
-	size: Letter portrait;
 	margin: {{ PDF_MARGIN_MM }}mm;
 	@bottom-right {
 		content: "第 " counter(page) " / " counter(pages) " 页";
@@ -18,14 +19,11 @@
 	}
 }
 
-@page landscape {
-	size: Letter landscape;
-	margin: {{ PDF_MARGIN_MM }}mm;
-	@bottom-right {
-		content: "第 " counter(page) " / " counter(pages) " 页";
-		font-family: "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans CJK", sans-serif;
-		font-size: 8pt;
-	}
+/* Frappe's printview banner is hidden by Desk print CSS, which a standalone slip
+   (browser 打印) or a bench without built assets does not load. */
+.action-banner,
+.print-hide {
+	display: none !important;
 }
 
 .ti-print,
@@ -243,7 +241,6 @@
 .ti-landscape {
 	/* Marker class; Frappe needs orientation: Landscape on the .print-format selector. */
 	orientation: Landscape;
-	page: landscape;
 }
 
 .ti-portrait {

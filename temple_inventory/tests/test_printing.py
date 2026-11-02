@@ -239,7 +239,8 @@ class PrintingTests(NativeDocumentTests):
 		self.assertIn(".print-format .ti-print .ti-table thead th", ti_print_css())
 		self.assertIn("color: #000 !important", ti_print_css())
 		self.assertIn("margin: 6mm", ti_print_css())
-		self.assertIn("size: Letter portrait", ti_print_css())
+		self.assertNotIn("page: landscape", ti_print_css())
+		self.assertRegex(ti_print_css(), r"\.action-banner,\s*\.print-hide \{\s*display: none !important;")
 		from temple_inventory.printing import (
 			PDF_MARGIN_MM,
 			PDF_PAGE_DIMENSIONS_PT,
