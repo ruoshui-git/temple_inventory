@@ -123,6 +123,16 @@ def _pdf_layout(
 			widths[index] = min(widths[index], max(header[index], 6.0 if index in wrappable else 7.0))
 		fit = (fallback_orientation, font)
 	orientation, font = fit
+	if main is not None:
+		# The main column keeps one line where possible: wrappable text gives up width down to its
+		# 90th-percentile value, so only its longest cells wrap.
+		room = PDF_PAGE_WIDTH_PT[orientation] / font
+		for index in sorted(set(wrappable) - {main}, key=lambda index: typical[index] - widths[index]):
+			shortfall = widest[main] * PDF_TEXT_MARGIN - (room - total_width(widths, font, 0) / font)
+			if shortfall <= 0:
+				break
+			floor = max(header[index], typical[index])
+			widths[index] = min(widths[index], max(floor, widths[index] - shortfall / PDF_TEXT_MARGIN))
 	for index, column in enumerate(columns):
 		column["wrap"] = index != main and widest[index] > widths[index] + 0.01
 		column["width_pt"] = (

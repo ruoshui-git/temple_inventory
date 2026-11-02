@@ -562,7 +562,8 @@ function acceptBrowseLocation(name: string) {
 					>
 				</template>
 			</BrowseResultSummary>
-			<div v-if="asOfActive" class="stock-as-of-notice" role="status">
+			<div v-if="asOfActive" class="notice-bar stock-as-of-notice" role="status">
+				<InventoryIcon name="info" />
 				<span>正在查看 {{ quickReportQuery.asOf }} 的历史库存，出入库操作已停用</span>
 				<UiButton variant="ghost" @click="setAsOf('')">回到现在</UiButton>
 			</div>

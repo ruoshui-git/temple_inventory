@@ -20,6 +20,7 @@ from pypdf import PdfReader
 from temple_inventory import browse, catalog, counts, exports, native_api, native_files, report_sources
 from temple_inventory.export_columns import contract as export_contract
 from temple_inventory.export_columns import label as export_label
+from temple_inventory.printing import PDF_CELL_EXTRA_PT, PDF_PAGE_WIDTH_PT, PDF_TEXT_MARGIN
 from temple_inventory.projections import Projection, report_page
 from temple_inventory.tests.helpers import NativeReportTestCase
 from temple_inventory.uom_labels import uom_label
@@ -55,6 +56,40 @@ class NativeReportsExportsTests(NativeReportTestCase):
 		for orientation in ("portrait", "landscape"):
 			forced = exports._pdf_layout(narrow, narrow_rows, orientation=orientation)
 			self.assertEqual(forced["orientation"], orientation)
+
+	def test_pdf_layout_keeps_item_name_on_one_line_before_location_slack(self):
+		stock = [
+			{"label": "物品名称", "align": "text", "is_main": True},
+			{"label": "物品编号", "align": "text", "is_main": False},
+			{"label": "可用数量", "align": "number", "is_main": False},
+			{"label": "库存单位", "align": "center", "is_main": False},
+			{"label": "类别", "align": "text", "is_main": False},
+			{"label": "位置", "align": "text", "is_main": False},
+		]
+		name = "鎏金药师佛像供养专用莲花灯座"
+		rows = [
+			{
+				"style": "row",
+				"sequence": index,
+				"values": [name, f"ITM-{index:06d}", "12", "个", "香烛供品", "仓库/一号架"],
+			}
+			for index in range(1, 20)
+		]
+		rows.append(
+			{
+				"style": "row",
+				"sequence": 20,
+				"values": [name, "ITM-000020", "3", "个", "香烛供品", "大雄宝殿/东侧库房/三号货架/第二层"],
+			}
+		)
+		layout = exports._pdf_layout(stock, rows, wrappable={4, 5})
+		self.assertEqual((layout["orientation"], layout["font_pt"]), ("portrait", 9.5))
+		fixed = layout["seq_width_pt"] + sum(column["width_pt"] for column in stock[1:])
+		main_room = PDF_PAGE_WIDTH_PT["portrait"] - fixed - PDF_CELL_EXTRA_PT
+		self.assertGreaterEqual(main_room, len(name) * layout["font_pt"] * PDF_TEXT_MARGIN)
+		# Only the one long path wraps; the column no longer reserves its width on every row.
+		self.assertTrue(stock[5]["wrap"])
+		self.assertFalse(stock[4]["wrap"])
 
 	def test_browse_document_time_fields_are_padded_and_precise(self):
 		doc = frappe._dict(

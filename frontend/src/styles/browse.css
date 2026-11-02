@@ -2170,17 +2170,8 @@
 	border-radius: var(--p-radius-control);
 	background: var(--p-surface);
 }
-.stock-as-of-notice {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: space-between;
-	gap: var(--p-space-2);
-	margin-block: var(--p-space-2);
-	padding: var(--p-space-2) var(--p-space-3);
-	border: 1px solid var(--p-info);
-	border-radius: var(--p-radius-control);
-	background: var(--p-info-bg);
+.stock-as-of-notice > span {
+	flex: 1 1 auto;
 }
 .period-filter-actions {
 	display: flex;
