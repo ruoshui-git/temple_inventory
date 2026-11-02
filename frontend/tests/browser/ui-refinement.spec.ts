@@ -786,14 +786,14 @@ test("stock card selection uses the whole card and select all covers loaded card
   await page.locator(".browse-select-visible input").uncheck();
   await page.getByRole("button", { name: "卡片视图", exact: true }).click();
   await expect(page.locator(".stock-card")).toHaveCount(20);
-  await page.locator(".stock-card-image").first().click();
+  await page.locator(".item-card-image").first().click();
   await expect(
     page.getByRole("region", { name: "已选物品操作" }),
   ).toContainText("已选择 1 项");
   await page.screenshot({
     path: info.outputPath("stock-card-thumbnail-selection-phone.png"),
   });
-  await page.locator(".stock-card-image").first().click();
+  await page.locator(".item-card-image").first().click();
   await expect(
     page.getByRole("region", { name: "已选物品操作" }),
   ).toContainText("已选择 0 项");
@@ -815,7 +815,7 @@ test("stock card selection uses the whole card and select all covers loaded card
     path: info.outputPath("stock-cards-selection-desktop.png"),
   });
   await page.locator(".browse-select-visible input").uncheck();
-  await page.locator(".stock-card-image").first().click();
+  await page.locator(".item-card-image").first().click();
   await expect(
     page.getByRole("region", { name: "已选物品操作" }),
   ).toContainText("已选择 1 项");

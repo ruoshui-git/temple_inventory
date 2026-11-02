@@ -25,6 +25,8 @@ import BrowseFilters from "../../components/filters/BrowseFilters.vue";
 import ReportTable from "../../components/ui/ReportTable.vue";
 import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
 import BrowseCard from "../../components/ui/BrowseCard.vue";
+import BrowseLoadMore from "../../components/ui/BrowseLoadMore.vue";
+import ItemCard from "../../components/ui/ItemCard.vue";
 import ViewModeToggle from "../../components/ui/ViewModeToggle.vue";
 import ViewModeMenuItem from "../../components/ui/ViewModeMenuItem.vue";
 import ItemGroupLines from "./ItemGroupLines.vue";
@@ -131,7 +133,10 @@ const showMobileItemCards = computed(
 		query.value.groupBy[0] === "item",
 );
 const canShowItemCards = computed(
-	() => !props.records && query.value.groupBy.length === 1 && query.value.groupBy[0] === "item",
+	() =>
+		!props.records &&
+		(!query.value.groupBy.length ||
+			(query.value.groupBy.length === 1 && query.value.groupBy[0] === "item")),
 );
 const services = useOptionalInventoryServices();
 const draftCount = ref(0);
@@ -322,6 +327,11 @@ const itemTableRows = computed<DataTableEntry[]>(() => {
 		];
 	});
 });
+const flatItemCardRows = computed(() =>
+	itemTableRows.value.filter(
+		(entry): entry is DataTableRecord => entry.kind === "record" && Boolean(entry.value),
+	),
+);
 const flatHistoryItem = computed<OperationGroup>(() => ({
 	id: "flat-history-scope",
 	document_count: 0,
@@ -1556,35 +1566,119 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						v-if="canShowItemCards && browseView === 'card'"
 						class="browse-card-grid operation-item-card-grid"
 					>
-						<BrowseCard
+						<ItemCard
 							v-for="group in mobileItemGroups"
 							:key="group.id"
 							:row-key="group.id"
-							variant="card"
 							:selecting="family === 'loans' && c.selecting.value"
 							:selected="c.selected.value.includes(group.id)"
 							:select-label="`选择物品 ${group.label}`"
 							:stale="result.stale"
+							:name="group.label"
+							:code="String(group.value?.item_code || '')"
+							:category="String(group.value?.category || '')"
+							:image="c.stockItem(groupItem(group)) || undefined"
+							:status="
+								family === 'loans'
+									? group.value?.outcome_key === 'outstanding'
+										? '未归还'
+										: '借出'
+									: ''
+							"
 							@toggle="toggleMobileLoanItem(group)"
 							@open="openItemGroup(group)"
 						>
-							<template #media
-								><div class="browse-card-media">
-									<ItemImage
-										v-if="c.stockItem(groupItem(group))"
-										:item="c.stockItem(groupItem(group))!"
-									/></div
-							></template>
-							<div class="operation-item-card-content">
-								<strong>{{ group.label }}</strong
-								><small>{{ group.count }} 条明细</small>
+							<template #default>
+								<span>{{ group.count }} 条明细</span>
 								<span>{{ groupSummaryDisplay(group) }}</span>
-								<small v-if="family === 'loans'">{{
-									group.value?.outcome_key === "outstanding" ? "未归还" : "借出"
-								}}</small>
-							</div>
-						</BrowseCard>
+							</template>
+						</ItemCard>
 					</div>
+					<div
+						v-if="canShowItemCards && !query.groupBy.length && browseView === 'card'"
+						class="browse-card-grid operation-item-card-grid"
+					>
+						<ItemCard
+							v-for="entry in flatItemCardRows"
+							:key="entry.id"
+							:row-key="entry.id"
+							:name="String(entry.value?.item_name || entry.value?.item_code || '')"
+							:code="String(entry.value?.item_code || '')"
+							:category="String(entry.value?.category || '')"
+							:image="{
+								code: String(entry.value?.item_code || ''),
+								name: String(entry.value?.item_name || ''),
+								image: String(entry.value?.image || ''),
+							}"
+							:quantity="
+								Number(entry.value?.quantity ?? entry.value?.stock_qty ?? 0)
+							"
+							:unit="entry.value?.stock_uom"
+							:status="
+								family === 'loans'
+									? enumPresentationLabel(
+											'outcome',
+											String(entry.value?.outcome || ''),
+											query,
+										)
+									: enumPresentationLabel(
+											'kind',
+											String(entry.value?.kind || ''),
+											query,
+										)
+							"
+							:selecting="family === 'loans' && c.selecting.value"
+							:selected="c.selected.value.includes(entry.id)"
+							:select-label="`选择物品 ${String(entry.value?.item_name || entry.id)}`"
+							:stale="result.stale"
+							@toggle="c.setSelected(entry.id, !c.selected.value.includes(entry.id))"
+							@open="emit('openItem', String(entry.value?.item_code || entry.id))"
+						>
+							<small class="item-card-meta"
+								>{{ entry.value?.date }} · {{ entry.value?.document }}</small
+							>
+						</ItemCard>
+					</div>
+					<BrowseLoadMore
+						v-if="
+							(records &&
+								isMobile &&
+								!query.groupBy.length &&
+								browseView === 'card') ||
+							(!records &&
+								((canShowItemCards && browseView === 'card') ||
+									(showMobileItemCards && browseView === 'table')))
+						"
+						:has-more="
+							records || !query.groupBy.length
+								? result.next !== null
+								: c.groups.hasMore()
+						"
+						:loaded-count="
+							records || !query.groupBy.length
+								? result.rows.length
+								: c.groups.progress().loaded
+						"
+						:total-count="
+							records || !query.groupBy.length
+								? result.total
+								: c.groups.progress().total
+						"
+						:loading="
+							query.groupBy.length ? Boolean(groupRoot?.loading) : result.loading
+						"
+						:error="
+							query.groupBy.length
+								? groupRoot?.error || ''
+								: result.error && result.next !== null
+									? result.error
+									: ''
+						"
+						@load-more="
+							records || !query.groupBy.length ? c.load(true) : c.groups.loadMore()
+						"
+						@retry="records || !query.groupBy.length ? c.retry() : c.groups.retry()"
+					/>
 					<DataTable
 						v-if="
 							!records &&

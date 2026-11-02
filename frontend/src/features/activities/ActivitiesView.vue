@@ -26,6 +26,7 @@ import type { useActivitiesController } from "./useActivitiesController";
 import DataTable from "../../components/ui/DataTable.vue";
 import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
 import BrowseCard from "../../components/ui/BrowseCard.vue";
+import BrowseLoadMore from "../../components/ui/BrowseLoadMore.vue";
 import ViewModeMenuItem from "../../components/ui/ViewModeMenuItem.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import type {
@@ -414,6 +415,21 @@ const activityExportColumns = computed(() => {
 					</div>
 				</BrowseCard>
 			</div>
+			<BrowseLoadMore
+				v-if="
+					isMobile &&
+					!report.groupBy.length &&
+					view === 'card' &&
+					projection.mainTable.value
+				"
+				:has-more="projection.mainTable.value.next !== null"
+				:loaded-count="projection.mainTable.value.rows.length"
+				:total-count="projection.mainTable.value.total"
+				:loading="projection.mainTable.value.loading"
+				:error="projection.mainTable.value.error"
+				@load-more="projection.loadTable(projection.mainTable.value, true)"
+				@retry="projection.loadTable(projection.mainTable.value, true, true)"
+			/>
 			<div class="activity-list-scroll" data-browse-scroll="activities">
 				<DataTable
 					v-if="!isMobile || view === 'table' || report.groupBy.length"

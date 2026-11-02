@@ -38,6 +38,7 @@ import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import DataTable from "../../components/ui/DataTable.vue";
 import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
 import BrowseCard from "../../components/ui/BrowseCard.vue";
+import BrowseLoadMore from "../../components/ui/BrowseLoadMore.vue";
 import ViewModeMenuItem from "../../components/ui/ViewModeMenuItem.vue";
 import AsyncRegion from "../../components/ui/AsyncRegion.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
@@ -806,6 +807,16 @@ function activityLabel(row: Record<string, unknown>) {
 						没有符合条件的草稿。
 					</p>
 				</div>
+				<BrowseLoadMore
+					v-if="isMobile && view === 'card'"
+					:has-more="next !== null"
+					:loaded-count="rows.length"
+					:total-count="total"
+					:loading="loading"
+					:error="error && next !== null ? error : ''"
+					@load-more="c.load(true)"
+					@retry="c.retry"
+				/>
 				<DataTable
 					v-else-if="isMobile && view === 'table'"
 					ariaLabel="草稿列表"
@@ -912,6 +923,21 @@ function activityLabel(row: Record<string, unknown>) {
 							没有符合条件的盘点记录。
 						</p>
 					</div>
+					<BrowseLoadMore
+						v-if="
+							mode === 'counts' &&
+							isMobile &&
+							view === 'card' &&
+							!query.groupBy.length
+						"
+						:has-more="next !== null"
+						:loaded-count="rows.length"
+						:total-count="total"
+						:loading="loading"
+						:error="error && next !== null ? error : ''"
+						@load-more="c.load(true)"
+						@retry="c.retry"
+					/>
 					<DataTable
 						v-if="!isMobile || view === 'table' || query.groupBy.length"
 						data-browse-scroll="records"

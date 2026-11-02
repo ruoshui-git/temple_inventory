@@ -9,7 +9,7 @@ import {
 
 // Routed production components with controlled HTTP data. Native inventory
 // correctness is checked separately by the rollback-only backend suite.
-async function prepare(page: Page, textScale: number) {
+async function prepare(page: Page, textScale: number, withMore = false) {
   let release!: () => void;
   const loaded = new Promise<void>((resolve) => (release = resolve));
   await page.route("**/api/method/temple_inventory.**", async (route) => {
@@ -123,8 +123,8 @@ async function prepare(page: Page, textScale: number) {
     if (method === "browse.inventory_page")
       message = {
         rows,
-        matched_count: 24,
-        next_start: null,
+        matched_count: withMore ? 48 : 24,
+        next_start: withMore ? 24 : null,
         query: args.query,
         snapshot: "2026-10-18 10:00:00",
         analysis: { category: [], location: [] },
@@ -133,8 +133,8 @@ async function prepare(page: Page, textScale: number) {
     else if (method === "browse.expiry_page")
       message = {
         rows,
-        matched_count: 24,
-        next_start: null,
+        matched_count: withMore ? 48 : 24,
+        next_start: withMore ? 24 : null,
         query: args.query,
         snapshot: "2026-10-18 10:00:00",
         item_count: 24,
@@ -146,13 +146,28 @@ async function prepare(page: Page, textScale: number) {
     else if (method === "browse.operation_page")
       message = {
         rows,
-        matched_count: 24,
-        next_start: null,
+        matched_count: withMore ? 48 : 24,
+        next_start: withMore ? 24 : null,
         query: args.query,
         snapshot: "2026-10-18 10:00:00",
         totals,
         summary: { item_count: 24, document_count: 24, category_count: 1 },
         analysis: {},
+      };
+    else if (
+      method === "browse.movement_history" ||
+      method === "browse.operation_contributions"
+    )
+      message = {
+        rows: rows.map((row) => ({
+          ...row,
+          quantity: row.stock_qty,
+          status: "已提交",
+        })),
+        matched_count: withMore ? 48 : 24,
+        next_start: withMore ? 24 : null,
+        columns: [],
+        history_complete: true,
       };
     else if (method === "projections.group_page")
       message = {
@@ -207,6 +222,59 @@ async function prepare(page: Page, textScale: number) {
   );
   return release;
 }
+
+test("card views keep rows and load-more visible at the end of the page", async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const release = await prepare(page, 100, true);
+
+  await page.goto("/inventory/stock/expiry");
+  release();
+  await page.getByRole("button", { name: "卡片视图" }).click();
+  await expect(
+    page.locator(".expiry-card-grid [data-browse-row]").first(),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /加载更多 · 24 \/ 48/ }),
+  ).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await page.screenshot({
+    path: info.outputPath("expiry-cards-load-more.png"),
+    fullPage: true,
+  });
+
+  await page.goto("/inventory/stock");
+  await expect(page.locator("[data-browse-row]").first()).toBeVisible();
+  await page.getByRole("button", { name: "卡片视图" }).click();
+  await expect(page.getByRole("button", { name: "卡片视图" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await expect(
+    page.getByRole("button", { name: /加载更多 · 24 \/ 48/ }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: info.outputPath("stock-cards.png"),
+    fullPage: true,
+  });
+
+  await page.goto("/inventory/movements?view=items");
+  await expect(page.locator(".browse-results")).toBeVisible();
+  await page.getByRole("button", { name: "卡片视图" }).click();
+  await expect(
+    page.locator(".operation-item-card-grid [data-browse-row]").first(),
+  ).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await expect(
+    page.getByRole("button", { name: /加载更多 · 24 \/ 48/ }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: info.outputPath("movement-flat-item-cards.png"),
+    fullPage: true,
+  });
+});
 
 test("stock and movement browse show exported full-location columns at 1440px", async ({
   page,

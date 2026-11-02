@@ -16,7 +16,8 @@ import Overlay from "../../components/ui/Overlay.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import DataTable from "../../components/ui/DataTable.vue";
 import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
-import BrowseCard from "../../components/ui/BrowseCard.vue";
+import BrowseLoadMore from "../../components/ui/BrowseLoadMore.vue";
+import ItemCard from "../../components/ui/ItemCard.vue";
 import ViewModeToggle from "../../components/ui/ViewModeToggle.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import QuickExport from "../../components/QuickExport.vue";
@@ -337,15 +338,21 @@ watch([() => props.active, isMobile], () => {
 					v-if="view === 'card' && !query.groupBy.length && table"
 					class="browse-card-grid pending-card-grid"
 				>
-					<BrowseCard
+					<ItemCard
 						v-for="row in table.rows"
 						:key="String(row.id)"
 						:row-key="String(row.id)"
-						:variant="isMobile ? 'row' : 'card'"
 						:selecting="c.selecting.value"
 						:selected="c.selected.value.includes(String(row.id))"
 						:select-label="`选择 ${row.item_name || row.item_code || ''}`"
 						:stale="c.report.result.stale"
+						:name="String(row.item_name || '')"
+						:code="String(row.item_code || '')"
+						:category="String(row.category || '')"
+						:image="pendingIdentity(row as unknown as Record<string, unknown>)"
+						:quantity="Number(row.damaged || 0)"
+						:unit="row.stock_uom"
+						quantity-label="损坏待处理"
 						@toggle="
 							c.setSelected(
 								String(row.id),
@@ -354,25 +361,11 @@ watch([() => props.active, isMobile], () => {
 						"
 						@open="emit('item', String(row.item_code || ''))"
 					>
-						<template #media
-							><div class="browse-card-media">
-								<ItemImage
-									:item="
-										pendingIdentity(row as unknown as Record<string, unknown>)
-									"
-								/></div
-						></template>
-						<template #badges
-							><span class="browse-badge is-warning">待处理</span></template
-						>
-						<div class="pending-card-content">
-							<strong>{{ row.item_name }}</strong
-							><small>{{ row.item_code }}</small>
-							<UnitText :name="row.stock_uom" :qty="Number(row.damaged || 0)" />
+						<template #default>
 							<span>批次 {{ row.batch_no || "—" }}</span
 							><span>{{ row.warehouse_label || row.warehouse || "—" }}</span>
-						</div>
-					</BrowseCard>
+						</template>
+					</ItemCard>
 				</div>
 				<DataTable
 					v-if="table && (view === 'table' || query.groupBy.length)"
@@ -419,6 +412,16 @@ watch([() => props.active, isMobile], () => {
 						<template v-else>{{ value }}</template>
 					</template>
 				</DataTable>
+				<BrowseLoadMore
+					v-if="view === 'card' && !query.groupBy.length && table"
+					:has-more="table.next !== null"
+					:loaded-count="table.rows.length"
+					:total-count="table.total"
+					:loading="table.loading"
+					:error="table.error && table.next !== null ? table.error : ''"
+					@load-more="c.report.loadTable(table, true)"
+					@retry="c.report.loadTable(table, true, true)"
+				/>
 
 				<Overlay
 					v-if="analysisOpen"

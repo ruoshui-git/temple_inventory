@@ -15,6 +15,8 @@ import { groupLabels } from "../../lib/reportContract";
 import ReportTable from "../../components/ui/ReportTable.vue";
 import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
 import BrowseCard from "../../components/ui/BrowseCard.vue";
+import BrowseLoadMore from "../../components/ui/BrowseLoadMore.vue";
+import ItemCard from "../../components/ui/ItemCard.vue";
 import ViewModeToggle from "../../components/ui/ViewModeToggle.vue";
 import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
 import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
@@ -676,7 +678,7 @@ function acceptBrowseLocation(name: string) {
 									v-if="section.rows.length"
 									class="browse-card-grid stock-grid"
 								>
-									<BrowseCard
+									<ItemCard
 										v-for="entry in section.rows"
 										:key="entry.id"
 										:row-key="stockSelectionKey(entry.value)"
@@ -685,79 +687,44 @@ function acceptBrowseLocation(name: string) {
 											selected.includes(stockSelectionKey(entry.value))
 										"
 										:select-label="`选择${stockName(entry.value)}`"
-										variant="card"
+										:name="stockName(entry.value)"
+										:code="stockCode(entry.value)"
+										:category="String(entry.value.category || '')"
+										:image="stockIdentity(entry.value)"
+										:quantity="Number(entry.value.available || 0)"
+										quantity-label="可用库存"
+										:unit="
+											String(entry.value.uom || entry.value.stock_uom || '')
+										"
 										class="stock-card"
 										@toggle="toggle(stockSelectionKey(entry.value))"
 										@open="openGroupedStock(entry.value)"
 									>
-										<template #media>
-											<div class="stock-card-image">
-												<ItemImage
-													:item="stockIdentity(entry.value)"
-													frame
-												/>
-											</div>
-										</template>
-										<template #default="{ activate }">
-											<div class="stock-card-content">
-												<span class="eyebrow"
-													><span class="stock-card-category">{{
-														entry.value.category || "未分类"
-													}}</span
-													><span class="stock-card-code">{{
-														stockCode(entry.value)
-													}}</span></span
-												>
-												<button class="item-name" @click="activate">
-													{{ stockName(entry.value) }}
-												</button>
-												<div class="stock-number">
-													<span
-														><strong>{{
-															entry.value.available
-														}}</strong>
-														<UnitText
-															:name="
-																String(
-																	entry.value.uom ||
-																		entry.value.stock_uom ||
-																		'',
-																)
-															" /></span
-													><small>可用库存</small>
-												</div>
-												<div class="stock-secondary">
-													<span
-														>总量
-														{{
-															Number(entry.value.available || 0) +
-															Number(entry.value.loaned || 0) +
-															Number(entry.value.damaged || 0)
-														}}</span
-													><span>借出 {{ entry.value.loaned || 0 }}</span
-													><span
-														>损坏 {{ entry.value.damaged || 0 }}</span
-													>
-												</div>
-												<small
-													v-if="
-														quickReportQuery.scope.tracking ===
-															'serial' &&
-														serialPreview(entry.value).title
-													"
-													class="stock-serial-preview"
-													:title="serialPreview(entry.value).title"
-												>
-													{{ serialPreview(entry.value).visible }}
-													<span v-if="serialPreview(entry.value).extra"
-														>+{{
-															serialPreview(entry.value).extra
-														}}</span
-													>
-												</small>
-											</div>
-										</template>
-									</BrowseCard>
+										<div class="stock-secondary">
+											<span
+												>总量
+												{{
+													Number(entry.value.available || 0) +
+													Number(entry.value.loaned || 0) +
+													Number(entry.value.damaged || 0)
+												}}</span
+											><span>借出 {{ entry.value.loaned || 0 }}</span
+											><span>损坏 {{ entry.value.damaged || 0 }}</span>
+										</div>
+										<small
+											v-if="
+												quickReportQuery.scope.tracking === 'serial' &&
+												serialPreview(entry.value).title
+											"
+											class="stock-serial-preview"
+											:title="serialPreview(entry.value).title"
+										>
+											{{ serialPreview(entry.value).visible }}
+											<span v-if="serialPreview(entry.value).extra"
+												>+{{ serialPreview(entry.value).extra }}</span
+											>
+										</small>
+									</ItemCard>
 								</div>
 								<UiButton
 									v-if="groupPages.hasMore(section.group.id)"
@@ -775,101 +742,75 @@ function acceptBrowseLocation(name: string) {
 							:class="{ refreshing: data.stale }"
 							:inert="data.stale || undefined"
 						>
-							<BrowseCard
+							<ItemCard
 								v-for="item in rows"
 								:key="item.code"
 								:row-key="item.code"
 								:selecting="selecting"
 								:selected="selected.includes(item.code)"
 								:select-label="`选择${item.name}`"
-								variant="card"
+								:name="item.name"
+								:code="item.code"
+								:category="item.category"
+								:image="item"
+								:quantity="item.available"
+								quantity-label="可用库存"
+								:unit="item.uom"
+								:status="expiryStatus(item) || undefined"
+								:status-tone="
+									expiryStatus(item) === '已过期'
+										? 'danger'
+										: expiryStatus(item) === '未过期'
+											? 'neutral'
+											: 'warning'
+								"
 								class="stock-card"
 								@toggle="toggle(item.code)"
 								@open="openItem(item)"
 							>
 								<template #media>
-									<div class="stock-card-image">
-										<ItemImage
-											:has-artwork="!!hasArtwork?.(item)"
-											frame
-											:item="item"
-											interaction="detail"
-											@detail="!selecting && openItem(item)"
-										>
-											<template #artwork
-												><slot name="artwork" :item="item"
-											/></template>
-										</ItemImage>
-									</div>
-								</template>
-								<template #badges>
-									<span
-										v-if="expiryStatus(item)"
-										class="badge art-badge"
-										:class="
-											expiryStatus(item) === '未过期'
-												? 'neutral'
-												: expiryStatus(item) === '已过期'
-													? 'danger'
-													: 'warning'
-										"
-										>{{ expiryStatus(item) }}</span
+									<ItemImage
+										:has-artwork="!!hasArtwork?.(item)"
+										frame
+										:item="item"
+										interaction="detail"
+										@detail="!selecting && openItem(item)"
 									>
+										<template #artwork
+											><slot name="artwork" :item="item"
+										/></template>
+									</ItemImage>
 								</template>
-								<template #default="{ activate }">
-									<div class="stock-card-content">
-										<span class="eyebrow"
-											><span class="stock-card-category">{{
-												item.category
-											}}</span>
-											<span class="stock-card-code">{{
-												item.code
-											}}</span></span
-										>
-										<button class="item-name" @click="activate">
-											{{ item.name }}
-										</button>
-										<span v-if="item.disabled" class="badge neutral"
-											>已停用</span
-										>
-										<div class="stock-number">
-											<span
-												><strong>{{ item.available }}</strong>
-												<UnitText :name="item.uom"
-											/></span>
-											<small>可用库存</small>
-										</div>
-										<div class="stock-secondary">
-											<span
-												>总量
-												{{
-													item.available + item.loaned + item.damaged
-												}}</span
-											><span>借出 {{ item.loaned }}</span
-											><span>损坏 {{ item.damaged }}</span>
-										</div>
-										<small
-											v-if="
-												quickReportQuery.scope.tracking === 'serial' &&
-												serialPreview(item).title
-											"
-											class="stock-serial-preview"
-											:title="serialPreview(item).title"
-										>
-											{{ serialPreview(item).visible }}
-											<span v-if="serialPreview(item).extra"
-												>+{{ serialPreview(item).extra }}</span
-											>
-										</small>
-										<StockDetails
-											:item="item"
-											:loading="status === 'refresh'"
-											:initialized="Boolean(data.snapshot)"
-											:stale="data.stale"
-										/>
-									</div>
+								<template #flags>
+									<span v-if="item.disabled" class="badge neutral">已停用</span>
 								</template>
-							</BrowseCard>
+								<div class="stock-secondary">
+									<span
+										>总量
+										{{ item.available + item.loaned + item.damaged }}</span
+									><span>借出 {{ item.loaned }}</span
+									><span>损坏 {{ item.damaged }}</span>
+								</div>
+								<small
+									v-if="
+										quickReportQuery.scope.tracking === 'serial' &&
+										serialPreview(item).title
+									"
+									class="stock-serial-preview"
+									:title="serialPreview(item).title"
+								>
+									{{ serialPreview(item).visible }}
+									<span v-if="serialPreview(item).extra"
+										>+{{ serialPreview(item).extra }}</span
+									>
+								</small>
+								<StockDetails
+									:item="item"
+									:loading="status === 'refresh'"
+									:initialized="Boolean(data.snapshot)"
+									:stale="data.stale"
+								/>
+							</ItemCard>
 						</div>
 						<div
 							v-if="!quickReportQuery.groupBy.length && isMobile && view === 'table'"
@@ -1228,22 +1169,22 @@ function acceptBrowseLocation(name: string) {
 				/>
 				<p class="muted">统计完整筛选结果；跨位置的物品数不可相加。</p>
 			</Overlay>
-			<footer class="result-footer">
-				<span v-if="(data.error && !data.refreshFailed) || data.moreError" role="alert"
-					>{{ data.error || data.moreError }}
-					<UiButton @click="load(!!data.moreError, true)">重试加载</UiButton></span
-				>
-				<UiButton
-					v-else-if="
-						data.next !== null &&
-						!quickReportQuery.groupBy.length &&
-						(isMobile || view === 'card')
-					"
-					:loading="loadingMore"
-					@click="load(true)"
-					>加载更多 · {{ rows.length }} / {{ data.total }}</UiButton
-				>
-			</footer>
+			<BrowseLoadMore
+				v-if="isMobile || view === 'card'"
+				:has-more="
+					quickReportQuery.groupBy.length ? groupPages.hasMore() : data.next !== null
+				"
+				:loaded-count="
+					quickReportQuery.groupBy.length ? groupPages.progress().loaded : rows.length
+				"
+				:total-count="
+					quickReportQuery.groupBy.length ? groupPages.progress().total : data.total
+				"
+				:loading="loadingMore"
+				:error="quickReportQuery.groupBy.length ? groupRoot?.error || '' : data.moreError"
+				@load-more="quickReportQuery.groupBy.length ? groupPages.loadMore() : load(true)"
+				@retry="quickReportQuery.groupBy.length ? groupPages.retry() : load(true, true)"
+			/>
 		</section>
 		<ReturnToTop :active="active !== false" :hidden="isMobile && filterSheetOpen" />
 		<ScanPanel

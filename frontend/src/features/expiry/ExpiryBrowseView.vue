@@ -21,6 +21,8 @@ import InventoryIcon from "../../components/InventoryIcon.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
 import BrowseCard from "../../components/ui/BrowseCard.vue";
+import BrowseLoadMore from "../../components/ui/BrowseLoadMore.vue";
+import ItemCard from "../../components/ui/ItemCard.vue";
 import ViewModeToggle from "../../components/ui/ViewModeToggle.vue";
 import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
 import ReportTable from "../../components/ui/ReportTable.vue";
@@ -579,31 +581,30 @@ function canExpiryAction() {
 					v-if="view === 'card' && !query.groupBy.length"
 					class="browse-card-grid expiry-card-grid"
 				>
-					<BrowseCard
+					<ItemCard
 						v-for="row in result.rows"
 						:key="String(row.id)"
 						:row-key="String(row.id)"
-						variant="card"
 						:selecting="c.selecting.value"
 						:selected="c.selected.value.includes(String(row.id))"
 						:select-label="`选择批次 ${row.batch_no || ''}`"
 						:stale="result.stale"
+						:name="String(row.item_name || '')"
+						:code="String(row.item_code || '')"
+						:category="String(row.category || '')"
+						:image="c.item(row)"
+						:quantity="Number(row.stock_qty || 0)"
+						:unit="row.stock_uom"
+						:status="expiryStatus(row as unknown as ReportRow).label"
+						:status-tone="
+							({ 'is-danger': 'danger', 'is-warning': 'warning' } as const)[
+								expiryStatus(row as unknown as ReportRow).tone as 'is-danger'
+							] || 'neutral'
+						"
 						@toggle="toggleExpiryRow(row as unknown as ReportRow)"
 						@open="openItem(row)"
 					>
-						<template #media
-							><div class="browse-card-media"><ItemImage :item="c.item(row)" /></div
-						></template>
-						<template #badges
-							><span
-								class="browse-badge"
-								:class="expiryStatus(row as unknown as ReportRow).tone"
-								>{{ expiryStatus(row as unknown as ReportRow).label }}</span
-							></template
-						>
-						<div class="expiry-card-content">
-							<strong>{{ row.item_name }}</strong
-							><small>{{ row.item_code }}</small>
+						<template #default>
 							<button class="browse-row-link" @click.stop="openBatch(row)">
 								批次 {{ row.batch_no }}
 							</button>
@@ -619,9 +620,8 @@ function canExpiryAction() {
 									String(row.warehouse_label || ""),
 								)
 							}}</span>
-							<UnitText :name="row.stock_uom" :qty="Number(row.stock_qty || 0)" />
-						</div>
-					</BrowseCard>
+						</template>
+					</ItemCard>
 				</div>
 				<div
 					v-if="view === 'table' && isMobile && !query.groupBy.length"
@@ -898,12 +898,19 @@ function canExpiryAction() {
 				>
 					没有符合条件的批次
 				</p>
-				<UiButton
-					v-if="isMobile && result.next !== null"
+				<BrowseLoadMore
+					v-if="
+						(view === 'card' && !query.groupBy.length) ||
+						(isMobile && !query.groupBy.length)
+					"
+					:has-more="result.next !== null"
+					:loaded-count="result.rows.length"
+					:total-count="result.total"
 					:loading="result.loading"
-					@click="c.load(true)"
-					>加载更多 · {{ result.rows.length }} / {{ result.total }}</UiButton
-				>
+					:error="result.error && result.next !== null ? result.error : ''"
+					@load-more="c.load(true)"
+					@retry="c.load(true, true)"
+				/>
 
 				<Overlay
 					v-if="analysisOpen"

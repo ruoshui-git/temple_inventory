@@ -3281,28 +3281,28 @@
 	.stock-list {
 		margin-block-start: var(--p-space-2);
 	}
-	.stock-card-image {
+	.item-card-image {
 		aspect-ratio: 1;
 	}
-	.stock-card-content {
+	.item-card-content {
 		padding: 8px;
 	}
-	.stock-card-content .eyebrow {
+	.item-card-content .eyebrow {
 		display: block;
 		margin-block-end: 2px;
 		font-size: var(--p-small);
 	}
-	.stock-card-category {
+	.item-card-category {
 		display: none;
 	}
-	.stock-card-code {
+	.item-card-code {
 		display: block;
 		max-width: 100%;
 		white-space: nowrap;
 		text-overflow: ellipsis;
 		overflow: hidden;
 	}
-	.stock-card .item-name {
+	.item-card .item-name {
 		display: -webkit-box;
 		-webkit-box-orient: vertical;
 		-webkit-line-clamp: 2;
@@ -3310,19 +3310,19 @@
 		overflow: hidden;
 		line-height: 1.35;
 	}
-	.stock-card .stock-number {
+	.item-card .stock-number {
 		margin-top: 4px;
 		font-size: var(--p-small);
 		white-space: nowrap;
 	}
-	.stock-card .stock-number strong {
+	.item-card .stock-number strong {
 		font-size: var(--p-body);
 	}
-	.stock-card .stock-number small,
-	.stock-card .stock-secondary {
+	.item-card .stock-number small,
+	.item-card .stock-secondary {
 		display: none;
 	}
-	.stock-card .card-checkbox {
+	.item-card .card-checkbox {
 		width: 44px;
 		height: 44px;
 	}
