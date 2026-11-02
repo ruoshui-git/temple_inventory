@@ -518,7 +518,9 @@ it("uses desktop stock column defaults and keeps optional totals hidden", async 
   expect(headers).toEqual(
     expect.arrayContaining([expect.stringMatching(/^类别/)]),
   );
-  expect(headers.some((header) => header.startsWith("位置与批次"))).toBe(true);
+  expect(headers.some((header) => header === "位置")).toBe(true);
+  expect(headers.some((header) => header === "批次")).toBe(true);
+  expect(headers.some((header) => header.startsWith("效期"))).toBe(false);
   expect(headers).not.toContain("借出");
   expect(headers).not.toContain("损坏");
   expect(headers).not.toContain("合计");

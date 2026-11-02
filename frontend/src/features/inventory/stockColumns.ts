@@ -51,10 +51,17 @@ export function inventoryColumnsForPage(
     },
     {
       id: "locations",
-      label: "位置与批次",
+      label: "位置",
       defaultVisible: desktopColumnsVisible,
       kind: "chip",
-      export: ["warehouse_label", "batch_no"],
+      export: ["warehouse_label"],
+    },
+    {
+      id: "batches",
+      label: "批次",
+      defaultVisible: desktopColumnsVisible,
+      kind: "chip",
+      export: ["batch_no"],
     },
     {
       id: "warehouse_label",
@@ -117,7 +124,7 @@ export function inventoryColumnsForPage(
     {
       id: "expiry",
       label: "效期",
-      defaultVisible: true,
+      defaultVisible: false,
       export: ["expiry_date", "remaining_days", "expiry_state"],
     },
     {
@@ -139,4 +146,34 @@ export function inventoryColumnsForPage(
       export: ["expiry_state"],
     },
   ];
+}
+
+// Batch-level fields exist only per batch row; any of them needs the batch grain.
+const BATCH_LEVEL_COLUMNS = [
+  "batches",
+  "batch_no",
+  "serial_nos",
+  "expiry",
+  "expiry_date",
+  "remaining_days",
+  "expiry_state",
+];
+// Location-level fields need one row per Item and Warehouse, with batches summed.
+const LOCATION_LEVEL_COLUMNS = [
+  "locations",
+  "warehouse_label",
+  "warehouse_path",
+  "warehouse_native_name",
+];
+
+export type StockExportTable = "locations" | "positions" | "summary";
+
+export function stockExportTableFor(
+  visibleColumnIds: readonly string[],
+): StockExportTable {
+  if (visibleColumnIds.some((id) => BATCH_LEVEL_COLUMNS.includes(id)))
+    return "locations";
+  if (visibleColumnIds.some((id) => LOCATION_LEVEL_COLUMNS.includes(id)))
+    return "positions";
+  return "summary";
 }

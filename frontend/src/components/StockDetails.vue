@@ -11,9 +11,16 @@ import { useColumnPreferences } from "../composables/useColumnPreferences";
 import { useOptionalInventoryServices } from "../services/contracts";
 import { useArrayTableSort } from "../composables/useArrayTableSort";
 import UnitText from "./ui/UnitText.vue";
+// "locations" and "batches" render the two table chips separately; "all" keeps the card pair.
 const props = withDefaults(
-	defineProps<{ item: StockItem; loading?: boolean; initialized?: boolean; stale?: boolean }>(),
-	{ loading: false, initialized: true, stale: false },
+	defineProps<{
+		item: StockItem;
+		part?: "all" | "locations" | "batches";
+		loading?: boolean;
+		initialized?: boolean;
+		stale?: boolean;
+	}>(),
+	{ part: "all", loading: false, initialized: true, stale: false },
 );
 const batches = computed(() => itemBatches(props.item));
 const physicalLocations = computed(() =>
@@ -127,112 +134,117 @@ const batchPreferences =
 </script>
 <template>
 	<div class="stock-detail-chips">
-		<DetailPopover
-			v-if="physicalLocations.length || loanedTotal || damagedTotal"
-			:label="`${item.name}的库位与可用数量`"
-		>
-			<template #trigger
-				><InventoryIcon name="warehouse" /><span class="stock-detail-trigger-label">{{
-					physicalLocations.length === 1
-						? warehouseLabel(
-								physicalLocations[0].location,
+		<template v-if="part !== 'batches'">
+			<DetailPopover
+				v-if="physicalLocations.length || loanedTotal || damagedTotal"
+				:label="`${item.name}的库位与可用数量`"
+			>
+				<template #trigger
+					><InventoryIcon name="warehouse" /><span class="stock-detail-trigger-label">{{
+						physicalLocations.length === 1
+							? warehouseLabel(
+									physicalLocations[0].location,
+									warehouseReference?.warehouses || [],
+									physicalLocations[0].label,
+								)
+							: physicalLocations.length
+								? `${physicalLocations.length} 个库位`
+								: `借出 ${loanedTotal} · 损坏 ${damagedTotal}`
+					}}</span></template
+				>
+				<strong>{{ item.name }}</strong>
+				<p class="muted">当前筛选范围 · 可用库存</p>
+				<DataTable
+					v-if="physicalLocations.length"
+					ariaLabel="库位可用数量"
+					table-class="stock-breakdown"
+					:columns="locationColumns"
+					:rows="locationSort.rows.value"
+					:loading="loading"
+					:initialized="initialized"
+					:stale="stale"
+					compact
+					:sort-by="locationSort.sortBy.value"
+					:sort-direction="locationSort.sortDirection.value"
+					:column-preferences="locationPreferences"
+					@sort="locationSort.setSort"
+				>
+					<template #cell="{ column, row }">
+						<template v-if="column.id === 'location'">{{
+							warehouseLabel(
+								String(row.location),
 								warehouseReference?.warehouses || [],
-								physicalLocations[0].label,
+								String(row.label || ""),
 							)
-						: physicalLocations.length
-							? `${physicalLocations.length} 个库位`
-							: `借出 ${loanedTotal} · 损坏 ${damagedTotal}`
-				}}</span></template
+						}}</template>
+						<template v-else-if="column.id === 'uom'"
+							><UnitText :name="row.uom"
+						/></template>
+						<template v-else>{{ row[column.id] }}</template>
+					</template>
+				</DataTable>
+				<p v-if="otherStockSummary.length" class="stock-breakdown-other muted">
+					另有
+					<template v-for="(summary, index) in otherStockSummary" :key="summary.label">
+						<span v-if="index"> · </span>{{ summary.label }}
+						<UnitText :name="item.uom" :qty="summary.qty" />
+					</template>
+				</p>
+				<p v-if="physicalLocations.length" class="stock-breakdown-total">
+					合计 {{ item.available }} <UnitText :name="item.uom" />
+				</p>
+			</DetailPopover>
+			<span v-else class="muted">暂无库存位置</span>
+		</template>
+		<template v-if="part !== 'locations'">
+			<DetailPopover
+				v-if="item.tracksBatch && (availableBatches.length || loanedTotal || damagedTotal)"
+				:label="`${item.name}的批次信息`"
+				:trigger-text="
+					availableBatches.length
+						? `${availableBatches.length} 个批次`
+						: `借出 ${loanedTotal} · 损坏 ${damagedTotal}`
+				"
 			>
-			<strong>{{ item.name }}</strong>
-			<p class="muted">当前筛选范围 · 可用库存</p>
-			<DataTable
-				v-if="physicalLocations.length"
-				ariaLabel="库位可用数量"
-				table-class="stock-breakdown"
-				:columns="locationColumns"
-				:rows="locationSort.rows.value"
-				:loading="loading"
-				:initialized="initialized"
-				:stale="stale"
-				compact
-				:sort-by="locationSort.sortBy.value"
-				:sort-direction="locationSort.sortDirection.value"
-				:column-preferences="locationPreferences"
-				@sort="locationSort.setSort"
-			>
-				<template #cell="{ column, row }">
-					<template v-if="column.id === 'location'">{{
-						warehouseLabel(
-							String(row.location),
-							warehouseReference?.warehouses || [],
-							String(row.label || ""),
-						)
-					}}</template>
-					<template v-else-if="column.id === 'uom'"
-						><UnitText :name="row.uom"
-					/></template>
-					<template v-else>{{ row[column.id] }}</template>
-				</template>
-			</DataTable>
-			<p v-if="otherStockSummary.length" class="stock-breakdown-other muted">
-				另有
-				<template v-for="(summary, index) in otherStockSummary" :key="summary.label">
-					<span v-if="index"> · </span>{{ summary.label }}
-					<UnitText :name="item.uom" :qty="summary.qty" />
-				</template>
-			</p>
-			<p v-if="physicalLocations.length" class="stock-breakdown-total">
-				合计 {{ item.available }} <UnitText :name="item.uom" />
-			</p>
-		</DetailPopover>
-		<span v-else class="muted">暂无库存位置</span>
-		<DetailPopover
-			v-if="item.tracksBatch && (availableBatches.length || loanedTotal || damagedTotal)"
-			:label="`${item.name}的批次信息`"
-			:trigger-text="
-				availableBatches.length
-					? `${availableBatches.length} 个批次`
-					: `借出 ${loanedTotal} · 损坏 ${damagedTotal}`
-			"
-		>
-			<strong>批次与位置</strong>
-			<p class="muted">当前筛选范围 · 可用库存</p>
-			<DataTable
-				v-if="availableBatches.length"
-				ariaLabel="批次与位置库存"
-				table-class="stock-breakdown"
-				:columns="batchColumns"
-				:rows="batchSort.rows.value"
-				:loading="loading"
-				:initialized="initialized"
-				:stale="stale"
-				compact
-				:sort-by="batchSort.sortBy.value"
-				:sort-direction="batchSort.sortDirection.value"
-				:column-preferences="batchPreferences"
-				@sort="batchSort.setSort"
-			>
-				<template #cell="{ column, row }">
-					<template v-if="column.id === 'location'">{{
-						warehouseLabel(
-							String(row.location),
-							warehouseReference?.warehouses || [],
-							String(row.label || ""),
-						)
-					}}</template>
-					<template v-else-if="column.id === 'batch'">{{ row.batch }}</template>
-					<template v-else>{{ row[column.id] }}</template>
-				</template>
-			</DataTable>
-			<p v-if="otherStockSummary.length" class="stock-breakdown-other muted">
-				另有
-				<template v-for="(summary, index) in otherStockSummary" :key="summary.label">
-					<span v-if="index"> · </span>{{ summary.label }}
-					<UnitText :name="item.uom" :qty="summary.qty" />
-				</template>
-			</p>
-		</DetailPopover>
-		<span v-else-if="item.tracksBatch" class="badge neutral">0 批次</span>
+				<strong>批次与位置</strong>
+				<p class="muted">当前筛选范围 · 可用库存</p>
+				<DataTable
+					v-if="availableBatches.length"
+					ariaLabel="批次与位置库存"
+					table-class="stock-breakdown"
+					:columns="batchColumns"
+					:rows="batchSort.rows.value"
+					:loading="loading"
+					:initialized="initialized"
+					:stale="stale"
+					compact
+					:sort-by="batchSort.sortBy.value"
+					:sort-direction="batchSort.sortDirection.value"
+					:column-preferences="batchPreferences"
+					@sort="batchSort.setSort"
+				>
+					<template #cell="{ column, row }">
+						<template v-if="column.id === 'location'">{{
+							warehouseLabel(
+								String(row.location),
+								warehouseReference?.warehouses || [],
+								String(row.label || ""),
+							)
+						}}</template>
+						<template v-else-if="column.id === 'batch'">{{ row.batch }}</template>
+						<template v-else>{{ row[column.id] }}</template>
+					</template>
+				</DataTable>
+				<p v-if="otherStockSummary.length" class="stock-breakdown-other muted">
+					另有
+					<template v-for="(summary, index) in otherStockSummary" :key="summary.label">
+						<span v-if="index"> · </span>{{ summary.label }}
+						<UnitText :name="item.uom" :qty="summary.qty" />
+					</template>
+				</p>
+			</DetailPopover>
+			<span v-else-if="item.tracksBatch" class="badge neutral">0 批次</span>
+			<span v-else-if="part === 'batches'" class="muted">—</span>
+		</template>
 	</div>
 </template>

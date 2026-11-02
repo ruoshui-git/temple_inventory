@@ -17,7 +17,7 @@ from frappe.utils import nowdate
 from openpyxl import load_workbook
 from pypdf import PdfReader
 
-from temple_inventory import browse, counts, exports, native_api, native_files, report_sources
+from temple_inventory import browse, catalog, counts, exports, native_api, native_files, report_sources
 from temple_inventory.export_columns import contract as export_contract
 from temple_inventory.export_columns import label as export_label
 from temple_inventory.projections import Projection, report_page
@@ -137,6 +137,11 @@ class NativeReportsExportsTests(NativeReportTestCase):
 					"remaining_days",
 					"expiry_state",
 				],
+			),
+			(
+				self.query("inventory"),
+				"positions",
+				["item_name", "item_code", "category", "warehouse_label", "available", "stock_uom"],
 			),
 			(
 				self.query("expiry", "batches"),
@@ -402,6 +407,63 @@ class NativeReportsExportsTests(NativeReportTestCase):
 		row = next(value for value in result["rows"] if value["code"] == self.item)
 		self.assertEqual(row["stock_qty"], 12)
 		self.assertEqual(sum(location["stock_qty"] for location in row["locations"]), 12)
+
+	def test_positions_sum_batches_per_item_and_warehouse_for_every_export_writer(self):
+		frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)
+		item = frappe.get_doc("Item", self.item)
+		item.has_batch_no = 1
+		item.save()
+		for suffix, quantity in (("A", 5), ("B", 3)):
+			batch = catalog.create_batch(self.item, f"TI-POS-{self.token}-{suffix}")["name"]
+			data = self.movement(quantity=quantity)
+			data["items"][0].update({"batch_no": batch, "use_serial_batch_fields": 1})
+			self.submit(self.create(data))
+		query = self.query("inventory", "summary")
+		with Projection(query, refresh=True) as projection:
+			projection.build()
+			locations = list(projection.rows("locations"))
+			positions = list(projection.rows("positions"))
+		self.assertEqual(len(locations), 2)
+		self.assertEqual(len(positions), 1)
+		self.assertEqual(positions[0]["warehouse"], self.a)
+		self.assertEqual((positions[0]["available"], positions[0]["stock_qty"]), (8, 8))
+		self.assertEqual(positions[0]["item_code"], self.item)
+		self.assertNotIn("batch_no", positions[0])
+		columns = ["item_name", "warehouse_label", "available", "stock_uom"]
+		with patch("temple_inventory.exports._enqueue"):
+			result = exports.request_export(query, "positions", columns=columns, export_format="csv")
+		request = frappe.get_doc("Inventory Export Request", result["name"])
+		with Projection(query, refresh=True) as projection, tempfile.TemporaryDirectory() as directory:
+			projection.build()
+			path = Path(directory) / "positions.csv"
+			exports._write(projection, request, path)
+			with path.open(encoding="utf-8-sig", newline="") as stream:
+				rows = list(csv.reader(stream))
+		self.assertEqual(rows[0], [export_label("inventory", field, "positions") for field in columns])
+		data_rows = [row for row in rows[1:] if row and row[0] == "Native test item"]
+		self.assertEqual(len(data_rows), 1)
+		self.assertEqual(data_rows[0][2], "8")
+		for table, export_format in (
+			("summary", "pdf"),
+			("positions", "pdf"),
+			("locations", "pdf"),
+		):
+			with patch("temple_inventory.exports._enqueue"):
+				result = exports.request_export(
+					query,
+					table,
+					export_format=export_format,
+					print_format="物资表格",
+				)
+			request = frappe.get_doc("Inventory Export Request", result["name"])
+			with Projection(query, refresh=True) as projection, tempfile.TemporaryDirectory() as directory:
+				projection.build()
+				self.assertGreaterEqual(
+					exports._write(projection, request, Path(directory) / "export.pdf"), 1
+				)
+			payload = exports.pdf_export_context.get()
+			self.assertEqual(payload["row_count"], len(positions) if table != "locations" else 2)
+		self.assertEqual(exports._sum_fields("positions", query), exports.STOCK_SUMS)
 
 	def test_grouped_xlsx_writes_labeled_headers_subtotals_and_outline_levels(self):
 		self.receipt(12)

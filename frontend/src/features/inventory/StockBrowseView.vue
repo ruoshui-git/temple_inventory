@@ -57,7 +57,7 @@ import {
 	stockGroupedSelectionKeys,
 	type useStockBrowseController,
 } from "./useStockBrowseController";
-import { inventoryColumnsForPage } from "./stockColumns";
+import { inventoryColumnsForPage, stockExportTableFor } from "./stockColumns";
 import { stockStateLabels } from "../../lib/presentationLabels";
 const props = withDefaults(
 	defineProps<{
@@ -212,13 +212,13 @@ function isStockItemRow(row: StockTableRow): row is StockTableRow & StockItem {
 	return Array.isArray(row.locations);
 }
 function stockLocationLabel(row: StockTableRow) {
-	const location = warehouseLabel(
-		row.warehouse || row.warehouse_label,
-		reference.warehouses,
-		row.warehouse_label,
+	return (
+		warehouseLabel(
+			row.warehouse || row.warehouse_label,
+			reference.warehouses,
+			row.warehouse_label,
+		) || "—"
 	);
-	const batch = String(row.batch_no || "");
-	return [location, batch].filter(Boolean).join(" · ") || "—";
 }
 function stockLocationDetail(row: StockTableRow, field: "path" | "nativeName") {
 	if (!isStockItemRow(row))
@@ -284,24 +284,8 @@ const stockExportOrder = computed(() =>
 		? tablePreferences.order.value
 		: inventoryColumns.value.map((column) => String(column.id)),
 );
-const stockExportTable = computed(() =>
-	stockExportVisible.value.some((id) =>
-		[
-			"locations",
-			"warehouse_label",
-			"batch_no",
-			"serial_nos",
-			"expiry",
-			"expiry_date",
-			"remaining_days",
-			"expiry_state",
-			"warehouse_path",
-			"warehouse_native_name",
-		].includes(id),
-	)
-		? "locations"
-		: "summary",
-);
+const stockExportTable = computed(() => stockExportTableFor(stockExportVisible.value));
+const stockExport = ref<InstanceType<typeof QuickExport>>();
 const stockExportColumns = computed(() =>
 	exportFields(inventoryColumns.value, stockExportOrder.value, stockExportVisible.value),
 );
@@ -461,6 +445,15 @@ function acceptBrowseLocation(name: string) {
 				</div>
 			</template>
 			<template #actions>
+				<QuickExport
+					ref="stockExport"
+					:query="quickReportQuery"
+					title="库存列表"
+					:table="stockExportTable"
+					:columns="stockExportColumns"
+					:active="active"
+					:show-trigger="false"
+				/>
 				<BrowseOverflowMenu>
 					<UiButton
 						v-if="isMobile"
@@ -471,13 +464,7 @@ function acceptBrowseLocation(name: string) {
 						"
 						>{{ selecting ? "取消选择" : "选择" }}</UiButton
 					>
-					<QuickExport
-						:query="quickReportQuery"
-						title="库存列表"
-						:table="stockExportTable"
-						:columns="stockExportColumns"
-						:active="active"
-					/>
+					<UiButton icon="export" @click="stockExport?.open()">导出</UiButton>
 				</BrowseOverflowMenu>
 				<UiButton
 					v-if="!isMobile"
@@ -1003,10 +990,22 @@ function acceptBrowseLocation(name: string) {
 								<StockDetails
 									v-else-if="column.id === 'locations' && isStockItemRow(row)"
 									:item="row"
+									part="locations"
 									:loading="status === 'refresh'"
 									:initialized="Boolean(data.snapshot)"
 									:stale="data.stale"
 								/>
+								<StockDetails
+									v-else-if="column.id === 'batches' && isStockItemRow(row)"
+									:item="row"
+									part="batches"
+									:loading="status === 'refresh'"
+									:initialized="Boolean(data.snapshot)"
+									:stale="data.stale"
+								/>
+								<template v-else-if="column.id === 'batches'">{{
+									stockComponentDetail(row, "batch_no") || "—"
+								}}</template>
 								<template v-else-if="column.id === 'locations'"
 									><span
 										:title="

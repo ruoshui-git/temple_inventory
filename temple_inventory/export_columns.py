@@ -192,6 +192,17 @@ DEFAULT_COLUMNS = {
 		"stock_qty",
 		"stock_uom",
 	],
+	"positions": [
+		"item_name",
+		"item_code",
+		"category",
+		"warehouse_label",
+		"available",
+		"loaned",
+		"damaged",
+		"stock_qty",
+		"stock_uom",
+	],
 	"batches": [
 		"item_name",
 		"item_code",
@@ -416,6 +427,7 @@ DATASET_DEFAULT_COLUMNS = {
 EXTRA_COLUMNS = {
 	"summary": {"document_count"},
 	"locations": {"manufacturing_date", "warehouse", "warehouse_path", "warehouse_native_name", "serial_nos"},
+	"positions": {"warehouse", "warehouse_path", "warehouse_native_name"},
 	"batches": {
 		"manufacturing_date",
 		"warehouse_label",

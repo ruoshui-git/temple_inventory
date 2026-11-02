@@ -45,6 +45,24 @@ const inventorySummary = inventory.filter((column) =>
 const tables: { dataset: string; table: string; columns: DataColumn[] }[] = [
   { dataset: "inventory", table: "summary", columns: inventorySummary },
   { dataset: "inventory", table: "locations", columns: inventory },
+  {
+    dataset: "inventory",
+    table: "positions",
+    columns: inventory.filter((column) =>
+      [
+        "item_name",
+        "item_code",
+        "category",
+        "locations",
+        "warehouse_label",
+        "available",
+        "loaned",
+        "damaged",
+        "total",
+        "stock_uom",
+      ].includes(String(column.id)),
+    ),
+  },
   { dataset: "expiry", table: "batches", columns: expiryColumnDefinitions },
   {
     dataset: "inventory",
@@ -161,6 +179,9 @@ describe("exportFields", () => {
             allowed.has(field),
             `${dataset}.${table}.${String(column.id)} exports disallowed ${field}`,
           ).toBe(true);
+        // Chip columns show a summary label; their export header is the field's
+        // own label, which the standalone column for that field already checks.
+        if (column.kind === "chip") continue;
         if (fields.length === 1) {
           expect(
             labels[fields[0]!],

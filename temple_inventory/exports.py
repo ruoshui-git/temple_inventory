@@ -1252,8 +1252,8 @@ def _totals_add(totals, unit, fields):
 
 def _sum_fields(table, query):
 	dataset = query["dataset"]
-	if table in ("locations", "batches"):
-		return STOCK_SUMS if table == "locations" else ("stock_qty",)
+	if table in ("locations", "positions", "batches"):
+		return STOCK_SUMS if table in ("locations", "positions") else ("stock_qty",)
 	if table == "summary":
 		return (
 			STOCK_SUMS

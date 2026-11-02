@@ -57,6 +57,7 @@ describe("inventory grouped table", () => {
               "stock_uom",
               "category",
               "locations",
+              "batches",
               "loaned",
               "damaged",
               "total",
@@ -115,9 +116,11 @@ describe("inventory grouped table", () => {
 
     const locations = await render([]);
     expect(locations).toMatchObject({ table: "locations", title: "库存列表" });
-    expect(locations.columns).toContain("expiry_state");
+    // 效期 is hidden by default, so its export fields are not part of the default grain.
+    expect(locations.columns).not.toContain("expiry_state");
     expect(locations.columns).toContain("warehouse_label");
-    const summary = await render(["locations", "expiry"]);
+    expect(locations.columns).toContain("batch_no");
+    const summary = await render(["locations", "batches", "expiry"]);
     expect(summary).toMatchObject({ table: "summary", title: "库存列表" });
     expect(summary.columns).not.toContain("expiry_state");
     expect(summary.columns).not.toContain("warehouse_label");
@@ -329,8 +332,9 @@ describe("inventory grouped table", () => {
     expect(wrapper.get('[data-browse-row="ITEM-1"]').text()).toContain(
       "Noodles",
     );
-    // At the desktop breakpoint, location and batch are visible by default.
-    expect(wrapper.text()).toContain("Main Warehouse · BATCH-1");
+    // At the desktop breakpoint, location and batch are separate visible columns.
+    expect(wrapper.text()).toContain("Main Warehouse");
+    expect(wrapper.text()).toContain("BATCH-1");
     page.vm.controller.enterSelection();
     await flushPromises();
     expect(page.vm.controller.selecting.value).toBe(true);

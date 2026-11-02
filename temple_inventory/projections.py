@@ -32,7 +32,8 @@ from temple_inventory.uom_labels import uom_label
 
 INTERNAL_TABLES = {"loan_item_page", "linked_settlements", "group_source"}
 # Page-shaped line tables built only for export; readable by explicit id, not listed.
-EXPORT_ONLY_TABLES = {"history", "loan_history"}
+# "positions" is the Item x Warehouse export grain for stock; its page is the stock browse itself.
+EXPORT_ONLY_TABLES = {"history", "loan_history", "positions"}
 
 TABLE_LABELS = {
 	"summary": "汇总",
@@ -43,6 +44,7 @@ TABLE_LABELS = {
 	"balances": "历史数量余额",
 	"ledger": "原生库存流水",
 	"locations": "库位 / 批次明细",
+	"positions": "库位汇总",
 	"batches": "批次明细",
 	"outcomes": "借用结余",
 	"loan_items": "借用物品",
@@ -1169,6 +1171,22 @@ class Projection(AbstractContextManager):
 			sums = STOCK_SUMS
 			if dataset == "inventory":
 				self.group("locations", "summary", ("item_code", "item_name", "category", "stock_uom"), sums)
+				# One row per Item and Warehouse with batches summed: the export grain for location-level columns.
+				self.group(
+					"locations",
+					"positions",
+					(
+						"item_code",
+						"item_name",
+						"category",
+						"stock_uom",
+						"warehouse",
+						"warehouse_label",
+						"warehouse_path",
+						"warehouse_native_name",
+					),
+					sums,
+				)
 				self.main_table = view
 		elif not restored and dataset == "movements":
 			if view == "records" and not complete_records:
