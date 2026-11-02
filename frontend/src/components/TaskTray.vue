@@ -9,6 +9,7 @@ import {
 	removeTask,
 	retryTask,
 } from "../services/backgroundTasks";
+import { formatSiteDateTime } from "../lib/nativeTime";
 import { useInventoryServices, useOptionalReferenceData } from "../services/contracts";
 
 const services = useInventoryServices();
@@ -40,6 +41,13 @@ watch(
 	},
 	{ immediate: true },
 );
+function requestedLabel(value: string) {
+	const timezone = reference?.timezone ?? "";
+	const full = formatSiteDateTime(value, timezone);
+	if (!full) return value;
+	const today = formatSiteDateTime(new Date().toISOString(), timezone).slice(0, 10);
+	return today && full.startsWith(today) ? full.slice(11) : full;
+}
 function toggle() {
 	backgroundTaskState.expanded = !backgroundTaskState.expanded;
 }
@@ -82,6 +90,12 @@ onBeforeUnmount(() => document.removeEventListener("keydown", keydown));
 							task.format || (task.kind === "print-pdf" ? "PDF" : "")
 						}}</span>
 					</div>
+					<time
+						v-if="task.requestedAt"
+						class="task-tray-time"
+						:datetime="task.requestedAt"
+						>请求于 {{ requestedLabel(task.requestedAt) }}</time
+					>
 					<p class="task-tray-stage">
 						{{ task.status === "failed" ? task.error : task.stage }}
 					</p>
@@ -224,6 +238,12 @@ onBeforeUnmount(() => document.removeEventListener("keydown", keydown));
 	display: flex;
 	justify-content: space-between;
 	gap: var(--p-space-2, 8px);
+}
+.task-tray-time {
+	display: block;
+	margin-top: 2px;
+	font-size: var(--p-small);
+	color: var(--p-muted);
 }
 .task-tray-stage,
 .task-tray-error {

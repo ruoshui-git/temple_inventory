@@ -100,6 +100,7 @@ def _status(doc):
 		"error": doc.error or "",
 		"version": str(doc.modified),
 		"attempt": doc.attempt,
+		"requested_at": str(doc.creation),
 		"generated_at": str(doc.generated_at or ""),
 		"row_count": doc.row_count,
 		"download_url": f"/api/method/temple_inventory.exports.download_export?name={quote(doc.name, safe='')}"

@@ -150,6 +150,20 @@ describe("background export tasks", () => {
     expect(failed.status).toBe("completed");
   });
 
+  it("keeps the server request time on an export task", async () => {
+    trackExport(
+      client(),
+      job("Queued", { requested_at: "2026-11-02 09:15:13.925367" }),
+      {
+        title: "库存列表",
+        format: "XLSX",
+      },
+    );
+    expect(backgroundTaskState.tasks[0]?.requestedAt).toBe(
+      "2026-11-02 09:15:13.925367",
+    );
+  });
+
   it("refuses to remove a running task and removes a finished one", async () => {
     trackExport(client(), job(), { title: "库存列表", format: "XLSX" });
     const id = backgroundTaskState.tasks[0]!.id;
@@ -167,13 +181,21 @@ describe("background export tasks", () => {
 
   it("persists running jobs per account and resumes polling after reload", async () => {
     bindBackgroundTasks(client(), "tray-user");
-    trackExport(client(), job(), { title: "库存列表", format: "XLSX" });
+    trackExport(
+      client(),
+      job("Queued", { requested_at: "2026-11-02 09:15:13" }),
+      {
+        title: "库存列表",
+        format: "XLSX",
+      },
+    );
     const stored = JSON.parse(localStorage.getItem(storageKey) || "[]");
     expect(stored).toEqual([
       expect.objectContaining({
         jobName: "EXPORT-1",
         title: "库存列表",
         format: "XLSX",
+        requestedAt: "2026-11-02 09:15:13",
       }),
     ]);
     // Simulate a reload: the in-memory tray is gone, storage remains.
@@ -182,6 +204,9 @@ describe("background export tasks", () => {
     const call = vi.fn(async () => job("Completed"));
     bindBackgroundTasks(client(call as never), "tray-user");
     expect(backgroundTaskState.tasks).toHaveLength(1);
+    expect(backgroundTaskState.tasks[0]?.requestedAt).toBe(
+      "2026-11-02 09:15:13",
+    );
     await flushPromises();
     expect(call).toHaveBeenCalledWith(
       "exports.export_status",
@@ -295,6 +320,7 @@ describe("background PDF tasks", () => {
       async () => new Response(new Blob(["%PDF"]), { status: 200 }),
     );
     vi.stubGlobal("fetch", fetchMock);
+    vi.setSystemTime(new Date("2026-11-02T01:15:13.000Z"));
     const id = startPrintPdf({
       title: "盘点单",
       doctype: "Stock Reconciliation",
@@ -313,6 +339,7 @@ describe("background PDF tasks", () => {
     expect(task.status).toBe("completed");
     expect(task.downloadUrl).toBe("blob:record-pdf");
     expect(task.filename).toBe("MAT-REC-1.pdf");
+    expect(task.requestedAt).toBe("2026-11-02T01:15:13.000Z");
   });
 
   it("keeps a failed PDF retryable with the server message", async () => {
@@ -387,5 +414,48 @@ describe("task tray", () => {
     await flushPromises();
     // A panel the user opened stays open when its last job finishes.
     expect(wrapper.find('[role="region"]').exists()).toBe(true);
+  });
+
+  it("shows each task's request time: clock only for today, date otherwise", async () => {
+    vi.setSystemTime(new Date("2026-11-02T10:00:00.000Z"));
+    const service = client(vi.fn(async () => job("Queued")) as never);
+    const reference = createReferenceData();
+    reference.user = "tray-user";
+    reference.timezone = "Asia/Shanghai";
+    const wrapper = mount(
+      {
+        setup() {
+          provideInventoryServices(service as InventoryServices, reference);
+          return () => h(TaskTray);
+        },
+      },
+      { attachTo: document.body },
+    );
+    wrappers.push(wrapper);
+    trackExport(
+      service,
+      job("Queued", { requested_at: "2026-11-02 09:15:13.925367" }),
+      {
+        title: "今日导出",
+        format: "XLSX",
+      },
+    );
+    trackExport(
+      service,
+      job("Queued", { requested_at: "2026-11-01 08:00:00" }),
+      {
+        title: "昨日导出",
+        format: "XLSX",
+      },
+    );
+    await flushPromises();
+    await wrapper.get(".task-tray-pill").trigger("click");
+    const times = wrapper
+      .findAll("time.task-tray-time")
+      .map((node) => node.text());
+    expect(times).toEqual(["请求于 09:15:13", "请求于 2026-11-01 08:00:00"]);
+    expect(
+      wrapper.findAll("time.task-tray-time")[0]?.attributes("datetime"),
+    ).toBe("2026-11-02 09:15:13.925367");
   });
 });

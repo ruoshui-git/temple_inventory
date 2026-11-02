@@ -128,6 +128,7 @@ export interface ExportJob {
   version: string;
   attempt: number;
   generated_at: string;
+  requested_at?: string;
   row_count: number;
   download_url: string | null;
   table?: string;

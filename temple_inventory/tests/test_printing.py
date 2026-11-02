@@ -261,6 +261,80 @@ class PrintingTests(NativeDocumentTests):
 		rendered = template.render(item_name='<img src=x onerror="alert(1)">')
 		self.assertEqual(rendered, "&lt;img src=x onerror=&#34;alert(1)&#34;&gt;")
 
+	def test_print_css_wraps_full_width_rows(self):
+		css = ti_print_css()
+
+		def rules(selector):
+			return re.findall(rf"(?m)^{selector}\s*\{{([^}}]*)\}}", css)
+
+		for selector in (
+			r"\.ti-table thead \.ti-filter-row th",
+			r"\.ti-table \.ti-title-row th",
+			r"\.ti-table \.ti-subtotal td",
+			r"\.ti-slip \.ti-note-row td",
+		):
+			self.assertTrue(any("white-space: normal" in body for body in rules(selector)), selector)
+		for selector in (r"\.ti-table thead \.ti-filter-row th", r"\.ti-slip \.ti-note-row td"):
+			self.assertTrue(any("overflow-wrap: anywhere" in body for body in rules(selector)), selector)
+		self.assertTrue(any("flex-wrap: wrap" in body for body in rules(r"\.ti-slip-signatures")))
+
+	def test_slip_and_export_long_lines_wrap_inside_the_page(self):
+		from temple_inventory import exports
+		from temple_inventory.projections import Projection
+		from temple_inventory.report_query import validate_query
+
+		def glyphs(pdf):
+			# (char, row) in drawing order: Chrome emits most glyphs as separate text runs.
+			found = []
+
+			def visitor(text, cm, tm, font_dict, font_size):
+				for char in unicodedata.normalize("NFKC", text):
+					if not char.isspace():
+						found.append((char, round(float(tm[5]))))
+
+			for page in PdfReader(io.BytesIO(pdf)).pages:
+				page.extract_text(visitor_text=visitor)
+			return found
+
+		sentence = "很长的说明文字用来检查打印单据上的说明行在超出宽度时是否会自动换行、而不是溢出或被截断。"
+		remarks = sentence * 3 + " " + "ABCDEFGHIJ0123456789" * 8
+		draft = self.create(self.movement(remarks=remarks))
+		document = frappe.get_doc("Stock Entry", draft["identity"]["name"])
+		slip = glyphs(render_pdf("Stock Entry", document.name, "物资单据", document))
+		self.assertGreaterEqual(len({row for char, row in slip if char in "很长的说明文字"}), 2)
+		# Glyphs past the page edge are dropped by Chrome, so the whole run must survive.
+		self.assertIn("ABCDEFGHIJ0123456789" * 8, "".join(char for char, _row in slip))
+
+		self.receipt(1)
+		query = validate_query(
+			{
+				"dataset": "inventory",
+				"view": "locations",
+				"scope": {"item": self.item, "warehouses": [self.root]},
+			}
+		)
+		filters = [f"类别\uff1a很长的类别名称{i}" for i in range(12)]
+		with patch("temple_inventory.exports._enqueue"):
+			result = exports.request_export(
+				query,
+				"locations",
+				columns=["item_name"],
+				export_format="pdf",
+				print_format="物资表格",
+				summary={"title": "库存列表", "filters": filters},
+			)
+		request = frappe.get_doc("Inventory Export Request", result["name"])
+		with Projection(query, refresh=True) as projection, tempfile.TemporaryDirectory() as directory:
+			projection.build()
+			exports._write(projection, request, Path(directory) / "export.pdf")
+		export_pdf = render_pdf("Inventory Export Request", request.name, "物资表格")
+		export_text = "".join(
+			unicodedata.normalize("NFKC", page.extract_text() or "")
+			for page in PdfReader(io.BytesIO(export_pdf)).pages
+		)
+		self.assertRegex("".join(export_text.split()), r"很[长⻓]的类别名称11")
+		self.assertGreaterEqual(len({row for char, row in glyphs(export_pdf) if char in "类别"}), 2)
+
 	def test_render_pdf_reports_missing_chromium_clearly(self):
 		with (
 			patch(

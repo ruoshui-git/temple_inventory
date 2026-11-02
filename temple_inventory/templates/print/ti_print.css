@@ -120,6 +120,11 @@
 	text-align: center;
 }
 
+.ti-table .ti-title-row th {
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+
 .print-format .ti-print .ti-table .ti-title-row th {
 	color: #000 !important;
 	font-weight: 700 !important;
@@ -148,6 +153,8 @@
 	font-size: 8pt;
 	font-weight: 400;
 	text-align: left;
+	white-space: normal;
+	overflow-wrap: anywhere;
 }
 
 .print-format .ti-print .ti-table thead .ti-filter-row th {
@@ -177,6 +184,8 @@
 
 .ti-table .ti-subtotal td {
 	font-weight: 700;
+	white-space: normal;
+	overflow-wrap: anywhere;
 }
 
 .ti-note {
@@ -261,8 +270,8 @@
 .ti-slip .ti-table .ti-head-row th { font-size: 11pt; }
 .ti-slip .ti-table .ti-main { min-width: 35mm; }
 .ti-slip .ti-subtotal td { font-size: 11pt; }
-.ti-slip .ti-note-row td { white-space: normal; }
-.ti-slip-signatures { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 10pt; }
+.ti-slip .ti-note-row td { white-space: normal; overflow-wrap: anywhere; }
+.ti-slip-signatures { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; row-gap: 4px; margin-top: 8px; font-size: 10pt; }
 .ti-slip-signatures > span { white-space: nowrap; }
 .ti-slip-signatures strong { font-weight: 700; }
 .ti-slip-meta { margin-top: 4px; font-size: 10pt; }

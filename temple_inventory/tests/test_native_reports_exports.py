@@ -1530,6 +1530,7 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			self.assertEqual(result["status"], "Queued")
 			enqueue.assert_called_once()
 			doc = frappe.get_doc("Inventory Export Request", result["name"])
+			self.assertEqual(result["requested_at"], str(doc.creation))
 			self.assertEqual(doc.owner, "Administrator")
 			doc.status = "Failed"
 			exports._save(doc)

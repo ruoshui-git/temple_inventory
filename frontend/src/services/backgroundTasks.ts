@@ -22,6 +22,8 @@ export interface BackgroundTask {
   /** Export: the server job. */
   jobName: string;
   version: string;
+  /** Site wall time (exports) or ISO instant (record PDFs) when the task was requested. */
+  requestedAt: string;
   format: string;
   /** Export: server download URL. Print PDF: blob URL once rendered. */
   downloadUrl: string;
@@ -41,6 +43,7 @@ interface PersistedExport {
   jobName: string;
   title: string;
   format: string;
+  requestedAt?: string;
 }
 
 const state = reactive({
@@ -74,6 +77,7 @@ function persist() {
       jobName: task.jobName,
       title: task.title,
       format: task.format,
+      requestedAt: task.requestedAt,
     }));
   try {
     if (entries.length)
@@ -90,10 +94,17 @@ function readPersisted(user: string): PersistedExport[] {
       window.localStorage.getItem(storageKey(user)) || "[]",
     );
     return Array.isArray(parsed)
-      ? parsed.filter(
-          (entry): entry is PersistedExport =>
-            typeof entry?.id === "string" && typeof entry?.jobName === "string",
-        )
+      ? parsed
+          .filter(
+            (entry) =>
+              typeof entry?.id === "string" &&
+              typeof entry?.jobName === "string",
+          )
+          .map((entry) => ({
+            ...entry,
+            requestedAt:
+              typeof entry.requestedAt === "string" ? entry.requestedAt : "",
+          }))
       : [];
   } catch {
     return [];
@@ -114,6 +125,7 @@ function newTask(
     downloadError: "",
     jobName: "",
     version: "",
+    requestedAt: "",
     format: "",
     downloadUrl: "",
     source: "",
@@ -147,6 +159,7 @@ function markWatched(task: BackgroundTask) {
 function applyJob(task: BackgroundTask, job: ExportProgressJob) {
   const wasRunning = task.status === "running";
   task.version = job.version || task.version;
+  task.requestedAt = job.requested_at || task.requestedAt;
   if (job.status === "Completed") {
     task.status = "completed";
     task.percent = 100;
@@ -238,6 +251,7 @@ export function bindBackgroundTasks(source: Client, user: string) {
       title: entry.title,
       format: entry.format,
       jobName: entry.jobName,
+      requestedAt: entry.requestedAt,
       stage: "正在恢复导出进度…",
     });
     state.tasks.push(task);
@@ -303,6 +317,7 @@ export function startPrintPdf(meta: {
   const task = newTask({
     kind: "print-pdf",
     title: meta.title,
+    requestedAt: new Date().toISOString(),
     source: `/api/method/temple_inventory.printing.print_record_pdf?${query}`,
     filename: `${meta.name}.pdf`,
   });
