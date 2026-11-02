@@ -18,7 +18,7 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 | 物品名称 | ✅ | ✅ | |
 | 编号 | ✅ | ✅ | |
 | 类别 | ✅ | ✅ | |
-| 库存位置 | ✅ | ✅ | 位置与批次 column; when shown, the export has one row per item × 库位 × 批次 |
+| 库存位置 | ✅ | ✅ | 2026-11-02: separate 位置 and 批次 columns. 批次 (or another batch-level column) shown → one row per item × 库位 × 批次; only 位置 → one row per item × 库位 (batches summed); neither → one row per item. 效期 hidden by default |
 | 🔁 完整位置 / ERPNext 库位 | ✅ | ✅ | Hidden by default. 完整位置 is the app path ("T2 / A02 / S1"); ERPNext 库位 is the native warehouse_name without the company suffix ("T2 / A02 · 直接存放") |
 | 数量 | ✅ | ✅ | 🆕 可用数量 (on hand); 借出 / 损坏 / 合计 hidden by default. 🔁 合计 now shows a value and exports as 合计 (was blank / 数量). 🔄 Numeric cells, bold tabular digits; 物品名称 stays pinned while the table scrolls sideways |
 | 🔄 库存状态 | ✅ | ✅ | Per item across the selected locations: 有库存 (default, includes loaned/damaged-only), 有可用, 无可用, 无库存, 全部 |
@@ -125,6 +125,9 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 | 附带文件: images / images + attachments as ZIP, de-duplicated by reference | ✅ | `images/<物品编号>.*`, `attachments/items/<物品编号>/`, `attachments/records/<编号>/` |
 | Default filters visible as chips; × lifts them; 恢复默认 restores defaults; date 设为默认 saves the account default | ✅ | 2026-10-31. The export 导出说明 lists the same restrictions, including the date range |
 | 🔁 Progress and download feedback | ✅ | Stages 读取数据 / 写入文件 / 打包附件 with a progress bar; 下载 shows 正在准备下载… then byte progress. Permission check for a 2,285-line movements download: 7.3s → 1.7s |
+| 🆕 Background task tray | ✅ | 2026-11-02. 开始导出 closes the dialog; the bottom-end tray keeps progress, 下载 and 重试 across pages and reloads. Phone 导出 from “…” opens the dialog (it froze the page before) |
+| 🆕 PDF 纸张方向 and margins | ✅ | 2026-11-02. 自动 / 纵向 / 横向; 6mm margins; 版式 loads on 效期批次 and 活动 too |
+| 🆕 Browser 打印 for records | ✅ | 2026-11-02. 打印 opens the browser print dialog from server HTML; 下载 PDF is a tray task. 56-row count: 3.4s → 0.24s (HTML) / 0.61s (PDF) |
 
 ## Data entry
 
