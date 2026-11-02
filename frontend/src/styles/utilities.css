@@ -57,9 +57,16 @@
 	font-size: 0.875em;
 	line-height: 1.4;
 }
+/* At most three cards per row, so every group keeps the same card width. */
 .utility-page .more-grid {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--p-card-min-width)), 1fr));
+	grid-template-columns: repeat(
+		auto-fill,
+		minmax(
+			min(100%, max(var(--p-card-min-width), calc((100% - 2 * var(--p-card-gap)) / 3))),
+			1fr
+		)
+	);
 	gap: var(--p-card-gap);
 }
 .utility-page .more-card {
@@ -497,7 +504,6 @@
 	background: var(--p-soft);
 }
 @media (max-width: 620px) {
-	
 	.utility-page .utility-panel {
 		padding: var(--p-space-4);
 	}
