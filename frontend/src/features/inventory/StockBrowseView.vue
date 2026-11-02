@@ -21,6 +21,7 @@ import ViewModeToggle from "../../components/ui/ViewModeToggle.vue";
 import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
 import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
 import FilterDisclosure from "../../components/ui/FilterDisclosure.vue";
+import AsOfFilter from "../../components/ui/AsOfFilter.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import FilterRailEdge from "../../components/ui/FilterRailEdge.vue";
@@ -90,6 +91,8 @@ const {
 	groups: groupPages,
 	setGroupBy,
 	setItemStatus,
+	asOfActive,
+	setAsOf,
 	metrics,
 	rows,
 	analysis,
@@ -414,6 +417,17 @@ function acceptBrowseLocation(name: string) {
 							@update:model-value="setItemStatus"
 						/>
 						<FilterDisclosure
+							label="截至"
+							:summary="quickReportQuery.asOf || '现在'"
+							field="asOf"
+						>
+							<AsOfFilter
+								:model-value="quickReportQuery.asOf"
+								:today="reference.siteDate"
+								@update:model-value="setAsOf"
+							/>
+						</FilterDisclosure>
+						<FilterDisclosure
 							label="库存状态"
 							:summary="stockStateLabels[quickReportQuery.stockState]"
 							field="stockState"
@@ -548,6 +562,10 @@ function acceptBrowseLocation(name: string) {
 					>
 				</template>
 			</BrowseResultSummary>
+			<div v-if="asOfActive" class="stock-as-of-notice" role="status">
+				<span>正在查看 {{ quickReportQuery.asOf }} 的历史库存，出入库操作已停用</span>
+				<UiButton variant="ghost" @click="setAsOf('')">回到现在</UiButton>
+			</div>
 			<BrowseRefreshNotice :show="data.refreshFailed" :retry="() => load(false, true)" />
 			<div class="inventory-body" :class="{ 'with-filters': filtersOpen && !isMobile }">
 				<aside v-if="filtersOpen && !isMobile" class="browse-filter-rail">

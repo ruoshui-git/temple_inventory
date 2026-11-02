@@ -15,7 +15,9 @@ from temple_inventory.native_access import (
 	retry_native_request,
 )
 from temple_inventory.native_balances import (
+	batch_rows_at,
 	entry_bundle,
+	ledger_rows_at,
 	lock_stock_locations,
 	reconciliation_serial_allocations,
 	serial_balances_by_location,
@@ -58,37 +60,10 @@ def _baseline(timestamp, *, lock=False, previous_rows=None):
 		frappe.throw("请选择盘点时间")
 	previous = {_key(row): row for row in (previous_rows or []) if row.get("warehouse") in warehouses}
 	added = {key[0] for key in previous}
-	where_args = {"warehouses": tuple(warehouses), "posting": posting}
 	# The native balance is the latest entry's running qty (get_previous_sle's order), not a sum:
 	# a Stock Reconciliation entry sets qty_after_transaction with actual_qty 0.
-	ledger_rows = frappe.db.sql(
-		"""select item_code, warehouse, qty_after_transaction as qty from (
-			select item_code, warehouse, qty_after_transaction, row_number() over (
-				partition by item_code, warehouse order by posting_datetime desc, creation desc
-			) as position
-			from `tabStock Ledger Entry`
-			where warehouse in %(warehouses)s and is_cancelled = 0 and posting_datetime <= %(posting)s
-		) latest where position = 1""",
-		where_args,
-		as_dict=True,
-	)
-	batch_rows = frappe.db.sql(
-		"""select sle.item_code, sle.warehouse, sbe.batch_no, sum(sbe.qty) as qty
-		from `tabStock Ledger Entry` sle
-		inner join `tabSerial and Batch Entry` sbe on sbe.parent = sle.serial_and_batch_bundle
-		where sle.warehouse in %(warehouses)s and sle.is_cancelled = 0 and sle.docstatus = 1
-		and sle.posting_datetime <= %(posting)s and sle.serial_and_batch_bundle is not null
-		and sbe.docstatus = 1 and sbe.is_cancelled = 0 and sbe.batch_no is not null
-		group by sle.item_code, sle.warehouse, sbe.batch_no
-		union all
-		select item_code, warehouse, batch_no, sum(actual_qty) as qty
-		from `tabStock Ledger Entry`
-		where warehouse in %(warehouses)s and is_cancelled = 0 and docstatus = 1
-		and posting_datetime <= %(posting)s and serial_and_batch_bundle is null
-		and batch_no is not null group by item_code, warehouse, batch_no""",
-		where_args,
-		as_dict=True,
-	)
+	ledger_rows = ledger_rows_at(warehouses, posting)
+	batch_rows = batch_rows_at(warehouses, posting)
 	quantities = {}
 	for entry in ledger_rows:
 		quantities[(entry.item_code, entry.warehouse, "")] = float(entry.qty or 0)

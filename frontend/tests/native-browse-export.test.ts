@@ -395,7 +395,7 @@ describe("background quick export", () => {
         // Default restrictions are real filters, so the export names them too.
         summary: {
           title: "库存列表",
-          filters: ["库存状态：有库存", "物品状态：启用"],
+          filters: ["截至：现在", "库存状态：有库存", "物品状态：启用"],
         },
       }),
     );
@@ -495,6 +495,7 @@ describe("background quick export", () => {
           title: "库存列表",
           filters: [
             expect.stringContaining("日期：近30天"),
+            "截至：现在",
             "库存状态：有库存",
             "物品状态：启用",
           ],

@@ -275,6 +275,7 @@ export function useStockBrowseController(
     generation++;
     request?.abort();
   });
+  const asOfActive = computed(() => Boolean(query.value.asOf));
   const metrics = computed(() =>
     [
       { key: "available", label: "可用库存", icon: "box", tone: "available" },
@@ -311,6 +312,9 @@ export function useStockBrowseController(
   function setItemStatus(value: ReportQuery["itemStatus"]) {
     constraints.value.itemStatus = value;
   }
+  function setAsOf(value: string) {
+    constraints.value.asOf = value;
+  }
   // 恢复默认 keeps link-provided constraints, so they do not count as a difference.
   const atDefaults = computed(() =>
     filtersAtDefaults(
@@ -339,6 +343,7 @@ export function useStockBrowseController(
       },
     })),
   ]);
+  // Historical balances are read-only: no operation may be started from a past moment.
   const actions = computed(() =>
     [
       { name: "新建物品", kind: "Item", icon: "box" },
@@ -359,11 +364,12 @@ export function useStockBrowseController(
       },
     ].filter(
       (action) =>
-        action.kind === "Item" || reference.operations[action.kind] === true,
+        action.kind === "Item" ||
+        (!asOfActive.value && reference.operations[action.kind] === true),
     ),
   );
   const selectedActions = computed<BulkAction[]>(() =>
-    selection.selected.value.length
+    selection.selected.value.length && !asOfActive.value
       ? [
           {
             name: kindIcons.Receive.label,
@@ -410,6 +416,7 @@ export function useStockBrowseController(
       scopeError.value ||
       reference.user !== account ||
       props.active === false ||
+      asOfActive.value ||
       reference.operations[kind] !== true
     )
       return;
@@ -454,6 +461,8 @@ export function useStockBrowseController(
     setManySelected: selection.setMany,
     stockState,
     setItemStatus,
+    asOfActive,
+    setAsOf,
     analysisDimension,
     scope,
     query,

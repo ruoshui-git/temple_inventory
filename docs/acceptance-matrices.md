@@ -18,6 +18,7 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 | 物品名称 | ✅ | ✅ | |
 | 编号 | ✅ | ✅ | |
 | 类别 | ✅ | ✅ | |
+| 🆕 截至（历史库存） | ✅ | ✅ | 2026-11-02: 截至 filter; rows from the ledger at that moment (sample data: as-of a moment ago equals current stock for all 1,625 non-zero rows); export lists 截至 |
 | 库存位置 | ✅ | ✅ | 2026-11-02: separate 位置 and 批次 columns. 批次 (or another batch-level column) shown → one row per item × 库位 × 批次; only 位置 → one row per item × 库位 (batches summed); neither → one row per item. 效期 hidden by default |
 | 🔁 完整位置 / ERPNext 库位 | ✅ | ✅ | Hidden by default. 完整位置 is the app path ("T2 / A02 / S1"); ERPNext 库位 is the native warehouse_name without the company suffix ("T2 / A02 · 直接存放") |
 | 数量 | ✅ | ✅ | 🆕 可用数量 (on hand); 借出 / 损坏 / 合计 hidden by default. 🔁 合计 now shows a value and exports as 合计 (was blank / 数量). 🔄 Numeric cells, bold tabular digits; 物品名称 stays pinned while the table scrolls sideways |

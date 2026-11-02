@@ -21,6 +21,7 @@ from temple_inventory.tests.test_configuration import ConfigurationTests
 from temple_inventory.tests.test_environment import EnvironmentTests
 from temple_inventory.tests.test_item_images import ItemImageTests
 from temple_inventory.tests.test_native_documents import NativeDocumentTests
+from temple_inventory.tests.test_native_reports_as_of import NativeReportsAsOfTests
 from temple_inventory.tests.test_native_reports_cache import NativeReportsCacheTests
 from temple_inventory.tests.test_native_reports_expiry import NativeReportsExpiryTests
 from temple_inventory.tests.test_native_reports_exports import NativeReportsExportsTests
@@ -62,6 +63,7 @@ def run(test_name=None):
 		CatalogLifecycleTests,
 		CatalogPickersTests,
 		CatalogUnitsTests,
+		NativeReportsAsOfTests,
 		NativeReportsCacheTests,
 		NativeReportsExportsTests,
 		NativeReportsExpiryTests,

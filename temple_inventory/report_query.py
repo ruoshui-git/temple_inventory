@@ -1,8 +1,11 @@
 """Canonical report scope shared by browse, analysis, named views and export jobs."""
 
 import copy
+import re
+from datetime import datetime
 
 import frappe
+from frappe.utils import get_datetime, now_datetime, nowdate
 
 from temple_inventory.periods import PERIOD_KEYS, resolve_period
 
@@ -323,6 +326,7 @@ QUERY_DEFAULT = {
 	"statuses": [1],
 	"stockState": "in_stock",
 	"includeZero": False,
+	"asOf": "",
 	"includeUndated": True,
 	"activityStatus": "all",
 	"typeId": "",
@@ -364,6 +368,38 @@ def _strings(values):
 	if any(not isinstance(value, str) or len(value) > 2000 for value in values):
 		frappe.throw("筛选范围无效")
 	return list(dict.fromkeys(values))
+
+
+AS_OF_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2})(?: (\d{2}:\d{2}:\d{2}))?")
+
+
+def normalize_as_of(value):
+	"""Return the canonical balance boundary, or "" for now.
+
+	A date alone means the end of that day. Today's date is "now", so it is stored as "".
+	"""
+	match = AS_OF_PATTERN.fullmatch(value.strip())
+	if not match:
+		frappe.throw("截至日期格式无效，请使用 YYYY-MM-DD 或 YYYY-MM-DD HH:MM:SS")  # noqa: RUF001
+	date_text, time_text = match.groups()
+	try:
+		if time_text:
+			moment = datetime.strptime(f"{date_text} {time_text}", "%Y-%m-%d %H:%M:%S")
+		else:
+			moment = datetime.strptime(date_text, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
+	except ValueError:
+		frappe.throw("截至日期格式无效，请使用 YYYY-MM-DD 或 YYYY-MM-DD HH:MM:SS")  # noqa: RUF001
+	if not time_text and date_text == str(nowdate()):
+		return ""
+	if moment > now_datetime():
+		frappe.throw("截至时间不能晚于当前时间")
+	return moment.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def as_of_moment(query):
+	"""Parsed balance boundary for a validated query, or None when stock is read as of now."""
+	value = query.get("asOf") or ""
+	return get_datetime(value) if value else None
 
 
 def validate_query(value):
@@ -526,6 +562,10 @@ def validate_query(value):
 		query["stockState"] = "in_stock"
 	if dataset == "inventory" and query["view"] == "historical" and query["scope"]["period"]["key"] == "all":
 		frappe.throw("历史库存需要有起止日期的范围")
+	if query["asOf"]:
+		if dataset != "inventory" or query["view"] not in ("summary", "locations"):
+			frappe.throw("此数据集不支持截至日期")
+		query["asOf"] = normalize_as_of(query["asOf"])
 	if dataset == "loans":
 		query.pop("includeZero", None)
 	return query

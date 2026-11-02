@@ -160,6 +160,46 @@ def reconciliation_allocations(row, *, batch_checker=None, bundle_cache=None, bu
 	return [allocations[batch] for batch in sorted(allocations)]
 
 
+def ledger_rows_at(warehouses, timestamp):
+	"""Latest running balance per Item/warehouse at one posting boundary (get_previous_sle order)."""
+	return frappe.db.sql(
+		"""select item_code, warehouse, qty_after_transaction as qty from (
+			select item_code, warehouse, qty_after_transaction, row_number() over (
+				partition by item_code, warehouse order by posting_datetime desc, creation desc
+			) as position
+			from `tabStock Ledger Entry`
+			where warehouse in %(warehouses)s and is_cancelled = 0 and posting_datetime <= %(posting)s
+		) latest where position = 1""",
+		{"warehouses": tuple(warehouses), "posting": get_datetime(timestamp)},
+		as_dict=True,
+	)
+
+
+def batch_rows_at(warehouses, timestamp):
+	"""Signed batch quantities per Item/warehouse/batch, from bundles and legacy batch_no rows.
+
+	Rows are not merged across the two sources; callers sum them per batch.
+	"""
+	args = {"warehouses": tuple(warehouses), "posting": get_datetime(timestamp)}
+	return frappe.db.sql(
+		"""select sle.item_code, sle.warehouse, sbe.batch_no, sum(sbe.qty) as qty
+		from `tabStock Ledger Entry` sle
+		inner join `tabSerial and Batch Entry` sbe on sbe.parent = sle.serial_and_batch_bundle
+		where sle.warehouse in %(warehouses)s and sle.is_cancelled = 0 and sle.docstatus = 1
+		and sle.posting_datetime <= %(posting)s and sle.serial_and_batch_bundle is not null
+		and sbe.docstatus = 1 and sbe.is_cancelled = 0 and sbe.batch_no is not null
+		group by sle.item_code, sle.warehouse, sbe.batch_no
+		union all
+		select item_code, warehouse, batch_no, sum(actual_qty) as qty
+		from `tabStock Ledger Entry`
+		where warehouse in %(warehouses)s and is_cancelled = 0 and docstatus = 1
+		and posting_datetime <= %(posting)s and serial_and_batch_bundle is null
+		and batch_no is not null group by item_code, warehouse, batch_no""",
+		args,
+		as_dict=True,
+	)
+
+
 def stock_balance(item_code, warehouse, timestamp, *, lock=False):
 	posting = get_datetime(timestamp)
 	row = get_previous_sle(

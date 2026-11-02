@@ -2,6 +2,7 @@ import { stockStateLabels } from "./presentationLabels";
 import { emptyScope, periodLabels, type DatePeriod } from "./browseQuery";
 import {
   newReportQuery,
+  supportsAsOf,
   groupsForView,
   groupSequencesForView,
   sortableColumnsForView,
@@ -139,6 +140,7 @@ export function decodeReportQuery(
     const definition = reportDefinitions[query.dataset];
     if (!definition.views.some((view) => view.id === query.view))
       throw new Error("此数据集不支持所选视图或分组");
+    if (!supportsAsOf(query.dataset, query.view)) query.asOf = "";
     if (
       query.groupBy.length > 2 ||
       new Set(query.groupBy).size !== query.groupBy.length ||
@@ -372,6 +374,7 @@ export function normalizeReportQuery(source: ReportQuery): ReportQuery {
     if (!(field in sourceFields)) continue;
     targetFields[field] = structuredClone(sourceFields[field]);
   }
+  if (!supportsAsOf(dataset, view)) target.asOf = "";
   if (!sortableColumnsForView(dataset, view).includes(target.sortBy))
     target.sortBy = "item_name";
   if (!groupsForView(dataset, view).length) target.groupBy = [];

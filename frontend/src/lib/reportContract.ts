@@ -461,6 +461,12 @@ export function sortableColumnsForView(
 ): string[] {
   return sortableColumnsByView[`${dataset}:${view}`] ?? ["identity"];
 }
+/** Only the stock list reads balances as of a past moment; history and other datasets never take it. */
+export function supportsAsOf(dataset: ReportDataset, view: string) {
+  return (
+    dataset === "inventory" && (view === "summary" || view === "locations")
+  );
+}
 export interface ReportQuery {
   dataset: ReportDataset;
   view: string;
@@ -474,6 +480,8 @@ export interface ReportQuery {
   statuses: number[];
   stockState: keyof typeof stockStateLabels;
   includeZero?: boolean;
+  /** Historical stock boundary: "" reads now; a date or "date time" reads that moment. */
+  asOf: string;
   includeUndated: boolean;
   activityStatus: "all" | "active" | "archived";
   typeId: string;
@@ -516,6 +524,7 @@ export function newReportQuery(
     statuses: [1],
     stockState: "in_stock",
     includeZero: false,
+    asOf: "",
     includeUndated: true,
     activityStatus: "all",
     typeId: "",

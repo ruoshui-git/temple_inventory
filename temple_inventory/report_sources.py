@@ -10,12 +10,15 @@ from frappe.utils import get_datetime, get_time, getdate, now_datetime, nowdate
 
 from temple_inventory.native_balances import (
 	batch_balances,
+	batch_rows_at,
 	entry_bundle,
+	ledger_rows_at,
 	reconciliation_allocations,
+	serial_balances_by_location,
 	stock_balance,
 )
 from temple_inventory.native_stock import MOVEMENT_PURPOSES, batch_quantities, loan_balances, warehouse_scopes
-from temple_inventory.report_query import in_period, resolved_period
+from temple_inventory.report_query import as_of_moment, in_period, resolved_period
 from temple_inventory.uom_labels import uom_label
 
 
@@ -90,6 +93,8 @@ class ReportContext:
 		self.snapshot_is_now = snapshot is None if snapshot_is_now is None else snapshot_is_now
 		# Full precision: the snapshot is the "as of" bound for balance queries.
 		self.snapshot = str(snapshot or now_datetime())
+		# Historical stock boundary; None reads the current Bin and serial state.
+		self.balance_at = as_of_moment(query)
 		self.settings, self.warehouses, self.physical, self.leased, self.damaged = warehouse_scopes()
 		from temple_inventory.native_topology import present_locations
 
@@ -659,18 +664,69 @@ class ReportContext:
 		)
 
 
-def stock_pairs(context, item_codes=None):
+def _include_zero_items(context):
+	query = context.query
+	return query["includeZero"] or (
+		query["dataset"] == "inventory" and query["stockState"] in ("no_available", "no_stock", "all")
+	)
+
+
+def _serial_warehouses(context):
+	authorized_leaves = (
+		set(getattr(context, "physical", ()))
+		| set(getattr(context, "leased", ()))
+		| set(getattr(context, "damaged", ()))
+	)
+	if not authorized_leaves:
+		authorized_leaves = set(context.selected)
+	return sorted(context.selected & authorized_leaves)
+
+
+def as_of_balances(context, item_codes=None):
+	"""Set-based stock at context.balance_at: one ledger read per table, never per pair."""
+	warehouses = sorted(context.selected)
+	wanted = None if item_codes is None else set(item_codes)
+	ledger = {}
+	for row in ledger_rows_at(warehouses, context.balance_at):
+		if wanted is None or row.item_code in wanted:
+			ledger[(row.item_code, row.warehouse)] = float(row.qty or 0)
+	batches = defaultdict(lambda: defaultdict(float))
+	for row in batch_rows_at(warehouses, context.balance_at):
+		if wanted is None or row.item_code in wanted:
+			batches[(row.item_code, row.warehouse)][row.batch_no] += float(row.qty or 0)
+	serials = defaultdict(list)
+	serial_warehouses = _serial_warehouses(context)
+	if serial_warehouses:
+		for entry in serial_balances_by_location(serial_warehouses, context.balance_at):
+			if entry["qty"] > 0 and (wanted is None or entry["item_code"] in wanted):
+				serials[(entry["item_code"], entry["warehouse"])].append(entry["serial_no"])
+	return {
+		"ledger": ledger,
+		"batches": {key: sorted(quantities.items()) for key, quantities in batches.items()},
+		"serials": {key: sorted(names) for key, names in serials.items()},
+	}
+
+
+def stock_pairs(context, item_codes=None, as_of=None):
 	"""Page native Bin identities without retaining the whole catalog in memory."""
+	if as_of is not None:
+		for (code, warehouse), quantity in as_of["ledger"].items():
+			yield code, warehouse, quantity
+		if _include_zero_items(context):
+			seen = {code for code, _warehouse in as_of["ledger"]}
+			item_filters = {"is_stock_item": 1}
+			if item_codes is not None:
+				item_filters["name"] = ["in", sorted(set(item_codes)) or [""]]
+			for item in paged("Item", filters=item_filters, fields=["name"]):
+				if item.name not in seen:
+					yield item.name, "", 0.0
+		return
 	filters = {"warehouse": ["in", sorted(context.selected) or [""]]}
 	if item_codes is not None:
 		filters["item_code"] = ["in", sorted(set(item_codes)) or [""]]
 	for value in paged("Bin", filters=filters, fields=["item_code", "warehouse", "actual_qty"]):
 		yield value.item_code, value.warehouse, float(value.actual_qty or 0)
-	include_zero_items = context.query["includeZero"] or (
-		context.query["dataset"] == "inventory"
-		and context.query["stockState"] in ("no_available", "no_stock", "all")
-	)
-	if include_zero_items:
+	if _include_zero_items(context):
 		item_filters = {"is_stock_item": 1}
 		if item_codes is not None:
 			item_filters["name"] = ["in", sorted(set(item_codes)) or [""]]
@@ -683,36 +739,35 @@ def stock_rows(context, *, item_codes=None):
 	query = context.query
 	if not context.selected:
 		return
-	pairs = list(stock_pairs(context, item_codes=item_codes))
+	as_of = as_of_balances(context, item_codes=item_codes) if context.balance_at else None
+	pairs = list(stock_pairs(context, item_codes=item_codes, as_of=as_of))
 	codes = {code for code, _warehouse, _quantity in pairs}
 	context.preload_items(codes)
 	if context.load_item_attachments:
 		context.preload_item_attachments(codes)
 	serials_by_location = defaultdict(list)
-	authorized_leaves = (
-		set(getattr(context, "physical", ()))
-		| set(getattr(context, "leased", ()))
-		| set(getattr(context, "damaged", ()))
-	)
-	if not authorized_leaves:
-		authorized_leaves = set(context.selected)
-	serial_warehouses = sorted(context.selected & authorized_leaves)
-	serial_filters = {
-		"status": "Active",
-		"warehouse": ["in", serial_warehouses or [""]],
-	}
-	if codes:
-		serial_filters["item_code"] = ["in", sorted(codes)]
-	for serial in frappe.get_list(
-		"Serial No",
-		filters=serial_filters,
-		fields=["name", "item_code", "warehouse"],
-		order_by="item_code asc, warehouse asc, name asc",
-		limit_page_length=0,
-	):
-		serials_by_location[(serial.item_code, serial.warehouse)].append(serial.name)
+	if as_of is not None:
+		serials_by_location.update(as_of["serials"])
+	else:
+		serial_filters = {
+			"status": "Active",
+			"warehouse": ["in", _serial_warehouses(context) or [""]],
+		}
+		if codes:
+			serial_filters["item_code"] = ["in", sorted(codes)]
+		for serial in frappe.get_list(
+			"Serial No",
+			filters=serial_filters,
+			fields=["name", "item_code", "warehouse"],
+			order_by="item_code asc, warehouse asc, name asc",
+			limit_page_length=0,
+		):
+			serials_by_location[(serial.item_code, serial.warehouse)].append(serial.name)
+	include_zero = _include_zero_items(context)
+	# Expiry status in an as-of view is judged on that day, not today.
+	reference_date = getdate(context.balance_at) if context.balance_at else getdate(nowdate())
 	rows_by_item = defaultdict(list)
-	for code, warehouse, bin_quantity in pairs:
+	for code, warehouse, pair_quantity in pairs:
 		if not context.matches_item(code, warehouse):
 			continue
 		item = context.item(code)
@@ -729,23 +784,25 @@ def stock_rows(context, *, item_codes=None):
 			# movement restriction must never silently become unrestricted stock.
 			continue
 		if item.has_batch_no and warehouse:
-			include_zero = query["includeZero"] or (
-				query["dataset"] == "inventory" and query["stockState"] in ("no_available", "no_stock", "all")
-			)
-			balances = batch_balances(code, warehouse, context.snapshot, include_zero=include_zero)
-			quantities = [(row.get("batch_no"), row.get("qty", 0)) for row in balances]
+			if as_of is not None:
+				quantities = [
+					(batch_name, quantity)
+					for batch_name, quantity in as_of["batches"].get((code, warehouse), ())
+					if quantity or include_zero
+				]
+			else:
+				balances = batch_balances(code, warehouse, context.snapshot, include_zero=include_zero)
+				quantities = [(row.get("batch_no"), row.get("qty", 0)) for row in balances]
 		else:
+			# As-of pairs already carry their ledger balance at balance_at.
 			quantity = (
-				bin_quantity
-				if warehouse and getattr(context, "snapshot_is_now", False)
+				pair_quantity
+				if warehouse and (as_of is not None or getattr(context, "snapshot_is_now", False))
 				else stock_balance(code, warehouse, context.snapshot)
 				if warehouse
 				else 0
 			)
 			quantities = [(None, quantity)]
-		include_zero = query["includeZero"] or (
-			query["dataset"] == "inventory" and query["stockState"] in ("no_available", "no_stock", "all")
-		)
 		if not quantities and include_zero:
 			quantities = [(None, 0)]
 		for batch_name, quantity in quantities:
@@ -822,7 +879,7 @@ def stock_rows(context, *, item_codes=None):
 					else "",
 					"manufacturing_date": str(batch.manufacturing_date or "") if batch else "",
 					"expiry_date": expiry,
-					"remaining_days": (getdate(expiry) - getdate(nowdate())).days if expiry else None,
+					"remaining_days": (getdate(expiry) - reference_date).days if expiry else None,
 					"available": float(quantity) if kind == "available" else 0,
 					"loaned": float(quantity) if kind == "loaned" else 0,
 					"damaged": float(quantity) if kind == "damaged" else 0,

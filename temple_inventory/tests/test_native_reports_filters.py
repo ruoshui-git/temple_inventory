@@ -117,6 +117,7 @@ class NativeReportsFiltersTests(NativeReportTestCase):
 			damaged={"Damaged Warehouse"},
 			load_item_attachments=False,
 			snapshot="2026-10-30 00:00:00",
+			balance_at=None,
 			snapshot_is_now=True,
 			item=lambda code: items.get(code),
 			preload_items=lambda _codes: None,

@@ -410,11 +410,18 @@ def _clean_text(value, limit):
 	return re.sub(r"[\x00-\x1f\x7f]", "", str(value or ""))[:limit]
 
 
+def _as_of_text(value):
+	"""Date-only as-of values are stored as the end of that day; show them as the date."""
+	return value[: -len(" 23:59:59")] if value.endswith(" 23:59:59") else value
+
+
 def _filename(title, table, query, export_format):
 	from temple_inventory.report_query import resolved_period
 
 	period = resolved_period(query.get("scope", {}).get("period", {}))
 	period_label = f"{period['date_from']}至{period['date_to']}" if period.get("date_from") else "全部时间"
+	if query.get("asOf"):
+		period_label = f"{period_label}-截至{_as_of_text(query['asOf'])}"
 	stamp = frappe.utils.now_datetime().strftime("%Y%m%d-%H%M")
 	base = f"{title or TABLE_LABELS.get(table, table)}-{period_label}-{stamp}"
 	base = re.sub(r'[\\/:*?"<>|\x00-\x1f\x7f]', "·", base).strip(" .")
@@ -645,6 +652,7 @@ def _export_info(projection, doc, count):
 		),
 		("排序", _sort_label(projection.query)),
 		("期间", f"{period['date_from']}至{period['date_to']}" if period.get("date_from") else "全部时间"),
+		("截至", _as_of_text(projection.query["asOf"]) if projection.query["asOf"] else "现在"),
 		("生成时间", projection.context.snapshot),
 		("请求账户", doc.owner),
 		("行数", count),

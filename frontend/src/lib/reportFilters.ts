@@ -6,7 +6,7 @@ import {
   reportOutcomeLabels,
 } from "./presentationLabels";
 import { warehouseLabel } from "./warehouseLabel";
-import type { ReportQuery } from "./reportContract";
+import { supportsAsOf, type ReportQuery } from "./reportContract";
 interface ReportFilterChip {
   key: string;
   label: string;
@@ -104,6 +104,7 @@ export function reportFilterChips(
       statuses: "status",
       stockState: "stockState",
       includeZero: "includeZero",
+      asOf: "asOf",
       includeUndated: "includeUndated",
       activityStatus: "activityStatus",
       typeId: "typeId",
@@ -143,6 +144,14 @@ export function reportFilterChips(
     );
   if (query.dataset === "expiry" && query.includeZero)
     add("includeZero", "包含零库存", { includeZero: false });
+  // Now is the default reading, so its chip is fixed until a past moment is chosen.
+  if (supportsAsOf(query.dataset, query.view))
+    add(
+      "asOf",
+      query.asOf ? `截至：${query.asOf}` : "截至：现在",
+      { asOf: "" },
+      !query.asOf,
+    );
   if (
     query.dataset === "inventory" &&
     query.view !== "historical" &&
@@ -302,6 +311,7 @@ const secondaryFilterFields = [
   "statuses",
   "stockState",
   "includeZero",
+  "asOf",
   "includeUndated",
   "activityStatus",
   "typeId",
