@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { closeOverlayLayer, openOverlayLayer } from "../../lib/overlayLayers";
 import { overlayStageKey } from "../../lib/overlayStage";
 import {
 	isOverlayNavigationPending,
@@ -175,10 +176,7 @@ function focusInitial() {
 	if (target && !target.matches(":disabled")) target.focus({ preventScroll: true });
 	else panel.value?.focus({ preventScroll: true });
 }
-let previousOverflow = "";
-let previousPadding = "";
-let app: HTMLElement | null = null;
-let previousInert = false;
+let layer: HTMLElement | null = null;
 function isTabbable(element: HTMLElement) {
 	if (element.tabIndex < 0 || element.matches(":disabled") || element.closest("[inert]"))
 		return false;
@@ -194,7 +192,6 @@ function isTabbable(element: HTMLElement) {
 	}
 	return true;
 }
-let underlyingOverlays: Array<{ element: HTMLElement; inert: boolean }> = [];
 function documentKeydown(event: KeyboardEvent) {
 	let inert = false;
 	for (
@@ -278,21 +275,8 @@ onMounted(async () => {
 	window.addEventListener("hashchange", closeAfterNavigation);
 	window.addEventListener("popstate", closeAfterNavigation);
 	document.addEventListener("inventory-navigation", navigationStarted);
-	previousOverflow = document.body.style.overflow;
-	previousPadding = document.body.style.paddingRight;
-	const scrollbar = window.innerWidth - document.documentElement.clientWidth;
-	if (scrollbar > 0)
-		document.body.style.paddingRight = `${parseFloat(getComputedStyle(document.body).paddingRight) + scrollbar}px`;
-	document.body.style.overflow = "hidden";
-	app = document.querySelector<HTMLElement>("[data-inventory-app]");
-	previousInert = app?.inert || false;
-	if (app) app.inert = true;
-	underlyingOverlays = Array.from(document.querySelectorAll<HTMLElement>(".ui-overlay"))
-		.filter((element) => !element.contains(panel.value || null))
-		.map((element) => ({ element, inert: Boolean(element.inert) }));
-	underlyingOverlays.forEach(({ element }) => {
-		element.inert = true;
-	});
+	layer = panel.value?.closest<HTMLElement>(".ui-overlay") || null;
+	if (layer) openOverlayLayer(layer);
 	await nextTick();
 	focusInitial();
 });
@@ -345,12 +329,7 @@ onBeforeUnmount(() => {
 	window.removeEventListener("hashchange", closeAfterNavigation);
 	window.removeEventListener("popstate", closeAfterNavigation);
 	document.removeEventListener("inventory-navigation", navigationStarted);
-	document.body.style.overflow = previousOverflow;
-	document.body.style.paddingRight = previousPadding;
-	if (app) app.inert = previousInert;
-	underlyingOverlays.forEach(({ element, inert }) => {
-		element.inert = inert;
-	});
+	if (layer) closeOverlayLayer(layer);
 	if (invoker?.isConnected) invoker.focus({ preventScroll: true });
 	void nextTick(() => {
 		if (invoker?.isConnected) invoker.focus({ preventScroll: true });
