@@ -20,7 +20,6 @@ import { RouterLink } from "vue-router";
 import { personDestination } from "../../lib/nativeNavigation";
 import UnitText from "../../components/ui/UnitText.vue";
 import { useRecordPrint } from "../print/useRecordPrint";
-import PdfPreviewDialog from "../../components/PdfPreviewDialog.vue";
 const props = withDefaults(defineProps<{ controller: LoanDetail; active?: boolean }>(), {
 	active: true,
 });
@@ -69,9 +68,14 @@ function serialRemainder(serials: string[]) {
 				><UiButton
 					v-if="loan && !loading"
 					icon="print"
-					:disabled="recordPrint.loading.value"
-					@click="recordPrint.open('Stock Entry', loan.name)"
+					:loading="recordPrint.loading.value"
+					@click="recordPrint.print('Stock Entry', loan.name)"
 					>打印</UiButton
+				><UiButton
+					v-if="loan && !loading"
+					icon="download"
+					@click="recordPrint.downloadPdf('Stock Entry', loan.name, '借用详情')"
+					>下载 PDF</UiButton
 				><QuickExport
 					v-if="loan && !loading"
 					:query="c.exportQuery.value"
@@ -343,12 +347,6 @@ function serialRemainder(serials: string[]) {
 			</div>
 		</article>
 	</section>
-	<PdfPreviewDialog
-		v-if="recordPrint.url.value"
-		:url="recordPrint.url.value"
-		:number="recordPrint.number.value"
-		@close="recordPrint.close"
-	/>
 </template>
 
 <style scoped>

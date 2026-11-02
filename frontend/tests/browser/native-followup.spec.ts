@@ -148,18 +148,24 @@ for (const width of [375, 1440]) {
       await dialog
         .getByRole("button", { name: "开始导出", exact: true })
         .click();
-      await expect(dialog).toContainText("写入文件 · 52% · 已写入 1 行");
+      // The dialog hands the job to the background task tray.
+      await expect(dialog).toHaveCount(0);
+      const pill = page.locator(".task-tray-pill");
+      await expect(pill).toContainText("正在导出 1 项 · 52%");
+      await pill.click();
+      const tray = page.getByRole("region", { name: "后台任务" });
+      await expect(tray).toContainText("写入文件");
       await page.screenshot({
         path: test.info().outputPath("export-generating.png"),
       });
       exportMode = "completed";
-      await expect(dialog).toContainText("已生成", { timeout: 3000 });
-      const downloadButton = dialog.getByRole("button", {
-        name: /下载 期初明细/,
+      const downloadButton = tray.getByRole("button", {
+        name: "下载",
+        exact: true,
       });
+      await expect(downloadButton).toBeVisible({ timeout: 5000 });
       const downloadFinished = page.waitForEvent("download");
       await downloadButton.click();
-      await expect(dialog).toContainText("正在准备下载…");
       await page.screenshot({
         path: test.info().outputPath("export-downloading.png"),
       });

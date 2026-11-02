@@ -7,6 +7,7 @@ import RouteBreadcrumbs from "./components/RouteBreadcrumbs.vue";
 import UiButton from "./components/ui/UiButton.vue";
 import SkeletonBlock from "./components/ui/SkeletonBlock.vue";
 import ToastHost from "./components/ui/ToastHost.vue";
+import TaskTray from "./components/TaskTray.vue";
 import Overlay from "./components/ui/Overlay.vue";
 import ConfigurationPage from "./features/setup/ConfigurationPage.vue";
 import { createReferenceData, provideInventoryServices } from "./services/contracts";
@@ -139,6 +140,7 @@ const contentKey = computed(() => `${state.version}:${pageIdentity.value}`);
 				</section>
 				<RouterView :key="contentKey" />
 			</ApplicationShell>
+			<TaskTray />
 			<Overlay
 				v-if="sessionExpired || resuming || state.accessBlocked"
 				:title="state.accessBlocked ? '当前账户无法继续访问' : '请重新登录'"

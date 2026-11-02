@@ -40,7 +40,6 @@ import { exportFields } from "../../lib/exportColumns";
 import { countEditorColumns } from "./countEditorColumns";
 import { formatQuantity } from "../../lib/formatQuantity";
 import { useRecordPrint } from "../print/useRecordPrint";
-import PdfPreviewDialog from "../../components/PdfPreviewDialog.vue";
 const props = withDefaults(defineProps<{ controller: CountEditor; active?: boolean }>(), {
 	active: true,
 });
@@ -428,10 +427,25 @@ async function back() {
 				<UiButton
 					v-if="state.identity && state.server"
 					icon="print"
-					:disabled="printDirty || recordPrint.loading.value"
+					:disabled="printDirty"
+					:loading="recordPrint.loading.value"
 					:title="printDirty ? '请先保存后再打印' : undefined"
-					@click="recordPrint.open('Stock Reconciliation', state.identity.name)"
+					@click="recordPrint.print('Stock Reconciliation', state.identity.name)"
 					>打印</UiButton
+				>
+				<UiButton
+					v-if="state.identity && state.server"
+					icon="download"
+					:disabled="printDirty"
+					:title="printDirty ? '请先保存后再下载' : undefined"
+					@click="
+						recordPrint.downloadPdf(
+							'Stock Reconciliation',
+							state.identity.name,
+							'盘点单',
+						)
+					"
+					>下载 PDF</UiButton
 				>
 				<QuickExport
 					v-if="!loading && countExportQuery"
@@ -1003,12 +1017,6 @@ async function back() {
 			></Overlay
 		>
 	</section>
-	<PdfPreviewDialog
-		v-if="recordPrint.url.value"
-		:url="recordPrint.url.value"
-		:number="recordPrint.number.value"
-		@close="recordPrint.close"
-	/>
 </template>
 
 <style scoped>

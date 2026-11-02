@@ -112,7 +112,12 @@ describe("native expiry browser", () => {
       "warehouse",
     ]);
     expect(quickExport.props("columns")).not.toContain("image_file");
-    await quickExport.get("button.quick-report").trigger("click");
+    expect(quickExport.props("showTrigger")).toBe(false);
+    await wrapper.get('[aria-label="更多操作"]').trigger("click");
+    await flushPromises();
+    Array.from(document.body.querySelectorAll("button"))
+      .find((button) => button.textContent?.trim() === "导出")!
+      .click();
     await flushPromises();
     expect(document.body.textContent).toContain("物品图片");
   });

@@ -47,6 +47,7 @@ import { activityColumns as activityColumnDefinitions } from "./activityColumns"
 import { exportFields } from "../../lib/exportColumns";
 import { sortByUnit, unitLabel } from "../../lib/units";
 import { formatQuantity, formatQuantityWithUnit } from "../../lib/formatQuantity";
+const exportMenu = ref<{ open(): void }>();
 const { isMobile } = useResponsiveLayout();
 const activityEditor = ref<InstanceType<typeof ActivityEditor>>();
 const filterSheetOpen = ref(false);
@@ -247,16 +248,19 @@ const activityExportColumns = computed(() => {
 			:filter-count="secondaryChips.length + inheritedChips.length"
 		>
 			<template #actions>
+				<QuickExport
+					ref="exportMenu"
+					:show-trigger="false"
+					:query="report"
+					table="metadata"
+					:columns="activityExportColumns"
+					title="活动"
+					:active="active"
+				/>
 				<BrowseOverflowMenu>
 					<ViewModeMenuItem v-if="isMobile && !report.groupBy.length" v-model="view" />
 					<RouterLink :to="{ name: 'activity-types' }">管理活动类型</RouterLink>
-					<QuickExport
-						:query="report"
-						table="metadata"
-						:columns="activityExportColumns"
-						title="活动"
-						:active="active"
-					/>
+					<UiButton icon="export" @click="exportMenu?.open()">导出</UiButton>
 				</BrowseOverflowMenu>
 				<BrowseSplitButton
 					label="新建活动"

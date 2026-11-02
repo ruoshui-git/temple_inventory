@@ -58,6 +58,7 @@ import { formatQuantityWithUnit } from "../../lib/formatQuantity";
 import { relativeTime } from "../../lib/nativeTime";
 import RemoteSelect from "../../components/ui/RemoteSelect.vue";
 import { useFilterChoices } from "../references/useFilterChoices";
+const exportMenu = ref<{ open(): void }>();
 const filterChoices = useFilterChoices();
 const props = withDefaults(
 	defineProps<{
@@ -501,6 +502,15 @@ function activityLabel(row: Record<string, unknown>) {
 			@filter-open="filterSheetOpen = $event"
 		>
 			<template #actions>
+				<QuickExport
+					ref="exportMenu"
+					:show-trigger="false"
+					:query="query"
+					table="records"
+					:columns="exportColumns"
+					title="单据"
+					:active="active"
+				/>
 				<BrowseOverflowMenu>
 					<ViewModeMenuItem v-if="isMobile && !query.groupBy.length" v-model="view" />
 					<UiButton
@@ -511,13 +521,7 @@ function activityLabel(row: Record<string, unknown>) {
 						icon="refresh"
 						>刷新</UiButton
 					>
-					<QuickExport
-						:query="query"
-						table="records"
-						:columns="exportColumns"
-						title="单据"
-						:active="active"
-					/>
+					<UiButton icon="export" @click="exportMenu?.open()">导出</UiButton>
 				</BrowseOverflowMenu>
 				<BrowseSplitButton
 					v-if="isMobile"

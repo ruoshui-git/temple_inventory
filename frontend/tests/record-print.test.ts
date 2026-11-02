@@ -2,60 +2,130 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h } from "vue";
-import PdfPreviewDialog from "../src/components/PdfPreviewDialog.vue";
 import UiButton from "../src/components/ui/UiButton.vue";
 import { useRecordPrint } from "../src/features/print/useRecordPrint";
+import {
+  backgroundTaskState,
+  resetBackgroundTasks,
+} from "../src/services/backgroundTasks";
 import { preferenceUser } from "../src/lib/uiPreferences";
+
 const wrappers: VueWrapper[] = [];
 afterEach(() => {
   wrappers.splice(0).forEach((wrapper) => wrapper.unmount());
+  resetBackgroundTasks();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
+
+function host() {
+  return defineComponent({
+    setup() {
+      const print = useRecordPrint();
+      return () =>
+        h("div", [
+          h(
+            UiButton,
+            {
+              loading: print.loading.value,
+              onClick: () => print.print("Stock Entry", "MAT-STE-1"),
+            },
+            () => "打印",
+          ),
+          h(
+            UiButton,
+            {
+              onClick: () =>
+                print.downloadPdf("Stock Entry", "MAT-STE-1", "物资单据"),
+            },
+            () => "下载 PDF",
+          ),
+        ]);
+    },
+  });
+}
+
 describe("record print", () => {
-  it("fetches a permission checked PDF with the selected account and displays preview actions", async () => {
+  it("prints the server HTML through a hidden same-origin iframe and removes it after printing", async () => {
     preferenceUser.value = "account@example.test";
-    vi.stubGlobal("matchMedia", () => ({ matches: false }));
-    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:record-pdf");
-    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    const html = "<!doctype html><html><body><h1>MAT-STE-1</h1></body></html>";
     const fetch = vi.fn(
-      async () => new Response(new Blob(["%PDF"]), { status: 200 }),
+      async () =>
+        new Response(
+          JSON.stringify({ message: { html, title: "MAT-STE-1" } }),
+          { status: 200 },
+        ),
     );
     vi.stubGlobal("fetch", fetch);
-    const host = defineComponent({
-      setup() {
-        const print = useRecordPrint();
-        return () =>
-          h("div", [
-            h(
-              UiButton,
-              { onClick: () => print.open("Stock Entry", "MAT-STE-1") },
-              () => "打印",
-            ),
-            print.url.value
-              ? h(PdfPreviewDialog, {
-                  url: print.url.value,
-                  number: print.number.value,
-                  onClose: print.close,
-                })
-              : null,
-          ]);
-      },
-    });
-    const wrapper = mount(host, { attachTo: document.body });
+    const wrapper = mount(host(), { attachTo: document.body });
     wrappers.push(wrapper);
-    await wrapper.get("button").trigger("click");
+    const printed = vi.fn();
+    const originalAppend = document.body.append.bind(document.body);
+    vi.spyOn(document.body, "append").mockImplementation((...nodes) => {
+      originalAppend(...nodes);
+      const frame = nodes[0] as HTMLIFrameElement;
+      if (frame instanceof HTMLIFrameElement) {
+        // jsdom has no print(): stub it on the frame window and report the afterprint event.
+        Object.defineProperty(frame.contentWindow, "print", {
+          value: () => {
+            printed(frame.srcdoc);
+            frame.contentWindow?.dispatchEvent(new Event("afterprint"));
+          },
+        });
+      }
+    });
+    await wrapper.findAllComponents(UiButton)[0]!.trigger("click");
     await flushPromises();
     expect(fetch).toHaveBeenCalledWith(
-      "/api/method/temple_inventory.printing.print_record_pdf?doctype=Stock+Entry&name=MAT-STE-1",
+      "/api/method/temple_inventory.printing.print_record_html?doctype=Stock+Entry&name=MAT-STE-1",
       expect.objectContaining({
         headers: { "X-Inventory-Account": "account@example.test" },
       }),
     );
-    expect(document.querySelector("iframe")?.getAttribute("src")).toBe(
-      "blob:record-pdf",
+    expect(printed).toHaveBeenCalledWith(html);
+    expect(document.querySelector('iframe[aria-hidden="true"]')).toBeNull();
+    preferenceUser.value = "";
+  });
+
+  it("shows the server message as a toast and leaves no frame when the HTML request fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ message: "无权打印此单据" }), {
+            status: 403,
+          }),
+      ),
     );
-    expect(document.body.textContent).toContain("打印");
-    expect(document.body.textContent).toContain("下载");
+    const toasts: string[] = [];
+    window.addEventListener("temple-inventory-toast", (event) =>
+      toasts.push((event as CustomEvent).detail.message),
+    );
+    const wrapper = mount(host(), { attachTo: document.body });
+    wrappers.push(wrapper);
+    await wrapper.findAllComponents(UiButton)[0]!.trigger("click");
+    await flushPromises();
+    expect(toasts).toContain("无权打印此单据");
+    expect(document.querySelector("iframe")).toBeNull();
+  });
+
+  it("queues 下载 PDF as a background task instead of printing", async () => {
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:record-pdf");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(new Blob(["%PDF"]), { status: 200 })),
+    );
+    const wrapper = mount(host(), { attachTo: document.body });
+    wrappers.push(wrapper);
+    await wrapper.findAllComponents(UiButton)[1]!.trigger("click");
+    await flushPromises();
+    expect(backgroundTaskState.tasks).toHaveLength(1);
+    expect(backgroundTaskState.tasks[0]).toMatchObject({
+      kind: "print-pdf",
+      title: "物资单据",
+      status: "completed",
+      filename: "MAT-STE-1.pdf",
+    });
   });
 
   it("keeps print disabled with the save reason while the editor has changes", () => {

@@ -37,6 +37,7 @@ import { RouterLink } from "vue-router";
 import { routeTarget } from "../../lib/routeRegistry";
 import UnitText from "../../components/ui/UnitText.vue";
 import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
+const exportMenu = ref<{ open(): void }>();
 const props = withDefaults(defineProps<{ controller: PendingController; active?: boolean }>(), {
 	active: true,
 });
@@ -161,6 +162,16 @@ watch([() => props.active, isMobile], () => {
 			:filter-count="scopeChips.length + chips.filter((chip) => !chip.fixed).length"
 		>
 			<template #actions>
+				<QuickExport
+					v-if="!routeError"
+					ref="exportMenu"
+					:show-trigger="false"
+					:query="query"
+					:table="table?.id"
+					:columns="exportColumns"
+					title="待处理"
+					:active="active"
+				/>
 				<BrowseOverflowMenu>
 					<UiButton
 						v-if="isMobile"
@@ -169,14 +180,9 @@ watch([() => props.active, isMobile], () => {
 						@click="c.selecting.value ? c.exitSelection() : c.enterSelection()"
 						>{{ c.selecting.value ? "取消选择" : "选择" }}</UiButton
 					>
-					<QuickExport
-						v-if="!routeError"
-						:query="query"
-						:table="table?.id"
-						:columns="exportColumns"
-						title="待处理"
-						:active="active"
-					/>
+					<UiButton v-if="!routeError" icon="export" @click="exportMenu?.open()"
+						>导出</UiButton
+					>
 				</BrowseOverflowMenu>
 				<UiButton
 					v-if="!isMobile"

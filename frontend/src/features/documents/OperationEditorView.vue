@@ -39,7 +39,6 @@ import PopupMenu from "../../components/ui/PopupMenu.vue";
 import { router } from "../../router";
 import { duplicateOperationTarget } from "./operationRoutes";
 import { useRecordPrint } from "../print/useRecordPrint";
-import PdfPreviewDialog from "../../components/PdfPreviewDialog.vue";
 import {
 	borrowerLoanPageState,
 	type BorrowerLoanPageState,
@@ -641,10 +640,25 @@ async function lifecycle() {
 						<UiButton
 							v-if="state.identity && state.server"
 							icon="print"
-							:disabled="printDirty || recordPrint.loading.value"
+							:disabled="printDirty"
+							:loading="recordPrint.loading.value"
 							:title="printDirty ? '请先保存后再打印' : undefined"
-							@click="recordPrint.open(state.server.doctype, state.server.name)"
+							@click="recordPrint.print(state.server.doctype, state.server.name)"
 							>打印</UiButton
+						>
+						<UiButton
+							v-if="state.identity && state.server"
+							icon="download"
+							:disabled="printDirty"
+							:title="printDirty ? '请先保存后再下载' : undefined"
+							@click="
+								recordPrint.downloadPdf(
+									state.server.doctype,
+									state.server.name,
+									'货物流动单据',
+								)
+							"
+							>下载 PDF</UiButton
 						>
 						<QuickExport
 							v-if="!loading && c.savedExportQuery.value"
@@ -1384,12 +1398,6 @@ async function lifecycle() {
 			></Overlay
 		>
 	</section>
-	<PdfPreviewDialog
-		v-if="recordPrint.url.value"
-		:url="recordPrint.url.value"
-		:number="recordPrint.number.value"
-		@close="recordPrint.close"
-	/>
 </template>
 
 <style scoped>

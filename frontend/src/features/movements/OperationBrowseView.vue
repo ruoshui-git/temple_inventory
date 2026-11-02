@@ -71,6 +71,7 @@ import UnitText from "../../components/ui/UnitText.vue";
 import DetailPopover from "../../components/ui/DetailPopover.vue";
 import UnitValues from "../../components/ui/UnitValues.vue";
 import { stockEffectLabel } from "../../lib/stockEffectLabel";
+const exportMenu = ref<{ open(): void }>();
 const props = withDefaults(
 	defineProps<{
 		controller: OperationBrowse;
@@ -1089,6 +1090,17 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 				@filter-open="filterSheetOpen = $event"
 			>
 				<template #actions>
+					<QuickExport
+						ref="exportMenu"
+						:show-trigger="false"
+						:query="query"
+						:title="exportTitle"
+						:table="exportTable"
+						:columns="exportColumns"
+						:sort-by="exportSortBy"
+						:sort="exportSort"
+						:active="active"
+					/>
 					<BrowseOverflowMenu>
 						<ViewModeMenuItem
 							v-if="records && isMobile && !query.groupBy.length"
@@ -1101,15 +1113,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							@click="c.selecting.value ? c.exitSelection() : c.enterSelection()"
 							>{{ c.selecting.value ? "取消选择" : "选择" }}</UiButton
 						>
-						<QuickExport
-							:query="query"
-							:title="exportTitle"
-							:table="exportTable"
-							:columns="exportColumns"
-							:sort-by="exportSortBy"
-							:sort="exportSort"
-							:active="active"
-						/>
+						<UiButton icon="export" @click="exportMenu?.open()">导出</UiButton>
 						<RouterLink
 							v-if="family === 'movements'"
 							class="drafts-entry-link"

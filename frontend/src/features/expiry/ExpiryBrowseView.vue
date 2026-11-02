@@ -46,6 +46,7 @@ import UnitText from "../../components/ui/UnitText.vue";
 import DetailPopover from "../../components/ui/DetailPopover.vue";
 import { formatQuantity } from "../../lib/formatQuantity";
 import { expiryColumnDefinitions } from "./expiryColumns";
+const exportMenu = ref<{ open(): void }>();
 const props = withDefaults(defineProps<{ controller: ExpiryBrowse; active?: boolean }>(), {
 	active: true,
 });
@@ -351,6 +352,16 @@ function canExpiryAction() {
 				</nav>
 			</template>
 			<template #actions>
+				<QuickExport
+					v-if="!routeError"
+					ref="exportMenu"
+					:show-trigger="false"
+					:query="query"
+					title="效期批次"
+					table="batches"
+					:columns="expiryExportColumns"
+					:active="active"
+				/>
 				<BrowseOverflowMenu>
 					<UiButton
 						v-if="isMobile"
@@ -359,14 +370,9 @@ function canExpiryAction() {
 						@click="c.selecting.value ? c.exitSelection() : c.enterSelection()"
 						>{{ c.selecting.value ? "取消选择" : "选择" }}</UiButton
 					>
-					<QuickExport
-						v-if="!routeError"
-						:query="query"
-						title="效期批次"
-						table="batches"
-						:columns="expiryExportColumns"
-						:active="active"
-					/>
+					<UiButton v-if="!routeError" icon="export" @click="exportMenu?.open()"
+						>导出</UiButton
+					>
 				</BrowseOverflowMenu>
 				<UiButton
 					v-if="!isMobile"

@@ -1,13 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { formatSiteDateTime } from "../lib/nativeTime";
-import { scopeFilterChips, scopeFilterFieldChips } from "../lib/filterPresentation";
 import { reportFilterChips } from "../lib/reportFilters";
 import { reportDefinitions, type ReportDataset, type ReportQuery } from "../lib/reportContract";
-import { markExportWatched } from "../features/export/watchedExport";
+import { scopeFilterChips, scopeFilterFieldChips } from "../lib/filterPresentation";
 import { useQuickExport } from "../features/export/useQuickExport";
-import { useInventoryServices, useReferenceData } from "../services/contracts";
-import { showToast } from "../services/toast";
+import { useReferenceData } from "../services/contracts";
 import UiButton from "./ui/UiButton.vue";
 import SkeletonBlock from "./ui/SkeletonBlock.vue";
 import Overlay from "./ui/Overlay.vue";
@@ -37,8 +34,6 @@ const props = withDefaults(
 );
 const emit = defineEmits<{ commitDataset: [dataset: ReportDataset] }>();
 const reference = useReferenceData();
-const services = useInventoryServices();
-const watchedJobs = new Set<string>();
 const selectedDataset = ref(props.initialDataset || props.query.dataset);
 const query = computed(() =>
 	props.allowDatasetSelection && props.queryForDataset
@@ -65,21 +60,18 @@ const {
 	format,
 	printFormats,
 	printFormat,
+	printFormatError,
 	loadingPrintFormats,
+	orientation,
 	grouped,
 	includeFiles,
 	matchedCount,
 	error,
 	loading,
 	generating,
-	job,
-	downloading,
-	downloadProgress,
-	downloadError,
 	count,
-	status,
+	loadPrintFormats,
 	generate,
-	download,
 	canGenerate,
 } = controller;
 const hasGrouping = computed(() => query.value.groupBy.length > 0);
@@ -100,32 +92,6 @@ watch(
 	() => props.initialDataset,
 	(value) => {
 		if (!open.value && value) selectedDataset.value = value;
-	},
-);
-watch(
-	() => job.value?.status,
-	async (value, previous) => {
-		if (value === "Completed" && previous !== "Completed")
-			showToast("导出文件已准备好", "success", {
-				label: "下载",
-				action: () => {
-					void download();
-				},
-			});
-		const watchedKey = `${job.value?.name}:${job.value?.attempt}:${value}`;
-		if (
-			(value === "Completed" || value === "Failed") &&
-			open.value &&
-			job.value?.name &&
-			!watchedJobs.has(watchedKey)
-		) {
-			watchedJobs.add(watchedKey);
-			try {
-				await markExportWatched(services, job.value.name);
-			} catch {
-				watchedJobs.delete(watchedKey);
-			}
-		}
 	},
 );
 function commitDataset() {
@@ -152,7 +118,7 @@ defineExpose({ open: openDialog });
 		@close="open = false"
 	>
 		<div class="quick-export-intro form-fields">
-			<p v-if="!job" class="muted">文件将在后台生成，完成后会发送通知并提供下载。</p>
+			<p class="muted">导出在后台生成，完成后可在页面右下角的任务中下载。</p>
 			<p class="content-long-text">
 				范围：{{ title }} · {{ filterLabels.join("；") || "全部有权查看的结果" }}
 			</p>
@@ -167,9 +133,7 @@ defineExpose({ open: openDialog });
 		</div>
 		<p v-if="error" role="alert">
 			{{ error }}
-			<UiButton @click="job && matchedCount !== undefined ? status() : count()"
-				>重试读取</UiButton
-			>
+			<UiButton @click="count()">重试读取</UiButton>
 		</p>
 		<div class="quick-export-options form-fields">
 			<label v-if="allowDatasetSelection" class="form-field"
@@ -186,17 +150,34 @@ defineExpose({ open: openDialog });
 					<option value="pdf">PDF</option>
 				</select></label
 			>
-			<label v-if="format === 'pdf'" class="form-field"
-				>版式<select
-					v-model="printFormat"
-					aria-label="PDF 版式"
-					:disabled="generating || loadingPrintFormats"
+			<template v-if="format === 'pdf'">
+				<label class="form-field"
+					>版式<select
+						v-model="printFormat"
+						aria-label="PDF 版式"
+						:disabled="generating || loadingPrintFormats || !printFormats.length"
+					>
+						<option v-for="item in printFormats" :key="item.name" :value="item.name">
+							{{ item.label }}
+						</option>
+					</select></label
 				>
-					<option v-for="item in printFormats" :key="item.name" :value="item.name">
-						{{ item.label }}
-					</option>
-				</select></label
-			>
+				<p v-if="printFormatError" class="notice-bar danger" role="alert">
+					{{ printFormatError }}
+					<UiButton size="compact" @click="loadPrintFormats()">重试读取版式</UiButton>
+				</p>
+				<label class="form-field"
+					>纸张方向<select
+						v-model="orientation"
+						aria-label="纸张方向"
+						:disabled="generating"
+					>
+						<option value="auto">自动</option>
+						<option value="portrait">纵向</option>
+						<option value="landscape">横向</option>
+					</select></label
+				>
+			</template>
 			<div v-if="hasGrouping" class="quick-export-related">
 				<label class="form-choice-label">
 					<input
@@ -238,57 +219,16 @@ defineExpose({ open: openDialog });
 				<p v-else class="muted">选择后打包为 ZIP；图片以物品编号命名</p>
 			</fieldset>
 		</div>
-		<p v-if="generating" class="muted">可以关闭此窗口继续工作，完成后会通知你。</p>
-		<p v-if="job" role="status">
-			{{
-				job.status === "Completed"
-					? "已生成"
-					: job.status === "Failed"
-						? "生成失败"
-						: `${job.stage || "后台生成中"} · ${job.progress}%${job.progress_detail ? ` · ${job.progress_detail}` : ""}`
-			}}<span v-if="job.generated_at"> · {{ formatSiteDateTime(job.generated_at) }}</span>
-		</p>
-		<progress
-			v-if="generating && job"
-			class="quick-export-progress"
-			:max="100"
-			:value="job.progress"
-			:aria-label="job.stage || '导出进度'"
-		/>
-		<p v-if="job?.error" role="alert">{{ job.error }}；选择已保留。</p>
-		<UiButton
-			v-if="job?.status === 'Completed' && job.download_url"
-			:loading="downloading"
-			:loading-label="downloadProgress || '正在准备下载…'"
-			:disabled="downloading"
-			@click="download"
-			>下载 {{ job.file_label || format.toUpperCase() }} · {{ job.row_count }} 行</UiButton
-		>
-		<p v-if="downloadError" class="notice-bar danger" role="alert">
-			{{ downloadError }}
-			<UiButton v-if="job?.download_url && !downloading" size="compact" @click="download"
-				>重试下载</UiButton
-			>
-		</p>
 		<template #footer
 			><UiButton @click="open = false">关闭</UiButton
 			><UiButton
 				variant="primary"
 				:disabled="!canGenerate"
 				:loading="loading || generating"
-				:loading-label="loading ? '正在读取数量…' : '正在生成…'"
+				:loading-label="loading ? '正在读取数量…' : '正在提交…'"
 				@click="generateSelected"
-				>{{ job?.status === "Failed" ? "重试生成" : "开始导出" }}</UiButton
+				>开始导出</UiButton
 			></template
 		>
 	</Overlay>
 </template>
-
-<style scoped>
-.quick-export-progress {
-	display: block;
-	width: 100%;
-	margin-block: var(--p-space-2);
-	accent-color: var(--p-accent);
-}
-</style>

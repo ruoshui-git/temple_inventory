@@ -20,6 +20,10 @@ import { useQuickExport } from "../src/features/export/useQuickExport";
 import { useExportWorkspaceController } from "../src/features/export/useReportController";
 import QuickExport from "../src/components/QuickExport.vue";
 import {
+  backgroundTaskState,
+  resetBackgroundTasks,
+} from "../src/services/backgroundTasks";
+import {
   browseDestination,
   countDestination,
   loanDestination,
@@ -34,6 +38,7 @@ afterEach(() => {
   wrappers.splice(0).forEach((wrapper) => wrapper.unmount());
   vi.unstubAllGlobals();
   vi.useRealTimers();
+  resetBackgroundTasks();
 });
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -514,7 +519,6 @@ describe("background quick export", () => {
     ]);
     controller.format.value = "csv";
     await flushPromises();
-    expect(controller.job.value).toBeUndefined();
     await controller.generate();
     expect(vi.mocked(service.call).mock.calls[1]?.[1]).not.toHaveProperty(
       "grouped",
@@ -608,6 +612,9 @@ describe("background quick export", () => {
       summary: { title: "首页" },
     });
     expect(committed).toHaveBeenCalledWith("movements");
+    expect(document.body.querySelector(".quick-export-dialog")).toBeNull();
+    await wrapper.get(".quick-report").trigger("click");
+    await flushPromises();
     await setNativeSelect(
       document.body.querySelector(".ui-dialog select")!,
       "counts",
@@ -619,154 +626,104 @@ describe("background quick export", () => {
     expect(document.body.textContent).not.toContain("已生成");
   });
 
-  it("keeps a pending job after a status failure and retries reading without creating another", async () => {
+  it("hands the started export to the tray and closes the dialog, sending the PDF orientation", async () => {
+    resetBackgroundTasks();
     const service = services();
-    vi.mocked(service.call)
-      .mockResolvedValueOnce(job())
-      .mockRejectedValueOnce(new Error("网络中断"))
-      .mockResolvedValueOnce(job("Completed"));
-    const controller = setup(service, () => useQuickExport(ref(query())));
-    controller.open.value = true;
+    vi.mocked(service.call).mockImplementation(async (endpoint) => {
+      if (endpoint === "exports.export_print_formats")
+        return [
+          { name: "物资表格", label: "物资表格", count_sheet: false },
+        ] as never;
+      return job() as never;
+    });
+    const child = defineComponent({
+      setup() {
+        provideInventoryServices(service, createReferenceData());
+        return () =>
+          h(QuickExport, {
+            query: query(),
+            title: "库存列表",
+            table: "locations",
+            columns: ["item_code", "stock_qty"],
+          });
+      },
+    });
+    const wrapper = mount(child);
+    wrappers.push(wrapper);
+    await wrapper.get(".quick-report").trigger("click");
     await flushPromises();
-    await controller.generate();
+    const dialog = document.body.querySelector(".quick-export-dialog")!;
+    await setNativeSelect(dialog.querySelector('[aria-label="格式"]')!, "pdf");
     await flushPromises();
-    expect(controller.generating.value).toBe(true);
-    expect(controller.canGenerate.value).toBe(false);
-    expect(controller.error.value).toBe("网络中断");
-    await controller.generate();
-    await controller.status();
-    expect(controller.job.value?.download_url).toBe(
-      "/api/method/temple_inventory.exports.download_export?name=EXPORT-1",
-    );
+    const orientation = dialog.querySelector('[aria-label="纸张方向"]')!;
     expect(
-      vi
-        .mocked(service.call)
-        .mock.calls.filter(([method]) => method === "exports.request_export"),
-    ).toHaveLength(1);
-  });
-  it("backs off export polling from 500 ms to 750 ms and displays worker progress", async () => {
-    vi.useFakeTimers();
-    const service = services();
-    vi.mocked(service.call)
-      .mockResolvedValueOnce(job())
-      .mockResolvedValueOnce({
-        ...job(),
-        stage: "读取数据",
-        progress_detail: "已读取 250 行",
-      })
-      .mockResolvedValueOnce({ ...job("Completed"), stage: "完成" });
-    const controller = setup(service, () => useQuickExport(ref(query())));
-    controller.open.value = true;
+      Array.from(orientation.querySelectorAll("option")).map(
+        (option) => option.value,
+      ),
+    ).toEqual(["auto", "portrait", "landscape"]);
+    await setNativeSelect(orientation, "landscape");
     await flushPromises();
-    await controller.generate();
+    Array.from(document.body.querySelectorAll("button"))
+      .find((button) => button.textContent?.trim() === "开始导出")!
+      .click();
     await flushPromises();
-    expect(controller.job.value?.stage).toBe("读取数据");
-    await vi.advanceTimersByTimeAsync(499);
-    expect(vi.mocked(service.call)).toHaveBeenCalledTimes(2);
-    await vi.advanceTimersByTimeAsync(1);
-    await flushPromises();
-    expect(vi.mocked(service.call)).toHaveBeenCalledTimes(3);
-    expect(controller.job.value?.status).toBe("Completed");
+    expect(vi.mocked(service.call)).toHaveBeenCalledWith(
+      "exports.request_export",
+      expect.objectContaining({
+        export_format: "pdf",
+        print_format: "物资表格",
+        orientation: "landscape",
+      }),
+    );
+    expect(document.body.querySelector(".quick-export-dialog")).toBeNull();
+    expect(
+      backgroundTaskState.tasks.map((task) => [task.kind, task.title]),
+    ).toEqual([["export", "库存列表"]]);
+    resetBackgroundTasks();
   });
 
-  it("streams a completed export, uses the UTF-8 server filename, and blocks duplicate downloads", async () => {
+  it("clears a stale PDF layout and blocks PDF start when the layout list fails", async () => {
     const service = services();
-    const controller = setup(service, () => useQuickExport(ref(query())));
-    controller.job.value = {
-      ...job("Completed"),
-      download_url:
-        "/api/method/temple_inventory.exports.download_export?name=EXPORT-1",
-      file_label: "库存明细.xlsx",
-    };
-    let release!: () => void;
-    const pending = new Promise<void>((resolve) => (release = resolve));
-    const read = vi
-      .fn()
-      .mockResolvedValueOnce({ done: false, value: new Uint8Array([1, 2, 3]) })
-      .mockImplementationOnce(async () => {
-        await pending;
-        return { done: true, value: undefined };
-      });
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => ({
-        ok: true,
-        headers: {
-          get: (name: string) =>
-            name === "content-disposition"
-              ? "attachment; filename*=UTF-8''%E5%BA%93%E5%AD%98%E6%98%8E%E7%BB%86.xlsx"
-              : name === "content-length"
-                ? "3"
-                : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        },
-        body: { getReader: () => ({ read }) },
-      })),
-    );
-    vi.stubGlobal("URL", {
-      ...URL,
-      createObjectURL: vi.fn(() => "blob:export"),
-      revokeObjectURL: vi.fn(),
+    vi.mocked(service.call).mockImplementation(async (endpoint) => {
+      if (endpoint === "exports.export_print_formats")
+        throw new Error("版式读取失败");
+      return job() as never;
     });
-    let downloadedFilename = "";
-    const click = vi
-      .spyOn(HTMLAnchorElement.prototype, "click")
-      .mockImplementation(function () {
-        downloadedFilename = this.download;
-      });
-    const downloading = controller.download();
+    const child = defineComponent({
+      setup() {
+        provideInventoryServices(service, createReferenceData());
+        return () =>
+          h(QuickExport, {
+            query: query(),
+            title: "库存列表",
+            table: "locations",
+            columns: ["item_code", "stock_qty"],
+          });
+      },
+    });
+    const wrapper = mount(child);
+    wrappers.push(wrapper);
+    await wrapper.get(".quick-report").trigger("click");
     await flushPromises();
-    expect(controller.downloading.value).toBe(true);
-    await controller.download();
-    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
-    release();
-    await downloading;
-    expect(click).toHaveBeenCalledOnce();
-    expect(downloadedFilename).toBe("库存明细.xlsx");
-    expect(controller.downloading.value).toBe(false);
-  });
-  it("drops a completed or failed job when format changes and makes a new request", async () => {
-    const service = services();
-    vi.mocked(service.call)
-      .mockResolvedValueOnce(job("Failed"))
-      .mockResolvedValueOnce(job("Completed"));
-    const controller = setup(service, () => useQuickExport(ref(query())));
-    controller.open.value = true;
+    const dialog = document.body.querySelector(".quick-export-dialog")!;
+    await setNativeSelect(dialog.querySelector('[aria-label="格式"]')!, "pdf");
     await flushPromises();
-    await controller.generate();
-    expect(controller.job.value?.status).toBe("Failed");
-    controller.format.value = "csv";
+    expect(dialog.textContent).toContain("版式读取失败");
+    const layout = dialog.querySelector(
+      '[aria-label="PDF 版式"]',
+    ) as HTMLSelectElement;
+    expect(layout.options).toHaveLength(0);
+    expect(layout.value).toBe("");
+    const start = Array.from(document.body.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "开始导出",
+    ) as HTMLButtonElement;
+    expect(start.disabled).toBe(true);
+    start.click();
     await flushPromises();
-    expect(controller.job.value).toBeUndefined();
-    await controller.generate();
-    expect(vi.mocked(service.call).mock.calls[1]).toEqual([
+    expect(vi.mocked(service.call)).not.toHaveBeenCalledWith(
       "exports.request_export",
-      expect.objectContaining({ export_format: "csv", include_files: "none" }),
-    ]);
-  });
-  it("ignores late polling after closing and resumes the same job on reopening", async () => {
-    const service = services(),
-      pending = deferred<ExportJob>();
-    vi.mocked(service.call)
-      .mockResolvedValueOnce(job())
-      .mockReturnValueOnce(pending.promise)
-      .mockResolvedValueOnce(job("Completed"));
-    const controller = setup(service, () => useQuickExport(ref(query())));
-    controller.open.value = true;
-    await flushPromises();
-    await controller.generate();
-    controller.open.value = false;
-    await flushPromises();
-    pending.resolve(job("Failed"));
-    await flushPromises();
-    expect(controller.job.value?.status).toBe("Queued");
-    controller.open.value = true;
-    await flushPromises();
-    expect(controller.job.value?.status).toBe("Completed");
-    expect(
-      vi
-        .mocked(service.call)
-        .mock.calls.filter(([method]) => method === "exports.request_export"),
-    ).toHaveLength(1);
+      expect.anything(),
+    );
   });
 });
 
