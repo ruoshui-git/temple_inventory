@@ -15,6 +15,7 @@ from uuid import uuid4
 import frappe
 from frappe.utils import nowdate
 from openpyxl import load_workbook
+from pypdf import PdfReader
 
 from temple_inventory import browse, counts, exports, native_api, native_files, report_sources
 from temple_inventory.export_columns import contract as export_contract
@@ -30,8 +31,8 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			return [{"label": label, "align": align, "is_main": main} for label, align, main in specs]
 
 		narrow = columns(("物品名称", "text", True), ("物品编号", "text", False), ("数量", "number", False))
-		rows = [{"style": "row", "sequence": 1, "values": ["香", "ITM-000001", "12"]}]
-		layout = exports._pdf_layout(narrow, rows, subtotal_span=2, count_sheet=False, wrappable=set())
+		narrow_rows = [{"style": "row", "sequence": 1, "values": ["香", "ITM-000001", "12"]}]
+		layout = exports._pdf_layout(narrow, narrow_rows, subtotal_span=2, count_sheet=False, wrappable=set())
 		self.assertEqual((layout["orientation"], layout["font_pt"]), ("portrait", 9.5))
 		self.assertIsNone(narrow[0]["width_pt"])
 		# A code column is sized to its widest value, never left with page-wide slack.
@@ -51,6 +52,9 @@ class NativeReportsExportsTests(NativeReportTestCase):
 		self.assertTrue(any(column["wrap"] for column in wide[1:7]))
 		self.assertFalse(any(column["wrap"] for column in wide[7:]))
 		self.assertEqual(len(layout["extra_widths_pt"]), 2)
+		for orientation in ("portrait", "landscape"):
+			forced = exports._pdf_layout(narrow, narrow_rows, orientation=orientation)
+			self.assertEqual(forced["orientation"], orientation)
 
 	def test_browse_document_time_fields_are_padded_and_precise(self):
 		doc = frappe._dict(
@@ -482,6 +486,10 @@ class NativeReportsExportsTests(NativeReportTestCase):
 		movement_formats = exports.export_print_formats("movements")
 		self.assertIn("盘点表", [row["name"] for row in inventory_formats])
 		self.assertNotIn("盘点表", [row["name"] for row in movement_formats])
+		for dataset in ("expiry", "activities"):
+			available = exports.export_print_formats(dataset)
+			self.assertIn("物资表格", [row["name"] for row in available])
+			self.assertNotIn("盘点表", [row["name"] for row in available])
 		custom_name = f"TI Export {self.token}"
 		frappe.get_doc(
 			{
@@ -544,6 +552,27 @@ class NativeReportsExportsTests(NativeReportTestCase):
 		self.assertFalse(payload["columns"][1]["wrap"])
 		self.assertGreater(payload["columns"][1]["width_pt"], 0)
 		self.assertEqual(payload["row_count"], 1)
+		for print_format in ("物资表格", "盘点表"):
+			request.db_set("print_format", print_format)
+			for orientation, expected_box in (
+				("portrait", (612, 792)),
+				("landscape", (792, 612)),
+			):
+				request.db_set("orientation", orientation)
+				with (
+					Projection(query, refresh=True) as projection,
+					tempfile.TemporaryDirectory() as directory,
+				):
+					projection.build()
+					exports._write(projection, request, Path(directory) / "layout.pdf")
+					pdf = __import__("temple_inventory.printing", fromlist=["render_pdf"]).render_pdf(
+						"Inventory Export Request", request.name, print_format
+					)
+					reader = PdfReader(io.BytesIO(pdf))
+					self.assertAlmostEqual(float(reader.pages[0].mediabox.width), expected_box[0], delta=1)
+					self.assertAlmostEqual(float(reader.pages[0].mediabox.height), expected_box[1], delta=1)
+		request.db_set("orientation", "auto")
+		request.db_set("print_format", "物资表格")
 		request.db_set("print_format", "盘点表")
 		with Projection(query, refresh=True) as projection, tempfile.TemporaryDirectory() as directory:
 			projection.build()
@@ -561,6 +590,8 @@ class NativeReportsExportsTests(NativeReportTestCase):
 				print_format="物资表格",
 				include_files="images",
 			)
+		with self.assertRaisesRegex(frappe.ValidationError, "仅适用于 PDF"):
+			exports.request_export(self.query("inventory"), export_format="xlsx", orientation="landscape")
 		with self.assertRaisesRegex(frappe.ValidationError, "仅适用于库存"):
 			exports.request_export(
 				self.query("movements", "lines"),

@@ -32,6 +32,8 @@ from temple_inventory.report_query import validate_query
 from temple_inventory.uom_labels import uom_label
 
 EXPORT_DOCTYPE = "Inventory Export Request"
+EXPORT_DATASETS = frozenset(("inventory", "movements", "counts", "loans", "expiry", "activities"))
+PDF_ORIENTATIONS = frozenset(("auto", "portrait", "landscape"))
 service_write = ContextVar("inventory_export_service_write", default=False)
 pdf_export_context = ContextVar("ti_pdf_export_context", default=None)
 
@@ -89,6 +91,7 @@ def _status(doc):
 		"grouped": bool(getattr(doc, "grouped", False)),
 		"include_files": getattr(doc, "include_files", "none") or "none",
 		"print_format": getattr(doc, "print_format", "") or "",
+		"orientation": getattr(doc, "orientation", "auto") or "auto",
 		"file_label": getattr(doc, "file_label", "") or "",
 		"status": doc.status,
 		"progress": progress.get("percent", doc.progress) if isinstance(progress, dict) else doc.progress,
@@ -128,10 +131,15 @@ def request_export(
 	sort_by=None,
 	sort=None,
 	print_format=None,
+	orientation="auto",
 ):
 	require_app()
 	if export_format not in ("xlsx", "csv", "pdf"):
 		frappe.throw("请选择 XLSX、CSV 或 PDF 格式")
+	if orientation not in PDF_ORIENTATIONS:
+		frappe.throw("请选择有效的 PDF 页面方向", frappe.ValidationError)
+	if export_format != "pdf" and orientation != "auto":
+		frappe.throw("页面方向仅适用于 PDF 导出", frappe.ValidationError)
 	if type(grouped) is not bool:
 		frappe.throw("请选择有效的分组导出选项")
 	if include_files not in ("none", "images", "all"):
@@ -141,6 +149,8 @@ def request_export(
 	if grouped and export_format == "csv":
 		frappe.throw("CSV 不支持分组导出")
 	validated = validate_query(query)
+	if validated["dataset"] not in EXPORT_DATASETS:
+		frappe.throw("请选择有效的数据范围", frappe.ValidationError)
 	if table is not None and not isinstance(table, str):
 		frappe.throw("请选择有效的数据表")
 	columns = frappe.parse_json(columns) if isinstance(columns, str) else columns
@@ -243,6 +253,7 @@ def request_export(
 			"query_json": json.dumps(validated, ensure_ascii=False),
 			"export_format": export_format,
 			"print_format": print_format or "",
+			"orientation": orientation,
 			"tables_json": json.dumps([table]),
 			"columns_json": json.dumps(selected),
 			"summary_json": json.dumps(summary, ensure_ascii=False),
@@ -274,6 +285,8 @@ def _pdf_max_rows():
 
 
 def _validate_print_format(name, dataset):
+	if dataset not in EXPORT_DATASETS:
+		frappe.throw("请选择有效的数据范围", frappe.ValidationError)
 	format_doc = frappe.db.get_value("Print Format", name, ["doc_type", "disabled"], as_dict=True)
 	if not format_doc or format_doc.doc_type != EXPORT_DOCTYPE or format_doc.disabled:
 		frappe.throw("请选择已启用的物资导出版式", frappe.ValidationError)
@@ -285,7 +298,7 @@ def _validate_print_format(name, dataset):
 @frappe.whitelist()
 def export_print_formats(dataset):
 	require_app()
-	if dataset not in ("inventory", "movements", "counts", "loans"):
+	if dataset not in EXPORT_DATASETS:
 		frappe.throw("请选择有效的数据范围", frappe.ValidationError)
 	formats = frappe.get_all(
 		"Print Format",
@@ -730,6 +743,7 @@ def _pdf_context(projection, doc, columns, table, rows, count, info):
 			for index, field in enumerate(visible)
 			if field not in no_wrap_fields and field != main_field
 		},
+		orientation=getattr(doc, "orientation", "auto") or "auto",
 	)
 	return {
 		"title": next((value for key, value in info if key == "页面"), TABLE_LABELS.get(table, table)),

@@ -558,7 +558,7 @@ class NativeReportsCacheTests(NativeReportTestCase):
 		self.addCleanup(setattr, frappe.local, "inventory_cache_request_generation", old_generation)
 		self.addCleanup(setattr, frappe.local, "inventory_cache_request_started", old_started)
 		if old_request is None:
-			self.addCleanup(lambda: setattr(frappe.local, "request", None))
+			self.addCleanup(lambda: hasattr(frappe.local, "request") and delattr(frappe.local, "request"))
 		else:
 			self.addCleanup(setattr, frappe.local, "request", old_request)
 		self.receipt(3)
@@ -590,7 +590,7 @@ class NativeReportsCacheTests(NativeReportTestCase):
 		self.addCleanup(setattr, frappe.local, "inventory_cache_request_generation", old_generation)
 		self.addCleanup(setattr, frappe.local, "inventory_cache_request_started", old_started)
 		if old_request is None:
-			self.addCleanup(lambda: setattr(frappe.local, "request", None))
+			self.addCleanup(lambda: hasattr(frappe.local, "request") and delattr(frappe.local, "request"))
 		else:
 			self.addCleanup(setattr, frappe.local, "request", old_request)
 		self.receipt(3)
@@ -619,7 +619,7 @@ class NativeReportsCacheTests(NativeReportTestCase):
 		self.addCleanup(setattr, frappe.local, "inventory_cache_request_generation", old_generation)
 		self.addCleanup(setattr, frappe.local, "inventory_cache_request_started", old_started)
 		if old_request is None:
-			self.addCleanup(lambda: setattr(frappe.local, "request", None))
+			self.addCleanup(lambda: hasattr(frappe.local, "request") and delattr(frappe.local, "request"))
 		else:
 			self.addCleanup(setattr, frappe.local, "request", old_request)
 		self.receipt(3)

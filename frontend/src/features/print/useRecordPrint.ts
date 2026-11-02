@@ -12,7 +12,7 @@ export function useRecordPrint() {
     try {
       const query = new URLSearchParams({ doctype, name });
       const response = await fetch(
-        `/api/method/temple_inventory.printing.print_record?${query}`,
+        `/api/method/temple_inventory.printing.print_record_pdf?${query}`,
         {
           credentials: "same-origin",
           headers: preferenceUser.value

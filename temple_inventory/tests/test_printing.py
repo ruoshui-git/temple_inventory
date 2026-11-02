@@ -19,7 +19,7 @@ from bs4 import BeautifulSoup
 from frappe.utils import nowdate
 from pypdf import PdfReader
 
-from temple_inventory.printing import print_record, render_pdf, ti_print_css, ti_record
+from temple_inventory.printing import print_record_html, print_record_pdf, render_pdf, ti_print_css, ti_record
 from temple_inventory.tests.test_native_documents import NativeDocumentTests
 
 
@@ -62,7 +62,7 @@ class PrintingTests(NativeDocumentTests):
 		]
 		draft = self.create(data)
 		document = frappe.get_doc("Stock Entry", draft["identity"]["name"])
-		pdf = print_record("Stock Entry", document.name)
+		pdf = print_record_pdf("Stock Entry", document.name)
 		reader = PdfReader(io.BytesIO(pdf))
 		self.assertLessEqual(len(reader.pages), 2)
 		for page in reader.pages:
@@ -73,7 +73,66 @@ class PrintingTests(NativeDocumentTests):
 
 	def test_record_print_rejects_unsupported_doctype(self):
 		with patch("temple_inventory.printing.require_app"), self.assertRaises(frappe.ValidationError):
-			print_record("Item", "missing")
+			print_record_pdf("Item", "missing")
+
+	def test_html_record_print_is_standalone_for_stock_entry_and_reconciliation(self):
+		from temple_inventory import counts
+
+		receipt = self.receipt(10)
+		count = self.count_data(8, "Reviewed")
+		count_result = counts.save_count(str(uuid4()), count)
+		for doctype, name in (
+			("Stock Entry", receipt["identity"]["name"]),
+			("Stock Reconciliation", count_result["name"]),
+		):
+			result = print_record_html(doctype, name)
+			self.assertEqual(result["title"], name)
+			self.assertRegex(result["html"], r"(?is)^\s*<!doctype html|<html\b")
+			self.assertIn("登记表", result["html"])
+			self.assertIn("@page", result["html"])
+			self.assertIn("margin: 6mm", result["html"])
+			self.assertNotRegex(result["html"], r"(?is)<link\b|<script\b")
+
+	def test_html_record_print_refusals_match_pdf_and_hidden_item_is_refused(self):
+		receipt = self.receipt(1)
+		name = receipt["identity"]["name"]
+		for endpoint in (print_record_pdf, print_record_html):
+			with self.assertRaises(frappe.ValidationError) as unsupported:
+				endpoint("Item", "missing")
+			self.assertEqual(str(unsupported.exception), "不支持打印此记录类型")
+			with self.assertRaises(frappe.DoesNotExistError):
+				endpoint("Stock Entry", "MAT-STE-UNKNOWN")
+		original_get_list = frappe.get_list
+
+		def hide_item(doctype, *args, **kwargs):
+			if doctype == "Item":
+				return []
+			return original_get_list(doctype, *args, **kwargs)
+
+		with patch("temple_inventory.native_access.frappe.get_list", side_effect=hide_item):
+			with self.assertRaisesRegex(frappe.PermissionError, "无权查看的物品"):
+				print_record_pdf("Stock Entry", name)
+			with self.assertRaisesRegex(frappe.PermissionError, "无权查看的物品"):
+				print_record_html("Stock Entry", name)
+
+	def test_count_slip_html_query_count_is_bounded(self):
+		from temple_inventory import counts
+
+		self.receipt(10)
+		count = counts.save_count(str(uuid4()), self.count_data(8, "Reviewed"))
+		original_sql = frappe.db.sql
+		query_count = [0]
+
+		def counted_sql(*args, **kwargs):
+			query_count[0] += 1
+			return original_sql(*args, **kwargs)
+
+		frappe.db.sql = counted_sql
+		try:
+			print_record_html("Stock Reconciliation", count["name"])
+		finally:
+			frappe.db.sql = original_sql
+		self.assertLess(query_count[0], 200)
 
 	def test_record_print_rejects_an_unauthorized_account(self):
 		user = frappe.get_doc(
@@ -88,7 +147,7 @@ class PrintingTests(NativeDocumentTests):
 		frappe.set_user(user.name)
 		try:
 			with self.assertRaises(frappe.PermissionError):
-				print_record("Stock Entry", "MAT-STE-UNKNOWN")
+				print_record_pdf("Stock Entry", "MAT-STE-UNKNOWN")
 		finally:
 			frappe.set_user("Administrator")
 
@@ -98,11 +157,10 @@ class PrintingTests(NativeDocumentTests):
 
 		visible = _visible_warehouses()
 		visible.pop(self.a, None)
-		with (
-			patch("temple_inventory.native_topology._visible_warehouses", return_value=visible),
-			self.assertRaises(frappe.PermissionError),
-		):
-			print_record("Stock Entry", receipt["identity"]["name"])
+		with patch("temple_inventory.native_topology._visible_warehouses", return_value=visible):
+			for endpoint in (print_record_pdf, print_record_html):
+				with self.assertRaises(frappe.PermissionError):
+					endpoint("Stock Entry", receipt["identity"]["name"])
 
 	def test_record_default_print_format_uses_enabled_doctype_default(self):
 		from temple_inventory.printing import _record_format
@@ -180,6 +238,22 @@ class PrintingTests(NativeDocumentTests):
 		self.assertIn(".ti-table", ti_print_css())
 		self.assertIn(".print-format .ti-print .ti-table thead th", ti_print_css())
 		self.assertIn("color: #000 !important", ti_print_css())
+		self.assertIn("margin: 6mm", ti_print_css())
+		self.assertIn("size: Letter portrait", ti_print_css())
+		from temple_inventory.printing import (
+			PDF_MARGIN_MM,
+			PDF_PAGE_DIMENSIONS_PT,
+			PDF_PAGE_WIDTH_PT,
+			PDF_POINT_PER_MM,
+		)
+
+		self.assertEqual(PDF_MARGIN_MM, 6)
+		for orientation, dimensions in PDF_PAGE_DIMENSIONS_PT.items():
+			allowance = 30 if orientation == "portrait" else 35
+			self.assertEqual(
+				PDF_PAGE_WIDTH_PT[orientation],
+				dimensions[0] - 2 * PDF_MARGIN_MM * PDF_POINT_PER_MM - allowance,
+			)
 		env = get_jenv()
 		self.assertIn("ti_print_css", env.globals)
 		template = env.from_string("{{ item_name | e }}")

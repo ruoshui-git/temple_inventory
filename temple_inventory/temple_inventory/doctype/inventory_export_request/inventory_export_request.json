@@ -8,6 +8,7 @@
     "query_json",
     "export_format",
     "print_format",
+    "orientation",
     "tables_json",
     "columns_json",
     "summary_json",
@@ -42,6 +43,7 @@
       "read_only": 1
     },
     {"fieldname": "print_format", "fieldtype": "Link", "label": "PDF 版式", "options": "Print Format", "read_only": 1},
+    {"fieldname": "orientation", "fieldtype": "Select", "label": "页面方向", "options": "auto\nportrait\nlandscape", "default": "auto", "read_only": 1},
     {
       "fieldname": "tables_json",
       "fieldtype": "JSON",

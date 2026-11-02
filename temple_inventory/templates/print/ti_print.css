@@ -2,16 +2,25 @@
 .print-format {
 	page-size: Letter;
 	orientation: Portrait;
-	margin-top: 10mm;
-	margin-bottom: 10mm;
-	margin-left: 10mm;
-	margin-right: 10mm;
+	margin: {{ PDF_MARGIN_MM }}mm;
 	font-family: "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans CJK", sans-serif;
 	font-weight: 400;
 	color: #000;
 }
 
 @page {
+	size: Letter portrait;
+	margin: {{ PDF_MARGIN_MM }}mm;
+	@bottom-right {
+		content: "第 " counter(page) " / " counter(pages) " 页";
+		font-family: "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans CJK", sans-serif;
+		font-size: 8pt;
+	}
+}
+
+@page landscape {
+	size: Letter landscape;
+	margin: {{ PDF_MARGIN_MM }}mm;
 	@bottom-right {
 		content: "第 " counter(page) " / " counter(pages) " 页";
 		font-family: "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans CJK", sans-serif;
@@ -234,6 +243,7 @@
 .ti-landscape {
 	/* Marker class; Frappe needs orientation: Landscape on the .print-format selector. */
 	orientation: Landscape;
+	page: landscape;
 }
 
 .ti-portrait {

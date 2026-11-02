@@ -145,29 +145,47 @@ def check_document_scope(
 	else:
 		check_company(doc)
 	visible = visible_warehouses if visible_warehouses is not None else _visible_warehouses()
-	# Rows often repeat an item, batch or location; check each record once per document.
-	checked = set()
+	rows = [*(doc.get("items") or []), *(doc.get("ti_count_review") or [])]
+	item_names = {row.get("item_code") for row in rows if row.get("item_code")}
+	batch_names = {row.get("batch_no") for row in rows if row.get("batch_no")}
+	warehouse_names = {
+		row.get(field)
+		for row in rows
+		for field in ("warehouse", "s_warehouse", "t_warehouse")
+		if row.get(field)
+	}
 
-	def once(doctype, name, check):
-		if (doctype, name) not in checked:
-			check(name)
-			checked.add((doctype, name))
+	def readable(doctype, names):
+		"""One permission-filtered query per doctype; DocType and User Permissions apply."""
+		return set(
+			frappe.get_list(
+				doctype, filters={"name": ["in", sorted(names)]}, pluck="name", limit_page_length=0
+			)
+		)
 
-	def read_item(name):
-		item = item_checker(name) if item_checker else check_item(name)
-		if item is None:
-			frappe.throw("记录包含无权查看的物品", frappe.PermissionError)
+	# Item checkers return None for a hidden Item; Batch and Warehouse checkers raise.
+	if item_checker:
+		hidden_items = any(item_checker(name) is None for name in item_names)
+	else:
+		hidden_items = bool(item_names) and readable("Item", item_names) != item_names
+	if hidden_items:
+		frappe.throw("记录包含无权查看的物品", frappe.PermissionError)
+	for name in warehouse_names:
+		if name not in visible:
+			frappe.throw("记录包含无权查看的位置", frappe.PermissionError)
+	for doctype, names, checker in (
+		("Warehouse", warehouse_names, warehouse_checker),
+		("Batch", batch_names, batch_checker),
+	):
+		if checker:
+			for name in names:
+				checker(name)
+		elif names and readable(doctype, names) != names:
+			frappe.throw(f"记录包含无权查看的{doctype}", frappe.PermissionError)
 
-	for row in [*(doc.get("items") or []), *(doc.get("ti_count_review") or [])]:
+	for row in rows:
 		bundle_row = frappe._dict(row.as_dict() if hasattr(row, "as_dict") else dict(row))
 		bundle_row["_parent_docstatus"] = doc.docstatus
-		once("Item", row.item_code, read_item)
-		if row.get("batch_no"):
-			once(
-				"Batch",
-				row.batch_no,
-				batch_checker or (lambda name: frappe.get_doc("Batch", name).check_permission("read")),
-			)
 		entry_bundle(bundle_row, bundle_cache=bundle_cache, bundle_loader=bundle_loader)
 		if doc.doctype == "Stock Reconciliation":
 			entry_bundle(
@@ -176,14 +194,3 @@ def check_document_scope(
 				bundle_cache=bundle_cache,
 				bundle_loader=bundle_loader,
 			)
-		for field in ("warehouse", "s_warehouse", "t_warehouse"):
-			warehouse = row.get(field)
-			if warehouse:
-				if warehouse not in visible:
-					frappe.throw("记录包含无权查看的位置", frappe.PermissionError)
-				once(
-					"Warehouse",
-					warehouse,
-					warehouse_checker
-					or (lambda name: frappe.get_doc("Warehouse", name).check_permission("read")),
-				)

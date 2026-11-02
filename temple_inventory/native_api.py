@@ -175,7 +175,8 @@ def _apply(doc, data):
 
 def serialize(doc):
 	doc.check_permission("read")
-	check_document_scope(doc)
+	bundle_cache = {}
+	check_document_scope(doc, bundle_cache=bundle_cache)
 	if doc.doctype == "Stock Entry":
 		kind = doc.get("ti_movement_kind") or {
 			"Material Receipt": "Receive",
@@ -187,7 +188,9 @@ def serialize(doc):
 	data = doc.as_dict()
 	if doc.doctype == "Stock Reconciliation":
 		for original, line in zip(doc.get("items"), data["items"], strict=True):
-			line["recorded_count_allocations"] = reconciliation_allocations(original)
+			line["recorded_count_allocations"] = reconciliation_allocations(
+				original, bundle_cache=bundle_cache
+			)
 	# The sample seeder discards responses, so it skips their display lookups.
 	if doc.doctype in ("Stock Entry", "Stock Reconciliation") and not frappe.flags.ti_sample_seeding:
 		display_rows = list(data.get("items", []))
@@ -197,6 +200,16 @@ def serialize(doc):
 		from temple_inventory.catalog import item_display_summaries
 
 		item_metadata = item_display_summaries(item_codes)
+		batch_metadata = {}
+
+		def get_batch(name):
+			if name not in batch_metadata:
+				batch_metadata[name] = (
+					frappe.db.get_value("Batch", name, ["expiry_date", "manufacturing_date"], as_dict=True)
+					or frappe._dict()
+				)
+			return batch_metadata[name]
+
 		for line in display_rows:
 			metadata = item_metadata.get(line.get("item_code"), {})
 			line["ti_display_item_name"] = metadata.get("item_name", "")
@@ -208,7 +221,7 @@ def serialize(doc):
 		for original, line in zip(doc.get("items"), data["items"], strict=True):
 			if doc.doctype != "Stock Entry":
 				continue
-			bundle = entry_bundle(original)
+			bundle = entry_bundle(original, bundle_cache=bundle_cache)
 			line["serials"] = []
 			if bundle:
 				line["serials"] = [entry.serial_no for entry in bundle.entries if entry.serial_no]
@@ -222,7 +235,7 @@ def serialize(doc):
 				line["recorded_bundle"] = bundle.name
 				line["recorded_batch_allocations"] = []
 				for allocation in bundle.entries:
-					batch = frappe.get_doc("Batch", allocation.batch_no) if allocation.batch_no else None
+					batch = get_batch(allocation.batch_no) if allocation.batch_no else None
 					line["recorded_batch_allocations"].append(
 						{
 							"name": allocation.name,
@@ -233,12 +246,7 @@ def serialize(doc):
 						}
 					)
 			elif line.get("batch_no"):
-				batch = frappe.db.get_value(
-					"Batch",
-					line.batch_no,
-					["expiry_date", "manufacturing_date"],
-					as_dict=True,
-				)
+				batch = get_batch(line.batch_no)
 				line["recorded_batch_allocations"] = [
 					{
 						"name": "",

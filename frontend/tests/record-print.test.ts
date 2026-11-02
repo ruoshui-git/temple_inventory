@@ -46,7 +46,7 @@ describe("record print", () => {
     await wrapper.get("button").trigger("click");
     await flushPromises();
     expect(fetch).toHaveBeenCalledWith(
-      "/api/method/temple_inventory.printing.print_record?doctype=Stock+Entry&name=MAT-STE-1",
+      "/api/method/temple_inventory.printing.print_record_pdf?doctype=Stock+Entry&name=MAT-STE-1",
       expect.objectContaining({
         headers: { "X-Inventory-Account": "account@example.test" },
       }),

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+scripts/dx scripts/heavy bench --site development.localhost execute temple_inventory.printing.profile_print

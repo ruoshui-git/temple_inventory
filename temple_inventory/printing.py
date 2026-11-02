@@ -2,6 +2,7 @@
 # ruff: noqa: RUF001 — Chinese UI punctuation is intentional.
 
 import os
+import re
 import unicodedata
 from functools import lru_cache
 from pathlib import Path
@@ -10,7 +11,16 @@ import frappe
 
 from temple_inventory.native_access import require_app
 
-PDF_PAGE_WIDTH_PT = {"portrait": 525.0, "landscape": 700.0}
+PDF_MARGIN_MM = 6
+PDF_POINT_PER_MM = 72 / 25.4
+PDF_PAGE_DIMENSIONS_PT = {"portrait": (612.0, 792.0), "landscape": (792.0, 612.0)}
+PDF_PAGE_WIDTH_PT = {
+	orientation: dimensions[0] - 2 * PDF_MARGIN_MM * PDF_POINT_PER_MM - allowance
+	for orientation, dimensions, allowance in (
+		("portrait", PDF_PAGE_DIMENSIONS_PT["portrait"], 30.0),
+		("landscape", PDF_PAGE_DIMENSIONS_PT["landscape"], 35.0),
+	)
+}
 PDF_CELL_EXTRA_PT = 8.5
 PDF_TEXT_MARGIN = 1.06
 PDF_COUNT_SHEET_EM = (5.0, 8.0)
@@ -29,7 +39,15 @@ def _text_em(text):
 
 
 def _pdf_layout(
-	columns, rows, *, subtotal_span=0, count_sheet=False, wrappable=(), base_font=None, allow_landscape=True
+	columns,
+	rows,
+	*,
+	subtotal_span=0,
+	count_sheet=False,
+	wrappable=(),
+	base_font=None,
+	allow_landscape=True,
+	orientation="auto",
 ):
 	"""Size fixed-width export and slip columns while retaining a wrapping main column."""
 	header = [_text_em(column["label"]) * 1.08 for column in columns]
@@ -54,6 +72,8 @@ def _pdf_layout(
 	main = next((index for index, column in enumerate(columns) if column.get("is_main")), None)
 	seq_em = max(1.2, _text_em(sequence) * 0.85)
 	extra_em = list(PDF_COUNT_SHEET_EM) if count_sheet else []
+	if orientation not in ("auto", "portrait", "landscape"):
+		frappe.throw("请选择有效的页面方向", frappe.ValidationError)
 	if base_font is None:
 		fonts = (11.0, 10.0, 9.5, 9.0, 8.5) if count_sheet else (9.5, 8.5, 8.0, 7.5)
 		attempts = [("portrait", fonts[0]), *(("landscape", font) for font in fonts)]
@@ -61,6 +81,8 @@ def _pdf_layout(
 		fonts = (base_font, base_font - 1, base_font - 1.5)
 		orientations = ("portrait", "landscape") if allow_landscape else ("portrait",)
 		attempts = [(orientation, font) for orientation in orientations for font in fonts]
+	if orientation != "auto":
+		attempts = [(orientation, font) for font in fonts]
 
 	def total_width(widths, font, main_em):
 		fixed = sum(width for index, width in enumerate(widths) if index != main)
@@ -87,7 +109,7 @@ def _pdf_layout(
 		]
 		fit = first_fit(widths, main_em)
 	if not fit:
-		orientation, font = attempts[-1]
+		fallback_orientation, font = attempts[-1]
 		main_em = min(main_em, 8.0)
 		capable = [
 			index
@@ -96,10 +118,10 @@ def _pdf_layout(
 		]
 		capable.sort(key=lambda index: (index not in wrappable, -widths[index]))
 		for index in capable:
-			if total_width(widths, font, main_em) <= PDF_PAGE_WIDTH_PT[orientation]:
+			if total_width(widths, font, main_em) <= PDF_PAGE_WIDTH_PT[fallback_orientation]:
 				break
 			widths[index] = min(widths[index], max(header[index], 6.0 if index in wrappable else 7.0))
-		fit = (orientation, font)
+		fit = (fallback_orientation, font)
 	orientation, font = fit
 	for index, column in enumerate(columns):
 		column["wrap"] = index != main and widest[index] > widths[index] + 0.01
@@ -123,7 +145,7 @@ def _load_print_css():
 
 def ti_print_css():
 	"""Return the shared print stylesheet for inline inclusion in Print Formats."""
-	return _load_print_css()
+	return _load_print_css().replace("{{ PDF_MARGIN_MM }}", str(PDF_MARGIN_MM))
 
 
 def render_pdf(doctype, name, print_format, doc=None):
@@ -176,6 +198,12 @@ def _person_name(value, role):
 
 def ti_record(doc):
 	"""Permission-scoped, presenter-labelled slip data for standard and custom formats."""
+	cache = getattr(frappe.local, "ti_record_print_cache", None)
+	if cache is None:
+		cache = frappe.local.ti_record_print_cache = {}
+	cache_key = (frappe.session.user, doc.doctype, doc.name, str(doc.modified or ""))
+	if cache_key in cache:
+		return cache[cache_key]
 	from frappe.utils import get_datetime
 
 	from temple_inventory import native_api
@@ -420,7 +448,7 @@ def ti_record(doc):
 			_person_name(doc.get("ti_handler_name"), "handler"),
 			_person_name(doc.get("ti_reviewer_name"), "reviewer"),
 		)
-	return {
+	result = {
 		"doctype": doc.doctype,
 		"kind": kind,
 		"kind_label": kind_label,
@@ -451,6 +479,10 @@ def ti_record(doc):
 		"watermark": "草稿" if doc.docstatus == 0 else ("已取消" if doc.docstatus == 2 else ""),
 		"units": sorted({line["unit"] for line in lines}),
 	}
+	if len(cache) >= 8:
+		cache.clear()
+	cache[cache_key] = result
+	return result
 
 
 def _record_format(doctype):
@@ -464,7 +496,7 @@ def _record_format(doctype):
 
 
 @frappe.whitelist(methods=["GET"])
-def print_record(doctype, name):
+def print_record_pdf(doctype, name):
 	"""Render an authorized native movement or count as an inline PDF slip."""
 	require_app()
 	if doctype not in ("Stock Entry", "Stock Reconciliation"):
@@ -484,3 +516,127 @@ def print_record(doctype, name):
 	frappe.local.response.type = "pdf"
 	frappe.local.response.display_content_as = "inline"
 	return pdf
+
+
+@frappe.whitelist(methods=["GET"])
+def print_record_html(doctype, name):
+	"""Return a standalone, browser-printable HTML slip for an authorized native record."""
+	require_app()
+	if doctype not in ("Stock Entry", "Stock Reconciliation"):
+		frappe.throw("不支持打印此记录类型", frappe.ValidationError)
+	doc = frappe.get_doc(doctype, name)
+	ti_record(doc)
+	previous_print_permission = getattr(frappe.flags, "ignore_print_permissions", False)
+	frappe.flags.ignore_print_permissions = True
+	try:
+		html = frappe.get_print(
+			doctype,
+			name,
+			print_format=_record_format(doctype),
+			doc=doc,
+			as_pdf=False,
+			no_letterhead=1,
+		)
+	except (frappe.PermissionError, frappe.ValidationError):
+		raise
+	except Exception:
+		frappe.log_error(title=f"HTML print failed: {doctype} {name}")
+		frappe.throw("打印失败，请稍后重试", frappe.ValidationError)
+	finally:
+		frappe.flags.ignore_print_permissions = previous_print_permission
+	# Printview may add Desk asset tags around the format. The format's print CSS is
+	# inline, so remove external dependencies before sending it to an iframe.
+	html = re.sub(r"<link\b[^>]*>", "", html, flags=re.IGNORECASE)
+	html = re.sub(r"<script\b[^>]*>.*?</script\s*>", "", html, flags=re.IGNORECASE | re.DOTALL)
+	if not re.search(r"<html\b", html, flags=re.IGNORECASE):
+		html = f'<!doctype html><html><head><meta charset="utf-8"></head><body>{html}</body></html>'
+	frappe.local.response.type = "json"
+	return {"html": html, "title": doc.name}
+
+
+def profile_print():
+	"""Profile warm record print endpoints for the three standard dev samples."""
+	import json
+	import statistics
+	import time
+
+	frappe.local.lang = "en"
+	frappe.set_user("Administrator")
+	records = [
+		(
+			"newest Stock Entry",
+			"Stock Entry",
+			frappe.db.get_value("Stock Entry", {"docstatus": 1}, "name", order_by="creation desc, name desc"),
+		),
+		(
+			"newest Stock Reconciliation",
+			"Stock Reconciliation",
+			frappe.db.get_value(
+				"Stock Reconciliation",
+				{"docstatus": 1},
+				"name",
+				order_by="creation desc, name desc",
+			),
+		),
+		(
+			"most rows Stock Reconciliation",
+			"Stock Reconciliation",
+			frappe.db.sql(
+				"""select item.parent from `tabStock Reconciliation Item` item
+				inner join `tabStock Reconciliation` parent on parent.name = item.parent
+				where parent.docstatus = 1 group by item.parent
+				order by count(*) desc, item.parent desc limit 1""",
+				as_list=True,
+			)[0][0],
+		),
+	]
+	results = []
+	for label, doctype, name in records:
+		doc = frappe.get_doc(doctype, name)
+		original_permission = getattr(frappe.flags, "ignore_print_permissions", False)
+		frappe.flags.ignore_print_permissions = True
+		try:
+
+			def reset_request_cache():
+				frappe.local.ti_record_print_cache = {}
+
+			def time_endpoint(endpoint):
+				reset_request_cache()
+				started = time.perf_counter()
+				endpoint(doctype, name)
+				return time.perf_counter() - started
+
+			reset_request_cache()
+			print_record_html(doctype, name)
+			reset_request_cache()
+			print_record_pdf(doctype, name)
+			html_times = [time_endpoint(print_record_html) for _ in range(5)]
+			pdf_times = [time_endpoint(print_record_pdf) for _ in range(5)]
+			original_sql = frappe.db.sql
+			query_count = [0]
+
+			def count_sql(*args, **kwargs):
+				query_count[0] += 1
+				return original_sql(*args, **kwargs)
+
+			frappe.db.sql = count_sql
+			try:
+				reset_request_cache()
+				print_record_html(doctype, name)
+			finally:
+				frappe.db.sql = original_sql
+		finally:
+			frappe.flags.ignore_print_permissions = original_permission
+		results.append(
+			{
+				"sample": label,
+				"doctype": doctype,
+				"name": name,
+				"rows": len(doc.get("items") or []),
+				"html_median_s": round(statistics.median(html_times), 4),
+				"pdf_median_s": round(statistics.median(pdf_times), 4),
+				"html_queries": query_count[0],
+			}
+		)
+	print(json.dumps(results, ensure_ascii=False, indent=2))
+	return results
