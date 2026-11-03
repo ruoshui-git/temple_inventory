@@ -617,6 +617,119 @@ describe("native operation browsing", () => {
       "1 条明细 · 10 种物品",
     );
   });
+  it("renders grouped movement lines as history rows with item and unit context", async () => {
+    const query = newReportQuery("movements");
+    query.view = "summary";
+    query.groupBy = ["kind"];
+    const call = vi.fn(async (endpoint, args) => {
+      if (endpoint === "temple_inventory.projections.group_page") {
+        const path = args.parent_path || [];
+        return {
+          rows: path.length
+            ? [
+                {
+                  id: "LINE-1",
+                  row_grain: "record",
+                  document: "MAT-STE-1",
+                  doctype: "Stock Entry",
+                  item_code: "ITM-1",
+                  item_name: "测试物品",
+                  kind: "Issue",
+                  date: "2026-10-20",
+                  stock_qty: 2,
+                  available_effect: -2,
+                  stock_uom: "Nos",
+                  image: "/files/a.png",
+                  docstatus: 1,
+                },
+              ]
+            : [
+                {
+                  id: "GROUP-KIND-ISSUE",
+                  row_grain: "group",
+                  group_field: "kind",
+                  group_path: ["Issue"],
+                  group_depth: 1,
+                  group_label: "Issue",
+                  has_children: true,
+                  stock_uom: "Nos",
+                  item_count: 1,
+                  document_count: 1,
+                  row_count: 1,
+                  display_count: 1,
+                  stock_qty: 2,
+                  available_effect: -2,
+                },
+              ],
+          matched_count: 1,
+          next_start: null,
+          parent_path: path,
+          parent_unit: args.parent_unit || null,
+          row_grain: path.length ? "record" : "group",
+          query: args.query,
+        };
+      }
+      if (endpoint === "browse.operation_page") return page();
+      throw new Error(`Unexpected ${endpoint}`);
+    });
+    const { wrapper } = setup(
+      call,
+      reactive({
+        family: "movements" as const,
+        records: false,
+        initialQuery: query,
+      }),
+      true,
+    );
+    await flushPromises();
+    const controller = wrapper.getComponent(OperationBrowsePage).vm.controller;
+    controller.groups.toggleGroup("GROUP-KIND-ISSUE");
+    await flushPromises();
+    expect(call).toHaveBeenCalledWith(
+      "temple_inventory.projections.group_page",
+      expect.objectContaining({ parent_path: ["Issue"] }),
+      expect.any(AbortSignal),
+    );
+    const leaf = wrapper
+      .findAll("tr")
+      .find((row) => row.text().includes("MAT-STE-1"));
+    expect(leaf).toBeDefined();
+    expect(leaf!.text()).toContain("测试物品");
+    expect(leaf!.text()).not.toContain("单位");
+  });
+  it("sends the parent group path when a nested item group loads its lines", async () => {
+    const query = newReportQuery("movements");
+    query.view = "summary";
+    query.groupBy = ["kind", "item"];
+    const call = service();
+    const { c } = setup(
+      call,
+      reactive({
+        family: "movements" as const,
+        records: false,
+        initialQuery: query,
+      }),
+    );
+    await flushPromises();
+    c.toggle(
+      {
+        id: "GROUP-ISSUE-ITM-1",
+        item_code: "ITM-1",
+        item_name: "测试物品",
+        stock_uom: "Nos",
+        group_path: ["Issue", "ITM-1"],
+        document_count: 1,
+        item_count: 1,
+      },
+      true,
+    );
+    await flushPromises();
+    expect(call).toHaveBeenCalledWith(
+      "browse.movement_history",
+      expect.objectContaining({ item_code: "ITM-1", group_path: ["Issue"] }),
+      expect.any(AbortSignal),
+    );
+  });
   it("renders grouped native records in the shared table and loads whole-document leaves", async () => {
     const query = newReportQuery("loans");
     query.view = "records";

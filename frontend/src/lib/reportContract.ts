@@ -68,13 +68,13 @@ export const reportDefinitions: Record<ReportDataset, ReportDefinition> = {
       { id: "locations", label: "库位 / 批次明细" },
       { id: "historical", label: "历史数量余额" },
     ],
-    groups: ["item", "category", "location"],
+    groups: ["item", "category", "location", "batch", "month"],
     dateLabel: "历史记账日期",
   },
   expiry: {
     label: "效期 / 批次",
     views: [{ id: "batches", label: "批次 / 库位" }],
-    groups: ["item", "category", "location"],
+    groups: ["item", "category", "location", "batch", "expiryMonth"],
     dateLabel: "到期日期",
   },
   movements: {
@@ -84,7 +84,17 @@ export const reportDefinitions: Record<ReportDataset, ReportDefinition> = {
       { id: "records", label: "单据记录" },
       { id: "lines", label: "库存明细" },
     ],
-    groups: ["item", "category", "location", "kind", "activity", "month"],
+    groups: [
+      "item",
+      "category",
+      "location",
+      "kind",
+      "status",
+      "activity",
+      "month",
+      "source",
+      "destination",
+    ],
     dateLabel: "记账日期",
   },
   loans: {
@@ -95,7 +105,15 @@ export const reportDefinitions: Record<ReportDataset, ReportDefinition> = {
       { id: "outcomes", label: "物品 / 处理结果" },
       { id: "settlements", label: "结算明细" },
     ],
-    groups: ["item", "activity", "borrower", "month"],
+    groups: [
+      "item",
+      "category",
+      "activity",
+      "borrower",
+      "status",
+      "outcome",
+      "month",
+    ],
     dateLabel: "借出日期 · 余额为当前结算状态",
   },
   activities: {
@@ -131,15 +149,25 @@ export const groupLabels: Record<string, string> = {
   outcome: "处理结果",
   source: "来源位置",
   destination: "目标位置",
+  batch: "批次",
+  expiryMonth: "到期月份",
 };
 export function groupsForView(dataset: ReportDataset, view: string): string[] {
   const key = `${dataset}:${view}`;
   const groups: Record<string, string[]> = {
-    "inventory:summary": ["category", "item"],
-    "inventory:locations": ["category", "item", "location"],
+    "inventory:summary": ["category", "item", "location", "batch"],
+    "inventory:locations": ["category", "item", "location", "batch"],
     "inventory:historical": ["category", "item", "location", "month"],
-    "expiry:batches": ["category", "item", "location"],
-    "movements:summary": ["item", "category", "kind"],
+    "expiry:batches": ["category", "item", "location", "batch", "expiryMonth"],
+    "movements:summary": [
+      "item",
+      "category",
+      "kind",
+      "source",
+      "destination",
+      "activity",
+      "month",
+    ],
     "movements:records": ["kind", "status", "activity", "month"],
     "movements:lines": [
       "item",
@@ -151,7 +179,7 @@ export function groupsForView(dataset: ReportDataset, view: string): string[] {
       "month",
     ],
     "loans:records": ["borrower", "activity", "status", "month"],
-    "loans:items": ["item", "category"],
+    "loans:items": ["item", "category", "borrower", "activity", "month"],
     "loans:outcomes": ["item", "borrower", "activity", "outcome", "month"],
     "loans:settlements": ["item", "borrower", "activity", "outcome", "month"],
     "activities:metadata": ["activityType", "status"],
@@ -166,14 +194,21 @@ export function groupSequencesForView(
   dataset: ReportDataset,
   view: string,
 ): string[][] {
+  // Item groups load their own lines, so item is only ever the last level.
+  const fields = groupsForView(dataset, view);
   if (
     (dataset === "movements" && view === "summary") ||
     (dataset === "loans" && view === "items")
   )
-    return dataset === "movements"
-      ? [[], ["item"], ["category", "item"], ["kind"], ["kind", "item"]]
-      : [[], ["item"], ["category", "item"]];
-  const fields = groupsForView(dataset, view);
+    return [
+      [],
+      ...fields.map((field) => [field]),
+      ...fields.flatMap((first) =>
+        fields
+          .filter((second) => second !== first && first !== "item")
+          .map((second) => [first, second]),
+      ),
+    ];
   return [
     [],
     ...fields.map((field) => [field]),

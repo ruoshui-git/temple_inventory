@@ -124,8 +124,8 @@ function toggleMovementTile(kind: string) {
 	expandedMovementTiles.value = next;
 }
 const showFilters = ref(false);
-function effectLabel(effect: number, _uom: string) {
-	return stockEffectLabel(effect);
+function effectLabel(effect: number, uom: string) {
+	return stockEffectLabel(effect, uom);
 }
 const distributionId = useId();
 const expiryId = useId();

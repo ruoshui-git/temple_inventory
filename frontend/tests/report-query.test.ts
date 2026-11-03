@@ -4,11 +4,14 @@ import { decodeReportQuery } from "../src/lib/reportQuery";
 import { browseDefaults } from "../src/lib/browseDefaults";
 import { resolveSitePeriod, sitePeriodSummary } from "../src/lib/sitePeriod";
 import {
+  groupSequencesForView,
   newReportQuery,
   reportDefinitions,
   sortableColumnsForView,
   type ReportDataset,
 } from "../src/lib/reportContract";
+import { stockEffectLabel } from "../src/lib/stockEffectLabel";
+import { setUnitSource } from "../src/lib/units";
 
 describe("canonical routed report queries", () => {
   it("uses ordinary navigation defaults only when no query was supplied", () => {
@@ -142,7 +145,7 @@ describe("canonical routed report queries", () => {
       decodeReportQuery({ ...query, groupBy: ["item", "item"] }).error,
     ).not.toBe("");
     expect(
-      decodeReportQuery({ ...query, groupBy: ["item", "location"] }).error,
+      decodeReportQuery({ ...query, groupBy: ["item", "kind"] }).error,
     ).not.toBe("");
     expect(
       decodeReportQuery({ ...query, groupBy: ["category", "item", "location"] })
@@ -155,9 +158,16 @@ describe("canonical routed report queries", () => {
       decodeReportQuery({
         dataset: "movements",
         view: "summary",
-        groupBy: ["category"],
+        groupBy: ["item", "kind"],
       }).error,
     ).not.toBe("");
+    expect(
+      decodeReportQuery({
+        dataset: "movements",
+        view: "summary",
+        groupBy: ["category"],
+      }).error,
+    ).toBe("");
     expect(
       decodeReportQuery({
         dataset: "movements",
@@ -186,6 +196,25 @@ describe("canonical routed report queries", () => {
         groupBy: ["category", "item"],
       }).error,
     ).toBe("");
+  });
+  it("accepts detail group sequences whose only item level is last", () => {
+    const movements = groupSequencesForView("movements", "summary");
+    expect(movements).toContainEqual(["source"]);
+    expect(movements).toContainEqual(["kind", "item"]);
+    expect(movements).not.toContainEqual(["item", "kind"]);
+    const loans = groupSequencesForView("loans", "items");
+    expect(loans).toContainEqual(["borrower", "item"]);
+    expect(loans).not.toContainEqual(["item", "borrower"]);
+  });
+  it("renders stock effects with the real unit label", () => {
+    setUnitSource({ units: [{ name: "Nos", label: "个" }] });
+    try {
+      expect(stockEffectLabel(12, "Nos")).toBe("可用库存增加 12 个");
+      expect(stockEffectLabel(-3, "Nos")).toBe("可用库存减少 3 个");
+      expect(stockEffectLabel(0, "Nos")).toBe("可用库存无变化");
+    } finally {
+      setUnitSource(undefined);
+    }
   });
   it("exposes scalar sortable fields per view without combined-unit totals", () => {
     expect(sortableColumnsForView("inventory", "summary")).toContain(

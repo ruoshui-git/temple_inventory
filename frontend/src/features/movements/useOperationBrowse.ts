@@ -50,6 +50,7 @@ export interface OperationGroup {
   activity_title?: string;
   document_count: number;
   item_count: number;
+  group_path?: string[];
   allocation_count?: number;
   totals?: ReportRow[];
   whole?: {
@@ -435,6 +436,11 @@ export function useOperationBrowse(
         detailQuery.sortBy = detailSort(row).field;
         detailQuery.sort = detailSort(row).direction;
       }
+      // An item group nested under other groups loads its lines within that parent path.
+      const groupPath =
+        Array.isArray(row.group_path) && query.value.groupBy.length > 1
+          ? (row.group_path as string[]).slice(0, -1).map(String)
+          : [];
       const page =
         props.family === "movements" &&
         query.value.view === "summary" &&
@@ -444,6 +450,7 @@ export function useOperationBrowse(
               {
                 query: detailQuery,
                 item_code: row.item_code,
+                ...(groupPath.length ? { group_path: groupPath } : {}),
                 sort_by: detailSort(row).field,
                 sort: detailSort(row).direction,
                 start: more ? table.next : 0,
@@ -468,6 +475,7 @@ export function useOperationBrowse(
                       ...(row.id === "flat-history-scope"
                         ? {}
                         : { item_code: row.item_code }),
+                      ...(groupPath.length ? { group_path: groupPath } : {}),
                       outcome: row.outcome_key,
                     }),
                 start: more ? table.next : 0,

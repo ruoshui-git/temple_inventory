@@ -298,7 +298,7 @@ function quantityTone(column: string, row: Record<string, unknown>) {
 }
 
 function quantityEffectLabel(row: Record<string, unknown>) {
-	return stockEffectLabel(stockEffect(row));
+	return stockEffectLabel(stockEffect(row), row.stock_uom);
 }
 
 function loadMore() {

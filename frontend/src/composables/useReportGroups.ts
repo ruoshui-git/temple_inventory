@@ -249,6 +249,7 @@ export function useReportGroups(
         labelColumn:
           {
             item: "item_name",
+            batch: "batch_no",
             activity: "activity_title",
             activityType: "activity_type_label",
             warehouse: "warehouse",

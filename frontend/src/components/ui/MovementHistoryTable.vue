@@ -180,7 +180,7 @@ function effect(row: HistoryRow) {
 }
 
 function effectText(row: HistoryRow) {
-	return stockEffectLabel(effect(row));
+	return stockEffectLabel(effect(row), row.stock_uom);
 }
 
 function rowClass(row: Record<string, unknown>) {

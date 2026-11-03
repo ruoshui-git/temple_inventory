@@ -25,7 +25,7 @@ function effect(quantity: Quantity) {
 		: Number(quantity.effect || 0);
 }
 function effectLabel(quantity: Quantity) {
-	return stockEffectLabel(effect(quantity));
+	return stockEffectLabel(effect(quantity), quantity.uom);
 }
 </script>
 

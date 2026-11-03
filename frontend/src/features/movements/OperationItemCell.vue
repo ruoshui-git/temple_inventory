@@ -219,7 +219,9 @@ const {
 			row.activity_title || ""
 		}}</template>
 		<template v-else-if="column.id === 'available_effect'">{{
-			row.available_effect == null ? "" : stockEffectLabel(Number(row.available_effect))
+			row.available_effect == null
+				? ""
+				: stockEffectLabel(Number(row.available_effect), row.stock_uom)
 		}}</template>
 		<div v-else-if="column.id === 'quantities'" class="operation-item-totals">
 			<span

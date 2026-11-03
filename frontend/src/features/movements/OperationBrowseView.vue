@@ -319,6 +319,21 @@ function itemHistoryRows(item: OperationGroup): DataTableEntry[] {
 const itemTableRows = computed<DataTableEntry[]>(() => {
 	if (!query.value.groupBy.length) return itemHistoryRows(flatHistoryItem.value);
 	return c.groups.entries.value.flatMap((entry) => {
+		if (entry.kind === "record") {
+			// Leaves under a non-item group are movement lines; give each its own item
+			// context so they render as history lines, not item summaries.
+			const row = entry.value as Record<string, unknown>;
+			const leafItem: OperationGroup = {
+				id: `leaf:${entry.id}`,
+				item_code: String(row.item_code || ""),
+				item_name: String(row.item_name || ""),
+				image: row.image ? String(row.image) : undefined,
+				stock_uom: row.stock_uom ? String(row.stock_uom) : undefined,
+				document_count: 0,
+				item_count: 0,
+			};
+			return [historyRecord(row, leafItem)];
+		}
 		if (entry.kind !== "group") return [entry];
 		const groupField = query.value.groupBy[entry.depth - 1];
 		if (groupField !== "item") return [entry];
@@ -348,7 +363,7 @@ const flatHistoryItem = computed<OperationGroup>(() => ({
 }));
 const groupRoot = computed(() => c.groups.pages.value["[[],null]"]);
 const mobileItemGroups = computed(() => {
-	const useExpandedGroups = props.family === "movements" && query.value.groupBy.includes("kind");
+	const useExpandedGroups = query.value.groupBy.some((field) => field !== "item");
 	const rows: DataTableGroup[] = useExpandedGroups
 		? c.groups.entries.value.filter((entry): entry is DataTableGroup => entry.kind === "group")
 		: (groupRoot.value?.rows || [])
@@ -1155,9 +1170,9 @@ function itemTotals(row: OperationGroup) {
 		})),
 	);
 }
-function effectLabel(effect: number, _uom: string, status?: string) {
+function effectLabel(effect: number, uom: string, status?: string) {
 	if (status === "草稿" || status === "已取消") effect = 0;
-	return stockEffectLabel(effect);
+	return stockEffectLabel(effect, uom);
 }
 function recordEffect(row: OperationGroup, uom: string) {
 	if (row.docstatus === 0 || row.docstatus === 2) return 0;
