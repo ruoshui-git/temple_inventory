@@ -20,6 +20,7 @@ import { periodLabels } from "../../lib/sitePeriod";
 import type { ReportQuery } from "../../lib/reportContract";
 import GroupByFilter from "../../components/filters/GroupByFilter.vue";
 import { removeGroupByField } from "../../lib/groupBy";
+import { groupImpliedColumns } from "../../lib/groupColumns";
 import { groupLabels } from "../../lib/reportContract";
 import { useConfirm } from "../../services/confirm";
 import type { useActivitiesController } from "./useActivitiesController";
@@ -520,6 +521,7 @@ function openDetailsRow() {
 					table-class="browse-table"
 					:columns="activityColumns"
 					:rows="activityEntries"
+					:suppressed-columns="groupImpliedColumns(report.groupBy)"
 					:sort-by="report.sortBy"
 					:sort-direction="report.sort"
 					:column-preferences="activityPrefs"

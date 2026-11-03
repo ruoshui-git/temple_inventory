@@ -697,6 +697,92 @@ describe("native operation browsing", () => {
     expect(leaf!.text()).toContain("测试物品");
     expect(leaf!.text()).not.toContain("单位");
   });
+  it("hides item identity headers under item groups but keeps them in the column settings", async () => {
+    const previousInnerWidth = Object.getOwnPropertyDescriptor(
+      window,
+      "innerWidth",
+    );
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 1440,
+    });
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("min-width"),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    try {
+      const query = newReportQuery("movements");
+      query.view = "summary";
+      query.groupBy = ["item"];
+      const call = vi.fn(async (endpoint, args) => {
+        if (endpoint === "temple_inventory.projections.group_page") {
+          return {
+            rows: [
+              {
+                id: "GROUP-ITM-1",
+                row_grain: "group",
+                group_field: "item",
+                group_path: ["ITM-1"],
+                group_depth: 1,
+                group_label: "测试物品",
+                item_code: "ITM-1",
+                item_name: "测试物品",
+                stock_uom: "Nos",
+                has_children: true,
+                item_count: 1,
+                document_count: 1,
+                row_count: 1,
+                display_count: 1,
+                stock_qty: 2,
+                available_effect: -2,
+              },
+            ],
+            matched_count: 1,
+            next_start: null,
+            parent_path: [],
+            parent_unit: null,
+            row_grain: "group",
+            query: args.query,
+          };
+        }
+        if (endpoint === "browse.operation_page") return page();
+        throw new Error(`Unexpected ${endpoint}`);
+      });
+      const { wrapper } = setup(
+        call,
+        reactive({
+          family: "movements" as const,
+          records: false,
+          initialQuery: query,
+        }),
+        true,
+      );
+      await flushPromises();
+      const table = wrapper.get('section[aria-label="物品流动汇总"]');
+      const headers = table.findAll("thead th").map((th) => th.text());
+      expect(headers.some((text) => text.includes("物品名称"))).toBe(false);
+      expect(table.get('tr[data-row-id="GROUP-ITM-1"]').text()).toContain(
+        "测试物品",
+      );
+      await document
+        .querySelector<HTMLButtonElement>('button[aria-label="显示字段"]')!
+        .click();
+      await flushPromises();
+      const settings = document.querySelector(".data-table-column-panel")!;
+      const itemLabel = Array.from(settings.querySelectorAll("label")).find(
+        (label) => label.textContent?.includes("物品名称"),
+      )!;
+      expect(itemLabel.querySelector<HTMLInputElement>("input")!.checked).toBe(
+        true,
+      );
+      expect(itemLabel.textContent).toContain("分组标题已显示");
+    } finally {
+      if (previousInnerWidth)
+        Object.defineProperty(window, "innerWidth", previousInnerWidth);
+      else Reflect.deleteProperty(window, "innerWidth");
+    }
+  });
   it("sends the parent group path when a nested item group loads its lines", async () => {
     const query = newReportQuery("movements");
     query.view = "summary";

@@ -11,6 +11,7 @@ import BrowseFilters from "../../components/filters/BrowseFilters.vue";
 import ItemStatusFilter from "../../components/filters/ItemStatusFilter.vue";
 import GroupByFilter from "../../components/filters/GroupByFilter.vue";
 import { removeGroupByField } from "../../lib/groupBy";
+import { groupImpliedColumns } from "../../lib/groupColumns";
 import { groupLabels } from "../../lib/reportContract";
 import ReportTable from "../../components/ui/ReportTable.vue";
 import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
@@ -981,6 +982,7 @@ function acceptBrowseLocation(name: string) {
 							:columns="inventoryColumns"
 							:rows="browseTableRows"
 							:group-summary-columns="() => ['available', 'loaned', 'damaged']"
+							:suppressed-columns="groupImpliedColumns(quickReportQuery.groupBy)"
 							:column-preferences="tablePreferences"
 							:row-key="stockSelectionKey"
 							:selection-label="(row) => stockName(row)"

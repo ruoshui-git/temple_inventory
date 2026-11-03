@@ -26,6 +26,7 @@ import {
 	sortableColumnsForView,
 } from "../../lib/reportContract";
 import { nextGroupByField, removeGroupByField } from "../../lib/groupBy";
+import { groupImpliedColumns } from "../../lib/groupColumns";
 import { computed, ref, watch } from "vue";
 import { clearScopeField, scopeFilterFieldChips } from "../../lib/filterPresentation";
 import { sitePeriodSummary } from "../../lib/sitePeriod";
@@ -760,6 +761,7 @@ function setGroup(index: number, value: string) {
 					:sort-direction="query.sort"
 					:grouped="query.groupBy.length > 0"
 					:group-pages="groups"
+					:suppressed-columns="groupImpliedColumns(query.groupBy)"
 					@load-more="loadTable(mainTable, true)"
 					@sort="sortReport"
 					@retry="

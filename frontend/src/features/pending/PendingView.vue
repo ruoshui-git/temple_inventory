@@ -11,6 +11,7 @@ import BrowseFilters from "../../components/filters/BrowseFilters.vue";
 import ItemStatusFilter from "../../components/filters/ItemStatusFilter.vue";
 import GroupByFilter from "../../components/filters/GroupByFilter.vue";
 import { removeGroupByField } from "../../lib/groupBy";
+import { groupImpliedColumns } from "../../lib/groupColumns";
 import { groupLabels, sortableColumnsForView } from "../../lib/reportContract";
 import Overlay from "../../components/ui/Overlay.vue";
 import UiButton from "../../components/ui/UiButton.vue";
@@ -503,6 +504,7 @@ watch([() => props.active, isMobile], () => {
 					table-class="browse-table"
 					:columns="reportColumns"
 					:rows="pendingRows"
+					:suppressed-columns="groupImpliedColumns(query.groupBy)"
 					empty-text="没有符合条件的记录"
 					:column-preferences="reportPrefs"
 					:selection-enabled="c.selecting.value"

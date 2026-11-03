@@ -15,6 +15,7 @@ import { clearScopeField, scopeFilterFieldChips } from "../../lib/filterPresenta
 import { sortableColumnLabels, sortableColumnsForView } from "../../lib/reportContract";
 import { groupLabels } from "../../lib/reportContract";
 import { removeGroupByField } from "../../lib/groupBy";
+import { groupImpliedColumns } from "../../lib/groupColumns";
 import { enumPresentationLabel, movementLabels } from "../../lib/presentationLabels";
 import { formatQuantityWithUnit } from "../../lib/formatQuantity";
 import { formatSiteDateTime } from "../../lib/nativeTime";
@@ -1941,6 +1942,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						table-class="browse-table"
 						:columns="itemColumns"
 						:rows="itemTableRows"
+						:suppressed-columns="groupImpliedColumns(query.groupBy)"
 						:selection-enabled="family === 'loans' && c.selecting.value"
 						:selected-keys="c.selected.value"
 						@select="c.setSelected"
@@ -2288,6 +2290,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 									: ['available_effect', 'quantities']
 						"
 						:rows="operationTableRows"
+						:suppressed-columns="groupImpliedColumns(query.groupBy)"
 						:selection-enabled="family === 'loans' && c.selecting.value"
 						:selected-keys="c.selected.value"
 						@select="c.setSelected"

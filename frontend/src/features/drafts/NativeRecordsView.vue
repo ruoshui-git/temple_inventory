@@ -29,6 +29,7 @@ import RecoverySummary from "../../components/ui/RecoverySummary.vue";
 import BrowseFilters from "../../components/filters/BrowseFilters.vue";
 import GroupByFilter from "../../components/filters/GroupByFilter.vue";
 import { removeGroupByField } from "../../lib/groupBy";
+import { groupImpliedColumns } from "../../lib/groupColumns";
 import { groupLabels } from "../../lib/reportContract";
 import { sitePeriodSummary } from "../../lib/sitePeriod";
 import { clearScopeField, scopeFilterFieldChips } from "../../lib/filterPresentation";
@@ -962,6 +963,7 @@ function openDetailsRow() {
 						"
 						:columns="tableColumns"
 						:rows="browseRows"
+						:suppressed-columns="groupImpliedColumns(query.groupBy)"
 						:column-preferences="tablePrefs"
 						:sort-by="query.sortBy"
 						:sort-direction="query.sort"

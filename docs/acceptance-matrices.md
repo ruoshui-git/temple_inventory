@@ -86,7 +86,7 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 | 🆕 单位 | ✅ | ✅ | |
 | 可选：状态 | ✅ | ✅ | |
 | 🆕 次数 | ✅ | ✅ | 按物品汇总 grouping shows record counts per item; grouped XLSX keeps "物品 (N)" |
-| 汇总 | ✅ | ✅ | 🆕 Page: per-type totals + 可用净变化 per unit. 🔁 Group rows and export 合计 rows sum 可用变化 (合计可用变化（单位）). 🔄 Mixed-unit groups write one numeric "小计 · 单位" row per unit. 2026-10-31: 明细 groups by 流动类型 (and 流动类型 → 物品) on the page and in grouped XLSX, with per-unit 可用变化 subtotals |
+| 汇总 | ✅ | ✅ | 🆕 Page: per-type totals + 可用净变化 per unit. 🔁 Group rows and export 合计 rows sum 可用变化 (合计可用变化（单位）). 🔄 Mixed-unit groups write one numeric "小计 · 单位" row per unit. 2026-10-31: 明细 groups by 流动类型 (and 流动类型 → 物品) on the page and in grouped XLSX, with per-unit 可用变化 subtotals. 2026-11-03: also 来源/去向位置, 活动, 月份 (物品 only as the inner level) |
 
 ### 流动记录（记录） — 货物流动 → 单据
 
@@ -172,5 +172,4 @@ Submitted stock records follow ERPNext: drafts can be edited or deleted; submitt
 
 ## Open items
 
-- 明细 can group only by 物品 or 类别 + 物品, so per-type subtotals in a file come from 单据 grouped by 类型; the 明细 page header already shows per-type totals and 可用净变化.
 - XLSX image links are relative paths that resolve after the ZIP is extracted.

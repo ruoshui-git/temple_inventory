@@ -11,6 +11,7 @@ import UiButton from "../../components/ui/UiButton.vue";
 import BrowseFilters from "../../components/filters/BrowseFilters.vue";
 import GroupByFilter from "../../components/filters/GroupByFilter.vue";
 import { removeGroupByField } from "../../lib/groupBy";
+import { groupImpliedColumns } from "../../lib/groupColumns";
 import { groupLabels } from "../../lib/reportContract";
 import Overlay from "../../components/ui/Overlay.vue";
 import ExpiryBrowseFilters from "./ExpiryBrowseFilters.vue";
@@ -776,6 +777,7 @@ function canExpiryAction() {
 						(keys, checked) => keys.forEach((key) => c.setSelected(key, checked))
 					"
 					:group-summary-columns="() => ['available', 'loaned', 'damaged', 'stock_qty']"
+					:suppressed-columns="groupImpliedColumns(query.groupBy)"
 					:column-preferences="tablePreferences"
 					:sort-by="tableSortBy"
 					:sort-direction="query.sort"

@@ -46,6 +46,8 @@ const props = withDefaults(
 		rowAttributes?: (row: Record<string, unknown>) => Record<string, string>;
 		cellClass?: (columnId: string, row: Record<string, unknown>) => string;
 		groupSummaryColumns?: (group: DataTableGroup) => string[];
+		/** Column ids a grouped table omits, because its group headers already show them. */
+		suppressedColumns?: readonly string[];
 		tableClass?: string;
 		retryText?: string;
 		columnPreferences?: ColumnPreferencesController;
@@ -333,7 +335,22 @@ onScopeDispose(() => {
 	window.removeEventListener("scroll", syncSettingsOutlet, true);
 });
 
-const orderedColumns = computed(() => orderedVisibleColumns(props.columns, preferences.value));
+const visibleColumns = computed(() => orderedVisibleColumns(props.columns, preferences.value));
+/** Only grouped tables hide columns; keeps the full list when grouping would hide every column. */
+const groupSuppressed = computed<string[]>(() => {
+	if (!props.suppressedColumns?.length || !props.rows.some((entry) => group(entry))) return [];
+	const hidden = visibleColumns.value
+		.map((column) => String(column.id))
+		.filter((id) => props.suppressedColumns!.includes(id));
+	return hidden.length < visibleColumns.value.length ? hidden : [];
+});
+const orderedColumns = computed(() =>
+	groupSuppressed.value.length
+		? visibleColumns.value.filter(
+				(column) => !groupSuppressed.value.includes(String(column.id)),
+			)
+		: visibleColumns.value,
+);
 function columnKind(column: DataColumn) {
 	const kind = dataColumnKind(column);
 	if (kind !== "primary") return kind;
@@ -418,7 +435,11 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 	<section class="data-table" :aria-label="ariaLabel">
 		<Teleport v-if="preferences && !compact && settingsOutlet" :to="settingsOutlet">
 			<div class="data-table-settings-outlet">
-				<ColumnSettings :preferences="preferences" :columns="columns" />
+				<ColumnSettings
+					:preferences="preferences"
+					:columns="columns"
+					:suppressed="groupSuppressed"
+				/>
 			</div>
 		</Teleport>
 
@@ -562,7 +583,11 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 								v-if="preferences && !compact && !settingsOutlet"
 								class="data-table-settings-heading"
 							>
-								<ColumnSettings :preferences="preferences" :columns="columns" />
+								<ColumnSettings
+									:preferences="preferences"
+									:columns="columns"
+									:suppressed="groupSuppressed"
+								/>
 							</th>
 						</tr>
 					</thead>

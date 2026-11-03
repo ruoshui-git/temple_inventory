@@ -1458,3 +1458,128 @@ describe("shared data table", () => {
     expect(wrapper.find('button[aria-label="显示字段"]').exists()).toBe(true);
   });
 });
+
+describe("grouped tables hide columns the group header already shows", () => {
+  const groupedColumns: DataColumn[] = [
+    { id: "item_name", label: "物品名称" },
+    { id: "quantity", label: "数量" },
+    { id: "location", label: "位置" },
+  ];
+  const groupRow = {
+    kind: "group" as const,
+    id: "G",
+    label: "测试物品",
+    labelColumn: "item_name",
+    depth: 0,
+    count: 1,
+    expanded: true,
+    hasChildren: true,
+  };
+  const recordRow = {
+    kind: "record" as const,
+    id: "R1",
+    value: { item_name: "测试物品", quantity: 2, location: "仓库甲" },
+  };
+  function mountGrouped(props: Record<string, unknown>) {
+    const wrapper = mount(DataTable, {
+      props: { ariaLabel: "分组表格", columns: groupedColumns, ...props },
+    });
+    wrappers.push(wrapper);
+    return wrapper;
+  }
+  const headers = (wrapper: VueWrapper) =>
+    wrapper.findAll("thead th").map((th) => th.text());
+
+  it("drops suppressed columns from the header and record rows while grouped", () => {
+    const wrapper = mountGrouped({
+      rows: [groupRow, recordRow],
+      suppressedColumns: ["item_name"],
+    });
+    expect(headers(wrapper)).toEqual(["数量", "位置"]);
+    const record = wrapper.get('tbody tr[data-row-id="R1"]');
+    expect(record.findAll("td")).toHaveLength(2);
+    expect(record.text()).not.toContain("测试物品");
+    expect(record.text()).toContain("仓库甲");
+  });
+
+  it("keeps every column when the table has no group rows", () => {
+    const wrapper = mountGrouped({
+      rows: [recordRow],
+      suppressedColumns: ["item_name"],
+    });
+    expect(headers(wrapper)).toEqual(["物品名称", "数量", "位置"]);
+    expect(
+      wrapper.get('tbody tr[data-row-id="R1"]').findAll("td"),
+    ).toHaveLength(3);
+  });
+
+  it("keeps the original columns when suppression would hide all of them", () => {
+    const wrapper = mountGrouped({
+      rows: [groupRow, recordRow],
+      suppressedColumns: ["item_name", "quantity", "location"],
+    });
+    expect(headers(wrapper)).toEqual(["物品名称", "数量", "位置"]);
+  });
+
+  it("covers every rendered column with the group row's cells", () => {
+    const wrapper = mountGrouped({
+      rows: [groupRow, recordRow],
+      suppressedColumns: ["item_name"],
+      groupSummaryColumns: () => ["quantity"],
+    });
+    const groupCells = wrapper.get('tr[data-row-id="G"]').findAll("td");
+    const span = groupCells.reduce(
+      (total, cell) => total + Number(cell.attributes("colspan") || 1),
+      0,
+    );
+    expect(span).toBe(headers(wrapper).length);
+    expect(wrapper.get('tr[data-row-id="G"]').text()).toContain("测试物品");
+  });
+
+  it("keeps the label cell spanning the rendered columns when the label column is suppressed", () => {
+    const wrapper = mountGrouped({
+      rows: [groupRow, recordRow],
+      suppressedColumns: ["item_name"],
+    });
+    const identity = wrapper.get(".data-table-group-identity-cell");
+    expect(identity.attributes("colspan")).toBe("2");
+    expect(wrapper.get('tr[data-row-id="G"]').findAll("td")).toHaveLength(1);
+  });
+
+  it("marks suppressed columns in 显示字段 without changing the saved preferences", async () => {
+    const preferences = {
+      order: { value: ["item_name", "quantity", "location"] },
+      visible: { value: ["item_name", "quantity", "location"] },
+      saveState: { value: "saved" as const },
+      saveError: { value: "" },
+      toggle: vi.fn(),
+      reorder: vi.fn(),
+      reset: vi.fn(),
+      retry: vi.fn(),
+    };
+    const wrapper = mountGrouped({
+      rows: [groupRow, recordRow],
+      suppressedColumns: ["item_name"],
+      columnPreferences: preferences,
+    });
+    expect(headers(wrapper)).toEqual(["数量", "位置", "☷"]);
+    expect(preferences.visible.value).toEqual([
+      "item_name",
+      "quantity",
+      "location",
+    ]);
+    await wrapper.get('button[aria-label="显示字段"]').trigger("click");
+    const panel = document.querySelector(".data-table-column-panel")!;
+    const itemLabel = Array.from(panel.querySelectorAll("label")).find(
+      (label) => label.textContent?.includes("物品名称"),
+    )!;
+    expect(itemLabel.textContent).toContain("分组标题已显示");
+    expect(itemLabel.querySelector<HTMLInputElement>("input")!.checked).toBe(
+      true,
+    );
+    const quantityLabel = Array.from(panel.querySelectorAll("label")).find(
+      (label) => label.textContent?.includes("数量"),
+    )!;
+    expect(quantityLabel.textContent).not.toContain("分组标题已显示");
+  });
+});

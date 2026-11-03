@@ -329,7 +329,9 @@ describe("inventory grouped table", () => {
       parent_path: ["Food", "ITEM-1"],
       parent_unit: null,
     });
-    expect(wrapper.get('[data-browse-row="ITEM-1"]').text()).toContain(
+    // Grouped by item, the item name lives in the group header; leaf rows do not repeat it.
+    expect(itemGroup.find(".data-table-group-name").text()).toBe("Noodles");
+    expect(wrapper.get('[data-browse-row="ITEM-1"]').text()).not.toContain(
       "Noodles",
     );
     // At the desktop breakpoint, location and batch are separate visible columns.
@@ -341,9 +343,8 @@ describe("inventory grouped table", () => {
     expect(wrapper.find('[aria-label="选择Noodles"]').exists()).toBe(true);
     await wrapper.get('[aria-label="选择Noodles"]').setValue(true);
     expect(page.vm.controller.selected.value).toEqual(["ITEM-1"]);
-    expect(wrapper.get(".item-name").attributes("href")).toBe(
-      "/stock/items/ITEM-1",
-    );
+    // The item name column is implied by the item group header, so no leaf repeats the link.
+    expect(wrapper.find(".item-name").exists()).toBe(false);
     expect(wrapper.find('[role="alert"]').exists()).toBe(false);
     expect(
       call.mock.calls.some(

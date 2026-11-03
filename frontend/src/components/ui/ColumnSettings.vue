@@ -4,10 +4,15 @@ import type { ColumnPreferencesController, DataColumn } from "../../lib/dataTabl
 
 // The 显示字段 trigger and its panel. The panel teleports to body; positioning follows the
 // trigger, and Escape or an outside pointer closes it.
-const props = defineProps<{
-	preferences: ColumnPreferencesController;
-	columns: DataColumn[];
-}>();
+const props = withDefaults(
+	defineProps<{
+		preferences: ColumnPreferencesController;
+		columns: DataColumn[];
+		/** Columns the grouped table omits at render time; their checkboxes stay as saved. */
+		suppressed?: readonly string[];
+	}>(),
+	{ suppressed: () => [] },
+);
 
 const open = ref(false);
 const trigger = ref<HTMLButtonElement>();
@@ -181,6 +186,9 @@ onScopeDispose(() => {
 							@change="preferences.toggle(column)"
 						/>
 						<span>{{ labelFor(column) }}</span>
+						<small v-if="suppressed.includes(column)" class="field-hint"
+							>分组标题已显示</small
+						>
 					</label>
 					<div class="data-table-column-order">
 						<button
