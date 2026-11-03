@@ -337,7 +337,18 @@ const itemTableRows = computed<DataTableEntry[]>(() => {
 		}
 		if (entry.kind !== "group") return [entry];
 		const groupField = query.value.groupBy[entry.depth - 1];
-		if (groupField !== "item") return [entry];
+		// A non-item group's detail row only holds loading, retry and 加载更多; omit it otherwise.
+		if (groupField !== "item")
+			return [
+				{
+					...entry,
+					detailRow:
+						entry.detailRow &&
+						(Boolean(entry.loading) ||
+							Boolean(entry.error) ||
+							c.groups.hasMore(entry.id)),
+				},
+			];
 		const item = groupItem(entry);
 		const expanded = c.expanded.has(item.id);
 		return [

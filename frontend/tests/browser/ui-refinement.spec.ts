@@ -731,7 +731,11 @@ test("stock grouped cards use lazy warehouse groups on desktop and phone", async
   await page.getByRole("button", { name: "卡片视图", exact: true }).click();
   const heading = page.getByRole("button", { name: /东-库房/ });
   await expect(heading).toContainText("2 项");
-  await expect(heading).toContainText("可用 14 个");
+  // Totals sit beside the toggle, never inside it.
+  await expect(heading).not.toContainText("可用");
+  await expect(
+    page.locator(".stock-card-group-header", { has: heading }),
+  ).toContainText("可用 14 个");
   await heading.click();
   await expect(page.locator(".stock-card")).toHaveCount(1);
   await heading.click();
