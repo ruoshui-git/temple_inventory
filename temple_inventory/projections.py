@@ -1940,6 +1940,8 @@ def _group_page(validated, path, parent_unit, start, size, refresh=False):
 				projection.put(leaf_table, row)
 			source = leaf_table
 		rows, count = projection.matching_page(source, fields, path, parent_unit, start, size)
+		if validated["dataset"] in ("movements", "loans") and validated["view"] != "records":
+			add_authorized_page_images(projection.context, rows)
 		if validated["view"] == "records" and validated["dataset"] in ("movements", "loans"):
 			whole_rows = [
 				(row, whole_operation(projection.context, row["doctype"], row["document"])) for row in rows

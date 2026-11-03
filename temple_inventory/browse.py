@@ -11,7 +11,12 @@ from temple_inventory.activities import activity_types
 from temple_inventory.configuration import status as configuration_status
 from temple_inventory.native_access import require_app
 from temple_inventory.native_stock import warehouse_scopes
-from temple_inventory.projections import Projection, add_authorized_page_images, report_page  # noqa: F401
+from temple_inventory.projections import (  # noqa: F401
+	Projection,
+	add_authorized_page_images,
+	group_field_name,
+	report_page,
+)
 from temple_inventory.report_query import validate_query
 from temple_inventory.report_sources import (
 	available_scope_leaves,
@@ -1046,6 +1051,33 @@ def operation_page(query, records=False, start=0, page_length=20):
 		}
 
 
+def _group_path_filters(query, group_path):
+	"""Parent group values above a terminal item group; detail reads narrow by them, never widen."""
+	group_path = frappe.parse_json(group_path) if isinstance(group_path, str) else group_path
+	if not group_path:
+		return []
+	group_by = query["groupBy"]
+	if (
+		not isinstance(group_path, list)
+		or not group_by
+		or group_by[-1] != "item"
+		or len(group_path) != len(group_by) - 1
+		or any(not isinstance(value, str) or len(value) > 2000 for value in group_path)
+	):
+		frappe.throw("请选择有效的分组路径")
+	return [
+		(key, group_field_name(query, key), value)
+		for key, value in zip(group_by[:-1], group_path, strict=True)
+	]
+
+
+def _group_path_matches(row, filters):
+	return all(
+		(str(row.get("date") or "")[:7] if key == "month" else str(row.get(field) or "")) == value
+		for key, field, value in filters
+	)
+
+
 @frappe.whitelist()
 def operation_contributions(
 	query,
@@ -1058,6 +1090,7 @@ def operation_contributions(
 	history_sort=None,
 	start=0,
 	page_length=30,
+	group_path=None,
 ):
 	from frappe.utils import cint
 
@@ -1067,7 +1100,9 @@ def operation_contributions(
 	if not records:
 		validated = validate_query(query)
 		if validated["dataset"] == "movements":
-			return movement_history(validated, item_code=item_code, start=start, page_length=size)
+			return movement_history(
+				validated, item_code=item_code, start=start, page_length=size, group_path=group_path
+			)
 	with _operation_projection(query, records) as projection:
 		projection.build()
 		source = _operation_source(projection, records=records)
@@ -1081,6 +1116,13 @@ def operation_contributions(
 			if item_code:
 				conditions.append("json_extract(payload, '$.item_code')=?")
 				params.append(item_code)
+			# projection.query keeps the validated groupBy, so parent group values can be read from it.
+			for key, field, value in _group_path_filters(projection.query, group_path):
+				if key == "month":
+					conditions.append("substr(coalesce(json_extract(payload, '$.date'), ''), 1, 7)=?")
+				else:
+					conditions.append(f"coalesce(json_extract(payload, '$.{field}'), '')=?")
+				params.append(value)
 			if projection.query["dataset"] == "loans":
 				if projection.query["view"] != "items" and not item_code:
 					frappe.throw("请选择确切的物品")
@@ -1345,7 +1387,15 @@ def _effective_loan_settlement(context, row, cache):
 
 @frappe.whitelist()
 def movement_history(
-	query, item_code=None, warehouse=None, batch_no=None, start=0, page_length=30, sort_by=None, sort=None
+	query,
+	item_code=None,
+	warehouse=None,
+	batch_no=None,
+	start=0,
+	page_length=30,
+	sort_by=None,
+	sort=None,
+	group_path=None,
 ):
 	"""Return movement rows grouped to the requested Item/warehouse/batch identity."""
 	from frappe.utils import cint
@@ -1353,6 +1403,8 @@ def movement_history(
 	require_app()
 	query = frappe.parse_json(query) if isinstance(query, str) else query
 	query = dict(query or {})
+	# Validate the incoming groupBy before it is cleared below, so the group path can be checked against it.
+	filters = _group_path_filters(validate_query(dict(query)), group_path) if group_path else []
 	query.update({"dataset": "movements", "view": "lines", "groupBy": []})
 	query["sortBy"] = sort_by or "date"
 	query["sort"] = sort or "desc"
@@ -1401,6 +1453,8 @@ def movement_history(
 			if item_code and row["item_code"] != item_code:
 				continue
 			if batch_no and row.get("batch_no") != batch_no:
+				continue
+			if not _group_path_matches(row, filters):
 				continue
 			key, source, destination = movement_history_key(row)
 			if warehouse and not warehouse_leaves.intersection(

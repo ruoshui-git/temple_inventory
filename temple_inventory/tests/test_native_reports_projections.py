@@ -1,5 +1,6 @@
 """Report/export contracts exercised against real native stock and permissions."""
 
+import base64
 import copy
 from unittest.mock import patch
 from uuid import uuid4
@@ -7,7 +8,7 @@ from uuid import uuid4
 import frappe
 from frappe.utils import nowdate
 
-from temple_inventory import browse, counts, exports, native_api, warehouses
+from temple_inventory import browse, catalog, counts, exports, native_api, warehouses
 from temple_inventory.projections import (
 	Projection,
 	group_count_metadata,
@@ -242,6 +243,46 @@ class NativeReportsProjectionsTests(NativeReportTestCase):
 		self.assertEqual(by_kind["Receive"]["available_effect"], 8)
 		self.assertEqual(by_kind["Issue"]["available_effect"], -3)
 		self.assertEqual(page["summary"], report_page({**query, "groupBy": []})["summary"])
+
+	def test_group_leaf_lines_carry_authorized_item_images(self):
+		self.receipt(4)
+		file = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": f"grouped-leaf-{self.token}.png",
+				"content": base64.b64decode(
+					"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII="
+				),
+				"is_private": 1,
+				"attached_to_doctype": "Item",
+				"attached_to_name": self.item,
+				"attached_to_field": "image",
+			}
+		).insert()
+		item = frappe.get_doc("Item", self.item)
+		catalog.set_item_image(self.item, str(item.modified), file.name)
+		page = group_page(self.query("movements", "summary", groupBy=["kind"]), parent_path=["Receive"])
+		self.assertTrue(page["rows"])
+		for row in page["rows"]:
+			self.assertEqual(row.get("image"), file.file_url)
+
+	def test_item_group_history_narrows_to_parent_group_path(self):
+		self.receipt(8)
+		issue = self.movement("Issue", 3, self.a, None)
+		self.submit(self.create(issue))
+		query = self.query("movements", "summary", groupBy=["kind", "item"])
+		everything = browse.movement_history(query, item_code=self.item)
+		self.assertEqual(everything["matched_count"], 2)
+		issued = browse.movement_history(query, item_code=self.item, group_path=["Issue"])
+		self.assertEqual(issued["matched_count"], 1)
+		self.assertEqual([row["kind"] for row in issued["rows"]], ["Issue"])
+		received = browse.movement_history(query, item_code=self.item, group_path=["Receive"])
+		self.assertEqual(received["matched_count"], 1)
+		self.assertEqual([row["kind"] for row in received["rows"]], ["Receive"])
+		missing = browse.movement_history(query, item_code=self.item, group_path=["Nope"])
+		self.assertEqual(missing["matched_count"], 0)
+		with self.assertRaises(Exception):
+			browse.movement_history(query, item_code=self.item, group_path=["Issue", "x"])
 
 	def test_movement_item_summary_accepts_top_level_kind_and_kind_then_item_groups(self):
 		self.receipt(8)

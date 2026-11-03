@@ -412,6 +412,23 @@ class NativeReportsLoansTests(NativeReportTestCase):
 		with self.assertRaises(frappe.ValidationError):
 			browse.operation_contributions(outcome_query, item_code=self.item)
 
+	def test_loan_item_history_narrows_to_parent_borrower_group_path(self):
+		self.receipt(10)
+		self.submit(
+			self.create(self.movement("Loan", 3, self.a, self.loan_leaf, ti_borrower="Path Borrower A"))
+		)
+		self.submit(
+			self.create(self.movement("Loan", 2, self.a, self.loan_leaf, ti_borrower="Path Borrower B"))
+		)
+		query = self.query("loans", "items", groupBy=["borrower", "item"], loanStatus="all")
+		everything = browse.operation_contributions(query, item_code=self.item)
+		self.assertEqual(everything["matched_count"], 2)
+		own = browse.operation_contributions(query, item_code=self.item, group_path=["Path Borrower A"])
+		self.assertEqual(own["matched_count"], 1)
+		self.assertEqual({row["borrower"] for row in own["rows"]}, {"Path Borrower A"})
+		missing = browse.operation_contributions(query, item_code=self.item, group_path=["Path Nobody"])
+		self.assertEqual(missing["matched_count"], 0)
+
 	def test_grouped_native_record_leaves_include_whole_quantities_and_settlement_state(self):
 		self.receipt(8)
 		loan = self.submit(
