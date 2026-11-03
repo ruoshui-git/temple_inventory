@@ -47,7 +47,7 @@ export function usePendingController(
   const browseViewMode = useBrowseViewMode(responsive.isMobile, {
     phone: "list",
     desktop: "table",
-    phoneOptions: ["list", "card"],
+    phoneOptions: ["list", "card", "table"],
     desktopOptions: ["table", "card"],
     storageKey: layoutKey,
   });

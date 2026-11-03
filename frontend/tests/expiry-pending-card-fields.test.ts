@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h } from "vue";
 import { createMemoryHistory, createRouter } from "vue-router";
@@ -11,6 +11,8 @@ import { newReportQuery, type ReportRow } from "../src/lib/reportContract";
 import ExpiryBrowsePage from "../src/features/expiry/ExpiryBrowsePage.vue";
 import PendingPage from "../src/features/pending/PendingPage.vue";
 import ColumnSettings from "../src/components/ui/ColumnSettings.vue";
+import BrowseLoadMore from "../src/components/ui/BrowseLoadMore.vue";
+import SortControl from "../src/components/ui/SortControl.vue";
 import { browseLayoutStorageKey } from "../src/composables/useBrowseViewMode";
 
 const wrappers: VueWrapper[] = [];
@@ -76,7 +78,7 @@ function preferenceAwareCall(
   });
 }
 
-function expiryPage() {
+function expiryPage(empty = false) {
   const row = {
     id: JSON.stringify(["ITEM-A", "ROOM-A", "BATCH-0"]),
     item_code: "ITEM-A",
@@ -96,10 +98,10 @@ function expiryPage() {
   };
   return {
     query: newReportQuery("expiry"),
-    rows: [row],
-    matched_count: 1,
+    rows: empty ? [] : [row],
+    matched_count: empty ? 0 : 1,
     next_start: null,
-    item_count: 1,
+    item_count: empty ? 0 : 1,
     batch_count: 1,
     snapshot: "now",
     totals: [{ stock_uom: "Nos", available: 2 }],
@@ -108,8 +110,8 @@ function expiryPage() {
   };
 }
 
-function mountExpiry(site: string) {
-  const call = preferenceAwareCall(site, () => expiryPage());
+function mountExpiry(site: string, empty = false) {
+  const call = preferenceAwareCall(site, () => expiryPage(empty));
   const root = defineComponent({
     setup() {
       provideInventoryServices(
@@ -125,7 +127,7 @@ function mountExpiry(site: string) {
   return wrapper;
 }
 
-function pendingReport(value: unknown) {
+function pendingReport(value: unknown, empty = false) {
   const row = {
     id: JSON.stringify(["ITEM-A", "DAMAGED / A,1", "BATCH-A"]),
     item_code: "ITEM-A",
@@ -142,8 +144,8 @@ function pendingReport(value: unknown) {
   return {
     query: value,
     scope: (value as { scope: unknown }).scope,
-    rows: [row],
-    matched_count: 1,
+    rows: empty ? [] : [row],
+    matched_count: empty ? 0 : 1,
     next_start: null,
     table: "locations",
     columns: [
@@ -161,9 +163,9 @@ function pendingReport(value: unknown) {
   };
 }
 
-function mountPending(site: string) {
+function mountPending(site: string, empty = false) {
   const call = preferenceAwareCall(site, () => ({}));
-  const report = vi.fn(async (value: unknown) => pendingReport(value));
+  const report = vi.fn(async (value: unknown) => pendingReport(value, empty));
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
@@ -216,7 +218,7 @@ function preferences(wrapper: VueWrapper) {
 }
 
 describe("效期批次 card, row and table layouts", () => {
-  it("offers 表格 and 卡片 on desktop and 列表 and 卡片 on phones, defaulting to table and list", async () => {
+  it("offers 表格 and 卡片 on desktop and 列表, 卡片 and 表格 on phones, defaulting to table and list", async () => {
     matchMedia(true);
     const desktop = mountExpiry(freshSite());
     await flushPromises();
@@ -228,7 +230,7 @@ describe("效期批次 card, row and table layouts", () => {
     matchMedia(false);
     const phone = mountExpiry(freshSite());
     await flushPromises();
-    expect(viewLabels(phone)).toEqual(["列表", "卡片"]);
+    expect(viewLabels(phone)).toEqual(["列表", "卡片", "表格"]);
     expect(phone.find(".expiry-phone-card").exists()).toBe(true);
   });
 
@@ -301,7 +303,7 @@ describe("效期批次 card, row and table layouts", () => {
 });
 
 describe("损坏待处理 card, row and table layouts", () => {
-  it("offers 表格 and 卡片 on desktop and 列表 and 卡片 on phones, defaulting to table and list", async () => {
+  it("offers 表格 and 卡片 on desktop and 列表, 卡片 and 表格 on phones, defaulting to table and list", async () => {
     matchMedia(true);
     const desktop = mountPending(freshSite());
     await flushPromises();
@@ -313,7 +315,7 @@ describe("损坏待处理 card, row and table layouts", () => {
     matchMedia(false);
     const phone = mountPending(freshSite());
     await flushPromises();
-    expect(viewLabels(phone)).toEqual(["列表", "卡片"]);
+    expect(viewLabels(phone)).toEqual(["列表", "卡片", "表格"]);
     expect(phone.find(".pending-phone-card").exists()).toBe(true);
   });
 
@@ -382,5 +384,169 @@ describe("损坏待处理 card, row and table layouts", () => {
     const remounted = mountPending(site);
     await flushPromises();
     expect(remounted.find(".pending-card-grid").exists()).toBe(true);
+  });
+});
+
+// jsdom has no layout: every clamped line reads as cut off, so 更多 shows on each row.
+function clampedLines() {
+  vi.spyOn(Element.prototype, "scrollHeight", "get").mockReturnValue(40);
+  vi.spyOn(Element.prototype, "clientHeight", "get").mockReturnValue(20);
+}
+
+function countOf(wrapper: VueWrapper, text: string) {
+  return wrapper.text().split(text).length - 1;
+}
+
+function sheetLabels() {
+  return Array.from(document.querySelectorAll(".row-fields-sheet dt")).map(
+    (dt) => dt.textContent,
+  );
+}
+
+function sheetOpenButton() {
+  const button = Array.from(document.querySelectorAll("button")).find(
+    (candidate) => candidate.textContent?.trim() === "打开",
+  );
+  if (!button) throw new Error("row fields sheet is not open");
+  return button;
+}
+
+describe("效期批次 empty states and layouts", () => {
+  it.each([
+    ["phone 列表", false, undefined],
+    ["phone 卡片", false, "卡片"],
+    ["desktop 卡片", true, "卡片"],
+    ["desktop 表格", true, undefined],
+    ["phone 表格", false, "表格"],
+  ])(
+    "shows the empty wording exactly once in %s",
+    async (_name, desktop, view) => {
+      matchMedia(desktop);
+      const wrapper = mountExpiry(freshSite(), true);
+      await flushPromises();
+      if (view) await clickView(wrapper, view);
+      await flushPromises();
+      expect(countOf(wrapper, "没有符合条件的批次")).toBe(1);
+    },
+  );
+
+  it("mounts the DataTable on phones in 表格 without list-only chrome", async () => {
+    matchMedia(false);
+    const wrapper = mountExpiry(freshSite());
+    await flushPromises();
+    expect(wrapper.find(".expiry-phone-card").exists()).toBe(true);
+    await clickView(wrapper, "表格");
+    await flushPromises();
+    expect(wrapper.find("table").exists()).toBe(true);
+    expect(wrapper.find(".expiry-phone-card").exists()).toBe(false);
+    expect(wrapper.findComponent(SortControl).exists()).toBe(false);
+    expect(wrapper.findComponent(BrowseLoadMore).exists()).toBe(false);
+  });
+});
+
+describe("效期批次 更多 sheet", () => {
+  beforeEach(clampedLines);
+  afterEach(() => vi.restoreAllMocks());
+
+  it("lists every visible field from a phone row, and 打开 opens the row's item", async () => {
+    matchMedia(false);
+    const wrapper = mountExpiry(freshSite());
+    await flushPromises();
+    await wrapper
+      .get(".expiry-phone-card button.card-fields-more")
+      .trigger("click");
+    await flushPromises();
+    expect(sheetLabels()).toEqual([
+      "物品名称",
+      "物品编号",
+      "类别",
+      "批次编号",
+      "到期日期",
+      "剩余天数",
+      "库存数量",
+      "位置",
+    ]);
+    const page = wrapper.findComponent(ExpiryBrowsePage);
+    expect(page.emitted("item")).toBeUndefined();
+    sheetOpenButton().click();
+    await flushPromises();
+    expect(page.emitted("item")).toEqual([["ITEM-A"]]);
+    expect(document.querySelector(".row-fields-sheet")).toBeNull();
+  });
+
+  it("opens the same sheet from a desktop card", async () => {
+    matchMedia(true);
+    const wrapper = mountExpiry(freshSite());
+    await flushPromises();
+    await clickView(wrapper, "卡片");
+    await flushPromises();
+    await wrapper
+      .get(".expiry-card-grid button.card-fields-more")
+      .trigger("click");
+    await flushPromises();
+    expect(sheetLabels()).toContain("批次编号");
+    expect(
+      wrapper.findComponent(ExpiryBrowsePage).emitted("item"),
+    ).toBeUndefined();
+  });
+});
+
+describe("损坏待处理 empty states and layouts", () => {
+  it.each([
+    ["phone 列表", false, undefined],
+    ["phone 卡片", false, "卡片"],
+    ["desktop 卡片", true, "卡片"],
+    ["desktop 表格", true, undefined],
+    ["phone 表格", false, "表格"],
+  ])(
+    "shows the empty wording exactly once in %s",
+    async (_name, desktop, view) => {
+      matchMedia(desktop);
+      const wrapper = mountPending(freshSite(), true);
+      await flushPromises();
+      if (view) await clickView(wrapper, view);
+      await flushPromises();
+      expect(countOf(wrapper, "没有符合条件的记录")).toBe(1);
+    },
+  );
+
+  it("mounts the DataTable on phones in 表格 without list-only chrome", async () => {
+    matchMedia(false);
+    const wrapper = mountPending(freshSite());
+    await flushPromises();
+    expect(wrapper.find(".pending-phone-card").exists()).toBe(true);
+    await clickView(wrapper, "表格");
+    await flushPromises();
+    expect(wrapper.find("table").exists()).toBe(true);
+    expect(wrapper.find(".pending-phone-card").exists()).toBe(false);
+    expect(wrapper.findComponent(BrowseLoadMore).exists()).toBe(false);
+  });
+});
+
+describe("损坏待处理 更多 sheet", () => {
+  beforeEach(clampedLines);
+  afterEach(() => vi.restoreAllMocks());
+
+  it("lists every visible field from a phone row, and 打开 opens the row's item", async () => {
+    const site = freshSite();
+    matchMedia(false);
+    const wrapper = mountPending(site);
+    await flushPromises();
+    // 库位 is hidden by default, so show it before the sheet is measured.
+    preferences(wrapper).toggle("warehouse_label");
+    await flushPromises();
+    await wrapper
+      .get(".pending-phone-card button.card-fields-more")
+      .trigger("click");
+    await flushPromises();
+    expect(sheetLabels()).toEqual(
+      expect.arrayContaining(["物品名称", "批次编号", "库位"]),
+    );
+    const page = wrapper.findComponent(PendingPage);
+    expect(page.emitted("item")).toBeUndefined();
+    sheetOpenButton().click();
+    await flushPromises();
+    expect(page.emitted("item")).toEqual([["ITEM-A"]]);
+    expect(document.querySelector(".row-fields-sheet")).toBeNull();
   });
 });

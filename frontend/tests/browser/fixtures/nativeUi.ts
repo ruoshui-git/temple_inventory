@@ -204,18 +204,13 @@ export async function nativeUiSession(
 }
 
 /**
- * Phone record lists open as rows. Phone 单据 pages switch to the table from the "…" menu
- * (以表格显示); phone 物品 pages keep the result-summary toggle (表格视图). Clicks auto-wait for
- * the control to render after the route loads.
+ * Phone record lists open as rows. Phone browse pages switch to the table from the result-summary
+ * toggle (表格视图); desktop has no toggle because its layout is always the table. Clicks auto-wait
+ * for the control to render.
  */
 export async function showPhoneTable(page: Page) {
-  const toggle = page
+  await page
     .locator(".browse-summary-controls")
-    .getByRole("button", { name: "表格视图", exact: true });
-  if (await toggle.count()) {
-    await toggle.click();
-    return;
-  }
-  await page.getByRole("button", { name: "更多操作" }).first().click();
-  await page.getByRole("menuitem", { name: "以表格显示", exact: true }).click();
+    .getByRole("button", { name: "表格视图", exact: true })
+    .click();
 }

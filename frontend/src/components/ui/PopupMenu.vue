@@ -34,7 +34,6 @@ onUpdated(() =>
 		if (!item.hasAttribute("role")) item.setAttribute("role", "menuitem");
 	}),
 );
-defineExpose({ anchor });
 function close(restoreFocus = false) {
 	if (!open.value) return;
 	open.value = false;

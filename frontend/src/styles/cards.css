@@ -499,20 +499,52 @@
 	overflow: visible;
 	white-space: normal;
 }
+/* 更多 and +N 项 open the full row; the 44px phone/touch hit area is a pseudo-element, so the
+   button never grows the text line. */
 .card-fields-more {
+	position: relative;
+	flex: none;
+	min-width: 0;
+	min-height: 0;
 	margin: var(--p-space-1) 0 0;
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--p-accent-strong);
+	font: inherit;
+	font-size: var(--p-small);
+	cursor: pointer;
+}
+.card-fields-inline > .card-fields-more {
+	margin: 0;
+}
+@media (max-width: 1023px), (pointer: coarse) {
+	.card-fields-more::after {
+		content: "";
+		position: absolute;
+		inset: 50% auto auto 50%;
+		width: 44px;
+		height: 44px;
+		transform: translate(-50%, -50%);
+	}
+}
+.card-fields-inline {
+	display: flex;
+	align-items: flex-end;
+	gap: var(--p-space-2);
+	min-width: 0;
+	margin: 0;
 	color: var(--p-muted);
 	font-size: var(--p-small);
 }
-.card-fields-inline {
+.card-fields-inline-text {
+	flex: 1 1 auto;
 	display: -webkit-box;
 	-webkit-box-orient: vertical;
 	-webkit-line-clamp: 2;
 	min-width: 0;
 	margin: 0;
 	overflow: hidden;
-	color: var(--p-muted);
-	font-size: var(--p-small);
 	line-height: 1.5;
 	overflow-wrap: anywhere;
 }
@@ -587,4 +619,25 @@
 /* Badges in a 列表 row's identity keep their own width. */
 .stock-list-identity > :is(.badge, .browse-badge) {
 	justify-self: start;
+}
+
+/* 查看全部字段: every field of one browse row, labels beside full values. */
+.row-fields-sheet {
+	display: grid;
+	gap: var(--p-space-3);
+	margin: 0;
+}
+.row-fields-sheet-field {
+	display: grid;
+	grid-template-columns: minmax(5.5em, auto) minmax(0, 1fr);
+	gap: var(--p-space-3);
+}
+.row-fields-sheet dt {
+	color: var(--p-muted);
+}
+.row-fields-sheet dd {
+	min-width: 0;
+	margin: 0;
+	overflow-wrap: anywhere;
+	white-space: normal;
 }

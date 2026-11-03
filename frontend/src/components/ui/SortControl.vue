@@ -78,7 +78,7 @@ const directionLabel = computed(
 				<span aria-hidden="true">⇅</span>
 				<span class="browse-sort-full-label">{{ selected?.label || label }}</span>
 				<span class="browse-sort-compact-label">{{ compactFieldLabel }}</span>
-				· {{ directionLabel }}
+				<span class="browse-sort-direction">· {{ directionLabel }}</span>
 			</template>
 			<div
 				v-for="option in fields"

@@ -20,6 +20,8 @@ export interface CardPartition {
   hero?: DataColumn;
   status?: DataColumn;
   fields: DataColumn[];
+  /** Every visible non-media column that is not omitted, in order and uncapped. */
+  all: DataColumn[];
   overflow: number;
 }
 
@@ -48,6 +50,10 @@ export function partitionCardColumns(
     ...(roles.omit ?? []),
   ]);
   const rest = visible.filter((column) => !reserved.has(String(column.id)));
+  const omitted = new Set(roles.omit ?? []);
+  const all = visible.filter(
+    (column) => column.id !== roles.media && !omitted.has(String(column.id)),
+  );
   const fields = rest.slice(0, Math.max(0, limit));
   return {
     media: pick(roles.media),
@@ -56,6 +62,7 @@ export function partitionCardColumns(
     hero: pick(roles.hero),
     status: pick(roles.status),
     fields,
+    all,
     overflow: rest.length - fields.length,
   };
 }

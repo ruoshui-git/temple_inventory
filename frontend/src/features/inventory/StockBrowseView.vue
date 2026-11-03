@@ -18,6 +18,7 @@ import BrowseCard from "../../components/ui/BrowseCard.vue";
 import BrowseLoadMore from "../../components/ui/BrowseLoadMore.vue";
 import ItemCard from "../../components/ui/ItemCard.vue";
 import CardFields from "../../components/ui/CardFields.vue";
+import RowFieldsSheet from "../../components/ui/RowFieldsSheet.vue";
 import ViewModeToggle from "../../components/ui/ViewModeToggle.vue";
 import ColumnSettings from "../../components/ui/ColumnSettings.vue";
 import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
@@ -152,6 +153,19 @@ const tableRows = computed<DataTableRecord[]>(() =>
 const browseTableRows = computed<DataTableEntry[]>(() =>
 	quickReportQuery.value.groupBy.length ? groupPages.entries.value : tableRows.value,
 );
+// The DataTable owns grouped results (outside cards) and the table layout on every form factor.
+const usesTable = computed(() =>
+	quickReportQuery.value.groupBy.length ? view.value !== "card" : view.value === "table",
+);
+// 更多 opens every field of one row; the sheet's 打开 runs the same open as the row tap.
+const detailsRow = ref<{ row: StockRow; open: () => void }>();
+function showDetails(row: StockRow, open: () => void) {
+	detailsRow.value = { row, open };
+}
+function openDetailsRow() {
+	detailsRow.value?.open();
+	detailsRow.value = undefined;
+}
 const groupRoot = computed(() => groupPages.pages.value["[[],null]"]);
 const groupedCardSections = computed(() => {
 	return stockGroupedCardSections(groupPages.entries.value);
@@ -541,18 +555,12 @@ function acceptBrowseLocation(name: string) {
 					/>
 					<!-- DataTable owns 显示字段 while it is mounted; cards and 列表 rows need their own. -->
 					<ColumnSettings
-						v-if="
-							tablePreferences &&
-							!(
-								(quickReportQuery.groupBy.length && view !== 'card') ||
-								(!quickReportQuery.groupBy.length && !isMobile && view === 'table')
-							)
-						"
+						v-if="tablePreferences && !usesTable"
 						:preferences="tablePreferences"
 						:columns="inventoryColumns"
 					/>
 					<SortControl
-						v-if="isMobile || view === 'card'"
+						v-if="!usesTable && (isMobile || view === 'card')"
 						v-model:field="sort"
 						v-model:direction="sortDirection"
 						:fields="sortFields"
@@ -605,10 +613,7 @@ function acceptBrowseLocation(name: string) {
 					:aria-busy="status === 'loading' || status === 'refresh'"
 				>
 					<div
-						v-if="
-							status === 'loading' &&
-							(quickReportQuery.groupBy.length || (!isMobile && view === 'table'))
-						"
+						v-if="status === 'loading' && usesTable"
 						class="stock-table-initial-skeleton"
 					>
 						<DataTable
@@ -733,6 +738,11 @@ function acceptBrowseLocation(name: string) {
 											:fields="cardPartition.fields"
 											:overflow="cardPartition.overflow"
 											:row="entry.value"
+											@more="
+												showDetails(entry.value, () =>
+													openGroupedStock(entry.value),
+												)
+											"
 										>
 											<template #cell="{ column, row }">
 												<StockCell
@@ -826,6 +836,7 @@ function acceptBrowseLocation(name: string) {
 									:fields="cardPartition.fields"
 									:overflow="cardPartition.overflow"
 									:row="asStockRow(item)"
+									@more="showDetails(asStockRow(item), () => openItem(item))"
 								>
 									<template #cell="{ column, row }">
 										<StockCell
@@ -890,15 +901,18 @@ function acceptBrowseLocation(name: string) {
 								<template #default="{ activate }">
 									<button class="stock-list-open" @click="activate">
 										<span class="stock-list-identity">
-											<strong class="stock-list-name">{{
+											<strong class="stock-list-name" data-clamp>{{
 												item.name
 											}}</strong>
 											<span v-if="item.disabled" class="badge neutral"
 												>已停用</span
 											>
-											<span v-if="rowMeta(item)" class="stock-list-meta">{{
-												rowMeta(item)
-											}}</span>
+											<span
+												v-if="rowMeta(item)"
+												class="stock-list-meta"
+												data-clamp
+												>{{ rowMeta(item) }}</span
+											>
 											<span
 												v-if="expiryStatus(item)"
 												class="badge"
@@ -932,11 +946,11 @@ function acceptBrowseLocation(name: string) {
 										</span>
 									</button>
 									<CardFields
-										v-if="rowPartition.fields.length || rowPartition.overflow"
 										variant="row"
 										:fields="rowPartition.fields"
 										:overflow="rowPartition.overflow"
 										:row="asStockRow(item)"
+										@more="showDetails(asStockRow(item), () => openItem(item))"
 									>
 										<template #cell="{ column, row }">
 											<StockCell
@@ -954,10 +968,7 @@ function acceptBrowseLocation(name: string) {
 							</BrowseCard>
 						</div>
 						<DataTable
-							v-if="
-								(quickReportQuery.groupBy.length && view !== 'card') ||
-								(!quickReportQuery.groupBy.length && !isMobile && view === 'table')
-							"
+							v-if="usesTable"
 							data-browse-scroll="inventory-table"
 							ariaLabel="库存物品"
 							table-class="data-table"
@@ -1153,8 +1164,20 @@ function acceptBrowseLocation(name: string) {
 				/>
 				<p class="muted">统计完整筛选结果；跨位置的物品数不可相加。</p>
 			</Overlay>
+			<RowFieldsSheet
+				v-if="detailsRow"
+				:title="stockName(detailsRow.row)"
+				:columns="cardPartition.all"
+				:row="detailsRow.row"
+				@close="detailsRow = undefined"
+				@open="openDetailsRow"
+			>
+				<template #cell="{ column, row }">
+					<StockCell :column="column" :row="row" :reference="reference" />
+				</template>
+			</RowFieldsSheet>
 			<BrowseLoadMore
-				v-if="isMobile || view === 'card'"
+				v-if="!usesTable && (isMobile || view === 'card')"
 				:has-more="
 					quickReportQuery.groupBy.length ? groupPages.hasMore() : data.next !== null
 				"

@@ -89,7 +89,7 @@ export function useStockBrowseController(
   const browseViewMode = useBrowseViewMode(isMobile, {
       phone: "list",
       desktop: "table",
-      phoneOptions: ["list", "card"],
+      phoneOptions: ["list", "card", "table"],
       desktopOptions: ["table", "card"],
       storageKey: computed(() =>
         reference.site && reference.user

@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { provide, ref } from "vue";
+import { browseCardTruncatedKey, useTextOverflow } from "../../composables/useTextOverflow";
+
 const props = withDefaults(
 	defineProps<{
 		rowKey: string;
@@ -11,6 +14,8 @@ const props = withDefaults(
 	{ stale: false },
 );
 const emit = defineEmits<{ open: []; toggle: [] }>();
+const root = ref<HTMLElement>();
+provide(browseCardTruncatedKey, useTextOverflow(root));
 function activate(event: MouseEvent) {
 	const target = event.target;
 	if (
@@ -43,6 +48,7 @@ function updateSelection(event: Event) {
 
 <template>
 	<article
+		ref="root"
 		:data-browse-row="rowKey"
 		:tabindex="selecting ? 0 : -1"
 		:role="selecting ? 'checkbox' : undefined"

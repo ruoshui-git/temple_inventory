@@ -3,33 +3,23 @@ import { nextTick, onMounted, onScopeDispose, ref, watch } from "vue";
 import type { ColumnPreferencesController, DataColumn } from "../../lib/dataTable";
 
 // The 显示字段 trigger and its panel. The panel teleports to body; positioning follows the
-// trigger (or the element passed to open(), e.g. a page's "…" menu item host), and Escape or
-// an outside pointer closes it. showTrigger false mounts only the panel for menu-driven use.
-const props = withDefaults(
-	defineProps<{
-		preferences: ColumnPreferencesController;
-		columns: DataColumn[];
-		showTrigger?: boolean;
-	}>(),
-	{ showTrigger: true },
-);
+// trigger, and Escape or an outside pointer closes it.
+const props = defineProps<{
+	preferences: ColumnPreferencesController;
+	columns: DataColumn[];
+}>();
 
 const open = ref(false);
 const trigger = ref<HTMLButtonElement>();
-const anchorElement = ref<HTMLElement>();
 const panel = ref<HTMLDivElement>();
 const panelStyle = ref<Record<string, string>>({});
-
-function anchorFor() {
-	return anchorElement.value || trigger.value;
-}
 
 function labelFor(id: string) {
 	return props.columns.find((item) => String(item.id) === id)?.label || id;
 }
 
 function positionPanel() {
-	const triggerElement = anchorFor();
+	const triggerElement = trigger.value;
 	const panelElement = panel.value;
 	if (!open.value || !triggerElement || !panelElement) return;
 	const margin = 12;
@@ -61,11 +51,10 @@ function positionPanel() {
 
 function closeSettings(returnFocus = false) {
 	open.value = false;
-	if (returnFocus) void nextTick(() => anchorFor()?.focus());
+	if (returnFocus) void nextTick(() => trigger.value?.focus());
 }
 
-function showSettings(anchor?: HTMLElement) {
-	anchorElement.value = anchor;
+function showSettings() {
 	open.value = true;
 	void nextTick(() => {
 		positionPanel();
@@ -78,12 +67,6 @@ function toggleSettings() {
 	else showSettings();
 }
 
-defineExpose({
-	open(anchor: HTMLElement | undefined) {
-		if (anchor) showSettings(anchor);
-	},
-});
-
 function repositionOpenPanel() {
 	if (open.value) void nextTick(positionPanel);
 }
@@ -94,7 +77,7 @@ function onDocumentPointer(event: PointerEvent) {
 		open.value &&
 		target instanceof Node &&
 		!panel.value?.contains(target) &&
-		!anchorFor()?.contains(target)
+		!trigger.value?.contains(target)
 	)
 		closeSettings();
 }
@@ -153,7 +136,6 @@ onScopeDispose(() => {
 
 <template>
 	<button
-		v-if="showTrigger"
 		ref="trigger"
 		type="button"
 		class="data-table-column-trigger"

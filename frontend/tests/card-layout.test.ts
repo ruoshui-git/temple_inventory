@@ -84,6 +84,28 @@ describe("partitionCardColumns", () => {
     expect(result.fields.map((item) => item.id)).toEqual(["a", "b", "c"]);
   });
 
+  it("lists every visible non-media column in order, uncapped, for the full-row sheet", () => {
+    const visible = [
+      column("photo"),
+      column("name"),
+      column("code"),
+      ...Array.from({ length: 10 }, (_, index) => column(`f${index}`)),
+      column("secret"),
+    ];
+    const result = partitionCardColumns(visible, {
+      media: "photo",
+      title: "name",
+      eyebrow: ["code"],
+      omit: ["secret"],
+    });
+    expect(result.all.map((item) => item.id)).toEqual([
+      "name",
+      "code",
+      ...Array.from({ length: 10 }, (_, index) => `f${index}`),
+    ]);
+    expect(result.fields).toHaveLength(8);
+  });
+
   it("counts fields cut by the limit as overflow", () => {
     const visible = Array.from({ length: 11 }, (_, index) =>
       column(`f${index}`),

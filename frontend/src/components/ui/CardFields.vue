@@ -1,11 +1,14 @@
 <script setup lang="ts">
+import { computed, inject, ref } from "vue";
 import DataCell from "./DataCell.vue";
 import type { DataColumn } from "../../lib/dataTable";
 import { dataColumnKind } from "../../lib/dataTable";
+import { browseCardTruncatedKey } from "../../composables/useTextOverflow";
 
 // Muted `label value` pairs for one browse record, wrapping under a card's quantity or on line 2
 // of a 列表 row. Callers choose the fields with partitionCardColumns. Codes, dates, statuses and
-// chips read on their own, so their labels are kept for assistive technology only.
+// chips read on their own, so their labels are kept for assistive technology only. 更多 opens the
+// full row whenever a count is hidden or a clamped value is cut off.
 const props = withDefaults(
 	defineProps<{
 		fields: DataColumn[];
@@ -15,6 +18,10 @@ const props = withDefaults(
 	}>(),
 	{ variant: "card", overflow: 0 },
 );
+const emit = defineEmits<{ more: [] }>();
+const truncated = inject(browseCardTruncatedKey, ref(false));
+const showMore = computed(() => props.overflow > 0 || truncated.value);
+const moreLabel = computed(() => (props.overflow > 0 ? `+${props.overflow} 项` : "更多"));
 
 function valueOf(column: DataColumn) {
 	return props.row[String(column.id)];
@@ -46,29 +53,45 @@ function fieldClass(column: DataColumn) {
 				:class="fieldClass(column)"
 			>
 				<dt>{{ column.label }}</dt>
-				<dd :title="plainText(valueOf(column))">
+				<dd :title="plainText(valueOf(column))" data-clamp>
 					<slot name="cell" :column="column" :row="row" :value="valueOf(column)">
 						<DataCell :column="column" :value="valueOf(column)" empty-text="—" />
 					</slot>
 				</dd>
 			</div>
 		</dl>
-		<p v-if="overflow > 0" class="card-fields-more">+{{ overflow }} 项</p>
+		<button
+			v-if="showMore"
+			type="button"
+			class="card-fields-more"
+			aria-label="查看全部字段"
+			@click.stop="emit('more')"
+		>
+			{{ moreLabel }}
+		</button>
 	</template>
-	<p v-else-if="fields.length || overflow > 0" class="card-fields-inline">
-		<span
-			v-for="column in fields"
-			:key="String(column.id)"
-			class="card-field-inline"
-			:class="fieldClass(column)"
+	<div v-else-if="fields.length || showMore" class="card-fields-inline">
+		<p class="card-fields-inline-text" data-clamp>
+			<span
+				v-for="column in fields"
+				:key="String(column.id)"
+				class="card-field-inline"
+				:class="fieldClass(column)"
+			>
+				<span class="card-field-label">{{ column.label }}</span>
+				<slot name="cell" :column="column" :row="row" :value="valueOf(column)">
+					<DataCell :column="column" :value="valueOf(column)" empty-text="—" />
+				</slot>
+			</span>
+		</p>
+		<button
+			v-if="showMore"
+			type="button"
+			class="card-fields-more"
+			aria-label="查看全部字段"
+			@click.stop="emit('more')"
 		>
-			<span class="card-field-label">{{ column.label }}</span>
-			<slot name="cell" :column="column" :row="row" :value="valueOf(column)">
-				<DataCell :column="column" :value="valueOf(column)" empty-text="—" />
-			</slot>
-		</span>
-		<span v-if="overflow > 0" class="card-field-inline card-fields-more"
-			>+{{ overflow }} 项</span
-		>
-	</p>
+			{{ moreLabel }}
+		</button>
+	</div>
 </template>

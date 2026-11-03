@@ -16,7 +16,6 @@ import { newReportQuery, type ReportQuery } from "../src/lib/reportContract";
 import { decodeReportQuery } from "../src/lib/reportQuery";
 import { createRecoveryStore } from "../src/lib/browserRecovery";
 import QuickExport from "../src/components/QuickExport.vue";
-import { showPhoneTable } from "./support/phoneTableView";
 import ScanPanel from "../src/features/scanner/ScanPanel.vue";
 const wrappers: VueWrapper[] = [];
 const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
@@ -263,11 +262,12 @@ function service(
     throw new Error(`Unexpected ${endpoint}`);
   });
 }
+/** Switches a phone 列表 to 表格 with the summary-row toggle; desktop already shows the table. */
 async function selectTable(wrapper: VueWrapper) {
-  // Phone record lists switch to the table from the "…" menu; item pages keep the toggle.
-  const toggle = wrapper.find('[aria-label="表格视图"]');
+  const toggle = wrapper.find(
+    '.browse-summary-controls button[aria-label="表格视图"]',
+  );
   if (toggle.exists()) await toggle.trigger("click");
-  else await showPhoneTable(wrapper);
   await flushPromises();
 }
 describe("native operation browsing", () => {

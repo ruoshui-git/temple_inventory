@@ -28,10 +28,11 @@ import BrowseCard from "../../components/ui/BrowseCard.vue";
 import BrowseLoadMore from "../../components/ui/BrowseLoadMore.vue";
 import ItemCard from "../../components/ui/ItemCard.vue";
 import ViewModeToggle from "../../components/ui/ViewModeToggle.vue";
-import ViewModeMenuItem from "../../components/ui/ViewModeMenuItem.vue";
 import ItemGroupLines from "./ItemGroupLines.vue";
 import CardFields from "../../components/ui/CardFields.vue";
 import ColumnSettings from "../../components/ui/ColumnSettings.vue";
+import BrowseEmpty from "../../components/ui/BrowseEmpty.vue";
+import RowFieldsSheet from "../../components/ui/RowFieldsSheet.vue";
 import OperationItemCell from "./OperationItemCell.vue";
 import OperationRecordCell from "./OperationRecordCell.vue";
 import type { BrowseView } from "../../composables/useBrowseViewMode";
@@ -75,12 +76,6 @@ import DetailPopover from "../../components/ui/DetailPopover.vue";
 import UnitValues from "../../components/ui/UnitValues.vue";
 import { stockEffectLabel } from "../../lib/stockEffectLabel";
 const exportMenu = ref<{ open(): void }>();
-const overflowMenu = ref<InstanceType<typeof BrowseOverflowMenu>>();
-const recordColumnSettings = ref<InstanceType<typeof ColumnSettings>>();
-// Phone 单据 settings open from the "…" menu, anchored to its trigger.
-function showRecordColumnSettings() {
-	recordColumnSettings.value?.open(overflowMenu.value?.trigger());
-}
 const props = withDefaults(
 	defineProps<{
 		controller: OperationBrowse;
@@ -147,6 +142,10 @@ const canShowItemCards = computed(
 		!props.records &&
 		(!query.value.groupBy.length ||
 			(query.value.groupBy.length === 1 && query.value.groupBy[0] === "item")),
+);
+// The item DataTable is the 表格 layout, or the only layout for groupings other than item.
+const itemTableMounted = computed(
+	() => !props.records && (!canShowItemCards.value || browseView.value === "table"),
 );
 const services = useOptionalInventoryServices();
 const draftCount = ref(0);
@@ -862,6 +861,29 @@ const itemCardHasCode = computed(() =>
 const itemCardHasCategory = computed(() =>
 	itemCardPartition.value.eyebrow.some((column) => column.id === "category"),
 );
+// Item cards and 列表 rows share one empty message, and the table keeps its own; the status mirrors
+// the DataTable's props so both report the same empty state.
+const itemLayoutEmpty = computed(() => {
+	if (query.value.groupBy.length) {
+		const root = groupRoot.value;
+		return (
+			Boolean(root?.initialized) &&
+			!root?.loading &&
+			!root?.error &&
+			mobileItemGroups.value.length === 0
+		);
+	}
+	const flat = details[flatHistoryItem.value.id];
+	return (
+		result.initialized &&
+		Boolean(flat?.initialized) &&
+		!result.loading &&
+		!result.error &&
+		!flat?.loading &&
+		!flat?.error &&
+		flatItemCardRows.value.length === 0
+	);
+});
 function itemName(row: Record<string, unknown>) {
 	return String(row.item_name || row.item_code || "");
 }
@@ -1168,6 +1190,36 @@ function recordUnitSummary(row: OperationGroup) {
 		.map((value) => formatQuantityWithUnit(Number(value.qty), value.uom))
 		.join(" · ");
 }
+// 更多 opens every field of one row in a sheet; 打开 runs the same handler as the row's own tap.
+const detailsRow = ref<{
+	kind: "item" | "record";
+	title: string;
+	columns: DataColumn[];
+	row: Record<string, unknown>;
+	open: () => void;
+}>();
+function showItemDetails(entry: DataTableRecord, columns: DataColumn[]) {
+	detailsRow.value = {
+		kind: "item",
+		title: itemName(entry.value || {}) || entry.id,
+		columns,
+		row: entry.value || {},
+		open: () => emit("openItem", String(entry.value?.item_code || entry.id)),
+	};
+}
+function showRecordDetails(row: OperationGroup) {
+	detailsRow.value = {
+		kind: "record",
+		title: row.document || row.id,
+		columns: recordRowPartition.value.all,
+		row: row as unknown as Record<string, unknown>,
+		open: () => openedRecord(row),
+	};
+}
+function openDetailsRow() {
+	detailsRow.value?.open();
+	detailsRow.value = undefined;
+}
 function openedSettlement(name: string) {
 	if (!result.stale) emit("openDocument", "Stock Entry", name);
 }
@@ -1199,13 +1251,6 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 				@filter-open="filterSheetOpen = $event"
 			>
 				<template #actions>
-					<ColumnSettings
-						v-if="operationPreferences && recordListLayout"
-						ref="recordColumnSettings"
-						:show-trigger="false"
-						:preferences="operationPreferences"
-						:columns="operationColumns"
-					/>
 					<QuickExport
 						ref="exportMenu"
 						:show-trigger="false"
@@ -1217,17 +1262,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						:sort="exportSort"
 						:active="active"
 					/>
-					<BrowseOverflowMenu ref="overflowMenu">
-						<ViewModeMenuItem
-							v-if="records && isMobile && !query.groupBy.length"
-							v-model="browseView"
-						/>
-						<UiButton
-							v-if="operationPreferences && recordListLayout"
-							icon="sliders"
-							@click="showRecordColumnSettings"
-							>显示字段</UiButton
-						>
+					<BrowseOverflowMenu>
 						<UiButton
 							v-if="isMobile && family === 'loans'"
 							icon="select"
@@ -1380,12 +1415,17 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 				>
 					<template #controls>
 						<ViewModeToggle
-							v-if="records && !isMobile"
+							v-if="records"
 							v-model="browseView"
 							:ariaLabel="
 								family === 'movements' ? '货物流动记录视图' : '借用记录视图'
 							"
 							:options="recordViewOptions"
+						/>
+						<ColumnSettings
+							v-if="operationPreferences && recordListLayout"
+							:preferences="operationPreferences"
+							:columns="operationColumns"
 						/>
 						<ViewModeToggle
 							v-if="canShowItemCards"
@@ -1399,7 +1439,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							:columns="itemColumns"
 						/>
 						<SortControl
-							v-if="showMobileItemCards"
+							v-if="showMobileItemCards && browseView !== 'table'"
 							v-model:field="query.sortBy"
 							v-model:direction="query.sort"
 							:fields="sortFields"
@@ -1423,7 +1463,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 				</BrowseResultSummary>
 			</section>
 			<SkeletonBlock
-				v-if="!records && result.loading && !result.initialized"
+				v-if="!itemTableMounted && result.loading && !result.initialized"
 				variant="lines"
 				:count="5"
 			/>
@@ -1782,7 +1822,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 									@click="activate"
 								>
 									<span class="stock-list-identity">
-										<strong class="stock-list-name">{{
+										<strong class="stock-list-name" data-clamp>{{
 											itemName(entry.value || {})
 										}}</strong>
 										<span
@@ -1807,6 +1847,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 									:fields="itemRowPartition.fields"
 									:row="entry.value || {}"
 									:overflow="itemRowPartition.overflow"
+									@more="showItemDetails(entry, itemRowPartition.all)"
 								>
 									<template #cell="{ column, row }">
 										<OperationItemCell
@@ -1860,6 +1901,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								:fields="itemCardPartition.fields"
 								:row="entry.value || {}"
 								:overflow="itemCardPartition.overflow"
+								@more="showItemDetails(entry, itemCardPartition.all)"
 							>
 								<template #cell="{ column, row }">
 									<OperationItemCell
@@ -1873,6 +1915,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							</CardFields>
 						</ItemCard>
 					</div>
+					<BrowseEmpty v-if="itemCardLayout && itemLayoutEmpty" text="没有匹配的物品" />
 					<BrowseLoadMore
 						v-if="recordListLayout"
 						:has-more="result.next !== null"
@@ -1922,7 +1965,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						"
 					/>
 					<DataTable
-						v-if="!records && (!canShowItemCards || browseView === 'table')"
+						v-if="itemTableMounted"
 						data-browse-scroll="operation-items"
 						ariaLabel="物品流动汇总"
 						table-class="browse-table"
@@ -2178,7 +2221,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							@open="openedRecord(row)"
 						>
 							<div class="operation-record-row-content">
-								<strong>{{ row.document || row.id }}</strong
+								<strong data-clamp>{{ row.document || row.id }}</strong
 								><NativeStatusBadge
 									v-if="recordRowPartition.status"
 									:status="row.docstatus"
@@ -2188,6 +2231,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 									:fields="recordRowPartition.fields"
 									:row="row"
 									:overflow="recordRowPartition.overflow"
+									@more="showRecordDetails(row)"
 								>
 									<template #cell="{ column, row: cellRow }">
 										<OperationRecordCell
@@ -2201,10 +2245,43 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								</CardFields>
 							</div>
 						</BrowseCard>
-						<p v-if="result.initialized && !result.rows.length" class="browse-empty">
-							没有匹配的记录
-						</p>
+						<BrowseEmpty
+							v-if="
+								result.initialized &&
+								!result.loading &&
+								!result.error &&
+								!result.rows.length
+							"
+							text="没有匹配的记录"
+						/>
 					</div>
+					<RowFieldsSheet
+						v-if="detailsRow"
+						:title="detailsRow.title"
+						:columns="detailsRow.columns"
+						:row="detailsRow.row"
+						@close="detailsRow = undefined"
+						@open="openDetailsRow"
+					>
+						<template #cell="{ column, row }">
+							<OperationItemCell
+								v-if="detailsRow?.kind === 'item'"
+								:column="column"
+								:row="row"
+								:controller="c"
+								:family="family"
+								:helpers="cellHelpers"
+							/>
+							<OperationRecordCell
+								v-else
+								:column="column"
+								:row="row"
+								:controller="c"
+								:family="family"
+								:helpers="cellHelpers"
+							/>
+						</template>
+					</RowFieldsSheet>
 					<Overlay
 						v-if="itemGroupOverlay"
 						:title="`${itemGroupOverlay.label} · 明细`"

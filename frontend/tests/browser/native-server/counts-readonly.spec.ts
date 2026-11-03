@@ -69,10 +69,12 @@ async function openingReconciliation(page: Page) {
   return ((await response.json()).message as Array<{ name: string }>)[0];
 }
 
-/** Phone 单据 lists open as rows; the column checks cover the table (switch from the "…" menu). */
+/** Phone 单据 lists open as rows; the column checks cover the table (switch from the summary toggle). */
 async function showPhoneTable(page: Page) {
-  await page.getByRole("button", { name: "更多操作" }).first().click();
-  await page.getByRole("menuitem", { name: "以表格显示", exact: true }).click();
+  await page
+    .locator(".browse-summary-controls")
+    .getByRole("button", { name: "表格视图", exact: true })
+    .click();
 }
 
 async function capture(page: Page, route: string, label: string) {

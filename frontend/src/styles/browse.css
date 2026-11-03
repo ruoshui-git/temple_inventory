@@ -2539,26 +2539,24 @@
 		flex: 0 0 auto;
 		height: 32px;
 	}
+	/* Controls share the label's line while the label keeps 10rem, and wrap under it otherwise. */
 	.browse-summary-line {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr);
-		align-items: start;
+		align-items: center;
 		gap: 4px;
 	}
 	.browse-summary-copy {
-		display: inline;
-		grid-column: 1;
-		grid-row: 1;
+		display: block;
+		flex: 1 1 10rem;
 		min-width: 0;
 	}
+	.browse-result-summary-label-part {
+		white-space: nowrap;
+	}
 	.browse-summary-controls {
-		grid-column: 1;
-		grid-row: 2;
-		justify-self: end;
-		align-self: center;
 		flex: 0 0 auto;
 		flex-wrap: wrap;
 		gap: 4px;
+		margin-inline-start: auto;
 	}
 	.browse-result-summary {
 		flex: 1 1 9rem;
@@ -2607,6 +2605,10 @@
 	}
 	.browse-sort-compact-label {
 		display: inline;
+	}
+	/* Three layout icons leave no room for the direction; the menu and label still name it. */
+	.browse-sort-direction {
+		display: none;
 	}
 	.inventory-surface {
 		padding-block-start: 0;
@@ -2693,7 +2695,7 @@
 	}
 	.browse-summary-controls {
 		gap: 4px;
-		width: 100%;
+		margin-inline-start: auto;
 		justify-content: flex-end;
 	}
 	.browse-sort-control .popup-menu-host {

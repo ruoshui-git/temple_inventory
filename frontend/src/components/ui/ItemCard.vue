@@ -71,9 +71,11 @@ const mediaItem = computed(
 						aria-hidden="true"
 					>
 						· </span
-					><span v-if="code !== undefined" class="item-card-code">{{ code }}</span></span
+					><span v-if="code !== undefined" class="item-card-code" data-clamp>{{
+						code
+					}}</span></span
 				>
-				<button class="item-name" @click="activate">{{ name }}</button>
+				<button class="item-name" data-clamp @click="activate">{{ name }}</button>
 				<slot name="flags" />
 				<div v-if="quantity !== undefined" class="stock-number">
 					<span

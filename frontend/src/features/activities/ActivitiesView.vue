@@ -5,7 +5,7 @@ import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import BrowseChip from "../../components/ui/BrowseChip.vue";
 import { formatSiteDateTime } from "../../lib/nativeTime";
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { nextTableSort } from "../../composables/useArrayTableSort";
 import ActivityEditor from "./ActivityEditor.vue";
 import UiButton from "../../components/ui/UiButton.vue";
@@ -28,9 +28,10 @@ import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
 import BrowseCard from "../../components/ui/BrowseCard.vue";
 import BrowseLoadMore from "../../components/ui/BrowseLoadMore.vue";
 import ViewModeToggle from "../../components/ui/ViewModeToggle.vue";
-import ViewModeMenuItem from "../../components/ui/ViewModeMenuItem.vue";
 import ColumnSettings from "../../components/ui/ColumnSettings.vue";
 import CardFields from "../../components/ui/CardFields.vue";
+import BrowseEmpty from "../../components/ui/BrowseEmpty.vue";
+import RowFieldsSheet from "../../components/ui/RowFieldsSheet.vue";
 import ActivityCell from "./ActivityCell.vue";
 import { partitionCardColumns, ROW_FIELD_LIMIT } from "../../lib/cardLayout";
 import { orderedVisibleColumns } from "../../lib/dataTable";
@@ -53,12 +54,6 @@ import { exportFields } from "../../lib/exportColumns";
 import { sortByUnit, unitLabel } from "../../lib/units";
 import { formatQuantity, formatQuantityWithUnit } from "../../lib/formatQuantity";
 const exportMenu = ref<{ open(): void }>();
-const overflowMenu = ref<InstanceType<typeof BrowseOverflowMenu>>();
-const columnSettings = ref<InstanceType<typeof ColumnSettings>>();
-// Phone 列表 settings open from the "…" menu, anchored to its trigger.
-function showColumnSettings() {
-	columnSettings.value?.open(overflowMenu.value?.trigger());
-}
 const { isMobile } = useResponsiveLayout();
 const activityEditor = ref<InstanceType<typeof ActivityEditor>>();
 const filterSheetOpen = ref(false);
@@ -229,6 +224,24 @@ const rowFields = computed(() =>
 		ROW_FIELD_LIMIT,
 	),
 );
+// 列表 rows are the phone layout for an ungrouped list; the table owns every other case.
+const rowsLayout = computed(
+	() => isMobile.value && view.value === "list" && !report.value.groupBy.length,
+);
+const activityEmptyText = "没有符合条件的活动。可恢复默认筛选或新建活动。";
+// The 更多 sheet's row; cleared when the page is inactive or switches mode, so it never reappears.
+const detailsRow = ref<Record<string, unknown>>();
+watch(
+	() => [props.active, props.mode],
+	() => {
+		detailsRow.value = undefined;
+	},
+);
+function openDetailsRow() {
+	const row = detailsRow.value;
+	detailsRow.value = undefined;
+	if (row) open(String(row.id));
+}
 </script>
 <template>
 	<ReturnToTop :active="props.active" :hidden="isMobile && filterSheetOpen" />
@@ -278,27 +291,10 @@ const rowFields = computed(() =>
 					title="活动"
 					:active="active"
 				/>
-				<BrowseOverflowMenu ref="overflowMenu">
-					<ViewModeMenuItem v-if="isMobile && !report.groupBy.length" v-model="view" />
-					<UiButton
-						v-if="
-							activityPrefs && isMobile && view === 'list' && !report.groupBy.length
-						"
-						icon="sliders"
-						@click="showColumnSettings"
-						>显示字段</UiButton
-					>
+				<BrowseOverflowMenu>
 					<RouterLink :to="{ name: 'activity-types' }">管理活动类型</RouterLink>
 					<UiButton icon="export" @click="exportMenu?.open()">导出</UiButton>
 				</BrowseOverflowMenu>
-				<!-- Phone 列表 settings open from the "…" menu; the table owns its own on desktop. -->
-				<ColumnSettings
-					v-if="activityPrefs && isMobile && view === 'list' && !report.groupBy.length"
-					ref="columnSettings"
-					:show-trigger="false"
-					:preferences="activityPrefs"
-					:columns="activityColumns"
-				/>
 				<BrowseSplitButton
 					label="新建活动"
 					kind="Activity"
@@ -407,38 +403,35 @@ const rowFields = computed(() =>
 			@cancel="cancel"
 		/>
 		<template v-else-if="page === 'activity-list'">
+			<!-- Phones stack the controls under the summary label, so the phone label stays short;
+			     the note that badge counts ignore the date filter is shown on desktop only. -->
 			<BrowseResultSummary
 				v-if="projection.result.snapshot"
-				:label="`${projection.result.total} 个活动 · 标签数字为全部已提交单据，不随日期筛选`"
+				:label="
+					isMobile
+						? `${projection.result.total} 个活动`
+						: `${projection.result.total} 个活动 · 标签数字为全部已提交单据，不随日期筛选`
+				"
 				:metrics="[]"
-				><template v-if="!isMobile" #controls>
+				><template #controls>
 					<ViewModeToggle
 						v-if="!report.groupBy.length"
 						v-model="view"
 						ariaLabel="活动显示方式"
 						:options="viewOptions"
+					/>
+					<ColumnSettings
+						v-if="activityPrefs && rowsLayout"
+						:preferences="activityPrefs"
+						:columns="activityColumns"
 					/> </template
 			></BrowseResultSummary>
 			<SkeletonBlock
-				v-if="
-					isMobile &&
-					!report.groupBy.length &&
-					view === 'list' &&
-					projection.result.loading &&
-					!projection.result.snapshot
-				"
+				v-if="rowsLayout && projection.result.loading && !projection.result.snapshot"
 				variant="list"
 				:rows="5"
 			/>
-			<div
-				v-if="
-					isMobile &&
-					!report.groupBy.length &&
-					view === 'list' &&
-					projection.result.snapshot
-				"
-				class="activity-row-list"
-			>
+			<div v-if="rowsLayout && projection.result.snapshot" class="activity-row-list">
 				<BrowseCard
 					v-for="entry in activityRows"
 					:key="entry.id"
@@ -450,7 +443,7 @@ const rowFields = computed(() =>
 					@open="open(entry.id)"
 				>
 					<div class="activity-row-content">
-						<strong>{{ String(entry.value.title || "") }}</strong
+						<strong data-clamp>{{ String(entry.value.title || "") }}</strong
 						><span
 							v-if="rowFields.status"
 							class="browse-badge"
@@ -464,6 +457,7 @@ const rowFields = computed(() =>
 							:fields="rowFields.fields"
 							:overflow="rowFields.overflow"
 							:row="entry.value"
+							@more="detailsRow = entry.value"
 						>
 							<template #cell="{ column, row }">
 								<ActivityCell
@@ -477,6 +471,33 @@ const rowFields = computed(() =>
 					</div>
 				</BrowseCard>
 			</div>
+			<BrowseEmpty
+				v-if="
+					rowsLayout &&
+					projection.result.snapshot &&
+					!projection.result.loading &&
+					!projection.result.error &&
+					!activityRows.length
+				"
+				:text="activityEmptyText"
+			/>
+			<RowFieldsSheet
+				v-if="detailsRow && rowsLayout"
+				:title="String(detailsRow.title || '')"
+				:columns="rowFields.all"
+				:row="detailsRow"
+				@close="detailsRow = undefined"
+				@open="openDetailsRow"
+			>
+				<template #cell="{ column, row }">
+					<ActivityCell
+						:column="column"
+						:row="row"
+						:type-label="activityTypeLabel"
+						:kind-counts="activityKindCounts"
+					/>
+				</template>
+			</RowFieldsSheet>
 			<BrowseLoadMore
 				v-if="
 					isMobile &&
@@ -539,7 +560,7 @@ const rowFields = computed(() =>
 							: Boolean(projection.mainTable.value?.loading && filtered.length)
 					"
 					:row-attributes="(row) => ({ 'data-browse-row': String(row.id) })"
-					empty-text="没有符合条件的活动。可恢复默认筛选或新建活动。"
+					:empty-text="activityEmptyText"
 					@retry="
 						report.groupBy.length
 							? projection.groups.retry()

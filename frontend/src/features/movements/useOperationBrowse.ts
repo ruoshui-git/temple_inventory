@@ -122,7 +122,7 @@ export function useOperationBrowse(
   const browseViewMode = useBrowseViewMode(isMobile, {
     phone: "list",
     desktop: "table",
-    phoneOptions: props.records ? ["list", "table"] : ["list", "card"],
+    phoneOptions: props.records ? ["list", "table"] : ["list", "card", "table"],
     desktopOptions: props.records ? ["table"] : ["table", "card"],
     storageKey: computed(() =>
       reference.site && reference.user
@@ -177,7 +177,6 @@ export function useOperationBrowse(
     expanded = reactive(new Set<string>()),
     dimension = ref("category");
   let restoring = false,
-    skipNextQueryLoad = false,
     generation = 0,
     disposed = false,
     retryMore = false;
@@ -390,10 +389,6 @@ export function useOperationBrowse(
     () => JSON.stringify(query.value),
     () => {
       if (!restoring) changed(JSON.parse(JSON.stringify(query.value)));
-      if (skipNextQueryLoad) {
-        skipNextQueryLoad = false;
-        return;
-      }
       void load();
     },
     { immediate: true },

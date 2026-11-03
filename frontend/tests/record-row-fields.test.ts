@@ -16,7 +16,14 @@ import { openColumnSettings, showPhoneTable } from "./support/phoneTableView";
 // 列表 rows and the 表格 table of one page share one 显示字段 selection: hiding a field in the
 // panel must remove it from both, and the layout choice must survive a remount.
 const wrappers: VueWrapper[] = [];
-beforeEach(() => localStorage.clear());
+// 显示字段 choices are cached per site and account, so each test gets its own site and no hidden
+// field leaks into the next test.
+let testSite = "record-site";
+let siteSeq = 0;
+beforeEach(() => {
+  localStorage.clear();
+  testSite = `record-site-${++siteSeq}`;
+});
 afterEach(() => {
   wrappers.splice(0).forEach((wrapper) => wrapper.unmount());
   localStorage.clear();
@@ -28,7 +35,7 @@ function referenceData(): ReferenceData {
   const reference = createReferenceData();
   Object.assign(reference, {
     user: "volunteer",
-    site: "record-site",
+    site: testSite,
     siteDate: "2026-10-23",
     units: [{ name: "Nos", label: "个" }],
     activityTypes: [{ value: "TYPE-A", label: "分发", enabled: true }],
@@ -56,7 +63,7 @@ function panelInput(label: string) {
   return item?.querySelector("input") as HTMLInputElement;
 }
 
-/** Hides one field through 显示字段: the table's trigger, or the phone "…" menu item for 列表 rows. */
+/** Hides one field through 显示字段: the inline summary trigger for 列表 rows, or the table's own. */
 async function hideField(wrapper: VueWrapper, label: string) {
   expect(await openColumnSettings(wrapper)).toBe(true);
   expect(panelInput(label)).toBeTruthy();
@@ -69,27 +76,45 @@ async function showTable(wrapper: VueWrapper) {
   expect(await showPhoneTable(wrapper)).toBe(true);
 }
 
+/** Opens the 更多操作 menu, checks that `expected` is in it, and returns every button label shown. */
+async function overflowLabels(wrapper: VueWrapper, expected: string) {
+  const menu = wrapper.get('[aria-label="更多操作"]');
+  await menu.trigger("click");
+  await flushPromises();
+  const labels = [...document.body.querySelectorAll("button")].map(
+    (button) => button.textContent?.trim() ?? "",
+  );
+  expect(labels).toContain(expected);
+  await menu.trigger("click");
+  await flushPromises();
+  return labels;
+}
+
+function countOf(text: string, needle: string) {
+  return text.split(needle).length - 1;
+}
+
 function track(wrapper: VueWrapper) {
   wrappers.push(wrapper);
   return wrapper;
 }
 
-function mountActivities() {
+const activityRow = {
+  id: "ACT-A",
+  title: "活动名称",
+  activity_type: "TYPE-A",
+  start_date: "2026-10-01",
+  status: "Active",
+  modified: "2026-10-20 08:00:00",
+};
+
+function mountActivities(rows: Record<string, unknown>[], navigate = vi.fn()) {
   const reference = referenceData();
   const report = vi.fn(async (query) => ({
     query,
     scope: query.scope,
-    rows: [
-      {
-        id: "ACT-A",
-        title: "活动名称",
-        activity_type: "TYPE-A",
-        start_date: "2026-10-01",
-        status: "Active",
-        modified: "2026-10-20 08:00:00",
-      },
-    ],
-    matched_count: 1,
+    rows,
+    matched_count: rows.length,
     next_start: null,
     table: "metadata",
     columns: [],
@@ -104,7 +129,7 @@ function mountActivities() {
     setup() {
       const controller = useActivitiesController(
         props as never,
-        vi.fn(),
+        navigate,
         vi.fn(),
         vi.fn(),
       );
@@ -146,8 +171,11 @@ function mountActivities() {
   return { root, router };
 }
 
-async function mountActivityPage() {
-  const { root, router } = mountActivities();
+async function mountActivityPage(
+  rows: Record<string, unknown>[] = [activityRow],
+  navigate?: ReturnType<typeof vi.fn>,
+) {
+  const { root, router } = mountActivities(rows, navigate);
   await router.push("/");
   await router.isReady();
   const wrapper = track(mount(root, { global: { plugins: [router] } }));
@@ -223,22 +251,15 @@ describe("活动 browse rows and table share 显示字段", () => {
     expect(headers.some((text) => text.includes("活动名称"))).toBe(true);
   });
 
-  it("moves the phone 列表/表格 switch and 显示字段 into the 更多操作 menu", async () => {
+  it("keeps the phone 表格视图 toggle and 显示字段 in the summary row, not the 更多操作 menu", async () => {
     const phone = await mountActivityPage();
-    expect(phone.find(".browse-summary-controls").exists()).toBe(false);
-    expect(phone.find(".browse-summary-controls button").exists()).toBe(false);
-    expect(phone.find(".stock-view-icons").exists()).toBe(false);
-    expect(phone.find(".data-table-column-trigger").exists()).toBe(false);
-    const menu = phone.get('[aria-label="更多操作"]');
-    await menu.trigger("click");
-    await flushPromises();
-    const labels = [...document.body.querySelectorAll("button")].map((button) =>
-      button.textContent?.trim(),
-    );
-    expect(labels).toContain("以表格显示");
-    expect(labels).toContain("显示字段");
-    await menu.trigger("click");
-    await flushPromises();
+    const controls = phone.get(".browse-summary-controls");
+    expect(controls.find('button[aria-label="表格视图"]').exists()).toBe(true);
+    expect(controls.find(".data-table-column-trigger").exists()).toBe(true);
+    expect(phone.get(".browse-result-summary-label").text()).toBe("1 个活动");
+    const labels = await overflowLabels(phone, "导出");
+    expect(labels).not.toContain("以表格显示");
+    expect(labels).not.toContain("显示字段");
     phone.unmount();
     wrappers.splice(wrappers.indexOf(phone), 1);
 
@@ -246,9 +267,12 @@ describe("活动 browse rows and table share 显示字段", () => {
     const desktop = await mountActivityPage();
     expect(
       desktop
-        .find('.browse-summary-controls button[aria-label="列表视图"]')
+        .find('.browse-summary-controls button[aria-label="表格视图"]')
         .exists(),
     ).toBe(false);
+    expect(desktop.get(".browse-result-summary-label").text()).toContain(
+      "标签数字为全部已提交单据",
+    );
     expect(desktop.find(".activity-row-list").exists()).toBe(false);
     expect(desktop.find(".activity-list-scroll table").exists()).toBe(true);
   });
@@ -284,14 +308,15 @@ describe("盘点记录 rows and table share 显示字段", () => {
     expect(headers.some((text) => text.includes("增加"))).toBe(true);
   });
 
-  it("offers the phone layout switch in the 更多操作 menu and none on desktop", async () => {
+  it("keeps the phone 表格视图 toggle and 显示字段 in the summary row, and no layout toggle on desktop", async () => {
     const phone = mountRecords("counts");
     await flushPromises();
-    expect(
-      phone
-        .find('.browse-summary-controls button[aria-label="列表视图"]')
-        .exists(),
-    ).toBe(false);
+    const controls = phone.get(".browse-summary-controls");
+    expect(controls.find('button[aria-label="表格视图"]').exists()).toBe(true);
+    expect(controls.find(".data-table-column-trigger").exists()).toBe(true);
+    const labels = await overflowLabels(phone, "导出");
+    expect(labels).not.toContain("以表格显示");
+    expect(labels).not.toContain("显示字段");
     expect(await showPhoneTable(phone)).toBe(true);
     expect(phone.find(".native-record-row-list").exists()).toBe(false);
     phone.unmount();
@@ -302,7 +327,7 @@ describe("盘点记录 rows and table share 显示字段", () => {
     await flushPromises();
     expect(
       desktop
-        .find('.browse-summary-controls button[aria-label="列表视图"]')
+        .find('.browse-summary-controls button[aria-label="表格视图"]')
         .exists(),
     ).toBe(false);
   });
@@ -341,15 +366,132 @@ describe("草稿 rows and table share 显示字段", () => {
     expect(table.text()).toContain("继续编辑");
   });
 
+  it("keeps the phone 表格视图 toggle and 显示字段 in the summary row", async () => {
+    const wrapper = mountRecords("drafts");
+    await flushPromises();
+    const controls = wrapper.get(".browse-summary-controls");
+    expect(controls.find('button[aria-label="表格视图"]').exists()).toBe(true);
+    expect(controls.find(".data-table-column-trigger").exists()).toBe(true);
+    const labels = await overflowLabels(wrapper, "刷新");
+    expect(labels).not.toContain("以表格显示");
+    expect(labels).not.toContain("显示字段");
+  });
+
   it("keeps the desktop list without a layout toggle", async () => {
     stubDesktop(true);
     const wrapper = mountRecords("drafts");
     await flushPromises();
     expect(
       wrapper
-        .find('.browse-summary-controls button[aria-label="列表视图"]')
+        .find('.browse-summary-controls button[aria-label="表格视图"]')
         .exists(),
     ).toBe(false);
     expect(wrapper.find(".draft-entry-list").exists()).toBe(true);
+  });
+});
+
+// jsdom has no layout, so every [data-clamp] text reads as cut off and 更多 appears.
+function clampEverything() {
+  Object.defineProperty(HTMLElement.prototype, "scrollHeight", {
+    configurable: true,
+    get: () => 40,
+  });
+  Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+    configurable: true,
+    get: () => 20,
+  });
+}
+
+function clickButton(text: string) {
+  const button = [...document.body.querySelectorAll("button")].find(
+    (element) => element.textContent?.trim() === text,
+  );
+  expect(button, `button ${text}`).toBeTruthy();
+  button?.click();
+}
+
+describe("更多 sheet and empty states in 活动, 草稿 and 盘点记录 rows", () => {
+  beforeEach(() => clampEverything());
+  afterEach(() => {
+    Reflect.deleteProperty(HTMLElement.prototype, "scrollHeight");
+    Reflect.deleteProperty(HTMLElement.prototype, "clientHeight");
+  });
+
+  it("opens every field of a clamped 活动 row in 更多, and 打开 opens the activity", async () => {
+    const navigate = vi.fn();
+    const wrapper = await mountActivityPage(undefined, navigate);
+    await wrapper.get(".activity-row-list .card-fields-more").trigger("click");
+    await flushPromises();
+    const sheet = document.body.querySelector(".row-fields-sheet");
+    expect(sheet?.textContent).toContain("活动类型");
+    expect(sheet?.textContent).toContain("分发");
+    clickButton("打开");
+    await flushPromises();
+    expect(navigate).toHaveBeenCalledWith("detail", "ACT-A");
+    expect(document.body.querySelector(".row-fields-sheet")).toBeNull();
+  });
+
+  it("shows the 活动 empty wording once in phone rows when nothing matches", async () => {
+    const wrapper = await mountActivityPage([]);
+    expect(wrapper.find(".browse-card-item").exists()).toBe(false);
+    expect(
+      countOf(wrapper.text(), "没有符合条件的活动。可恢复默认筛选或新建活动。"),
+    ).toBe(1);
+  });
+
+  it("opens every field of a clamped 草稿 row in 更多, and 打开 opens the draft", async () => {
+    const wrapper = mountRecords("drafts");
+    await flushPromises();
+    await wrapper
+      .get(".draft-entry-row-list .card-fields-more")
+      .trigger("click");
+    await flushPromises();
+    expect(
+      document.body.querySelector(".row-fields-sheet")?.textContent,
+    ).toContain("明细摘要");
+    clickButton("打开");
+    await flushPromises();
+    expect(
+      wrapper.findComponent(NativeRecordsPage).emitted("openDocument")?.[0],
+    ).toEqual(["Stock Reconciliation", "COUNT-A"]);
+  });
+
+  it("shows the 草稿 empty wording once in phone rows and once on desktop", async () => {
+    const phone = mountRecords("drafts", []);
+    await flushPromises();
+    expect(phone.find(".draft-entry-row-list").exists()).toBe(true);
+    expect(countOf(phone.text(), "没有符合条件的草稿。")).toBe(1);
+    phone.unmount();
+    wrappers.splice(wrappers.indexOf(phone), 1);
+
+    stubDesktop(true);
+    const desktop = mountRecords("drafts", []);
+    await flushPromises();
+    expect(desktop.find(".draft-entry-list").exists()).toBe(true);
+    expect(countOf(desktop.text(), "没有符合条件的草稿。")).toBe(1);
+  });
+
+  it("opens every field of a clamped 盘点记录 row in 更多, and 打开 opens the record", async () => {
+    const wrapper = mountRecords("counts");
+    await flushPromises();
+    await wrapper
+      .get(".native-record-row-list .card-fields-more")
+      .trigger("click");
+    await flushPromises();
+    expect(
+      document.body.querySelector(".row-fields-sheet")?.textContent,
+    ).toContain("物品种数");
+    clickButton("打开");
+    await flushPromises();
+    expect(
+      wrapper.findComponent(NativeRecordsPage).emitted("openDocument")?.[0],
+    ).toEqual(["Stock Reconciliation", "COUNT-A"]);
+  });
+
+  it("shows the 盘点记录 empty wording once in phone rows", async () => {
+    const wrapper = mountRecords("counts", []);
+    await flushPromises();
+    expect(wrapper.find(".native-record-row-list").exists()).toBe(true);
+    expect(countOf(wrapper.text(), "没有符合条件的记录")).toBe(1);
   });
 });

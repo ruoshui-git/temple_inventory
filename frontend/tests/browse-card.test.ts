@@ -30,6 +30,24 @@ describe("BrowseCard", () => {
     expect(wrapper.emitted("toggle")).toHaveLength(2);
   });
 
+  it("keeps a field line's 更多 button from opening the row", async () => {
+    const wrapper = mount(BrowseCard, {
+      props: {
+        rowKey: "ITEM-3",
+        selecting: false,
+        selected: false,
+        selectLabel: "选择法器",
+        variant: "row",
+      },
+      slots: {
+        default: () => h("button", { class: "card-fields-more" }, "+2 项"),
+      },
+    });
+    wrappers.push(wrapper);
+    await wrapper.get("button.card-fields-more").trigger("click");
+    expect(wrapper.emitted("open")).toBeUndefined();
+  });
+
   it("opens ordinary cards, ignores nested buttons, and exposes title activation", async () => {
     const wrapper = mount(BrowseCard, {
       props: {

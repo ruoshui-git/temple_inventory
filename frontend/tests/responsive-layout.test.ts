@@ -105,12 +105,14 @@ describe("responsive presentation contract", () => {
     await flushPromises();
     const controller = wrapper.getComponent(StockBrowsePage).vm.controller;
     controller.selected.value = ["ITEM-1"];
-    controller.view.value = "table";
+    controller.view.value = "card";
     const rows = controller.data.rows;
     const requests = call.mock.calls.length;
     media.matches = true;
     media.listener?.({ matches: true } as MediaQueryListEvent);
     await nextTick();
+    // Desktop keeps its own choice (表格 by default) while the phone choice waits.
+    expect(controller.view.value).toBe("table");
     media.matches = false;
     media.listener?.({ matches: false } as MediaQueryListEvent);
     await nextTick();
@@ -119,8 +121,7 @@ describe("responsive presentation contract", () => {
     );
     expect(controller.data.rows).toBe(rows);
     expect(controller.selected.value).toEqual(["ITEM-1"]);
-    // Phones default to 列表; the desktop 表格 choice is not offered there.
-    expect(controller.view.value).toBe("list");
+    expect(controller.view.value).toBe("card");
     expect(call.mock.calls.length).toBe(requests);
     wrapper.unmount();
     expect(media.removed).toBe(true);

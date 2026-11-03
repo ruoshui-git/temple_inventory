@@ -46,6 +46,8 @@ import { formatQuantity } from "../../lib/formatQuantity";
 import { expiryColumnDefinitions, expiryStatusOf } from "./expiryColumns";
 import ExpiryCell from "./ExpiryCell.vue";
 import CardFields from "../../components/ui/CardFields.vue";
+import RowFieldsSheet from "../../components/ui/RowFieldsSheet.vue";
+import BrowseEmpty from "../../components/ui/BrowseEmpty.vue";
 import ColumnSettings from "../../components/ui/ColumnSettings.vue";
 import { orderedVisibleColumns } from "../../lib/dataTable";
 import { partitionCardColumns, ROW_FIELD_LIMIT } from "../../lib/cardLayout";
@@ -293,6 +295,12 @@ function openItem(row: ReportRow) {
 function openBatch(row: ReportRow) {
 	if (!result.stale) emit("openBatch", String(row.batch_no));
 }
+// 更多 opens every field of one batch row; the sheet's 打开 opens the item as the row tap does.
+const detailsRow = ref<ReportRow>();
+function openDetailsRow() {
+	if (detailsRow.value) openItem(detailsRow.value);
+	detailsRow.value = undefined;
+}
 function sortBy(field: ReportQuery["sortBy"]) {
 	const next = nextTableSort(field, query.value.sortBy, query.value.sort);
 	query.value.sortBy = next.field;
@@ -430,7 +438,7 @@ function canExpiryAction() {
 					role="region"
 					aria-label="批次批量操作"
 				>
-					<label v-if="isMobile && !query.groupBy.length" class="browse-select-visible">
+					<label v-if="isMobile && !usesTable" class="browse-select-visible">
 						<input
 							type="checkbox"
 							:checked="allExpiryRowsSelected"
@@ -549,11 +557,11 @@ function canExpiryAction() {
 			@location="(name) => (scope.warehouses = [name])"
 		/>
 		<SkeletonBlock
-			v-if="isMobile && result.loading && !result.initialized"
+			v-if="isMobile && !usesTable && result.loading && !result.initialized"
 			variant="list"
 			:rows="5"
 		/>
-		<p v-if="isMobile && result.error" role="alert">
+		<p v-if="!usesTable && result.error" role="alert">
 			{{ result.error }} <UiButton @click="c.retry">重试</UiButton>
 		</p>
 
@@ -581,7 +589,7 @@ function canExpiryAction() {
 						:columns="expiryColumns"
 					/>
 					<SortControl
-						v-if="isMobile"
+						v-if="isMobile && !usesTable"
 						v-model:field="query.sortBy"
 						v-model:direction="query.sort"
 						:fields="sortFields"
@@ -662,6 +670,7 @@ function canExpiryAction() {
 							:fields="cardPartition.fields"
 							:row="row"
 							:overflow="cardPartition.overflow"
+							@more="detailsRow = row"
 						>
 							<template #cell="{ column, row: cell }">
 								<ExpiryCell
@@ -711,7 +720,9 @@ function canExpiryAction() {
 								@click="activate"
 							>
 								<span class="stock-list-identity">
-									<strong class="stock-list-name">{{ row.item_name }}</strong>
+									<strong class="stock-list-name" data-clamp>{{
+										row.item_name
+									}}</strong>
 									<span
 										v-if="expiryStatus(asRow(row)).label"
 										class="browse-badge"
@@ -732,6 +743,7 @@ function canExpiryAction() {
 								:fields="rowPartition.fields"
 								:row="row"
 								:overflow="rowPartition.overflow"
+								@more="detailsRow = row"
 							>
 								<template #cell="{ column, row: cell }">
 									<ExpiryCell
@@ -872,17 +884,16 @@ function canExpiryAction() {
 						/></span>
 					</template>
 				</DataTable>
-				<p
+				<BrowseEmpty
 					v-if="
-						isMobile &&
+						!usesTable &&
 						result.initialized &&
 						!result.loading &&
 						!result.error &&
 						!result.rows.length
 					"
-				>
-					没有符合条件的批次
-				</p>
+					text="没有符合条件的批次"
+				/>
 				<BrowseLoadMore
 					v-if="!usesTable"
 					:has-more="result.next !== null"
@@ -893,6 +904,27 @@ function canExpiryAction() {
 					@load-more="c.load(true)"
 					@retry="c.load(true, true)"
 				/>
+				<RowFieldsSheet
+					v-if="detailsRow"
+					:title="String(detailsRow.item_name || '')"
+					:columns="cardPartition.all"
+					:row="detailsRow"
+					@close="detailsRow = undefined"
+					@open="openDetailsRow"
+				>
+					<template #cell="{ column, row: cell }">
+						<ExpiryCell
+							:column="column"
+							:row="asRow(cell)"
+							:item="c.item(asRow(cell))"
+							:stale="result.stale"
+							:site-date="reference.siteDate"
+							:warehouses="reference.warehouses"
+							@item="openItem(asRow(cell))"
+							@batch="openBatch(asRow(cell))"
+						/>
+					</template>
+				</RowFieldsSheet>
 
 				<Overlay
 					v-if="analysisOpen"

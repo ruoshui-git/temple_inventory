@@ -31,6 +31,8 @@ import { pendingColumns } from "./pendingColumns";
 import ItemImage from "../../components/ItemImage.vue";
 import UnitText from "../../components/ui/UnitText.vue";
 import CardFields from "../../components/ui/CardFields.vue";
+import RowFieldsSheet from "../../components/ui/RowFieldsSheet.vue";
+import BrowseEmpty from "../../components/ui/BrowseEmpty.vue";
 import ColumnSettings from "../../components/ui/ColumnSettings.vue";
 import PendingCell from "./PendingCell.vue";
 import { partitionCardColumns, ROW_FIELD_LIMIT } from "../../lib/cardLayout";
@@ -140,6 +142,12 @@ const rowPartition = computed(() =>
 const usesTable = computed(() => view.value === "table" || query.value.groupBy.length > 0);
 function asRow(value: Record<string, unknown>) {
 	return value as unknown as ReportRow;
+}
+// 更多 opens every field of one damaged row; the sheet's 打开 opens the item as the row tap does.
+const detailsRow = ref<ReportRow>();
+function openDetailsRow() {
+	if (detailsRow.value) emit("item", String(detailsRow.value.item_code || ""));
+	detailsRow.value = undefined;
 }
 function toggleDamagedRow(row: Record<string, unknown>) {
 	const key = String(row.id);
@@ -311,7 +319,7 @@ watch([() => props.active, isMobile], () => {
 			</template>
 		</BrowseToolbar>
 		<SkeletonBlock
-			v-if="c.report.result.loading && !table?.initialized"
+			v-if="c.report.result.loading && !table?.initialized && !(table && usesTable)"
 			variant="list"
 			:rows="5"
 		/>
@@ -405,6 +413,7 @@ watch([() => props.active, isMobile], () => {
 							:fields="cardPartition.fields"
 							:row="row"
 							:overflow="cardPartition.overflow"
+							@more="detailsRow = row"
 						>
 							<template #cell="{ column, row: cell }">
 								<PendingCell :column="column" :row="asRow(cell)" empty-text="—" />
@@ -447,7 +456,9 @@ watch([() => props.active, isMobile], () => {
 								@click="activate"
 							>
 								<span class="stock-list-identity">
-									<strong class="stock-list-name">{{ row.item_name }}</strong>
+									<strong class="stock-list-name" data-clamp>{{
+										row.item_name
+									}}</strong>
 								</span>
 								<span v-if="rowPartition.hero" class="stock-list-quantity">
 									<strong
@@ -462,6 +473,7 @@ watch([() => props.active, isMobile], () => {
 								:fields="rowPartition.fields"
 								:row="row"
 								:overflow="rowPartition.overflow"
+								@more="detailsRow = row"
 							>
 								<template #cell="{ column, row: cell }">
 									<PendingCell
@@ -474,6 +486,16 @@ watch([() => props.active, isMobile], () => {
 						</template>
 					</BrowseCard>
 				</div>
+				<BrowseEmpty
+					v-if="
+						!usesTable &&
+						table?.initialized &&
+						!table.loading &&
+						!table.error &&
+						!table.rows.length
+					"
+					text="没有符合条件的记录"
+				/>
 				<DataTable
 					v-if="table && usesTable"
 					data-browse-scroll="damaged-table"
@@ -481,6 +503,7 @@ watch([() => props.active, isMobile], () => {
 					table-class="browse-table"
 					:columns="reportColumns"
 					:rows="pendingRows"
+					empty-text="没有符合条件的记录"
 					:column-preferences="reportPrefs"
 					:selection-enabled="c.selecting.value"
 					:selected-keys="c.selected.value"
@@ -564,6 +587,18 @@ watch([() => props.active, isMobile], () => {
 						@retry="c.analysis.loadTable(analysisTable, true)"
 					/>
 				</Overlay>
+				<RowFieldsSheet
+					v-if="detailsRow"
+					:title="String(detailsRow.item_name || detailsRow.item_code || '')"
+					:columns="cardPartition.all"
+					:row="detailsRow"
+					@close="detailsRow = undefined"
+					@open="openDetailsRow"
+				>
+					<template #cell="{ column, row: cell }">
+						<PendingCell :column="column" :row="asRow(cell)" empty-text="—" />
+					</template>
+				</RowFieldsSheet>
 			</div>
 		</div>
 	</section>

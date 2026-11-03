@@ -16,6 +16,8 @@ import FilterRailEdge from "../../components/ui/FilterRailEdge.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
 import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
+import BrowseEmpty from "../../components/ui/BrowseEmpty.vue";
+import RowFieldsSheet from "../../components/ui/RowFieldsSheet.vue";
 import { operationLabels } from "../../lib/presentationLabels";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import { kindIcons } from "../../lib/kindIcons";
@@ -37,7 +39,6 @@ import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
 import BrowseCard from "../../components/ui/BrowseCard.vue";
 import BrowseLoadMore from "../../components/ui/BrowseLoadMore.vue";
 import ViewModeToggle from "../../components/ui/ViewModeToggle.vue";
-import ViewModeMenuItem from "../../components/ui/ViewModeMenuItem.vue";
 import ColumnSettings from "../../components/ui/ColumnSettings.vue";
 import CardFields from "../../components/ui/CardFields.vue";
 import NativeRecordCell from "./NativeRecordCell.vue";
@@ -126,6 +127,7 @@ watch(
 		if (!value) {
 			deleteTarget.value = undefined;
 			localTarget.value = undefined;
+			detailsRow.value = undefined;
 		}
 	},
 );
@@ -342,11 +344,6 @@ function recordValue(row: NativeRecord) {
 const groupedCounts = computed(() => props.mode === "counts" && query.value.groupBy.length > 0);
 const rowsLayout = computed(() => isMobile.value && view.value === "list" && !groupedCounts.value);
 const layoutLabel = props.mode === "drafts" ? "草稿显示方式" : "盘点记录显示方式";
-const overflowMenu = ref<InstanceType<typeof BrowseOverflowMenu>>();
-const columnSettings = ref<InstanceType<typeof ColumnSettings>>();
-function showColumnSettings() {
-	columnSettings.value?.open(overflowMenu.value?.trigger());
-}
 // A 列表 row shows the same visible fields, in the same order, as the table; actions never do.
 const recordRowFields = computed(() =>
 	partitionCardColumns(
@@ -355,6 +352,16 @@ const recordRowFields = computed(() =>
 		ROW_FIELD_LIMIT,
 	),
 );
+const draftEmptyText = "没有符合条件的草稿。";
+// Counts keep one wording in the table and in the rows.
+const countsEmptyText = "没有符合条件的记录";
+// The 更多 sheet's row; cleared when the page goes inactive, so it never reappears unasked.
+const detailsRow = ref<Record<string, unknown>>();
+function openDetailsRow() {
+	const row = detailsRow.value;
+	detailsRow.value = undefined;
+	if (row) openRecordRow(row);
+}
 </script>
 <template>
 	<ReturnToTop :active="active" :hidden="isMobile && filterSheetOpen" />
@@ -373,14 +380,7 @@ const recordRowFields = computed(() =>
 			"
 		>
 			<template #actions>
-				<BrowseOverflowMenu ref="overflowMenu">
-					<ViewModeMenuItem v-if="isMobile" v-model="view" />
-					<UiButton
-						v-if="tablePrefs && rowsLayout"
-						icon="sliders"
-						@click="showColumnSettings"
-						>显示字段</UiButton
-					>
+				<BrowseOverflowMenu>
 					<UiButton
 						@click="
 							c.load();
@@ -509,14 +509,7 @@ const recordRowFields = computed(() =>
 					title="单据"
 					:active="active"
 				/>
-				<BrowseOverflowMenu ref="overflowMenu">
-					<ViewModeMenuItem v-if="isMobile && !query.groupBy.length" v-model="view" />
-					<UiButton
-						v-if="tablePrefs && rowsLayout"
-						icon="sliders"
-						@click="showColumnSettings"
-						>显示字段</UiButton
-					>
+				<BrowseOverflowMenu>
 					<UiButton
 						@click="
 							c.load();
@@ -672,22 +665,19 @@ const recordRowFields = computed(() =>
 						: `${total} 份记录`
 			"
 			:metrics="[]"
-			><template v-if="!isMobile" #controls>
+			><template #controls>
 				<ViewModeToggle
 					v-if="!groupedCounts"
 					v-model="view"
 					:ariaLabel="layoutLabel"
 					:options="viewOptions"
+				/>
+				<ColumnSettings
+					v-if="tablePrefs && rowsLayout"
+					:preferences="tablePrefs"
+					:columns="tableColumns"
 				/> </template
 		></BrowseResultSummary>
-		<!-- Phone 列表 settings open from the "…" menu; the table owns its own on desktop. -->
-		<ColumnSettings
-			v-if="tablePrefs && rowsLayout"
-			ref="columnSettings"
-			:show-trigger="false"
-			:preferences="tablePrefs"
-			:columns="tableColumns"
-		/>
 		<p v-if="routeError" class="utility-error" role="alert">{{ routeError }}</p>
 		<div v-else-if="mode === 'drafts'" class="drafts-browser">
 			<p class="drafts-explainer">草稿单据已保存到系统；浏览器暂存只保存在当前设备。</p>
@@ -791,10 +781,11 @@ const recordRowFields = computed(() =>
 							>
 						</div>
 					</li>
-					<li v-if="initialized && !draftEntries.length" class="browse-empty">
-						没有符合条件的草稿。
-					</li>
 				</ul>
+				<BrowseEmpty
+					v-if="!isMobile && initialized && !loading && !error && !draftEntries.length"
+					:text="draftEmptyText"
+				/>
 				<div v-else-if="rowsLayout" class="draft-entry-row-list">
 					<BrowseCard
 						v-for="entry in draftTableRows"
@@ -807,7 +798,7 @@ const recordRowFields = computed(() =>
 						@open="openRecordRow(entry.value)"
 					>
 						<div class="draft-entry-row-content">
-							<strong>{{ String(entry.value.document || "") }}</strong>
+							<strong data-clamp>{{ String(entry.value.document || "") }}</strong>
 							<NativeRecordCell
 								v-if="recordRowFields.status"
 								:column="recordRowFields.status"
@@ -820,6 +811,7 @@ const recordRowFields = computed(() =>
 								:fields="recordRowFields.fields"
 								:overflow="recordRowFields.overflow"
 								:row="entry.value"
+								@more="detailsRow = entry.value"
 							>
 								<template #cell="{ column, row }">
 									<NativeRecordCell
@@ -833,9 +825,10 @@ const recordRowFields = computed(() =>
 							</CardFields>
 						</div>
 					</BrowseCard>
-					<p v-if="initialized && !draftEntries.length" class="browse-empty">
-						没有符合条件的草稿。
-					</p>
+					<BrowseEmpty
+						v-if="initialized && !loading && !error && !draftEntries.length"
+						:text="draftEmptyText"
+					/>
 				</div>
 				<BrowseLoadMore
 					v-if="isMobile && rowsLayout"
@@ -920,7 +913,7 @@ const recordRowFields = computed(() =>
 							@open="open(row)"
 						>
 							<div class="native-record-row-content">
-								<strong>{{ row.document }}</strong>
+								<strong data-clamp>{{ row.document }}</strong>
 								<NativeRecordCell
 									v-if="recordRowFields.status"
 									:column="recordRowFields.status"
@@ -932,6 +925,7 @@ const recordRowFields = computed(() =>
 									:fields="recordRowFields.fields"
 									:overflow="recordRowFields.overflow"
 									:row="recordValue(row)"
+									@more="detailsRow = recordValue(row)"
 								>
 									<template #cell="{ column, row: cellRow }">
 										<NativeRecordCell
@@ -944,9 +938,10 @@ const recordRowFields = computed(() =>
 								</CardFields>
 							</div>
 						</BrowseCard>
-						<p v-if="initialized && !rows.length" class="browse-empty">
-							没有符合条件的盘点记录。
-						</p>
+						<BrowseEmpty
+							v-if="initialized && !loading && !error && !rows.length"
+							:text="countsEmptyText"
+						/>
 					</div>
 					<BrowseLoadMore
 						v-if="mode === 'counts' && isMobile && rowsLayout"
@@ -999,7 +994,7 @@ const recordRowFields = computed(() =>
 								'data-browse-row': `${String(row.doctype)}:${String(row.document)}`,
 							})
 						"
-						empty-text="没有符合条件的记录"
+						:empty-text="countsEmptyText"
 						@sort="
 							(field) => {
 								query.sortBy = field as ReportQuery['sortBy'];
@@ -1038,6 +1033,24 @@ const recordRowFields = computed(() =>
 				</div>
 			</div>
 		</template>
+		<RowFieldsSheet
+			v-if="detailsRow && rowsLayout"
+			:title="String(detailsRow.document || '')"
+			:columns="recordRowFields.all"
+			:row="detailsRow"
+			@close="detailsRow = undefined"
+			@open="openDetailsRow"
+		>
+			<template #cell="{ column, row }">
+				<NativeRecordCell
+					:column="column"
+					:row="row"
+					:mode="mode"
+					:timezone="c.reference.timezone"
+					:local-supported="c.localSupported"
+				/>
+			</template>
+		</RowFieldsSheet>
 		<Overlay
 			v-if="deleteTarget && active"
 			title="删除这份草稿单据？"

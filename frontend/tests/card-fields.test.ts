@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
 import { mount, type VueWrapper } from "@vue/test-utils";
-import { h } from "vue";
+import { h, ref } from "vue";
 import CardFields from "../src/components/ui/CardFields.vue";
 import DataCell from "../src/components/ui/DataCell.vue";
+import { browseCardTruncatedKey } from "../src/composables/useTextOverflow";
 import type { DataColumn } from "../src/lib/dataTable";
 
 const wrappers: VueWrapper[] = [];
@@ -119,6 +120,53 @@ describe("CardFields", () => {
     expect(spans[0]!.text()).toContain("主库");
     expect(spans[2]!.text()).toContain("—");
     expect(wrapper.text()).toContain("+2 项");
+  });
+
+  it("emits more from the overflow button and keeps it out of the clamped text", async () => {
+    const wrapper = mount(CardFields, {
+      props: { fields, row, variant: "row", overflow: 2 },
+    });
+    wrappers.push(wrapper);
+    const button = wrapper.get("button.card-fields-more");
+    expect(button.text()).toBe("+2 项");
+    expect(button.attributes("aria-label")).toBe("查看全部字段");
+    expect(
+      wrapper.get(".card-fields-inline-text").find("button").exists(),
+    ).toBe(false);
+    await button.trigger("click");
+    expect(wrapper.emitted("more")).toHaveLength(1);
+  });
+
+  it("offers 更多 on a truncated card field line", () => {
+    const wrapper = mount(CardFields, {
+      props: { fields, row, variant: "row" },
+      global: { provide: { [browseCardTruncatedKey as symbol]: ref(true) } },
+    });
+    wrappers.push(wrapper);
+    expect(wrapper.get("button.card-fields-more").text()).toBe("更多");
+  });
+
+  it("offers 更多 on a truncated card, and +N 项 when fields are hidden", async () => {
+    const truncated = mount(CardFields, {
+      props: { fields, row },
+      global: { provide: { [browseCardTruncatedKey as symbol]: ref(true) } },
+    });
+    wrappers.push(truncated);
+    expect(truncated.get("button.card-fields-more").text()).toBe("更多");
+    const hidden = mount(CardFields, { props: { fields, row, overflow: 3 } });
+    wrappers.push(hidden);
+    expect(hidden.get("button.card-fields-more").text()).toBe("+3 项");
+    await hidden.get("button.card-fields-more").trigger("click");
+    expect(hidden.emitted("more")).toHaveLength(1);
+  });
+
+  it("renders no overflow button when nothing is hidden or clamped", () => {
+    const wrapper = mount(CardFields, {
+      props: { fields, row, variant: "row" },
+    });
+    wrappers.push(wrapper);
+    expect(wrapper.find("button").exists()).toBe(false);
+    expect(wrapper.get(".card-fields-inline").text()).toContain("主库");
   });
 
   it("uses a slot override for each cell", () => {

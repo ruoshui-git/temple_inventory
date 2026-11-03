@@ -11,6 +11,7 @@ import {
 } from "../src/services/contracts";
 import type { StockItem } from "../src/lib/stockPresentation";
 import { RouterLinkStub } from "./support/RouterLinkStub";
+import BrowseLoadMore from "../src/components/ui/BrowseLoadMore.vue";
 
 // Each test gets its own site so column preferences cached by account and site stay isolated.
 let siteSequence = 0;
@@ -209,12 +210,12 @@ describe("stock card fields", () => {
     expect(cardLabels(wrapper)).toContain("借出");
   });
 
-  it("offers 列表 and 卡片 on phones, 表格 and 卡片 on desktops", async () => {
+  it("offers 列表, 卡片 and 表格 on phones, 表格 and 卡片 on desktops", async () => {
     viewport(false);
     const phone = await mountStock(`site-${++siteSequence}`);
     expect(
       phone.findAll(".stock-view-icons button").map((button) => button.text()),
-    ).toEqual(["列表", "卡片"]);
+    ).toEqual(["列表", "卡片", "表格"]);
     phone.unmount();
     wrappers.splice(wrappers.indexOf(phone), 1);
 
@@ -245,5 +246,96 @@ describe("stock card fields", () => {
     const second = await mountStock(site);
     expect(second.findAll(".stock-card")).toHaveLength(1);
     expect(second.find(".stock-list-row").exists()).toBe(false);
+  });
+});
+
+// jsdom has no layout: every clamped line reads as cut off, so 更多 shows on each row.
+function clampedLines() {
+  vi.spyOn(Element.prototype, "scrollHeight", "get").mockReturnValue(40);
+  vi.spyOn(Element.prototype, "clientHeight", "get").mockReturnValue(20);
+}
+
+function layoutButton(wrapper: VueWrapper, label: string) {
+  return wrapper.get(`button[aria-label="${label}视图"]`).trigger("click");
+}
+
+function openedItems(wrapper: VueWrapper) {
+  return wrapper.findComponent(StockBrowsePage).emitted("openItem");
+}
+
+describe("stock empty states and layouts", () => {
+  it.each([
+    ["phone 列表", false, undefined],
+    ["phone 卡片", false, "卡片"],
+    ["desktop 卡片", true, "卡片"],
+    ["desktop 表格", true, undefined],
+    ["phone 表格", false, "表格"],
+  ])(
+    "shows the empty panel exactly once in %s",
+    async (_name, desktop, view) => {
+      viewport(desktop);
+      const wrapper = await mountStock(`site-${++siteSequence}`, []);
+      if (view) await layoutButton(wrapper, view);
+      await flushPromises();
+      expect(wrapper.text().split("没有找到匹配的物品").length - 1).toBe(1);
+    },
+  );
+
+  it("mounts the DataTable on phones in 表格 and drops the 列表 rows and load-more", async () => {
+    viewport(false);
+    const wrapper = await mountStock(`site-${++siteSequence}`);
+    expect(wrapper.find(".stock-list-row").exists()).toBe(true);
+    await layoutButton(wrapper, "表格");
+    await flushPromises();
+    expect(wrapper.find(".data-table").exists()).toBe(true);
+    expect(wrapper.find(".stock-list-row").exists()).toBe(false);
+    expect(wrapper.find(".stock-view-icons").exists()).toBe(true);
+    expect(wrapper.findComponent(BrowseLoadMore).exists()).toBe(false);
+  });
+});
+
+describe("stock 更多 sheet", () => {
+  beforeEach(clampedLines);
+  afterEach(() => vi.restoreAllMocks());
+
+  it("lists every visible field of a phone row, and 打开 opens the same item as the row", async () => {
+    viewport(false);
+    const wrapper = await mountStock(`site-${++siteSequence}`);
+    await wrapper
+      .get(".stock-list-row button.card-fields-more")
+      .trigger("click");
+    await flushPromises();
+    expect(openedItems(wrapper)).toBeUndefined();
+    const labels = () =>
+      Array.from(document.querySelectorAll(".row-fields-sheet dt")).map(
+        (dt) => dt.textContent,
+      );
+    expect(labels()).toEqual(
+      expect.arrayContaining(["物品名称", "物品编号", "可用数量"]),
+    );
+    expect(labels()).not.toContain("借出");
+    expect(document.querySelector(".row-fields-sheet")?.textContent).toContain(
+      "大米",
+    );
+    const open = Array.from(document.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "打开",
+    );
+    open!.click();
+    await flushPromises();
+    expect(openedItems(wrapper)).toEqual([["ITEM-A"]]);
+    expect(document.querySelector(".row-fields-sheet")).toBeNull();
+    await wrapper.get(".stock-list-open").trigger("click");
+    expect(openedItems(wrapper)).toEqual([["ITEM-A"], ["ITEM-A"]]);
+  });
+
+  it("opens from a desktop card's 更多 without opening the item", async () => {
+    viewport(true);
+    const wrapper = await mountStock(`site-${++siteSequence}`);
+    await layoutButton(wrapper, "卡片");
+    await flushPromises();
+    await wrapper.get(".stock-card button.card-fields-more").trigger("click");
+    await flushPromises();
+    expect(openedItems(wrapper)).toBeUndefined();
+    expect(document.querySelector(".row-fields-sheet")).not.toBeNull();
   });
 });

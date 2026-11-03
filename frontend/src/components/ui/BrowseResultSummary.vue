@@ -8,6 +8,8 @@ const props = defineProps<{
 	metrics: QuantityMetric[];
 	loading?: boolean;
 }>();
+// Phones break the label between its " · " parts, never inside one ("9 笔记录").
+const labelParts = computed(() => props.label.split(" · "));
 const expanded = ref(false);
 const panelId = `browse-quantity-summary-${useId()}`;
 const entries = computed(() =>
@@ -33,7 +35,12 @@ const accessibleSummary = computed(() => `${props.label}，${entries.value.join(
 	<div class="browse-result-summary">
 		<div class="browse-summary-line">
 			<div class="browse-summary-copy">
-				<strong class="browse-result-summary-label">{{ label }}</strong>
+				<strong class="browse-result-summary-label"
+					><template v-for="(part, index) in labelParts" :key="index"
+						><template v-if="index"> · </template
+						><span class="browse-result-summary-label-part">{{ part }}</span></template
+					></strong
+				>
 				<button
 					class="browse-result-summary-trigger"
 					type="button"

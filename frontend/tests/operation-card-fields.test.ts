@@ -94,14 +94,72 @@ function service() {
   });
 }
 
-function mountPage(records: boolean) {
+/** Zero matches for every read, so each layout shows its empty state. */
+function emptyService() {
+  return vi.fn(async (endpoint: string) => {
+    if (endpoint === "browse.operation_page")
+      return {
+        rows: [],
+        query: newReportQuery("movements"),
+        matched_count: 0,
+        next_start: null,
+        snapshot: "2026-10-16 10:00:00",
+        summary: {
+          item_count: 0,
+          document_count: 0,
+          category_count: 0,
+          allocation_count: 0,
+        },
+        totals: [],
+        analysis: {},
+      };
+    if (
+      endpoint === "browse.movement_history" ||
+      endpoint === "browse.operation_contributions"
+    )
+      return {
+        rows: [],
+        columns: [],
+        matched_count: 0,
+        next_start: null,
+        history_complete: true,
+      };
+    return service()(endpoint);
+  });
+}
+
+/** Makes every [data-clamp] value report cut-off text, as a narrow phone does for long names. */
+function clampedText() {
+  Object.defineProperty(HTMLElement.prototype, "scrollHeight", {
+    configurable: true,
+    get(this: HTMLElement) {
+      return this.hasAttribute("data-clamp") ? 40 : 0;
+    },
+  });
+  Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+    configurable: true,
+    get: () => 20,
+  });
+  return () => {
+    Reflect.deleteProperty(HTMLElement.prototype, "scrollHeight");
+    Reflect.deleteProperty(HTMLElement.prototype, "clientHeight");
+  };
+}
+
+function countText(wrapper: VueWrapper, text: string) {
+  return wrapper.text().split(text).length - 1;
+}
+
+function mountPage(
+  records: boolean,
+  call: ReturnType<typeof vi.fn> = service(),
+) {
   const reference = createReferenceData();
   Object.assign(reference, {
     site: "unit-site",
     user: "volunteer",
     operations: { Return: true },
   });
-  const call = service();
   const root = defineComponent({
     setup() {
       provideInventoryServices(
@@ -168,23 +226,27 @@ async function hideColumn(wrapper: VueWrapper, label: string) {
 }
 
 describe("operation browse layouts", () => {
-  it("moves phone record 列表/表格 into the 更多操作 menu and shows no layout toggle on desktop records", async () => {
+  it("keeps phone record 列表/表格 and 显示字段 in the summary row, not the 更多操作 menu", async () => {
     viewport(false);
     const phone = await settle(mountPage(true));
-    expect(hasToggle(phone, "货物流动记录视图")).toBe(false);
+    expect(toggleLabels(phone, "货物流动记录视图")).toEqual(["列表", "表格"]);
+    expect(
+      phone
+        .find('.browse-summary-controls button[aria-label="表格视图"]')
+        .exists(),
+    ).toBe(true);
     expect(
       phone
         .find(".browse-summary-controls .data-table-column-trigger")
         .exists(),
-    ).toBe(false);
+    ).toBe(true);
     await phone.get('[aria-label="更多操作"]').trigger("click");
     await flushPromises();
     const menuItems = [...document.body.querySelectorAll("button")].map(
       (button) => button.textContent?.trim(),
     );
-    expect(menuItems).toEqual(
-      expect.arrayContaining(["以表格显示", "显示字段"]),
-    );
+    expect(menuItems).not.toContain("以表格显示");
+    expect(menuItems).not.toContain("显示字段");
     await phone.get('[aria-label="更多操作"]').trigger("click");
     await flushPromises();
     expect(phone.find(".operation-record-list").exists()).toBe(true);
@@ -201,7 +263,11 @@ describe("operation browse layouts", () => {
   it("offers 列表/卡片 for phone items and 表格/卡片 on desktop", async () => {
     viewport(false);
     const phone = await settle(mountPage(false));
-    expect(toggleLabels(phone, "物品汇总视图")).toEqual(["列表", "卡片"]);
+    expect(toggleLabels(phone, "物品汇总视图")).toEqual([
+      "列表",
+      "卡片",
+      "表格",
+    ]);
     expect(
       phone.get('[aria-label="列表视图"]').attributes("aria-pressed"),
     ).toBe("true");
@@ -219,6 +285,96 @@ describe("operation browse layouts", () => {
     expect(
       desktop.get('[aria-label="表格视图"]').attributes("aria-pressed"),
     ).toBe("true");
+  });
+
+  it("shows the phone item table in place of the 列表 rows", async () => {
+    viewport(false);
+    const phone = await settle(mountPage(false));
+    await phone
+      .get('.browse-summary-controls button[aria-label="表格视图"]')
+      .trigger("click");
+    await flushPromises();
+    expect(phone.find("table").exists()).toBe(true);
+    expect(phone.find(".operation-item-list").exists()).toBe(false);
+    expect(phone.find(".stock-list-row").exists()).toBe(false);
+    expect(phone.find(".browse-load-more").exists()).toBe(false);
+  });
+
+  it("shows the item empty message once in every item layout", async () => {
+    const cases = [
+      { desktop: false, layout: "列表视图" },
+      { desktop: false, layout: "卡片视图" },
+      { desktop: true, layout: "卡片视图" },
+      { desktop: true, layout: "表格视图" },
+    ];
+    for (const { desktop, layout } of cases) {
+      viewport(desktop);
+      const wrapper = await settle(mountPage(false, emptyService()));
+      await wrapper
+        .get(`.browse-summary-controls button[aria-label="${layout}"]`)
+        .trigger("click");
+      await flushPromises();
+      expect(countText(wrapper, "没有匹配的物品"), layout).toBe(1);
+      // The table keeps its own empty row; the other layouts use BrowseEmpty.
+      expect(wrapper.findAll(".browse-empty"), layout).toHaveLength(
+        layout === "表格视图" ? 0 : 1,
+      );
+      wrapper.unmount();
+      wrappers.splice(wrappers.indexOf(wrapper), 1);
+    }
+  });
+
+  it("shows the record empty message once in 列表 and in the table", async () => {
+    viewport(false);
+    const phone = await settle(mountPage(true, emptyService()));
+    expect(countText(phone, "没有匹配的记录")).toBe(1);
+    expect(phone.findAll(".browse-empty")).toHaveLength(1);
+    phone.unmount();
+    wrappers.splice(wrappers.indexOf(phone), 1);
+
+    viewport(true);
+    const desktop = await settle(mountPage(true, emptyService()));
+    expect(countText(desktop, "没有匹配的记录")).toBe(1);
+    expect(desktop.findAll(".browse-empty")).toHaveLength(0);
+  });
+
+  it("opens every field from 更多 and 打开 runs the row's own open", async () => {
+    const restore = clampedText();
+    try {
+      viewport(false);
+      const items = await settle(mountPage(false));
+      await items.get(".stock-list-row .card-fields-more").trigger("click");
+      await flushPromises();
+      const sheet = document.body.querySelector(".row-fields-sheet");
+      expect(sheet?.textContent).toContain("ITEM-A");
+      const open = [...document.body.querySelectorAll("button")].find(
+        (button) => button.textContent?.trim() === "打开",
+      );
+      open!.click();
+      await flushPromises();
+      expect(
+        items.findComponent(OperationBrowsePage).emitted("openItem"),
+      ).toEqual([["ITEM-A"]]);
+      expect(document.body.querySelector(".row-fields-sheet")).toBeNull();
+      items.unmount();
+      wrappers.splice(wrappers.indexOf(items), 1);
+
+      const records = await settle(mountPage(true));
+      await records
+        .get(".operation-record-list .card-fields-more")
+        .trigger("click");
+      await flushPromises();
+      const recordOpen = [...document.body.querySelectorAll("button")].find(
+        (button) => button.textContent?.trim() === "打开",
+      );
+      recordOpen!.click();
+      await flushPromises();
+      expect(
+        records.findComponent(OperationBrowsePage).emitted("openDocument"),
+      ).toEqual([["Stock Entry", "STE-RECORD-1"]]);
+    } finally {
+      restore();
+    }
   });
 
   it("keeps the chosen layout for each page across remounts", async () => {
