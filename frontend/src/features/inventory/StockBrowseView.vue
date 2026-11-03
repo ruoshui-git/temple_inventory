@@ -28,7 +28,7 @@ import AsOfFilter from "../../components/ui/AsOfFilter.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import FilterRailEdge from "../../components/ui/FilterRailEdge.vue";
-import { compactGroupSummary } from "../../lib/groupSummary";
+import GroupTotals, { type GroupTotalMetric } from "../../components/ui/GroupTotals.vue";
 import ItemImage from "../../components/ItemImage.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import ScanPanel from "../scanner/ScanPanel.vue";
@@ -174,20 +174,23 @@ function groupNumber(value: unknown) {
 	const quantity = Number(value || 0);
 	return `${quantity < 0 ? "−" : ""}${formatQuantity(Math.abs(quantity))}`;
 }
-function groupSummary(group: DataTableGroup) {
-	const units = Array.isArray(group.value?.unit_totals)
+function groupMetrics(group: DataTableGroup): GroupTotalMetric[] {
+	const totals = Array.isArray(group.value?.unit_totals)
 		? (group.value.unit_totals as Record<string, unknown>[])
 		: [];
-	const quantity = ["available", "loaned", "damaged", "stock_qty"].flatMap((key) =>
-		units.map(
-			(row) =>
-				`${key === "available" ? "可用" : key === "loaned" ? "借出" : key === "damaged" ? "损坏" : "合计"} ${groupNumber(row[key])} ${unitLabel(String(row.stock_uom || ""))}`,
-		),
-	);
-	return quantity.join(" · ");
-}
-function groupSummaryDisplay(group: DataTableGroup) {
-	return compactGroupSummary(groupSummary(group));
+	return [
+		["available", "可用"],
+		["loaned", "借出"],
+		["damaged", "损坏"],
+		["stock_qty", "合计"],
+	].map(([field, label]) => ({
+		key: field,
+		label,
+		entries: totals.map((row) => ({
+			uom: String(row.stock_uom || ""),
+			qty: Number(row[field] || 0),
+		})),
+	}));
 }
 function groupUnitValues(group: DataTableGroup, field: string) {
 	const totals = Array.isArray(group.value?.unit_totals)
@@ -675,17 +678,20 @@ function acceptBrowseLocation(name: string) {
 								class="stock-card-group"
 								:class="{ 'is-nested': section.group.depth > 1 }"
 							>
-								<button
-									class="stock-card-group-heading"
-									:aria-expanded="section.group.expanded"
-									@click="groupPages.toggleGroup(section.group.id)"
-								>
-									<strong>{{ section.group.label }}</strong>
-									<span>{{ section.group.count }} 项</span>
-									<span class="stock-card-group-summary">{{
-										groupSummaryDisplay(section.group)
-									}}</span>
-								</button>
+								<div class="stock-card-group-header">
+									<button
+										class="stock-card-group-heading"
+										:aria-expanded="section.group.expanded"
+										@click="groupPages.toggleGroup(section.group.id)"
+									>
+										<strong>{{ section.group.label }}</strong>
+										<span>{{ section.group.count }} 项</span>
+									</button>
+									<GroupTotals
+										class="stock-card-group-summary"
+										:metrics="groupMetrics(section.group)"
+									/>
+								</div>
 								<div v-if="section.group.error" class="stock-card-group-actions">
 									<UiButton @click="groupPages.retry(section.group.id)"
 										>重试</UiButton
@@ -1056,12 +1062,7 @@ function acceptBrowseLocation(name: string) {
 							</template>
 							<template #group="{ group }">
 								<div class="report-group-details">
-									<span
-										role="note"
-										:title="groupSummary(group)"
-										:aria-label="groupSummary(group)"
-										>{{ groupSummaryDisplay(group) }}</span
-									>
+									<GroupTotals :metrics="groupMetrics(group)" />
 									<UiButton
 										v-if="group.error"
 										@click="groupPages.retry(group.id)"

@@ -426,4 +426,99 @@ describe("inventory grouped table", () => {
       controller.selectedActions.value.map((action) => action.kind),
     ).not.toContain("Return");
   });
+
+  it("keeps grouped card totals beside the group toggle, with +N listing every metric", async () => {
+    const call = vi.fn(async (endpoint: string) => {
+      if (endpoint === "browse.inventory_page")
+        return {
+          rows: [
+            { code: "ITEM-1", name: "Noodles", available: 4, locations: [] },
+          ],
+          matched_count: 1,
+          next_start: null,
+          summary: [],
+          snapshot: "now",
+          analysis: { category: [], location: [] },
+        };
+      if (endpoint === "temple_inventory.projections.group_page")
+        return {
+          rows: [
+            {
+              id: "category-food",
+              row_grain: "group",
+              group_path: ["Food"],
+              group_depth: 1,
+              group_label: "Food",
+              has_children: true,
+              unit_totals: [
+                {
+                  stock_uom: "Nos",
+                  available: 4,
+                  loaned: 2,
+                  damaged: 0,
+                  stock_qty: 6,
+                },
+              ],
+              item_count: 1,
+              row_count: 1,
+              available: 4,
+            },
+          ],
+          matched_count: 1,
+          next_start: null,
+        };
+      if (endpoint === "table_preferences.get_column_preferences")
+        return { order: [], hidden: [] };
+      if (endpoint === "table_preferences.get_presentation_preference")
+        return true;
+      throw new Error(`Unexpected endpoint: ${endpoint}`);
+    });
+    const reference = createReferenceData();
+    reference.user = "manager";
+    reference.site = "test";
+    const wrapper = mount(
+      defineComponent({
+        setup() {
+          provideInventoryServices(
+            { call, report: vi.fn(), upload: vi.fn() },
+            reference,
+          );
+          return () => h(StockBrowsePage);
+        },
+      }),
+      {
+        attachTo: document.body,
+        global: { stubs: { RouterLink: RouterLinkStub } },
+      },
+    );
+    wrappers.push(wrapper);
+    await flushPromises();
+    const page = wrapper.getComponent(StockBrowsePage);
+    await wrapper
+      .get('.segmented button[aria-pressed="false"]')
+      .trigger("click");
+    page.vm.controller.setGroupBy(["category"]);
+    await flushPromises();
+
+    const header = wrapper.get(".stock-card-group-header");
+    const heading = header.get(".stock-card-group-heading");
+    expect(heading.text()).toContain("Food");
+    // The toggle holds only the label and count; no interactive child may nest inside it.
+    expect(
+      heading.find("button, a, input, select, [role='button']").exists(),
+    ).toBe(false);
+    expect(heading.find(".group-totals").exists()).toBe(false);
+
+    const totals = header.get(".group-totals");
+    expect(totals.attributes("role")).toBe("group");
+    // Three non-zero values with two shown inline leave one hidden unit value.
+    expect(totals.get(".group-totals-more").text()).toBe("+1");
+    await totals.get(".group-totals-more button").trigger("click");
+    const panel = document.querySelector(".detail-popover-content");
+    expect(panel).not.toBeNull();
+    const metricRows = Array.from(panel!.querySelectorAll("li")).map(
+      (item) => (item.textContent ?? "").split("：")[0],
+    );
+    expect(metricRows).toEqual(["可用", "借出", "损坏", "合计"]);
+  });
 });

@@ -25,21 +25,33 @@
 .stock-card-group.is-nested {
 	margin-inline-start: 1rem;
 }
+/* The toggle holds only the label and count; totals sit beside it, never inside it. */
+.stock-card-group-header {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0.4rem 0.75rem;
+	margin-block-end: 0.75rem;
+	border-bottom: 1px solid var(--p-border);
+}
 .stock-card-group-heading {
 	display: flex;
+	flex: 1 1 12rem;
 	align-items: baseline;
 	flex-wrap: wrap;
 	gap: 0.4rem 0.75rem;
-	width: 100%;
-	margin-block-end: 0.75rem;
+	min-width: 0;
 	padding: 0.65rem 0;
 	border: 0;
-	border-bottom: 1px solid var(--p-border);
 	background: transparent;
 	color: var(--p-ink);
 	text-align: left;
 }
 .stock-card-group-summary {
+	flex: 0 1 auto;
+	min-width: 0;
+	margin-inline-start: auto;
+	padding-block: 0.65rem;
 	color: var(--p-muted);
 	font-size: 0.875em;
 }

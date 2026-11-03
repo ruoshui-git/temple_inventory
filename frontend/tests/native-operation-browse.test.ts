@@ -1810,11 +1810,17 @@ describe("native operation browsing", () => {
     const count = wrapper.get(
       ".mobile-item-group-list .mobile-operation-group-identity small",
     );
-    expect(count.text()).toBe("42 条 · 借出 2 Nos · 未归还 1 Nos");
-    expect(count.attributes("title")).toBe(
-      "明细条数 42 · 借出 2 Nos · 未归还 1 Nos",
+    expect(count.text()).toBe("42 条");
+    expect(count.attributes("title")).toBe("明细条数 42");
+    const totals = wrapper.get(
+      ".mobile-item-group-list .mobile-operation-group-totals",
     );
-    expect(count.text()).toMatch(/借出\s+2\s+Nos/);
+    expect(totals.attributes("role")).toBe("group");
+    expect(totals.text()).toMatch(/借出\s+2\s+Nos/);
+    expect(totals.text()).toContain("未归还 1 Nos");
+    expect(
+      wrapper.get(".browse-group-trigger").find(".group-totals").exists(),
+    ).toBe(false);
     expect(wrapper.find(".browse-group-thumbnail").exists()).toBe(true);
     expect(
       wrapper.get(".browse-group-trigger").find(".ti-disclosure-icon").element,

@@ -42,6 +42,7 @@ import { useOptionalInventoryServices } from "../../services/contracts";
 import { unitLabel } from "../../lib/units";
 import UnitText from "../../components/ui/UnitText.vue";
 import DetailPopover from "../../components/ui/DetailPopover.vue";
+import GroupTotals, { type GroupTotalMetric } from "../../components/ui/GroupTotals.vue";
 import { formatQuantity } from "../../lib/formatQuantity";
 import { expiryColumnDefinitions, expiryStatusOf } from "./expiryColumns";
 import ExpiryCell from "./ExpiryCell.vue";
@@ -209,24 +210,23 @@ function groupNumber(value: unknown) {
 	const quantity = Number(value || 0);
 	return `${quantity < 0 ? "−" : ""}${formatQuantity(Math.abs(quantity))}`;
 }
-function groupSummary(group: DataTableGroup) {
-	const units = Array.isArray(group.value?.unit_totals)
+function groupMetrics(group: DataTableGroup): GroupTotalMetric[] {
+	const totals = Array.isArray(group.value?.unit_totals)
 		? (group.value.unit_totals as Record<string, unknown>[])
 		: [];
-	const quantities = [
+	return [
 		["available", "可用"],
 		["loaned", "借出"],
 		["damaged", "损坏"],
 		["stock_qty", "库存数量"],
-	] as const;
-	return quantities
-		.flatMap(([key, label]) =>
-			units.map(
-				(row) =>
-					`${label} ${groupNumber(row[key])} ${unitLabel(String(row.stock_uom || ""))}`,
-			),
-		)
-		.join(" · ");
+	].map(([field, label]) => ({
+		key: field,
+		label,
+		entries: totals.map((row) => ({
+			uom: String(row.stock_uom || ""),
+			qty: Number(row[field] || 0),
+		})),
+	}));
 }
 function groupUnitValues(group: DataTableGroup, field: string) {
 	const totals = Array.isArray(group.value?.unit_totals)
@@ -825,7 +825,7 @@ function canExpiryAction() {
 					</template>
 					<template #group="{ group }">
 						<div class="report-group-details">
-							{{ groupSummary(group) }}
+							<GroupTotals :metrics="groupMetrics(group)" />
 							<UiButton v-if="group.error" @click="c.groups.retry(group.id)"
 								>重试</UiButton
 							>

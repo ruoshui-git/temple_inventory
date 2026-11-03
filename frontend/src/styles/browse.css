@@ -1247,20 +1247,12 @@
 .mobile-operation-item-link {
 	margin-block-end: 8px;
 }
-.mobile-operation-unit-disclosure {
-	margin-block-end: 8px;
+.mobile-operation-group-totals {
+	grid-column: 2;
+	min-width: 0;
+	padding-inline: 6px;
 	color: var(--p-muted);
 	font-size: var(--p-small);
-}
-.mobile-operation-unit-disclosure summary {
-	width: fit-content;
-	min-height: 32px;
-	color: var(--p-accent);
-	cursor: pointer;
-}
-.mobile-operation-unit-disclosure ul {
-	margin-block: 4px 0;
-	padding-inline-start: 1.25rem;
 }
 .browse-group--mobile-list .browse-group-content {
 	padding: 8px 0 4px 64px;

@@ -72,8 +72,8 @@ import { createRecoveryStore } from "../../lib/browserRecovery";
 import { RouterLink } from "vue-router";
 import { routeTarget } from "../../lib/routeRegistry";
 import { sortByUnit, unitLabel } from "../../lib/units";
-import DetailPopover from "../../components/ui/DetailPopover.vue";
 import UnitValues from "../../components/ui/UnitValues.vue";
+import GroupTotals, { type GroupTotalMetric } from "../../components/ui/GroupTotals.vue";
 import { stockEffectLabel } from "../../lib/stockEffectLabel";
 const exportMenu = ref<{ open(): void }>();
 const props = withDefaults(
@@ -601,28 +601,6 @@ function groupSummary(group: DataTableGroup, includeCount = false) {
 	}
 	return parts.join(" · ");
 }
-function groupSummaryDisplay(group: DataTableGroup, includeCount = false) {
-	const parts = groupSummaryParts(group);
-	const prefix = includeCount ? [`明细条数 ${group.count}`] : [];
-	if (props.family === "loans") {
-		return [
-			...prefix,
-			groupMetricText(group, "borrowed"),
-			groupMetricText(group, "outstanding"),
-		]
-			.filter(Boolean)
-			.join(" · ");
-	}
-	return [
-		...prefix,
-		`可用变化 ${parts
-			.slice(0, 2)
-			.map((part) => part.replace(/^可用变化 /, ""))
-			.join("；")}${parts.length > 2 ? `；+${parts.length - 2} 单位` : ""}`,
-	]
-		.filter(Boolean)
-		.join(" · ");
-}
 function countedLocations(row: Record<string, unknown>) {
 	return [
 		...new Set(
@@ -711,50 +689,42 @@ function groupMetricRows(group: DataTableGroup, column: string) {
 		return `${sign}${formatQuantity(Math.abs(entry.qty))} ${unitLabel(entry.uom)}`.trim();
 	});
 }
-function groupMetricText(group: DataTableGroup, column: string, includeDisclosure = true) {
-	const values = groupMetricRows(group, column);
-	const label =
-		column === "quantities" && props.family === "movements"
-			? "流动数量"
-			: column === "borrowed" || column === "quantities"
-				? "借出"
-				: column === "outstanding"
-					? "未归还"
-					: "可用变化";
-	return values.length
-		? `${label} ${values.slice(0, 2).join("；")}${includeDisclosure && values.length > 2 ? `；+${values.length - 2} 单位` : ""}`
-		: "";
-}
-function groupLoanMetric(group: DataTableGroup, column: string) {
-	return groupMetricText(group, column);
-}
-function hiddenGroupMetrics(group: DataTableGroup, visibleColumns: string[]) {
-	if (!isItemGroup(group)) return "";
-	if (props.family === "loans") {
-		const parts: string[] = [];
-		if (!visibleColumns.includes("borrowed") && !visibleColumns.includes("quantities"))
-			parts.push(groupLoanMetric(group, "borrowed"));
-		if (!visibleColumns.includes("outstanding"))
-			parts.push(groupLoanMetric(group, "outstanding"));
-		return parts.filter(Boolean).join(" · ");
-	}
-	return visibleColumns.includes("available_effect") ? "" : groupSummaryDisplay(group);
-}
-function groupEffect(group: DataTableGroup) {
-	return groupMetricText(group, "available_effect", false);
-}
-function groupSummaryParts(group: DataTableGroup) {
-	if (props.family === "loans")
-		return [
-			...groupMetricRows(group, "borrowed").map((value) => `借出 ${value}`),
-			...groupMetricRows(group, "outstanding").map((value) => `未归还 ${value}`),
-		];
-	const effects = groupMetricRows(group, "available_effect");
-	if (effects.length) return effects.map((value) => `可用变化 ${value}`);
-	return groupSummary(group).split(" · ").filter(Boolean);
-}
-function groupSummaryPreview(group: DataTableGroup) {
-	return groupSummaryParts(group).slice(0, 2).join(" · ");
+// Totals shown beside a group: a column that is already visible is not repeated.
+function groupTotalsMetrics(
+	group: DataTableGroup,
+	visibleColumns: string[] = [],
+): GroupTotalMetric[] {
+	const metrics: GroupTotalMetric[] =
+		props.family === "loans"
+			? [
+					{
+						key: "borrowed",
+						label: "借出",
+						entries:
+							visibleColumns.includes("borrowed") ||
+							visibleColumns.includes("quantities")
+								? []
+								: groupMetricEntries(group, "borrowed"),
+					},
+					{
+						key: "outstanding",
+						label: "未归还",
+						entries: visibleColumns.includes("outstanding")
+							? []
+							: groupMetricEntries(group, "outstanding"),
+					},
+				]
+			: [
+					{
+						key: "available_effect",
+						label: "可用变化",
+						signed: true,
+						entries: visibleColumns.includes("available_effect")
+							? []
+							: groupMetricEntries(group, "available_effect"),
+					},
+				];
+	return metrics.filter((metric) => metric.entries.length);
 }
 function openHistoryDocument(row: Record<string, unknown>) {
 	if (row.kind === "Loan") emit("openLoan", String(row.document));
@@ -1622,17 +1592,15 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 									<DisclosureIcon variant="inline" />
 									<span class="mobile-operation-group-identity">
 										<strong :title="group.label">{{ group.label }}</strong>
-										<small
-											:title="`明细条数 ${group.count}${groupSummaryDisplay(group) ? ` · ${groupSummaryDisplay(group)}` : ''}`"
-										>
-											{{ group.count }} 条<span
-												v-if="groupSummaryDisplay(group)"
-											>
-												· {{ groupSummaryDisplay(group) }}</span
-											>
+										<small :title="`明细条数 ${group.count}`">
+											{{ group.count }} 条
 										</small>
 									</span>
 								</button>
+								<GroupTotals
+									class="mobile-operation-group-totals"
+									:metrics="groupTotalsMetrics(group)"
+								/>
 							</div>
 							<div
 								v-show="
@@ -1666,19 +1634,6 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 									"
 									>查看物品</RouterLink
 								>
-								<details
-									v-if="groupSummaryParts(group).length > 2"
-									class="mobile-operation-unit-disclosure"
-								>
-									<summary>
-										+{{ groupSummaryParts(group).length - 2 }} 单位
-									</summary>
-									<ul>
-										<li v-for="part in groupSummaryParts(group)" :key="part">
-											{{ part }}
-										</li>
-									</ul>
-								</details>
 								<ItemGroupLines
 									v-if="
 										family === 'movements' &&
@@ -1792,7 +1747,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						>
 							<template #default>
 								<span>{{ group.count }} 条明细</span>
-								<span>{{ groupSummaryDisplay(group) }}</span>
+								<GroupTotals :metrics="groupTotalsMetrics(group)" />
 							</template>
 						</ItemCard>
 					</div>
@@ -2106,31 +2061,11 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							</span>
 						</template>
 						<template #group-metrics="{ group, visibleColumns }">
-							<span
-								v-if="hiddenGroupMetrics(group, visibleColumns)"
-								role="note"
-								class="operation-group-metrics operation-group-metrics-leading"
-								:title="groupSummary(group)"
-								:aria-label="groupSummary(group)"
-								>{{ groupSummaryPreview(group) }}</span
-							>
-							<DetailPopover
-								v-if="
-									hiddenGroupMetrics(group, visibleColumns) &&
-									groupSummaryParts(group).length > 2
-								"
-								:label="`分组数量：${groupSummary(group)}`"
-								trigger-class="operation-unit-more"
-							>
-								<template #trigger
-									>+{{ groupSummaryParts(group).length - 2 }} 单位</template
-								>
-								<ul>
-									<li v-for="part in groupSummaryParts(group)" :key="part">
-										{{ part }}
-									</li>
-								</ul>
-							</DetailPopover>
+							<GroupTotals
+								v-if="isItemGroup(group)"
+								class="operation-group-metrics-leading"
+								:metrics="groupTotalsMetrics(group, visibleColumns)"
+							/>
 						</template>
 						<template #group-column="{ group, column }">
 							<span
@@ -2411,31 +2346,11 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							</span>
 						</template>
 						<template #group-metrics="{ group, visibleColumns }">
-							<span
-								v-if="hiddenGroupMetrics(group, visibleColumns)"
-								role="note"
-								class="operation-group-metrics operation-group-metrics-leading"
-								:title="groupSummary(group)"
-								:aria-label="groupSummary(group)"
-								>{{ groupSummaryPreview(group) }}</span
-							>
-							<DetailPopover
-								v-if="
-									hiddenGroupMetrics(group, visibleColumns) &&
-									groupSummaryParts(group).length > 2
-								"
-								:label="`分组数量：${groupSummary(group)}`"
-								trigger-class="operation-unit-more"
-							>
-								<template #trigger
-									>+{{ groupSummaryParts(group).length - 2 }} 单位</template
-								>
-								<ul>
-									<li v-for="part in groupSummaryParts(group)" :key="part">
-										{{ part }}
-									</li>
-								</ul>
-							</DetailPopover>
+							<GroupTotals
+								v-if="isItemGroup(group)"
+								class="operation-group-metrics-leading"
+								:metrics="groupTotalsMetrics(group, visibleColumns)"
+							/>
 						</template>
 						<template #group-column="{ group, column }">
 							<span

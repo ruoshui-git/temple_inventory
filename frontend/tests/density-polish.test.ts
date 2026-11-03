@@ -5,7 +5,6 @@ import BrowseSplitButton from "../src/components/ui/BrowseSplitButton.vue";
 import BrowseResultSummary from "../src/components/ui/BrowseResultSummary.vue";
 import DataTable from "../src/components/ui/DataTable.vue";
 import RecordRef from "../src/components/ui/RecordRef.vue";
-import { compactGroupSummary } from "../src/lib/groupSummary";
 
 const wrappers: VueWrapper[] = [];
 afterEach(() => wrappers.splice(0).forEach((wrapper) => wrapper.unmount()));
@@ -107,12 +106,6 @@ it("merges result count with a short multi-unit preview and discloses full quant
   );
   await wrapper.get(".browse-result-summary-trigger").trigger("click");
   expect(wrapper.get(".quantity-summary").text()).toContain("31 Nos");
-});
-
-it("keeps two group values inline and represents the remainder with +N 项", () => {
-  expect(
-    compactGroupSummary("入库 9 Kg · 出库 7 Kg · 调拨 3 箱 · 借出 1 Nos"),
-  ).toBe("入库\u00a09\u00a0Kg · 出库\u00a07\u00a0Kg · +2\u00a0项");
 });
 
 it("shows an icon and a primary action for an empty results table", async () => {
