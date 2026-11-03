@@ -147,8 +147,8 @@ describe("native expiry browser", () => {
       wrapper.get('[aria-label="列表视图"]').attributes("aria-pressed"),
     ).toBe("true");
     const card = wrapper.get(".expiry-phone-card");
-    expect(card.get(".expiry-phone-name").text()).toContain("物品甲");
-    expect(card.get(".expiry-phone-quantity").text()).toContain("11");
+    expect(card.get(".stock-list-name").text()).toContain("物品甲");
+    expect(card.get(".stock-list-quantity").text()).toContain("11");
     expect(card.get(".card-fields-inline").text()).toContain("BATCH-0");
     expect(card.get(".card-fields-inline").text()).toContain("2026-10-16");
     expect(card.get(".card-fields-inline").text()).not.toContain("·");

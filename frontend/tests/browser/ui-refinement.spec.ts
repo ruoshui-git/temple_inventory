@@ -951,11 +951,11 @@ test("expiry phone cards show loaded location and right-aligned quantity", async
   const card = page.locator(".expiry-phone-card");
   await expect(card).toContainText("BATCH-0");
   await expect(card).toContainText("演示室甲");
-  await expect(card.locator(".expiry-phone-quantity")).toContainText("24 个");
+  await expect(card.locator(".stock-list-quantity")).toContainText("24 个");
   await page.getByRole("button", { name: "更多操作", exact: true }).click();
   await page.getByRole("menuitem", { name: "选择", exact: true }).click();
-  // Selection is whole-card: a tap on the card's title row toggles the batch.
-  await card.locator(".expiry-phone-title").click();
+  // Selection is whole-row: a tap on the row's title toggles the batch.
+  await card.locator(".stock-list-open").click();
   await expect(
     page.getByRole("region", { name: "批次批量操作" }),
   ).toContainText("已选择 1 项");

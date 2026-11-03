@@ -678,7 +678,7 @@ function canExpiryAction() {
 						</CardFields>
 					</ItemCard>
 				</div>
-				<div v-if="view === 'list' && !query.groupBy.length" class="expiry-mobile">
+				<div v-if="view === 'list' && !query.groupBy.length" class="stock-list surface">
 					<BrowseCard
 						v-for="row in result.rows"
 						:key="String(row.id)"
@@ -688,40 +688,45 @@ function canExpiryAction() {
 						:selected="c.selected.value.includes(String(row.id))"
 						:select-label="`选择批次 ${row.batch_no || ''}`"
 						:stale="result.stale"
-						class="browse-card expiry-phone-card"
+						:class="[
+							'stock-list-row',
+							'expiry-phone-card',
+							{ 'is-text-only': !rowPartition.media },
+						]"
 						@toggle="toggleExpiryRow(row as unknown as ReportRow)"
 						@open="openItem(row as unknown as ReportRow)"
 					>
-						<div
-							v-if="rowPartition.media"
-							class="browse-group-thumbnail expiry-phone-thumb"
-						>
-							<ItemImage :item="c.item(row as unknown as ReportRow)" />
-						</div>
-						<div class="expiry-phone-body">
-							<div class="expiry-phone-title">
-								<button
-									class="browse-row-link expiry-phone-name"
-									:disabled="result.stale"
-									@click.stop="
-										c.selecting.value
-											? toggleExpiryRow(asRow(row))
-											: openItem(asRow(row))
-									"
-								>
-									<strong>{{ row.item_name }}</strong>
-								</button>
-								<span v-if="rowPartition.hero" class="expiry-phone-quantity"
-									><strong>{{ Number(row.stock_qty || 0) }}</strong
-									>{{ " " }}<UnitText :name="row.stock_uom"
-								/></span>
-								<span
-									v-if="expiryStatus(asRow(row)).label"
-									class="browse-badge"
-									:class="expiryStatus(asRow(row)).tone"
-									>{{ expiryStatus(asRow(row)).label }}</span
-								>
+						<template v-if="rowPartition.media" #media>
+							<div class="stock-list-image">
+								<ItemImage
+									:item="c.item(row as unknown as ReportRow)"
+									:thumbnail-size="64"
+								/>
 							</div>
+						</template>
+						<template #default="{ activate }">
+							<button
+								class="stock-list-open"
+								:disabled="result.stale"
+								@click="activate"
+							>
+								<span class="stock-list-identity">
+									<strong class="stock-list-name">{{ row.item_name }}</strong>
+									<span
+										v-if="expiryStatus(asRow(row)).label"
+										class="browse-badge"
+										:class="expiryStatus(asRow(row)).tone"
+										>{{ expiryStatus(asRow(row)).label }}</span
+									>
+								</span>
+								<span v-if="rowPartition.hero" class="stock-list-quantity">
+									<strong
+										><UnitText
+											:name="row.stock_uom"
+											:qty="Number(row.stock_qty || 0)"
+									/></strong>
+								</span>
+							</button>
 							<CardFields
 								variant="row"
 								:fields="rowPartition.fields"
@@ -741,7 +746,7 @@ function canExpiryAction() {
 									/>
 								</template>
 							</CardFields>
-						</div>
+						</template>
 					</BrowseCard>
 				</div>
 				<!-- The table layout is the desktop table and every grouped result; cards and rows are the rest. -->
@@ -917,50 +922,3 @@ function canExpiryAction() {
 		</div>
 	</section>
 </template>
-
-<style scoped>
-@media (max-width: 1023px) {
-	.expiry-phone-card {
-		display: flex;
-		align-items: flex-start;
-		gap: 10px;
-	}
-	.expiry-phone-thumb {
-		flex: none;
-		width: 40px;
-		height: 40px;
-	}
-	.expiry-phone-body {
-		flex: 1 1 auto;
-		min-width: 0;
-		display: grid;
-		gap: 4px;
-	}
-	.expiry-phone-title {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		min-width: 0;
-	}
-	.expiry-phone-name {
-		min-width: 0;
-		min-height: 0;
-		padding: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		text-align: left;
-	}
-	.expiry-phone-quantity {
-		margin-left: auto;
-		white-space: nowrap;
-	}
-	.expiry-phone-quantity strong {
-		font-size: 1.05rem;
-	}
-	.expiry-phone-body .card-fields-inline {
-		color: var(--p-muted);
-		font-size: 0.84rem;
-	}
-}
-</style>

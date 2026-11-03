@@ -412,10 +412,7 @@ watch([() => props.active, isMobile], () => {
 						</CardFields>
 					</ItemCard>
 				</div>
-				<div
-					v-if="view === 'list' && !query.groupBy.length && table"
-					class="pending-mobile"
-				>
+				<div v-if="view === 'list' && !query.groupBy.length && table" class="stock-list">
 					<BrowseCard
 						v-for="row in table.rows"
 						:key="String(row.id)"
@@ -425,38 +422,41 @@ watch([() => props.active, isMobile], () => {
 						:selected="c.selected.value.includes(String(row.id))"
 						:select-label="`选择 ${row.item_name || row.item_code || ''}`"
 						:stale="c.report.result.stale"
-						class="browse-card pending-phone-card"
+						:class="[
+							'stock-list-row',
+							'pending-phone-card',
+							{ 'is-text-only': !rowPartition.media },
+						]"
 						@toggle="toggleDamagedRow(row as unknown as Record<string, unknown>)"
 						@open="emit('item', String(row.item_code || ''))"
 					>
-						<div
-							v-if="rowPartition.media"
-							class="browse-group-thumbnail pending-phone-thumb"
-						>
-							<ItemImage
-								:item="pendingIdentity(row as unknown as Record<string, unknown>)"
-							/>
-						</div>
-						<div class="pending-phone-body">
-							<div class="pending-phone-title">
-								<button
-									class="browse-row-link pending-phone-name"
-									:disabled="c.report.result.stale"
-									@click.stop="
-										c.selecting.value
-											? toggleDamagedRow(
-													row as unknown as Record<string, unknown>,
-												)
-											: emit('item', String(row.item_code || ''))
+						<template v-if="rowPartition.media" #media>
+							<div class="stock-list-image">
+								<ItemImage
+									:item="
+										pendingIdentity(row as unknown as Record<string, unknown>)
 									"
-								>
-									<strong>{{ row.item_name }}</strong>
-								</button>
-								<span v-if="rowPartition.hero" class="pending-phone-quantity"
-									><strong>{{ Number(row.damaged || 0) }}</strong
-									>{{ " " }}<UnitText :name="row.stock_uom"
-								/></span>
+									:thumbnail-size="64"
+								/>
 							</div>
+						</template>
+						<template #default="{ activate }">
+							<button
+								class="stock-list-open"
+								:disabled="c.report.result.stale"
+								@click="activate"
+							>
+								<span class="stock-list-identity">
+									<strong class="stock-list-name">{{ row.item_name }}</strong>
+								</span>
+								<span v-if="rowPartition.hero" class="stock-list-quantity">
+									<strong
+										><UnitText
+											:name="row.stock_uom"
+											:qty="Number(row.damaged || 0)"
+									/></strong>
+								</span>
+							</button>
 							<CardFields
 								variant="row"
 								:fields="rowPartition.fields"
@@ -471,7 +471,7 @@ watch([() => props.active, isMobile], () => {
 									/>
 								</template>
 							</CardFields>
-						</div>
+						</template>
 					</BrowseCard>
 				</div>
 				<DataTable
@@ -568,50 +568,3 @@ watch([() => props.active, isMobile], () => {
 		</div>
 	</section>
 </template>
-
-<style scoped>
-@media (max-width: 1023px) {
-	.pending-phone-card {
-		display: flex;
-		align-items: flex-start;
-		gap: 10px;
-	}
-	.pending-phone-thumb {
-		flex: none;
-		width: 40px;
-		height: 40px;
-	}
-	.pending-phone-body {
-		flex: 1 1 auto;
-		min-width: 0;
-		display: grid;
-		gap: 4px;
-	}
-	.pending-phone-title {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		min-width: 0;
-	}
-	.pending-phone-name {
-		min-width: 0;
-		min-height: 0;
-		padding: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		text-align: left;
-	}
-	.pending-phone-quantity {
-		margin-left: auto;
-		white-space: nowrap;
-	}
-	.pending-phone-quantity strong {
-		font-size: 1.05rem;
-	}
-	.pending-phone-body .card-fields-inline {
-		color: var(--p-muted);
-		font-size: 0.84rem;
-	}
-}
-</style>

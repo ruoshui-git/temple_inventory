@@ -226,7 +226,6 @@ input[list]::-webkit-calendar-picker-indicator {
 	gap: var(--p-space-3);
 }
 .form-page summary,
-.expiry-mobile summary,
 .browse-table summary {
 	min-height: var(--p-control);
 	cursor: pointer;

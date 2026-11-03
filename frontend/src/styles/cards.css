@@ -1,0 +1,587 @@
+/* Browse cards and 列表 rows: ItemCard, BrowseCard, CardFields and item rows live only here. */
+
+/* ---- from foundation.css ---- */
+.browse-card-grid {
+	display: grid;
+	grid-template-columns: repeat(
+		auto-fill,
+		minmax(
+			min(
+				100%,
+				max(var(--p-card-min-width), 10em, calc((100% - 6 * var(--p-card-gap)) / 7))
+			),
+			1fr
+		)
+	);
+	gap: var(--p-card-gap);
+}
+.stock-card-groups {
+	display: grid;
+	gap: var(--p-card-gap);
+}
+.stock-card-group {
+	min-width: 0;
+}
+.stock-card-group.is-nested {
+	margin-inline-start: 1rem;
+}
+.stock-card-group-heading {
+	display: flex;
+	align-items: baseline;
+	flex-wrap: wrap;
+	gap: 0.4rem 0.75rem;
+	width: 100%;
+	margin-block-end: 0.75rem;
+	padding: 0.65rem 0;
+	border: 0;
+	border-bottom: 1px solid var(--p-border);
+	background: transparent;
+	color: var(--p-ink);
+	text-align: left;
+}
+.stock-card-group-summary {
+	color: var(--p-muted);
+	font-size: 0.875em;
+}
+.stock-card-group-actions {
+	margin-block: 0.5rem;
+}
+.browse-card-item {
+	min-width: 0;
+}
+.browse-card-item--card {
+	position: relative;
+	border: 1px solid var(--p-border);
+	border-radius: var(--p-radius-card);
+	overflow: hidden;
+	transition: border-color var(--p-motion);
+	/* The whole card opens its item (or toggles it while selecting). */
+	cursor: pointer;
+}
+@media (hover: hover) {
+	.browse-card-item--card:hover:not(.selected) {
+		border-color: color-mix(in srgb, var(--p-accent) 45%, var(--p-border));
+	}
+}
+.browse-card-item--card.selected {
+	border-color: var(--p-accent);
+	box-shadow: 0 0 0 1px var(--p-accent);
+}
+.browse-card-item--row {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 8px 10px;
+	min-height: 64px;
+	padding: 8px 10px;
+	border-bottom: 1px solid var(--p-border);
+	cursor: pointer;
+}
+.browse-card-item--row:focus-visible {
+	outline: 2px solid var(--p-accent);
+	outline-offset: -2px;
+}
+.browse-card-item--row.selected {
+	background: var(--p-soft);
+}
+.browse-card-media {
+	display: grid;
+	place-items: center;
+	width: 56px;
+	height: 56px;
+	border-radius: var(--p-radius-control);
+	overflow: hidden;
+}
+.browse-card-media > :is(.item-image, .item-image-button, .async-image) {
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+}
+.browse-card-item--card > .browse-card-media {
+	width: 100%;
+	height: auto;
+	aspect-ratio: 1;
+	border-radius: 0;
+	background: var(--p-surface);
+}
+.browse-card-item--row
+	> :is(
+		.activity-row-content,
+		.native-record-row-content,
+		.operation-record-row-content,
+		.draft-entry-row-content
+	) {
+	display: grid;
+	grid-column: 2 / -1;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 2px 8px;
+	min-width: 0;
+}
+.browse-card-item--row
+	> :is(
+		.activity-row-content,
+		.native-record-row-content,
+		.operation-record-row-content,
+		.draft-entry-row-content
+	)
+	> :first-child {
+	grid-column: 1;
+	font-weight: 600;
+}
+.browse-card-item--row
+	> :is(
+		.activity-row-content,
+		.native-record-row-content,
+		.operation-record-row-content,
+		.draft-entry-row-content
+	)
+	> small {
+	grid-column: 1 / -1;
+	color: var(--p-muted);
+}
+/* Only a row's own status badge: badges nested deeper (expiry meta) keep their layout. */
+.browse-card-item--row > .browse-badge,
+.browse-card-item--row
+	> :is(
+		.activity-row-content,
+		.native-record-row-content,
+		.operation-record-row-content,
+		.draft-entry-row-content
+	)
+	> .browse-badge {
+	grid-column: 2;
+	grid-row: 1;
+}
+.browse-card-item--card > .operation-item-card-content {
+	display: grid;
+	gap: 6px;
+	padding: 12px;
+}
+.item-card-details {
+	display: grid;
+	justify-items: start;
+	gap: 4px;
+	margin-top: 4px;
+	font-size: var(--p-small);
+	color: var(--p-muted);
+}
+.operation-item-card-content > small {
+	color: var(--p-muted);
+}
+.item-card-image {
+	position: relative;
+	display: grid;
+	place-items: center;
+	width: 100%;
+	height: auto;
+	aspect-ratio: 1;
+	background: var(--p-surface);
+}
+.item-card-image > .item-image,
+.item-card-image > .item-image-button,
+.item-card-image > .async-image {
+	width: 100%;
+	height: 100%;
+	max-height: 100%;
+	object-fit: contain;
+}
+.item-card-image > .item-image {
+	position: absolute;
+	inset: 0;
+}
+.card-checkbox {
+	position: absolute;
+	top: 4px;
+	left: 4px;
+	display: grid;
+	place-items: center;
+	background: var(--p-surface);
+	border-radius: 5px;
+	width: 44px;
+	height: 44px;
+}
+.art-badge {
+	position: absolute;
+	top: 14px;
+	right: 12px;
+	background: var(--p-surface);
+}
+.art-badge.warning {
+	background: var(--p-warning-bg);
+}
+.art-badge.danger {
+	background: var(--p-danger-bg);
+}
+.item-card-content {
+	padding: var(--p-card-pad);
+}
+.item-card-content .eyebrow {
+	font-size: calc(10px * var(--p-text-scale, 1));
+	margin-bottom: 6px;
+}
+.stock-number {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	margin-top: 16px;
+	color: var(--p-muted);
+}
+.stock-number strong {
+	font-size: calc(28px * var(--p-text-scale, 1));
+	color: var(--p-ink);
+	font-weight: 550;
+	letter-spacing: -0.03em;
+}
+.stock-secondary {
+	display: flex;
+	gap: 12px;
+	margin-top: 4px;
+	font-size: var(--p-small);
+	color: var(--p-muted);
+}
+.item-card-content > small {
+	display: block;
+	margin-top: 6px;
+	font-size: calc(11px * var(--p-text-scale, 1));
+}
+.stock-list {
+	display: grid;
+	gap: 0;
+}
+.stock-list-row {
+	display: grid;
+	grid-template-columns: 64px minmax(0, 1fr) 44px;
+	align-items: center;
+	gap: 10px;
+	min-height: 72px;
+	padding: 6px 4px;
+	border-bottom: 1px solid var(--p-border);
+	cursor: pointer;
+}
+.stock-list-row:focus-visible {
+	outline: 2px solid var(--p-accent);
+	outline-offset: -2px;
+}
+.stock-list-row.selected {
+	background: var(--p-soft);
+}
+.stock-list-image,
+.stock-list-image > .item-image-button,
+.stock-list-image > .item-image,
+.stock-list-image > .async-image {
+	width: 64px;
+	height: 64px;
+	min-width: 64px;
+	border-radius: 8px;
+	overflow: hidden;
+}
+.stock-list-identity {
+	display: grid;
+	gap: 2px;
+	min-width: 0;
+}
+.stock-list-open {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+	min-height: 44px;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	text-align: left;
+	grid-column: 2;
+}
+@media (hover: hover) {
+	.stock-list-open:hover:not(:disabled) {
+		background: transparent;
+	}
+}
+.stock-list-open:focus-visible {
+	outline: 2px solid var(--p-accent);
+	outline-offset: 2px;
+}
+.stock-list-name {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	overflow: hidden;
+	font-size: var(--p-body);
+	line-height: 1.35;
+}
+.stock-list-meta {
+	overflow: hidden;
+	color: var(--p-muted);
+	font-size: var(--p-small);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.stock-list-quantity {
+	display: grid;
+	justify-items: end;
+	gap: 2px;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+.stock-list-quantity > strong {
+	font-size: var(--p-small);
+}
+.stock-list-status {
+	display: flex;
+	gap: 6px;
+	color: var(--p-muted);
+	font-size: calc(10px * var(--p-text-scale, 1));
+}
+.stock-list-checkbox {
+	display: grid;
+	place-items: center;
+	width: 44px;
+	height: 44px;
+	grid-column: 3;
+	grid-row: 1;
+}
+.stock-list-checkbox input {
+	width: 18px;
+	height: 18px;
+}
+.stock-list-skeleton > .skeleton-block {
+	gap: 0;
+}
+.stock-list-skeleton .skeleton-block__list-row {
+	min-height: 76px;
+	padding: 6px 4px;
+	border-bottom: 1px solid var(--p-border);
+}
+.stock-list-skeleton .skeleton-block__avatar {
+	width: 64px;
+	height: 64px;
+}
+@media (max-width: 1023px) {
+	.card-checkbox {
+		width: 44px;
+		height: 44px;
+		top: 4px;
+		left: 4px;
+		background: transparent;
+	}
+}
+@media (max-width: 640px) {
+	.item-card-content .eyebrow {
+		font-size: calc(12px * var(--p-text-scale, 1));
+	}
+	.item-card-content > small {
+		font-size: calc(12px * var(--p-text-scale, 1));
+	}
+}
+
+/* ---- from browse.css ---- */
+.results-region.is-stale .stock-grid {
+	opacity: 0.64;
+}
+@media (max-width: 1023px) {
+	/* Every item-card grid shows two cards per row on phones. */
+	.browse-card-grid:has(> .item-card) {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 10px;
+	}
+	.stock-grid,
+	.stock-list {
+		margin-block-start: var(--p-space-2);
+	}
+	.item-card-image {
+		aspect-ratio: 1;
+	}
+	.item-card-content {
+		padding: 8px;
+	}
+	.item-card-content .eyebrow {
+		display: block;
+		margin-block-end: 2px;
+		font-size: var(--p-small);
+	}
+	.item-card-category,
+	.item-card-separator {
+		display: none;
+	}
+	.item-card-code {
+		display: block;
+		max-width: 100%;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+		overflow: hidden;
+	}
+	.item-card .item-name {
+		display: -webkit-box;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 2;
+		min-height: 2.7em;
+		overflow: hidden;
+		line-height: 1.35;
+	}
+	.item-card .stock-number {
+		margin-top: 4px;
+		font-size: var(--p-small);
+		white-space: nowrap;
+	}
+	.item-card .stock-number strong {
+		font-size: var(--p-body);
+	}
+	.item-card .stock-number small,
+	.item-card .stock-secondary {
+		display: none;
+	}
+	.item-card .card-checkbox {
+		width: 44px;
+		height: 44px;
+	}
+}
+/* Card and 列表 field summaries (CardFields) and the text-only ItemCard. */
+/* Card fields read like the card's original meta line: muted `label value` pairs that wrap, with chip
+   fields (位置, 批次) on a line of their own. */
+.card-fields {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px 12px;
+	min-width: 0;
+	margin: 0;
+	color: var(--p-muted);
+	font-size: var(--p-small);
+}
+.card-field {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3em;
+	min-width: 0;
+	max-width: 100%;
+}
+.card-field dt,
+.card-field dd {
+	margin: 0;
+}
+.card-field dt {
+	flex: none;
+	white-space: nowrap;
+}
+.card-field dd {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+/* A record ref or link wrapping the value clips with it. */
+.card-field:not(.is-wide) dd > * {
+	max-width: 100%;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	vertical-align: bottom;
+}
+.card-field.is-wide {
+	flex-basis: 100%;
+}
+/* Codes, dates, statuses and chips read on their own; their labels stay for assistive technology. */
+.card-field.is-bare > dt,
+.card-field-inline.is-bare > .card-field-label {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+.card-field.is-wide dd {
+	overflow: visible;
+	white-space: normal;
+}
+.card-fields-more {
+	margin: var(--p-space-1) 0 0;
+	color: var(--p-muted);
+	font-size: var(--p-small);
+}
+.card-fields-inline {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	min-width: 0;
+	margin: 0;
+	overflow: hidden;
+	color: var(--p-muted);
+	font-size: var(--p-small);
+	line-height: 1.5;
+	overflow-wrap: anywhere;
+}
+.card-field-inline + .card-field-inline::before {
+	content: "·";
+	margin-inline: var(--p-space-1);
+}
+.card-field-label {
+	margin-inline-end: 0.3em;
+	opacity: 0.85;
+}
+.item-card.is-text-only .item-card-content {
+	padding: var(--p-card-pad);
+}
+.item-card.is-text-only .art-badge {
+	position: static;
+	display: inline-block;
+	margin: var(--p-card-pad) var(--p-card-pad) 0;
+}
+.item-card.is-text-only .card-checkbox {
+	position: static;
+	margin: var(--p-space-2) var(--p-space-2) 0;
+}
+/* 活动/记录 row fields */
+.browse-card-item--row
+	> :is(.activity-row-content, .native-record-row-content, .draft-entry-row-content)
+	> .card-fields-inline {
+	grid-column: 1 / -1;
+}
+/* 单据 and 明细 rows have no thumbnail or checkbox column. Their text takes only the flexible
+   track, and the status badge sits on the name line in the auto track: a badge left absolute
+   floats over the page header, and a field line spanning the auto track squeezes the name. */
+.operation-record-list > .browse-card-item--row > .operation-record-row-content {
+	grid-column: 2;
+}
+.operation-record-list .operation-record-row-content > .art-badge {
+	position: static;
+	grid-column: 2;
+	grid-row: 1;
+}
+.operation-record-list .operation-record-row-content > .card-fields-inline {
+	grid-column: 1;
+}
+/* 库存 card fields */ /* 列表 rows: the field line sits under the name in the content column, never in the image column. */
+.stock-list-row > .card-fields-inline {
+	grid-column: 2 / -1;
+	grid-row: 2;
+}
+/* Text-only rows drop the thumbnail column and move the content and selection into the first two. */
+.stock-list-row.is-text-only {
+	grid-template-columns: minmax(0, 1fr) 44px;
+}
+.stock-list-row.is-text-only > .stock-list-open {
+	grid-column: 1;
+}
+.stock-list-row.is-text-only > .stock-list-checkbox {
+	grid-column: 2;
+}
+
+/* Links inside a 列表 row's field line flow with its text; the row itself is the touch target. */
+.card-fields-inline :is(.browse-row-link, .browse-link) {
+	display: inline;
+	min-height: 0;
+	padding: 0;
+}
+
+/* A 列表 that is not already inside a padded results card gets the same surface and inset. */
+.stock-list.surface {
+	padding: var(--p-space-3);
+}
+
+/* Badges in a 列表 row's identity keep their own width. */
+.stock-list-identity > :is(.badge, .browse-badge) {
+	justify-self: start;
+}

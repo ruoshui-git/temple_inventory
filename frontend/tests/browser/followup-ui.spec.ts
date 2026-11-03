@@ -228,11 +228,11 @@ for (const width of [1440, 390]) {
       ).toBeVisible();
       await expect(
         results
-          .locator(".pending-phone-thumb img, .pending-phone-thumb button")
+          .locator(".stock-list-image img, .stock-list-image button")
           .first(),
       ).toBeVisible();
       await expect(
-        results.locator(".pending-phone-quantity").first(),
+        results.locator(".stock-list-quantity").first(),
       ).toContainText("2");
     }
     expect(await results.textContent()).not.toContain(

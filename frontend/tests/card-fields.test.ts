@@ -31,7 +31,53 @@ describe("CardFields", () => {
     expect(items[0]!.get("dd").attributes("title")).toBe("主库");
   });
 
-  it("spans both columns for chip fields only", () => {
+  it("keeps self-describing fields' labels for assistive technology only", () => {
+    const wrapper = mount(CardFields, {
+      props: {
+        fields: [
+          { id: "loaned", label: "借出" },
+          { id: "document", label: "编号" },
+          { id: "posting_date", label: "日期" },
+          { id: "status", label: "状态" },
+          { id: "serial", label: "序列号", kind: "chip" },
+        ] satisfies DataColumn[],
+        row: {
+          loaned: 3,
+          document: "MAT-1",
+          posting_date: "2026-11-03",
+          status: "已提交",
+          serial: "SN",
+        },
+      },
+    });
+    wrappers.push(wrapper);
+    const bare = wrapper
+      .findAll(".card-field")
+      .map((item) => item.classes().includes("is-bare"));
+    expect(bare).toEqual([false, true, true, true, true]);
+    expect(wrapper.findAll(".card-field dt").map((dt) => dt.text())).toEqual([
+      "借出",
+      "编号",
+      "日期",
+      "状态",
+      "序列号",
+    ]);
+  });
+
+  it("labels an empty self-describing field so its dash still reads", () => {
+    const wrapper = mount(CardFields, {
+      props: {
+        fields: [{ id: "batch_no", label: "批次编号" }] satisfies DataColumn[],
+        row: { batch_no: "" },
+      },
+    });
+    wrappers.push(wrapper);
+    const item = wrapper.get(".card-field");
+    expect(item.classes()).not.toContain("is-bare");
+    expect(item.text()).toBe("批次编号—");
+  });
+
+  it("puts chip fields on a line of their own", () => {
     const wrapper = mount(CardFields, { props: { fields, row } });
     wrappers.push(wrapper);
     const items = wrapper.findAll(".card-field");
