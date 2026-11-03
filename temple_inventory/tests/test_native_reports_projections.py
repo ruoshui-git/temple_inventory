@@ -174,7 +174,7 @@ class NativeReportsProjectionsTests(NativeReportTestCase):
 		for changes in (
 			{"grouping": "item"},
 			{"groupBy": ["item", "item"]},
-			{"groupBy": ["category", "location"]},
+			{"groupBy": ["category", "kind"]},
 			{"groupBy": ["category", "item", "location"]},
 		):
 			with self.assertRaises(Exception):
@@ -184,7 +184,7 @@ class NativeReportsProjectionsTests(NativeReportTestCase):
 			["item", "category"],
 		)
 		for dataset, view, invalid, _valid in (
-			("movements", "summary", ["category"], ["category", "item"]),
+			("movements", "summary", ["item", "kind"], ["kind", "item"]),
 			("loans", "items", ["item", "category"], ["category", "item"]),
 		):
 			with self.assertRaises(Exception):
@@ -193,6 +193,33 @@ class NativeReportsProjectionsTests(NativeReportTestCase):
 			validate_query(self.query("loans", "items", groupBy=["item"]))["groupBy"],
 			["item"],
 		)
+
+	def test_new_group_keys_validate_and_label_blank_values(self):
+		for dataset, view, group_bys in (
+			("inventory", "summary", (["location"], ["batch"], ["location", "batch"])),
+			("expiry", "batches", (["batch"], ["expiryMonth"])),
+			(
+				"movements",
+				"summary",
+				(["source"], ["destination", "item"], ["month", "item"], ["activity"]),
+			),
+			("loans", "items", (["borrower"], ["borrower", "item"], ["activity", "item"], ["month"])),
+		):
+			for group_by in group_bys:
+				self.assertEqual(
+					validate_query(self.query(dataset, view, groupBy=group_by))["groupBy"],
+					group_by,
+				)
+		for dataset, view, group_by in (
+			("movements", "summary", ["item", "source"]),
+			("loans", "items", ["item", "borrower"]),
+		):
+			with self.assertRaises(Exception):
+				validate_query(self.query(dataset, view, groupBy=group_by))
+		# The receipt item is not batch tracked, so its stock has no batch and groups as blank.
+		self.receipt(4)
+		page = report_page(self.query("inventory", "summary", groupBy=["batch"]))
+		self.assertTrue(any(row["group_label"] == "无批次" for row in page["rows"]))
 
 	def test_movement_groups_keep_kind_status_quantities_and_distinct_item_union(self):
 		self.receipt(8)

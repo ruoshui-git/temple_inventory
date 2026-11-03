@@ -50,6 +50,8 @@ GROUP_LABELS = {
 	"destination": "去向位置",
 	"month": "月份",
 	"status": "状态",
+	"batch": "批次",
+	"expiryMonth": "到期月份",
 }
 
 
@@ -882,6 +884,8 @@ def _write_grouped_rows(
 		field = group_field_name(projection.query, key)
 		if key == "month" and not row.get(field):
 			return str(row.get("date") or "")[:7]
+		if key == "expiryMonth" and not row.get(field):
+			return str(row.get("expiry_date") or "")[:7]
 		return row.get(field) or ""
 
 	rows.sort(
@@ -938,10 +942,14 @@ def _write_grouped_rows(
 			buckets.setdefault(value(row, key), []).append(row)
 		for group_value, children in sorted(buckets.items(), key=lambda pair: str(pair[0]).casefold()):
 			label_row = dict(children[0])
-			if key == "month":
+			if key in ("month", "expiryMonth"):
 				label_row[field] = group_value
 			if group_value in (None, ""):
-				label_text = "无分类" if key == "category" else "未指定"
+				label_text = {
+					"category": "无分类",
+					"batch": "无批次",
+					"expiryMonth": "无到期日期",
+				}.get(key, "未指定")
 			elif key == "kind":
 				label_text = MOVEMENT_LABELS.get(
 					group_value,

@@ -12,9 +12,12 @@ from temple_inventory.periods import PERIOD_KEYS, resolve_period
 DEFINITIONS = {
 	"inventory": {
 		"views": ("summary", "locations", "historical"),
-		"groups": ("item", "category", "location", "month"),
+		"groups": ("item", "category", "location", "batch", "month"),
 	},
-	"expiry": {"views": ("batches",), "groups": ("item", "category", "location")},
+	"expiry": {
+		"views": ("batches",),
+		"groups": ("item", "category", "location", "batch", "expiryMonth"),
+	},
 	"movements": {
 		"views": ("summary", "records", "lines"),
 		"groups": (
@@ -259,38 +262,50 @@ SORTABLE_COLUMNS = {
 }
 
 
+VIEW_GROUPS = {
+	("inventory", "summary"): ("category", "item", "location", "batch"),
+	("inventory", "locations"): ("category", "item", "location", "batch"),
+	("inventory", "historical"): ("category", "item", "location", "month"),
+	("expiry", "batches"): ("category", "item", "location", "batch", "expiryMonth"),
+	("movements", "summary"): ("item", "category", "kind", "source", "destination", "activity", "month"),
+	("movements", "records"): ("kind", "status", "activity", "month"),
+	("movements", "lines"): (
+		"item",
+		"category",
+		"source",
+		"destination",
+		"kind",
+		"activity",
+		"month",
+	),
+	("loans", "records"): ("borrower", "activity", "status", "month"),
+	("loans", "items"): ("item", "category", "borrower", "activity", "month"),
+	("loans", "outcomes"): ("item", "borrower", "activity", "outcome", "month"),
+	("loans", "settlements"): ("item", "borrower", "activity", "outcome", "month"),
+	("activities", "metadata"): ("activityType", "status"),
+	("activities", "records"): ("kind", "status", "month"),
+	("activities", "loans"): ("item", "borrower", "activity", "outcome", "month"),
+	("counts", "records"): ("kind", "status", "month"),
+	("counts", "lines"): ("item", "location", "month"),
+}
+# Item groups load their own lines, so item may only be the last level of a detail grouping.
+DETAIL_GROUP_VIEWS = (("movements", "summary"), ("loans", "items"))
+
+
 def group_sequences_for_view(dataset, view):
 	"""List ordered group field sequences accepted by one report grain."""
-	fields = {
-		("inventory", "summary"): ("category", "item"),
-		("inventory", "locations"): ("category", "item", "location"),
-		("inventory", "historical"): ("category", "item", "location", "month"),
-		("expiry", "batches"): ("category", "item", "location"),
-		("movements", "summary"): ("item", "category", "kind"),
-		("movements", "records"): ("kind", "status", "activity", "month"),
-		("movements", "lines"): (
-			"item",
-			"category",
-			"source",
-			"destination",
-			"kind",
-			"activity",
-			"month",
-		),
-		("loans", "records"): ("borrower", "activity", "status", "month"),
-		("loans", "items"): ("item", "category"),
-		("loans", "outcomes"): ("item", "borrower", "activity", "outcome", "month"),
-		("loans", "settlements"): ("item", "borrower", "activity", "outcome", "month"),
-		("activities", "metadata"): ("activityType", "status"),
-		("activities", "records"): ("kind", "status", "month"),
-		("activities", "loans"): ("item", "borrower", "activity", "outcome", "month"),
-		("counts", "records"): ("kind", "status", "month"),
-		("counts", "lines"): ("item", "location", "month"),
-	}.get((dataset, view), ())
-	if (dataset, view) == ("movements", "summary"):
-		return [[], ["item"], ["category", "item"], ["kind"], ["kind", "item"]]
-	if (dataset, view) == ("loans", "items"):
-		return [[], ["item"], ["category", "item"]]
+	fields = VIEW_GROUPS.get((dataset, view), ())
+	if (dataset, view) in DETAIL_GROUP_VIEWS:
+		return [
+			[],
+			*[[field] for field in fields],
+			*[
+				[first, second]
+				for first in fields
+				for second in fields
+				if first != second and first != "item"
+			],
+		]
 	return [
 		[],
 		*[[field] for field in fields],
@@ -454,32 +469,7 @@ def validate_query(value):
 		frappe.throw("此数据集不支持所选视图或分组")
 	if len(group_by) != len(set(group_by)):
 		frappe.throw("分组字段不能重复")
-	view_groups = {
-		("inventory", "summary"): ("category", "item"),
-		("inventory", "locations"): ("category", "item", "location"),
-		("inventory", "historical"): ("category", "item", "location", "month"),
-		("expiry", "batches"): ("category", "item", "location"),
-		("movements", "summary"): ("item", "category", "kind"),
-		("movements", "records"): ("kind", "status", "activity", "month"),
-		("movements", "lines"): (
-			"item",
-			"category",
-			"source",
-			"destination",
-			"kind",
-			"activity",
-			"month",
-		),
-		("loans", "records"): ("borrower", "activity", "status", "month"),
-		("loans", "items"): ("item", "category"),
-		("loans", "outcomes"): ("item", "borrower", "activity", "outcome", "month"),
-		("loans", "settlements"): ("item", "borrower", "activity", "outcome", "month"),
-		("activities", "metadata"): ("activityType", "status"),
-		("activities", "records"): ("kind", "status", "month"),
-		("activities", "loans"): ("item", "borrower", "activity", "outcome", "month"),
-		("counts", "records"): ("kind", "status", "month"),
-		("counts", "lines"): ("item", "location", "month"),
-	}.get((dataset, query["view"]), definition["groups"])
+	view_groups = VIEW_GROUPS.get((dataset, query["view"]), definition["groups"])
 	if any(field not in view_groups for field in group_by):
 		frappe.throw("此数据集不支持所选视图或分组")
 	if group_by not in group_sequences_for_view(dataset, query["view"]):

@@ -83,6 +83,8 @@ def group_field_name(query, key):
 		"source": "source_warehouse",
 		"destination": "destination_warehouse",
 		"month": "month",
+		"batch": "batch_no",
+		"expiryMonth": "expiry_month",
 	}[key]
 
 
@@ -102,6 +104,10 @@ def group_label(row, query, depth=None):
 		return row.get("activity_type_label") or value or ""
 	if field == "docstatus":
 		return {0: "草稿", 1: "已提交", 2: "已取消"}.get(value, "状态未知")
+	if field == "batch_no":
+		return value or "无批次"
+	if field == "expiry_month":
+		return value or "无到期日期"
 	return str(value or "未指定")
 
 
@@ -1369,6 +1375,7 @@ class Projection(AbstractContextManager):
 			self.column_names["group_source"] = []
 			for row in self.rows(source):
 				row["month"] = str(row.get("date") or "")[:7]
+				row["expiry_month"] = str(row.get("expiry_date") or "")[:7]
 				if "warehouse" in group_fields and not row.get("warehouse"):
 					for direction in ("source_warehouse", "destination_warehouse"):
 						warehouse = row.get(direction)
