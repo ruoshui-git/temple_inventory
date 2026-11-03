@@ -1583,7 +1583,13 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 									"
 								/>
 							</label>
-							<div class="browse-group-heading mobile-operation-group-heading">
+							<div
+								class="browse-group-heading mobile-operation-group-heading"
+								:class="{
+									'has-thumbnail':
+										isItemGroup(group) && c.stockItem(groupItem(group)),
+								}"
+							>
 								<div
 									v-if="isItemGroup(group) && c.stockItem(groupItem(group))"
 									class="browse-group-thumbnail"

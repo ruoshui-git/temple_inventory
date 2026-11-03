@@ -1247,8 +1247,20 @@
 .mobile-operation-item-link {
 	margin-block-end: 8px;
 }
-.mobile-operation-group-totals {
+/* The toggle and its totals stack beside the thumbnail, or span the row without one. */
+.mobile-item-group-list .mobile-operation-group-heading:not(.has-thumbnail) {
+	grid-template-columns: minmax(0, 1fr);
+}
+.mobile-operation-group-heading.has-thumbnail .browse-group-trigger {
 	grid-column: 2;
+	grid-row: 1;
+}
+.mobile-operation-group-heading.has-thumbnail .mobile-operation-group-totals {
+	grid-column: 2;
+	grid-row: 2;
+}
+.mobile-operation-group-totals {
+	grid-column: 1 / -1;
 	min-width: 0;
 	padding-inline: 6px;
 	color: var(--p-muted);
