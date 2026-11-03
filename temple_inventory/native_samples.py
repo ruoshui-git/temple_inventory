@@ -15,7 +15,7 @@ from decimal import Decimal
 
 import frappe
 from erpnext.stock.utils import get_stock_balance
-from frappe.utils import getdate, now_datetime, nowdate
+from frappe.utils import getdate, nowdate
 
 from temple_inventory import (
 	activities,
@@ -759,13 +759,22 @@ def _items(data, costumes, *, attach_images, include_generated=True):
 				"barcodes": [code],
 			}
 		)
-	if include_generated:
+	serial_items = (
+		(
+			("N-SERIAL", "无线话筒", "演出用品"),
+			("N-SERIAL-RADIO", "对讲机", "电子与科技"),
+			("N-SERIAL-PROJECTOR", "投影仪", "电子与科技"),
+		)
+		if include_generated
+		else ()
+	)
+	for key, label, group in serial_items:
 		code = allocate_item_code()
-		result["N-SERIAL"] = catalog.save_item(
+		result[key] = catalog.save_item(
 			{
 				"item_code": code,
-				"item_name": "无线话筒",
-				"item_group": "演出用品",
+				"item_name": label,
+				"item_group": group,
 				"stock_uom": "Nos",
 				"has_serial_no": 1,
 				"serial_no_series": f"{code}-.####",
@@ -1305,6 +1314,256 @@ def _workflow(company, items, rooms, *, attach_files):
 	return documents, loans, [activity["name"], meal_activity["name"], history_activity["name"]]
 
 
+def _serial_workflow(company, items, rooms):
+	"""Serial-tracked lifecycle: receipt, transfer, loan, settlement, damage, repair, issue and count."""
+	mic, radio, projector = items["N-SERIAL"], items["N-SERIAL-RADIO"], items["N-SERIAL-PROJECTOR"]
+	a, b, shelf, leased, damaged = (
+		rooms[key] for key in ("DEMO_A", "DEMO_B", "DEMO_SHELF", "LEASE", "DAMAGED")
+	)
+	mic_serials = [f"{mic['item_code']}-SAMPLE-{index}" for index in range(1, 7)]
+	projector_serials = [f"{projector['item_code']}-SAMPLE-{index}" for index in range(1, 3)]
+	afternoon = "13:00:00"
+	documents = [
+		_entry(
+			company,
+			"serial-receipt-microphone",
+			"Receive",
+			[
+				_line(
+					mic,
+					len(mic_serials),
+					target=a,
+					use_serial_batch_fields=1,
+					serial_no="\n".join(mic_serials),
+				)
+			],
+			-40,
+		),
+		_entry(
+			company,
+			"serial-receipt-radio",
+			"Receive",
+			[_line(radio, 8, target=b)],
+			-40,
+			posting_time=afternoon,
+		),
+		_entry(
+			company,
+			"serial-receipt-projector",
+			"Receive",
+			[
+				_line(
+					projector,
+					len(projector_serials),
+					target=shelf,
+					use_serial_batch_fields=1,
+					serial_no="\n".join(projector_serials),
+				)
+			],
+			-39,
+		),
+	]
+	# The auto-series receipt has no explicit serials; read them back once and use them explicitly after.
+	radio_serials = frappe.get_all(
+		"Serial No", filters={"item_code": radio["item_code"]}, order_by="name asc", pluck="name"
+	)
+	if len(radio_serials) != 8:
+		frappe.throw("对讲机自动序列号样例必须生成 8 个序列号")
+	documents.append(
+		_entry(
+			company,
+			"serial-transfer-microphone",
+			"Transfer",
+			[
+				_line(
+					mic,
+					2,
+					source=a,
+					target=b,
+					use_serial_batch_fields=1,
+					serial_no="\n".join(mic_serials[4:6]),
+				)
+			],
+			-35,
+		)
+	)
+	mic_loan = _entry(
+		company,
+		"serial-loan-microphone",
+		"Loan",
+		[
+			_line(
+				mic,
+				2,
+				source=a,
+				target=leased,
+				use_serial_batch_fields=1,
+				serial_no="\n".join(mic_serials[0:2]),
+			)
+		],
+		-30,
+		ti_borrower="演出团队",
+	)
+	radio_loan = _entry(
+		company,
+		"serial-loan-radio",
+		"Loan",
+		[
+			_line(
+				radio,
+				3,
+				source=b,
+				target=leased,
+				use_serial_batch_fields=1,
+				serial_no="\n".join(radio_serials[0:3]),
+			)
+		],
+		-30,
+		posting_time=afternoon,
+		ti_borrower="义工组",
+	)
+	documents.extend((mic_loan, radio_loan))
+
+	def settle(loan, item, serials, outcome, target):
+		return _line(
+			item,
+			len(serials),
+			source=leased,
+			target=target,
+			use_serial_batch_fields=1,
+			serial_no="\n".join(serials),
+			ti_original_loan=loan.name,
+			ti_original_loan_line=loan["items"][0].name,
+			ti_settlement_outcome=outcome,
+		)
+
+	documents.extend(
+		[
+			_entry(
+				company,
+				"serial-return-microphone",
+				"Return",
+				[settle(mic_loan, mic, mic_serials[1:2], "Returned", a)],
+				-25,
+			),
+			_entry(
+				company,
+				"serial-return-radio",
+				"Return",
+				[
+					settle(radio_loan, radio, radio_serials[0:1], "Returned", b),
+					settle(radio_loan, radio, radio_serials[1:2], "Damaged", damaged),
+				],
+				-25,
+				posting_time=afternoon,
+			),
+			_entry(
+				company,
+				"serial-loss-radio",
+				"Loss",
+				[settle(radio_loan, radio, radio_serials[2:3], "Lost", None)],
+				-22,
+			),
+			_entry(
+				company,
+				"serial-damage-microphone",
+				"Damage",
+				[
+					_line(
+						mic, 1, source=a, target=damaged, use_serial_batch_fields=1, serial_no=mic_serials[2]
+					)
+				],
+				-20,
+			),
+			_entry(
+				company,
+				"serial-repair-microphone",
+				"Repair",
+				[
+					_line(
+						mic, 1, source=damaged, target=a, use_serial_batch_fields=1, serial_no=mic_serials[2]
+					)
+				],
+				-18,
+			),
+			_entry(
+				company,
+				"serial-disposal-radio",
+				"Disposal",
+				[_line(radio, 1, source=damaged, use_serial_batch_fields=1, serial_no=radio_serials[1])],
+				-16,
+			),
+			_entry(
+				company,
+				"serial-issue-radio",
+				"Issue",
+				[_line(radio, 1, source=b, use_serial_batch_fields=1, serial_no=radio_serials[3])],
+				-12,
+			),
+			_entry(
+				company,
+				"serial-transfer-projector",
+				"Transfer",
+				[
+					_line(
+						projector,
+						1,
+						source=shelf,
+						target=a,
+						use_serial_batch_fields=1,
+						serial_no=projector_serials[1],
+					)
+				],
+				-10,
+			),
+		]
+	)
+	# Count the serial-tracked stock at DEMO_A and DEMO_B; the microphone SAMPLE-4 is missing from DEMO_A.
+	stamp = _date(-3) + " 12:00:00"
+	serial_codes = {mic["item_code"], radio["item_code"], projector["item_code"]}
+	missing = mic_serials[3]
+	baseline = counts.count_baseline(stamp)
+	rows = []
+	for row in baseline["rows"]:
+		copy = dict(row)
+		if row["warehouse"] in (a, b) and row.get("is_serial") and row["item_code"] in serial_codes:
+			is_missing = row["item_code"] == mic["item_code"] and row["warehouse"] == a
+			actual = [serial for serial in row.get("baseline_serials") or [] if serial != missing]
+			copy.update(
+				actual_qty=len(actual),
+				actual_serials=actual,
+				review_state="Reviewed",
+				reason="序列号盘点：话筒缺失" if is_missing else "核对无差异",
+			)
+		else:
+			copy.update(actual_qty=None, review_state="Unreviewed", reason="")
+		rows.append(copy)
+	draft = counts.save_count(
+		REQUEST_PREFIX + "serial-count",
+		{
+			"company": company,
+			"posting_date": _date(-3),
+			"posting_time": "12:00:00",
+			"ti_time_mode": "Historical",
+			"ti_count_review": rows,
+			"ti_notes": "序列号物品盘点",
+		},
+	)
+	serial_count = native_api.submit_document("Stock Reconciliation", draft["name"], draft["version"])
+	documents.append(
+		_entry(
+			company,
+			"serial-draft-transfer",
+			"Transfer",
+			[_line(mic, 1, source=b, target=a, use_serial_batch_fields=1, serial_no=mic_serials[5])],
+			0,
+			submit=False,
+			actor=_seed_users()[1],
+		)
+	)
+	return documents, serial_count
+
+
 def _count(company, rooms, items):
 	stamp = _date(-1) + " 12:00:00"
 	warehouses = [rooms["DEMO_A"], rooms["DEMO_SHELF"]]
@@ -1423,7 +1682,12 @@ def _mixed_count(company, rooms, items):
 	stamp = _date(0) + " " + posting_time
 	baseline = counts.count_baseline(stamp)
 	# Costume stock is counted by its own sample flows, not by the mixed reconciliation.
-	counted_codes = {item["item_code"] for key, item in items.items() if not key.startswith("C-")}
+	# Serial-tracked stock is counted by its own serial count, which lists the Serial Nos explicitly.
+	counted_codes = {
+		item["item_code"]
+		for key, item in items.items()
+		if not key.startswith("C-") and not frappe.db.get_value("Item", item["item_code"], "has_serial_no")
+	}
 	all_rows = [row for row in baseline["rows"] if row["item_code"] in counted_codes]
 	location_counts = defaultdict(set)
 	for row in all_rows:
@@ -2147,38 +2411,12 @@ def _install(company, *, data="full", attach_images=True, attach_files=True, gen
 		-390,
 	)
 	documents.append(depleted_batch_issue)
+	serial_documents, serial_count = _serial_workflow(company, items, rooms)
+	documents.extend(serial_documents)
 	reconciliation = _count(company, rooms, items)
 	mixed_count = _mixed_count(company, rooms, items)
-	serial_item = items["N-SERIAL"]
-	serials = [f"{serial_item['item_code']}-SAMPLE-{index}" for index in range(1, 5)]
-	serial_time = now_datetime()
-	serial_receive = _entry(
-		company,
-		"serial-receipt",
-		"Receive",
-		[_line(serial_item, len(serials), target=rooms["DEMO_A"], serial_no="\n".join(serials))],
-		0,
-		posting_time=serial_time.strftime("%H:%M:%S"),
-	)
-	serial_loan = _entry(
-		company,
-		"serial-loan",
-		"Loan",
-		[
-			_line(
-				serial_item,
-				1,
-				source=rooms["DEMO_A"],
-				target=rooms["LEASE"],
-				serial_no=serials[0],
-			)
-		],
-		0,
-		posting_time=(serial_time + timedelta(seconds=1)).strftime("%H:%M:%S"),
-		ti_borrower="演出团队",
-	)
-	documents.extend((serial_receive, serial_loan))
 	assert_balances(rooms, loans, items)
+	_assert_serials(items, rooms)
 	return {
 		"items": len(items),
 		"item_codes": {key: item["item_code"] for key, item in items.items()},
@@ -2196,6 +2434,7 @@ def _install(company, *, data="full", attach_images=True, attach_files=True, gen
 			*[doc.name for doc in documents],
 		],
 		"reconciliation": reconciliation.name,
+		"serial_count": serial_count.name,
 		"mixed_count": mixed_count.name,
 		"opening_reconciliation": opening_reconciliation.name if opening_reconciliation else None,
 		"loans": [loan.name for loan in loans],
@@ -2213,3 +2452,38 @@ def assert_balances(rooms, loans, items):
 		settled = sum(sum(values.values()) for values in loan_balances(loan.name).values())
 		if Decimal(str(loan.get("items")[0].transfer_qty)) - settled != expected:
 			raise AssertionError("Native sample original-loan balance mismatch")
+
+
+def _assert_serials(items, rooms):
+	"""Check final Serial No locations after every serial-tracked sample movement and count."""
+	mic, radio, projector = items["N-SERIAL"], items["N-SERIAL-RADIO"], items["N-SERIAL-PROJECTOR"]
+	radio_serials = frappe.get_all(
+		"Serial No", filters={"item_code": radio["item_code"]}, order_by="name asc", pluck="name"
+	)
+	if len(radio_serials) != 8:
+		raise AssertionError(f"Native sample radio serials must number 8, found {len(radio_serials)}")
+	mic_prefix = f"{mic['item_code']}-SAMPLE-"
+	projector_prefix = f"{projector['item_code']}-SAMPLE-"
+	expected = {
+		f"{mic_prefix}1": rooms["LEASE"],
+		f"{mic_prefix}2": rooms["DEMO_A"],
+		f"{mic_prefix}3": rooms["DEMO_A"],
+		# The serial count omitted SAMPLE-4, so the reconciliation removed it from the warehouse.
+		f"{mic_prefix}4": None,
+		f"{mic_prefix}5": rooms["DEMO_B"],
+		f"{mic_prefix}6": rooms["DEMO_B"],
+		f"{projector_prefix}1": rooms["DEMO_SHELF"],
+		f"{projector_prefix}2": rooms["DEMO_A"],
+		radio_serials[0]: rooms["DEMO_B"],
+		radio_serials[1]: None,
+		radio_serials[2]: None,
+		radio_serials[3]: None,
+		radio_serials[4]: rooms["DEMO_B"],
+		radio_serials[5]: rooms["DEMO_B"],
+		radio_serials[6]: rooms["DEMO_B"],
+		radio_serials[7]: rooms["DEMO_B"],
+	}
+	for serial, warehouse in expected.items():
+		actual = frappe.db.get_value("Serial No", serial, "warehouse") or None
+		if actual != warehouse:
+			raise AssertionError(f"Native sample serial {serial} is in {actual!r}, expected {warehouse!r}")

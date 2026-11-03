@@ -518,7 +518,15 @@ def before_validate(doc, method=None):
 	for row in review_dicts:
 		book = current.get(_key(row))
 		if book and book.get("is_serial") and row.get("actual_serials") is None:
-			row["actual_serials"] = actual_by_key.get(_key(row), [])
+			if _key(row) in actual_by_key:
+				row["actual_serials"] = actual_by_key[_key(row)]
+			elif row.get("review_state") == "Reviewed" and Decimal(
+				str(row.get("actual_qty") or 0)
+			) == Decimal(str(book["baseline_qty"])):
+				# A matching reviewed serial row has no difference line; it equals its baseline.
+				row["actual_serials"] = list(book.get("baseline_serials") or [])
+			else:
+				row["actual_serials"] = []
 	stale = [
 		row
 		for row in review_dicts

@@ -594,6 +594,69 @@ class SerialTrackingTests(NativeDocumentTests):
 		self.assertEqual(count_detail["actual_serials"], sorted(serials[:2]))
 		self.assertEqual(count_detail["missing_serials"], [serials[2]])
 
+	def test_matching_reviewed_serial_row_survives_submit_beside_a_serial_difference(self):
+		matching_item = self.serial_item()
+		matching = [f"TSN-{self.token}-MATCH-{index}" for index in range(2)]
+		self.serial_entry(
+			matching_item, "Material Receipt", 2, target=self.a, serials=matching
+		).insert().submit()
+		changed_item = self.serial_item()
+		changed = [f"TSN-{self.token}-CHANGED-{index}" for index in range(3)]
+		self.serial_entry(
+			changed_item, "Material Receipt", 3, target=self.a, serials=changed
+		).insert().submit()
+		timestamp = now_datetime() + timedelta(minutes=1)
+		baseline = counts._baseline(timestamp)
+		reviews = []
+		for row in baseline["rows"]:
+			review = {
+				**row,
+				"actual_qty": None,
+				"actual_serials": None if row.get("is_serial") else [],
+				"review_state": "Unreviewed",
+				"reason": "",
+			}
+			if row["warehouse"] == self.a and row["item_code"] == matching_item.name:
+				# Row A matches its book exactly: Reviewed, no difference line.
+				review.update(
+					{
+						"actual_qty": 2,
+						"actual_serials": matching,
+						"review_state": "Reviewed",
+						"reason": "核对无差异",
+					}
+				)
+			if row["warehouse"] == self.a and row["item_code"] == changed_item.name:
+				# Row B drops one serial, so it is the only difference.
+				review.update(
+					{
+						"actual_qty": 2,
+						"actual_serials": changed[:2],
+						"review_state": "Reviewed",
+						"reason": "序列号缺失",
+					}
+				)
+			reviews.append(review)
+		saved = counts.save_count(
+			f"serial-count-matching:{self.token}",
+			{
+				"company": self.company,
+				"posting_date": timestamp.date(),
+				"posting_time": timestamp.time(),
+				"ti_count_review": reviews,
+			},
+		)
+		doc = frappe.get_doc("Stock Reconciliation", saved["name"])
+		self.assertEqual({row.item_code for row in doc.items}, {changed_item.name})
+		native_api.submit_document("Stock Reconciliation", doc.name, str(doc.modified))
+		self.assertEqual(get_stock_balance(changed_item.name, self.a), 2)
+		self.assertEqual(frappe.db.get_value("Serial No", changed[2], "status"), "Delivered")
+		self.assertEqual(get_stock_balance(matching_item.name, self.a), 2)
+		for serial in matching:
+			self.assertEqual(
+				frappe.db.get_value("Serial No", serial, ["status", "warehouse"]), ("Active", self.a)
+			)
+
 	def test_count_save_and_confirm_to_zero_uses_reconcile_all_serial_batch(self):
 		item = self.serial_item()
 		serials = [f"TSN-{self.token}-COUNT-SAVE-ZERO-{index}" for index in range(2)]

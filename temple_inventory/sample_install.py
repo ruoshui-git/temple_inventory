@@ -10,7 +10,7 @@ from pathlib import Path
 import frappe
 from frappe.utils import cint, getdate, nowdate
 
-VERSION = "2026.10.native-location-model-v10"
+VERSION = "2026.10.native-location-model-v11-serials"
 
 DEFAULT_SAMPLE_ITEM_GROUPS = ("Consumable", "Products", "Raw Material", "Services", "Sub Assemblies")
 DEFAULT_SAMPLE_WAREHOUSES = (
@@ -568,6 +568,35 @@ def verify_development_sample(*, require_images=True, data="full"):
 			net_by_unit[row.stock_uom] = net_by_unit.get(row.stock_uom, 0) + float(row.difference)
 	if not any(net_by_unit.values()):
 		raise AssertionError("Mixed sample count must have a non-zero net difference")
+	serial_codes = frappe.get_all("Item", filters={"has_serial_no": 1}, pluck="name")
+	if len(serial_codes) < 3:
+		raise AssertionError("Full seed must contain at least three serial-tracked Items")
+	serial_rows = frappe.get_all(
+		"Serial No", filters={"item_code": ["in", serial_codes]}, fields=["name", "warehouse"]
+	)
+	leaf_serials = [
+		row
+		for row in serial_rows
+		if row.warehouse and frappe.db.get_value("Warehouse", row.warehouse, "is_group") == 0
+	]
+	if not any(row.warehouse == settings.leased_warehouse for row in serial_rows):
+		raise AssertionError("Full seed must place a serial-tracked Item in the loan warehouse")
+	if not any(
+		frappe.db.get_value("Warehouse", row.warehouse, "warehouse_type") not in ("Loan", "Damaged")
+		for row in leaf_serials
+	):
+		raise AssertionError("Full seed must place serial-tracked Items in a physical leaf")
+	if not any(not row.warehouse for row in serial_rows):
+		raise AssertionError("Full seed must include issued, disposed or lost serial-tracked Items")
+	if not frappe.db.sql(
+		"""
+		select count(*) from `tabStock Reconciliation Item` item
+		join `tabStock Reconciliation` count on count.name = item.parent
+		where count.docstatus = 1 and item.item_code in %(codes)s
+		""",
+		{"codes": tuple(serial_codes)},
+	)[0][0]:
+		raise AssertionError("Full seed must include a submitted count of a serial-tracked Item")
 	from temple_inventory import browse
 
 	dashboard_inventory = browse.dashboard_card("inventory")

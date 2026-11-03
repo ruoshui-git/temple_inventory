@@ -354,20 +354,68 @@ class NativeSampleTests(NativeDocumentTests):
 				self.assertGreaterEqual(len(placements), 1)
 				self.assertLessEqual(len(placements), 3)
 				self.assertTrue(set(placements) <= physical)
-			self.assertEqual(result["items"], 165)
+			self.assertEqual(result["items"], 167)
 			self.assertEqual(result["images"], 0)
 			serial_item = frappe.get_doc("Item", result["item_codes"]["N-SERIAL"])
 			self.assertEqual(serial_item.item_name, "无线话筒")
 			self.assertEqual(serial_item.stock_uom, "Nos")
 			self.assertEqual(serial_item.serial_no_series, f"{serial_item.name}-.####")
-			serial_rows = frappe.get_all(
-				"Serial No",
-				filters={"item_code": serial_item.name},
-				fields=["name", "status", "warehouse"],
+			codes = result["item_codes"]
+			rooms = result["rooms"]
+
+			def serial_locations(key):
+				rows = frappe.get_all(
+					"Serial No",
+					filters={"item_code": codes[key]},
+					fields=["name", "warehouse"],
+					order_by="name asc",
+				)
+				return [(row.name, row.warehouse) for row in rows]
+
+			mic_prefix = f"{codes['N-SERIAL']}-SAMPLE-"
+			self.assertEqual(
+				serial_locations("N-SERIAL"),
+				[
+					(f"{mic_prefix}1", rooms["LEASE"]),
+					(f"{mic_prefix}2", rooms["DEMO_A"]),
+					(f"{mic_prefix}3", rooms["DEMO_A"]),
+					# The serial count omitted SAMPLE-4, so the reconciliation removed it from DEMO_A.
+					(f"{mic_prefix}4", None),
+					(f"{mic_prefix}5", rooms["DEMO_B"]),
+					(f"{mic_prefix}6", rooms["DEMO_B"]),
+				],
 			)
-			self.assertEqual(len(serial_rows), 4)
-			self.assertEqual(sum(row.warehouse == result["rooms"]["LEASE"] for row in serial_rows), 1)
-			self.assertEqual(sum(row.warehouse == result["rooms"]["DEMO_A"] for row in serial_rows), 3)
+			projector_prefix = f"{codes['N-SERIAL-PROJECTOR']}-SAMPLE-"
+			self.assertEqual(
+				serial_locations("N-SERIAL-PROJECTOR"),
+				[
+					(f"{projector_prefix}1", rooms["DEMO_SHELF"]),
+					(f"{projector_prefix}2", rooms["DEMO_A"]),
+				],
+			)
+			# The radio receipt used the auto series; serials 1-8 are ordered by name.
+			radio_locations = serial_locations("N-SERIAL-RADIO")
+			self.assertEqual(
+				[warehouse for _, warehouse in radio_locations],
+				[
+					rooms["DEMO_B"],
+					None,
+					None,
+					None,
+					rooms["DEMO_B"],
+					rooms["DEMO_B"],
+					rooms["DEMO_B"],
+					rooms["DEMO_B"],
+				],
+			)
+			serial_count = frappe.get_doc("Stock Reconciliation", result["serial_count"])
+			self.assertEqual(serial_count.docstatus, 1)
+			self.assertTrue(
+				any(
+					row.item_code == codes["N-SERIAL"] and row.qty != row.current_qty
+					for row in serial_count.items
+				)
+			)
 			costumes = test_costumes
 			barcode_to_parent = {
 				row.barcode: row.parent
@@ -422,9 +470,17 @@ class NativeSampleTests(NativeDocumentTests):
 			self.assertEqual({row.qty for row in count.items}, {68, 7})
 			self.assertEqual(count.items[0].valuation_rate, 10)
 			serial_baseline = counts._baseline(f"{count.posting_date} {count.posting_time}")
-			# The sample count is posted before the later serial receipt and loan, so its historical
-			# baseline correctly excludes this Item rather than counting its current Serial No state.
-			self.assertFalse(any(row["item_code"] == serial_item.name for row in serial_baseline["rows"]))
+			# The serial history is posted before this count, so its baseline lists the Serial Nos
+			# that DEMO_A held at that moment (SAMPLE-4 was removed later by the serial count).
+			serial_baseline_rows = [
+				row
+				for row in serial_baseline["rows"]
+				if row["item_code"] == serial_item.name and row["warehouse"] == result["rooms"]["DEMO_A"]
+			]
+			self.assertEqual(
+				sorted(serial_baseline_rows[0]["baseline_serials"]),
+				[f"{serial_item.name}-SAMPLE-2", f"{serial_item.name}-SAMPLE-3"],
+			)
 			self.assertNotIn(serial_item.name, {row.item_code for row in count.items})
 			mixed_count = frappe.get_doc("Stock Reconciliation", result["mixed_count"])
 			mixed_rows = mixed_count.ti_count_review
