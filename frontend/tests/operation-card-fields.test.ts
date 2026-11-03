@@ -205,6 +205,11 @@ describe("operation browse layouts", () => {
     expect(
       phone.get('[aria-label="列表视图"]').attributes("aria-pressed"),
     ).toBe("true");
+    // Phone item rows are 库存 rows: thumbnail, name, then the quantity change.
+    const row = phone.get(".operation-item-list .stock-list-row");
+    expect(row.find(".stock-list-image").exists()).toBe(true);
+    expect(row.get(".stock-list-name").text()).toBe("物品甲");
+    expect(row.find(".stock-list-quantity").exists()).toBe(true);
     phone.unmount();
     wrappers.splice(wrappers.indexOf(phone), 1);
 

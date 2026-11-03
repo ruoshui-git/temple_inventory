@@ -848,12 +848,6 @@ const itemRowPartition = computed(() =>
 		ROW_FIELD_LIMIT,
 	),
 );
-// Rows keep the quantity change first so the field limit never hides it.
-const itemRowFields = computed(() =>
-	itemRowPartition.value.hero
-		? [itemRowPartition.value.hero, ...itemRowPartition.value.fields]
-		: itemRowPartition.value.fields,
-);
 const recordRowPartition = computed(() =>
 	partitionCardColumns(
 		orderedVisibleColumns(operationColumns.value, operationPreferences),
@@ -1751,13 +1745,17 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						v-if="
 							!records && isMobile && !query.groupBy.length && browseView === 'list'
 						"
-						class="browse-card-grid operation-record-list"
+						class="stock-list surface operation-item-list"
 					>
 						<BrowseCard
 							v-for="entry in flatItemCardRows"
 							:key="entry.id"
 							:row-key="entry.id"
 							variant="row"
+							:class="[
+								'stock-list-row',
+								{ 'is-text-only': !itemRowPartition.media },
+							]"
 							:selecting="family === 'loans' && c.selecting.value"
 							:selected="c.selected.value.includes(entry.id)"
 							:select-label="`选择物品 ${itemName(entry.value || {}) || entry.id}`"
@@ -1765,14 +1763,48 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							@toggle="c.setSelected(entry.id, !c.selected.value.includes(entry.id))"
 							@open="emit('openItem', String(entry.value?.item_code || entry.id))"
 						>
-							<div class="operation-record-row-content">
-								<strong>{{ itemName(entry.value || {}) }}</strong>
-								<span v-if="itemRowPartition.status" class="badge art-badge">{{
-									itemStatusText(entry.value || {})
-								}}</span>
+							<template v-if="itemRowPartition.media" #media>
+								<div class="stock-list-image">
+									<ItemImage
+										:item="{
+											code: String(entry.value?.item_code || ''),
+											name: String(entry.value?.item_name || ''),
+											image: String(entry.value?.image || ''),
+										}"
+										:thumbnail-size="64"
+									/>
+								</div>
+							</template>
+							<template #default="{ activate }">
+								<button
+									class="stock-list-open"
+									:disabled="result.stale"
+									@click="activate"
+								>
+									<span class="stock-list-identity">
+										<strong class="stock-list-name">{{
+											itemName(entry.value || {})
+										}}</strong>
+										<span
+											v-if="itemRowPartition.status"
+											class="browse-badge"
+											>{{ itemStatusText(entry.value || {}) }}</span
+										>
+									</span>
+									<span v-if="itemRowPartition.hero" class="stock-list-quantity">
+										<strong
+											><OperationItemCell
+												:column="itemRowPartition.hero"
+												:row="entry.value || {}"
+												:controller="c"
+												:family="family"
+												:helpers="cellHelpers"
+										/></strong>
+									</span>
+								</button>
 								<CardFields
 									variant="row"
-									:fields="itemRowFields"
+									:fields="itemRowPartition.fields"
 									:row="entry.value || {}"
 									:overflow="itemRowPartition.overflow"
 								>
@@ -1786,7 +1818,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 										/>
 									</template>
 								</CardFields>
-							</div>
+							</template>
 						</BrowseCard>
 					</div>
 					<div

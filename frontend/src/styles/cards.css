@@ -440,10 +440,13 @@
 /* Card and 列表 field summaries (CardFields) and the text-only ItemCard. */
 /* Card fields read like the card's original meta line: muted `label value` pairs that wrap, with chip
    fields (位置, 批次) on a line of their own. */
+/* Stretch to the card: sized to its content, a long ref would widen the line past the card edge
+   and clip there instead of ending in an ellipsis. */
 .card-fields {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
+	justify-self: stretch;
 	gap: 4px 12px;
 	min-width: 0;
 	margin: 0;
