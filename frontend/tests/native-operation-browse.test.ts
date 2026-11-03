@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { showPhoneTable } from "./support/phoneTableView";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h, reactive } from "vue";
 import { createMemoryHistory, createRouter } from "vue-router";
@@ -17,6 +16,7 @@ import { newReportQuery, type ReportQuery } from "../src/lib/reportContract";
 import { decodeReportQuery } from "../src/lib/reportQuery";
 import { createRecoveryStore } from "../src/lib/browserRecovery";
 import QuickExport from "../src/components/QuickExport.vue";
+import { showPhoneTable } from "./support/phoneTableView";
 import ScanPanel from "../src/features/scanner/ScanPanel.vue";
 const wrappers: VueWrapper[] = [];
 const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
@@ -264,10 +264,10 @@ function service(
   });
 }
 async function selectTable(wrapper: VueWrapper) {
-  // Record lists switch to the table from the "…" menu; item cards from the 列表 toggle.
-  if (await showPhoneTable(wrapper)) return;
-  const toggle = wrapper.find('[aria-label="列表视图"]');
+  // Phone record lists switch to the table from the "…" menu; item pages keep the toggle.
+  const toggle = wrapper.find('[aria-label="表格视图"]');
   if (toggle.exists()) await toggle.trigger("click");
+  else await showPhoneTable(wrapper);
   await flushPromises();
 }
 describe("native operation browsing", () => {
@@ -1191,6 +1191,11 @@ describe("native operation browsing", () => {
     );
   });
   it("renders flat native history values in the shared Item history table", async () => {
+    vi.stubGlobal("matchMedia", () => ({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
     const query = newReportQuery("loans");
     query.view = "items";
     query.groupBy = [];
@@ -1213,6 +1218,11 @@ describe("native operation browsing", () => {
     ).toHaveLength(2);
   });
   it("renders each outstanding amount once and leaves it blank on non-Loan history", async () => {
+    vi.stubGlobal("matchMedia", () => ({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
     const query = newReportQuery("loans");
     query.view = "items";
     query.groupBy = [];

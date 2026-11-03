@@ -3,8 +3,6 @@ import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
 import BrowseChip from "../../components/ui/BrowseChip.vue";
 import { useFilterRailPreference } from "../../composables/useFilterRailPreference";
 import { nextTableSort } from "../../composables/useArrayTableSort";
-import { formatExpiryDuration } from "../../lib/expiryDuration";
-import { warehouseLabel } from "../../lib/warehouseLabel";
 import { computed, ref, watch } from "vue";
 import type { ExpiryBrowse } from "./useExpiryBrowse";
 import { type ReportQuery, type ReportRow } from "../../lib/reportContract";
@@ -45,7 +43,12 @@ import { unitLabel } from "../../lib/units";
 import UnitText from "../../components/ui/UnitText.vue";
 import DetailPopover from "../../components/ui/DetailPopover.vue";
 import { formatQuantity } from "../../lib/formatQuantity";
-import { expiryColumnDefinitions } from "./expiryColumns";
+import { expiryColumnDefinitions, expiryStatusOf } from "./expiryColumns";
+import ExpiryCell from "./ExpiryCell.vue";
+import CardFields from "../../components/ui/CardFields.vue";
+import ColumnSettings from "../../components/ui/ColumnSettings.vue";
+import { orderedVisibleColumns } from "../../lib/dataTable";
+import { partitionCardColumns, ROW_FIELD_LIMIT } from "../../lib/cardLayout";
 const exportMenu = ref<{ open(): void }>();
 const props = withDefaults(defineProps<{ controller: ExpiryBrowse; active?: boolean }>(), {
 	active: true,
@@ -60,7 +63,19 @@ const emit = defineEmits<{
 	];
 }>();
 const c = props.controller,
-	{ query, scope, routeError, result, reference, chips, metrics, dimension, analysis, view } = c;
+	{
+		query,
+		scope,
+		routeError,
+		result,
+		reference,
+		chips,
+		metrics,
+		dimension,
+		analysis,
+		view,
+		viewOptions,
+	} = c;
 const { isMobile } = useResponsiveLayout();
 function clearExpiryFilters() {
 	c.reset();
@@ -150,18 +165,21 @@ function expiryIcon(key: string) {
 	);
 }
 function expiryStatus(row: ReportRow) {
-	if (!row.expiry_date) return { label: "无效期", tone: "is-neutral" };
-	if (String(row.expiry_date) < reference.siteDate)
-		return { label: "已过期", tone: "is-danger" };
-	if (typeof row.remaining_days === "number" && row.remaining_days <= 30)
-		return { label: "即将到期", tone: "is-warning" };
-	return { label: "未过期", tone: "is-success" };
+	return expiryStatusOf(row, reference.siteDate);
+}
+// Card and row badges use the status tone classes of the 到期状态 cell.
+function expiryBadgeTone(row: ReportRow) {
+	return (
+		({ "is-danger": "danger", "is-warning": "warning" } as const)[
+			expiryStatus(row).tone as "is-danger"
+		] || "neutral"
+	);
+}
+function asRow(value: Record<string, unknown>) {
+	return value as unknown as ReportRow;
 }
 function expiryCount(facet: string) {
 	return result.facets[facet] ?? "…";
-}
-function expiryRemaining(days: number) {
-	return days < 0 ? `过期${Math.abs(days)}天` : days === 0 ? "今天到期" : `剩${days}天`;
 }
 const analysisTable = computed(() => ({
 	id: "expiry-analysis",
@@ -245,6 +263,29 @@ const expiryExportOrder = computed(() =>
 const expiryExportColumns = computed(() =>
 	exportFields(expiryColumns, expiryExportOrder.value, expiryExportVisible.value),
 );
+// Cards and phone rows read the same visible, ordered columns as the table.
+const visibleColumns = computed(() => orderedVisibleColumns(expiryColumns, tablePreferences));
+const visibleIds = computed(
+	() => new Set(visibleColumns.value.map((column) => String(column.id))),
+);
+const layoutRoles = computed(() => ({
+	media: "image",
+	title: "item_name",
+	hero: "stock_qty",
+	status: "expiry_state",
+	omit: visibleIds.value.has("stock_qty") ? ["stock_uom"] : [],
+}));
+const cardPartition = computed(() =>
+	partitionCardColumns(visibleColumns.value, {
+		...layoutRoles.value,
+		eyebrow: ["category", "item_code"],
+	}),
+);
+const rowPartition = computed(() =>
+	partitionCardColumns(visibleColumns.value, layoutRoles.value, ROW_FIELD_LIMIT),
+);
+// Table layout owns grouped results and the desktop table; every other layout is a card or row list.
+const usesTable = computed(() => view.value === "table" || query.value.groupBy.length > 0);
 const tableSortBy = computed(() => query.value.sortBy);
 function openItem(row: ReportRow) {
 	if (!result.stale) emit("item", String(row.item_code));
@@ -532,6 +573,12 @@ function canExpiryAction() {
 						v-if="!query.groupBy.length"
 						v-model="view"
 						ariaLabel="效期批次视图"
+						:options="[...viewOptions]"
+					/>
+					<ColumnSettings
+						v-if="tablePreferences && !usesTable"
+						:preferences="tablePreferences"
+						:columns="expiryColumns"
 					/>
 					<SortControl
 						v-if="isMobile"
@@ -596,43 +643,42 @@ function canExpiryAction() {
 						:select-label="`选择批次 ${row.batch_no || ''}`"
 						:stale="result.stale"
 						:name="String(row.item_name || '')"
-						:code="String(row.item_code || '')"
-						:category="String(row.category || '')"
-						:image="c.item(row)"
-						:quantity="Number(row.stock_qty || 0)"
+						:code="
+							visibleIds.has('item_code') ? String(row.item_code || '') : undefined
+						"
+						:category="
+							visibleIds.has('category') ? String(row.category || '') : undefined
+						"
+						:image="c.item(row as unknown as ReportRow)"
+						:media="cardPartition.media !== undefined"
+						:quantity="cardPartition.hero ? Number(row.stock_qty || 0) : undefined"
 						:unit="row.stock_uom"
 						:status="expiryStatus(row as unknown as ReportRow).label"
-						:status-tone="
-							({ 'is-danger': 'danger', 'is-warning': 'warning' } as const)[
-								expiryStatus(row as unknown as ReportRow).tone as 'is-danger'
-							] || 'neutral'
-						"
+						:status-tone="expiryBadgeTone(row as unknown as ReportRow)"
 						@toggle="toggleExpiryRow(row as unknown as ReportRow)"
-						@open="openItem(row)"
+						@open="openItem(row as unknown as ReportRow)"
 					>
-						<template #default>
-							<button class="browse-row-link" @click.stop="openBatch(row)">
-								批次 {{ row.batch_no }}
-							</button>
-							<span>{{
-								typeof row.remaining_days === "number"
-									? expiryRemaining(row.remaining_days)
-									: "—"
-							}}</span>
-							<span>{{
-								warehouseLabel(
-									String(row.warehouse || ""),
-									reference.warehouses,
-									String(row.warehouse_label || ""),
-								)
-							}}</span>
-						</template>
+						<CardFields
+							:fields="cardPartition.fields"
+							:row="row"
+							:overflow="cardPartition.overflow"
+						>
+							<template #cell="{ column, row: cell }">
+								<ExpiryCell
+									:column="column"
+									:row="asRow(cell)"
+									:item="c.item(asRow(cell))"
+									:stale="result.stale"
+									:site-date="reference.siteDate"
+									:warehouses="reference.warehouses"
+									@item="openItem(asRow(cell))"
+									@batch="openBatch(asRow(cell))"
+								/>
+							</template>
+						</CardFields>
 					</ItemCard>
 				</div>
-				<div
-					v-if="view === 'table' && isMobile && !query.groupBy.length"
-					class="expiry-mobile"
-				>
+				<div v-if="view === 'list' && !query.groupBy.length" class="expiry-mobile">
 					<BrowseCard
 						v-for="row in result.rows"
 						:key="String(row.id)"
@@ -644,71 +690,63 @@ function canExpiryAction() {
 						:stale="result.stale"
 						class="browse-card expiry-phone-card"
 						@toggle="toggleExpiryRow(row as unknown as ReportRow)"
-						@open="openItem(row)"
+						@open="openItem(row as unknown as ReportRow)"
 					>
-						<div class="expiry-phone-identity">
-							<div class="browse-group-thumbnail">
-								<ItemImage :item="c.item(row)" />
-							</div>
-							<button
-								class="browse-row-link"
-								:disabled="result.stale"
-								@click.stop="
-									c.selecting.value
-										? toggleExpiryRow(row as unknown as ReportRow)
-										: openItem(row)
-								"
-							>
-								<strong>{{ row.item_name }}</strong
-								><small>{{ row.category }}</small>
-							</button>
-						</div>
-						<button
-							class="browse-row-link expiry-phone-batch"
-							:aria-label="`查看批次 ${row.batch_no}`"
-							:disabled="result.stale"
-							@click.stop="
-								c.selecting.value
-									? toggleExpiryRow(row as unknown as ReportRow)
-									: openBatch(row)
-							"
+						<div
+							v-if="rowPartition.media"
+							class="browse-group-thumbnail expiry-phone-thumb"
 						>
-							批次 {{ row.batch_no }}
-						</button>
-						<div class="expiry-phone-meta">
-							<span>{{ row.expiry_date || "无效期" }}</span>
-							<span class="expiry-phone-quantity"
-								><UnitText :name="row.stock_uom" :qty="Number(row.stock_qty || 0)"
-							/></span>
-							<span
-								class="expiry-phone-location"
-								:title="String(row.warehouse_path || '')"
+							<ItemImage :item="c.item(row as unknown as ReportRow)" />
+						</div>
+						<div class="expiry-phone-body">
+							<div class="expiry-phone-title">
+								<button
+									class="browse-row-link expiry-phone-name"
+									:disabled="result.stale"
+									@click.stop="
+										c.selecting.value
+											? toggleExpiryRow(asRow(row))
+											: openItem(asRow(row))
+									"
+								>
+									<strong>{{ row.item_name }}</strong>
+								</button>
+								<span v-if="rowPartition.hero" class="expiry-phone-quantity"
+									><strong>{{ Number(row.stock_qty || 0) }}</strong
+									>{{ " " }}<UnitText :name="row.stock_uom"
+								/></span>
+								<span
+									v-if="expiryStatus(asRow(row)).label"
+									class="browse-badge"
+									:class="expiryStatus(asRow(row)).tone"
+									>{{ expiryStatus(asRow(row)).label }}</span
+								>
+							</div>
+							<CardFields
+								variant="row"
+								:fields="rowPartition.fields"
+								:row="row"
+								:overflow="rowPartition.overflow"
 							>
-								{{
-									warehouseLabel(
-										String(row.warehouse || ""),
-										reference.warehouses,
-										String(row.warehouse_label || ""),
-									)
-								}}
-							</span>
-							<span
-								class="browse-badge"
-								:class="expiryStatus(row as unknown as ReportRow).tone"
-							>
-								{{ expiryStatus(row as unknown as ReportRow).label }}
-							</span>
-							<small
-								v-if="typeof row.remaining_days === 'number'"
-								:title="formatExpiryDuration(row.remaining_days)"
-								>{{ expiryRemaining(row.remaining_days) }}</small
-							>
+								<template #cell="{ column, row: cell }">
+									<ExpiryCell
+										:column="column"
+										:row="asRow(cell)"
+										:item="c.item(asRow(cell))"
+										:stale="result.stale"
+										:site-date="reference.siteDate"
+										:warehouses="reference.warehouses"
+										@item="openItem(asRow(cell))"
+										@batch="openBatch(asRow(cell))"
+									/>
+								</template>
+							</CardFields>
 						</div>
 					</BrowseCard>
 				</div>
-				<!-- Phones show ungrouped results as cards; grouped results stay tabular. -->
+				<!-- The table layout is the desktop table and every grouped result; cards and rows are the rest. -->
 				<DataTable
-					v-if="(view === 'table' && !isMobile) || query.groupBy.length"
+					v-if="usesTable"
 					data-browse-scroll="expiry-table"
 					ariaLabel="效期批次"
 					table-class="browse-table"
@@ -757,80 +795,16 @@ function canExpiryAction() {
 					@load-more="query.groupBy.length ? c.groups.loadMore() : c.load(true)"
 				>
 					<template #cell="{ column, row }">
-						<div v-if="column.id === 'image'" class="expiry-item-identity">
-							<ItemImage :item="c.item(row as unknown as ReportRow)" />
-						</div>
-						<button
-							v-else-if="column.id === 'item_name'"
-							class="browse-row-link"
-							:disabled="result.stale"
-							@click="openItem(row as unknown as ReportRow)"
-						>
-							<strong>{{ row.item_name }}</strong>
-						</button>
-						<template v-else-if="column.id === 'item_code'">{{
-							row.item_code
-						}}</template>
-						<template v-else-if="column.id === 'category'">{{
-							row.category || "未分类"
-						}}</template>
-						<button
-							v-else-if="column.id === 'batch_no'"
-							class="browse-row-link"
-							:aria-label="`打开批次资料：${row.batch_no}`"
-							:disabled="result.stale"
-							@click="openBatch(row as unknown as ReportRow)"
-						>
-							{{ row.batch_no }}
-						</button>
-						<span
-							v-else-if="column.id === 'expiry_date'"
-							class="browse-badge"
-							:class="
-								!row.expiry_date
-									? 'is-neutral'
-									: String(row.expiry_date) < reference.siteDate
-										? 'is-danger'
-										: 'is-success'
-							"
-							>{{ row.expiry_date || "无效期" }}</span
-						>
-						<template v-else-if="column.id === 'remaining_days'">
-							<span
-								v-if="typeof row.remaining_days === 'number'"
-								:title="formatExpiryDuration(row.remaining_days)"
-								>{{ expiryRemaining(row.remaining_days) }}</span
-							>
-						</template>
-						<template v-else-if="column.id === 'expiry_state'">{{
-							expiryStatus(row as unknown as ReportRow).label
-						}}</template>
-						<template v-else-if="column.id === 'stock_qty'"
-							>{{ row.stock_qty
-							}}<span v-if="Number(row.loaned) > 0" class="browse-badge is-warning"
-								>借出</span
-							><span
-								v-else-if="Number(row.damaged) > 0"
-								class="browse-badge is-danger"
-								>损坏</span
-							></template
-						>
-						<template v-else-if="column.id === 'stock_uom'"
-							><UnitText :name="row.stock_uom"
-						/></template>
-						<template v-else-if="column.id === 'warehouse'">{{
-							warehouseLabel(
-								String(row.warehouse || ""),
-								reference.warehouses,
-								String(row.warehouse_label || ""),
-							)
-						}}</template>
-						<template v-else-if="column.id === 'warehouse_path'">{{
-							row.warehouse_path || "—"
-						}}</template>
-						<template v-else-if="column.id === 'warehouse_native_name'">{{
-							row.warehouse_native_name || "—"
-						}}</template>
+						<ExpiryCell
+							:column="column"
+							:row="asRow(row)"
+							:item="c.item(asRow(row))"
+							:stale="result.stale"
+							:site-date="reference.siteDate"
+							:warehouses="reference.warehouses"
+							@item="openItem(asRow(row))"
+							@batch="openBatch(asRow(row))"
+						/>
 					</template>
 					<template #group="{ group }">
 						<div class="report-group-details">
@@ -905,10 +879,7 @@ function canExpiryAction() {
 					没有符合条件的批次
 				</p>
 				<BrowseLoadMore
-					v-if="
-						(view === 'card' && !query.groupBy.length) ||
-						(isMobile && !query.groupBy.length)
-					"
+					v-if="!usesTable"
 					:has-more="result.next !== null"
 					:loaded-count="result.rows.length"
 					:total-count="result.total"
@@ -950,80 +921,46 @@ function canExpiryAction() {
 <style scoped>
 @media (max-width: 1023px) {
 	.expiry-phone-card {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) auto;
-		gap: 4px 10px;
-		padding: 8px 10px;
+		display: flex;
+		align-items: flex-start;
+		gap: 10px;
 	}
-	.expiry-phone-identity {
-		grid-column: 1 / -1;
-		display: grid;
-		grid-template-columns: 40px minmax(0, 1fr);
-		align-items: center;
-		gap: 9px;
-	}
-	.expiry-phone-identity .browse-group-thumbnail {
-		grid-row: 1 / span 2;
+	.expiry-phone-thumb {
+		flex: none;
 		width: 40px;
 		height: 40px;
 	}
-	.expiry-phone-identity > .browse-row-link {
-		grid-column: 2;
+	.expiry-phone-body {
+		flex: 1 1 auto;
+		min-width: 0;
+		display: grid;
+		gap: 4px;
+	}
+	.expiry-phone-title {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		min-width: 0;
+	}
+	.expiry-phone-name {
+		min-width: 0;
 		min-height: 0;
 		padding: 0;
-	}
-	.expiry-phone-identity > .browse-row-link strong {
-		display: block;
-		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
-	}
-	.expiry-phone-identity > .browse-row-link small {
-		display: block;
-		color: var(--p-muted);
-	}
-	.expiry-phone-batch {
-		grid-column: 1 / -1;
-		justify-self: start;
-		min-height: 32px;
-		padding: 0;
-		font-size: 0.84rem;
-	}
-	.expiry-phone-meta {
-		grid-column: 1 / -1;
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) auto;
-		align-items: center;
-		gap: 3px 8px;
-		font-size: 0.84rem;
+		white-space: nowrap;
+		text-align: left;
 	}
 	.expiry-phone-quantity {
-		grid-column: 2;
-		grid-row: 1;
+		margin-left: auto;
+		white-space: nowrap;
+	}
+	.expiry-phone-quantity strong {
 		font-size: 1.05rem;
-		font-weight: 700;
-		text-align: right;
 	}
-	.expiry-phone-location {
-		grid-column: 1 / -1;
+	.expiry-phone-body .card-fields-inline {
 		color: var(--p-muted);
-		font-size: var(--p-small);
-	}
-	.expiry-phone-meta small {
-		color: var(--p-muted);
-	}
-	.expiry-phone-meta .browse-badge {
-		justify-self: start;
-	}
-	/* In selection mode the checkbox sits beside the identity instead of on its own row. */
-	.expiry-phone-card > .stock-list-checkbox {
-		grid-column: 2;
-		grid-row: 1;
-		align-self: center;
-	}
-	.expiry-phone-card:has(> .stock-list-checkbox) > .expiry-phone-identity {
-		grid-column: 1;
-		grid-row: 1;
+		font-size: 0.84rem;
 	}
 }
 </style>

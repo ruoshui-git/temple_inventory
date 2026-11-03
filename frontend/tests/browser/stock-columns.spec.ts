@@ -109,7 +109,7 @@ test("stock table shows 位置 and 批次 as separate columns without 效期 by 
   await prepare(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/inventory/stock");
-  await page.getByRole("button", { name: "列表视图" }).click();
+  await page.getByRole("button", { name: "表格视图" }).click();
   const table = page.locator(".data-table-scroll table").first();
   await expect(table).toBeVisible();
   const headers = table.locator("thead th");
@@ -121,7 +121,7 @@ test("stock table shows 位置 and 批次 as separate columns without 效期 by 
     path: join(shots, "stock-table-location-batch.png"),
   });
 
-  await page.getByRole("button", { name: "设置列" }).first().click();
+  await page.getByRole("button", { name: "显示字段" }).first().click();
   await page
     .getByRole("group", { name: "设置表格列" })
     .getByRole("checkbox", { name: "批次", exact: true })

@@ -29,13 +29,16 @@ import { kindIcons } from "../../lib/kindIcons";
 import { reportExportColumns } from "../../lib/reportExportColumns";
 import { pendingColumns } from "./pendingColumns";
 import ItemImage from "../../components/ItemImage.vue";
+import UnitText from "../../components/ui/UnitText.vue";
+import CardFields from "../../components/ui/CardFields.vue";
+import ColumnSettings from "../../components/ui/ColumnSettings.vue";
+import PendingCell from "./PendingCell.vue";
+import { partitionCardColumns, ROW_FIELD_LIMIT } from "../../lib/cardLayout";
 import { useOptionalInventoryServices } from "../../services/contracts";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import { exportFields } from "../../lib/exportColumns";
-import type { DataColumn, DataTableEntry } from "../../lib/dataTable";
-import { RouterLink } from "vue-router";
-import { routeTarget } from "../../lib/routeRegistry";
-import UnitText from "../../components/ui/UnitText.vue";
+import { type DataColumn, type DataTableEntry, orderedVisibleColumns } from "../../lib/dataTable";
+import BrowseCard from "../../components/ui/BrowseCard.vue";
 import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
 const exportMenu = ref<{ open(): void }>();
 const props = withDefaults(defineProps<{ controller: PendingController; active?: boolean }>(), {
@@ -58,17 +61,13 @@ const c = props.controller,
 		dimension,
 		reference,
 		view,
+		viewOptions,
 	} = c;
 const table = c.report.mainTable,
 	analysisTable = c.analysis.mainTable;
 const reportColumns = computed<DataColumn[]>(() =>
 	table.value
-		? pendingColumns(
-				reportExportColumns(table.value, query.value.dataset, [
-					"warehouse_label",
-					"warehouse",
-				]),
-			)
+		? pendingColumns(reportExportColumns(table.value, query.value.dataset, ["warehouse"]))
 		: [],
 );
 const exportServices = useOptionalInventoryServices();
@@ -117,6 +116,35 @@ const pendingRows = computed<DataTableEntry[]>(() =>
 const selectedAllocations = computed(() =>
 	(table.value?.rows || []).filter((row) => c.selected.value.includes(String(row.id))),
 );
+// Cards and phone rows read the same visible, ordered columns as the table.
+const visibleColumns = computed(() => orderedVisibleColumns(reportColumns.value, reportPrefs));
+const visibleIds = computed(
+	() => new Set(visibleColumns.value.map((column) => String(column.id))),
+);
+const layoutRoles = computed(() => ({
+	media: "image",
+	title: "item_name",
+	hero: "damaged",
+	omit: visibleIds.value.has("damaged") ? ["stock_uom"] : [],
+}));
+const cardPartition = computed(() =>
+	partitionCardColumns(visibleColumns.value, {
+		...layoutRoles.value,
+		eyebrow: ["category", "item_code"],
+	}),
+);
+const rowPartition = computed(() =>
+	partitionCardColumns(visibleColumns.value, layoutRoles.value, ROW_FIELD_LIMIT),
+);
+// Table layout owns grouped results and the desktop table; cards and rows are the rest.
+const usesTable = computed(() => view.value === "table" || query.value.groupBy.length > 0);
+function asRow(value: Record<string, unknown>) {
+	return value as unknown as ReportRow;
+}
+function toggleDamagedRow(row: Record<string, unknown>) {
+	const key = String(row.id);
+	c.setSelected(key, !c.selected.value.includes(key));
+}
 function pendingIdentity(row: Record<string, unknown>) {
 	return {
 		code: String(row.item_code || ""),
@@ -305,6 +333,12 @@ watch([() => props.active, isMobile], () => {
 					v-if="!query.groupBy.length"
 					v-model="view"
 					ariaLabel="损坏待处理视图"
+					:options="[...viewOptions]"
+				/>
+				<ColumnSettings
+					v-if="reportPrefs && !usesTable"
+					:preferences="reportPrefs"
+					:columns="reportColumns"
 				/>
 				<UiButton :disabled="!table?.initialized" @click="analysisOpen = true"
 					>分析结果</UiButton
@@ -353,28 +387,95 @@ watch([() => props.active, isMobile], () => {
 						:select-label="`选择 ${row.item_name || row.item_code || ''}`"
 						:stale="c.report.result.stale"
 						:name="String(row.item_name || '')"
-						:code="String(row.item_code || '')"
-						:category="String(row.category || '')"
+						:code="
+							visibleIds.has('item_code') ? String(row.item_code || '') : undefined
+						"
+						:category="
+							visibleIds.has('category') ? String(row.category || '') : undefined
+						"
 						:image="pendingIdentity(row as unknown as Record<string, unknown>)"
-						:quantity="Number(row.damaged || 0)"
+						:media="cardPartition.media !== undefined"
+						:quantity="cardPartition.hero ? Number(row.damaged || 0) : undefined"
 						:unit="row.stock_uom"
 						quantity-label="损坏待处理"
-						@toggle="
-							c.setSelected(
-								String(row.id),
-								!c.selected.value.includes(String(row.id)),
-							)
-						"
+						@toggle="toggleDamagedRow(row as unknown as Record<string, unknown>)"
 						@open="emit('item', String(row.item_code || ''))"
 					>
-						<template #default>
-							<span>批次 {{ row.batch_no || "—" }}</span
-							><span>{{ row.warehouse_label || row.warehouse || "—" }}</span>
-						</template>
+						<CardFields
+							:fields="cardPartition.fields"
+							:row="row"
+							:overflow="cardPartition.overflow"
+						>
+							<template #cell="{ column, row: cell }">
+								<PendingCell :column="column" :row="asRow(cell)" empty-text="—" />
+							</template>
+						</CardFields>
 					</ItemCard>
 				</div>
+				<div
+					v-if="view === 'list' && !query.groupBy.length && table"
+					class="pending-mobile"
+				>
+					<BrowseCard
+						v-for="row in table.rows"
+						:key="String(row.id)"
+						:row-key="String(row.id)"
+						variant="row"
+						:selecting="c.selecting.value"
+						:selected="c.selected.value.includes(String(row.id))"
+						:select-label="`选择 ${row.item_name || row.item_code || ''}`"
+						:stale="c.report.result.stale"
+						class="browse-card pending-phone-card"
+						@toggle="toggleDamagedRow(row as unknown as Record<string, unknown>)"
+						@open="emit('item', String(row.item_code || ''))"
+					>
+						<div
+							v-if="rowPartition.media"
+							class="browse-group-thumbnail pending-phone-thumb"
+						>
+							<ItemImage
+								:item="pendingIdentity(row as unknown as Record<string, unknown>)"
+							/>
+						</div>
+						<div class="pending-phone-body">
+							<div class="pending-phone-title">
+								<button
+									class="browse-row-link pending-phone-name"
+									:disabled="c.report.result.stale"
+									@click.stop="
+										c.selecting.value
+											? toggleDamagedRow(
+													row as unknown as Record<string, unknown>,
+												)
+											: emit('item', String(row.item_code || ''))
+									"
+								>
+									<strong>{{ row.item_name }}</strong>
+								</button>
+								<span v-if="rowPartition.hero" class="pending-phone-quantity"
+									><strong>{{ Number(row.damaged || 0) }}</strong
+									>{{ " " }}<UnitText :name="row.stock_uom"
+								/></span>
+							</div>
+							<CardFields
+								variant="row"
+								:fields="rowPartition.fields"
+								:row="row"
+								:overflow="rowPartition.overflow"
+							>
+								<template #cell="{ column, row: cell }">
+									<PendingCell
+										:column="column"
+										:row="asRow(cell)"
+										empty-text="—"
+									/>
+								</template>
+							</CardFields>
+						</div>
+					</BrowseCard>
+				</div>
 				<DataTable
-					v-if="table && (view === 'table' || query.groupBy.length)"
+					v-if="table && usesTable"
 					data-browse-scroll="damaged-table"
 					ariaLabel="损坏待处理明细"
 					table-class="browse-table"
@@ -404,22 +505,12 @@ watch([() => props.active, isMobile], () => {
 					"
 				>
 					<template #group-label="{ group }">{{ group.label }}</template>
-					<template #cell="{ column, row, value }">
-						<div v-if="column.id === 'image'" class="table-item-image">
-							<ItemImage :item="pendingIdentity(row)" />
-						</div>
-						<RouterLink
-							v-else-if="column.id === 'item_name' && row.item_code"
-							class="browse-row-link"
-							:to="routeTarget('item-detail', { code: String(row.item_code) })"
-							>{{ value }}</RouterLink
-						>
-						<UnitText v-else-if="column.id === 'stock_uom'" :name="row.stock_uom" />
-						<template v-else>{{ value }}</template>
+					<template #cell="{ column, row }">
+						<PendingCell :column="column" :row="asRow(row)" />
 					</template>
 				</DataTable>
 				<BrowseLoadMore
-					v-if="view === 'card' && !query.groupBy.length && table"
+					v-if="!usesTable && table"
 					:has-more="table.next !== null"
 					:loaded-count="table.rows.length"
 					:total-count="table.total"
@@ -477,3 +568,50 @@ watch([() => props.active, isMobile], () => {
 		</div>
 	</section>
 </template>
+
+<style scoped>
+@media (max-width: 1023px) {
+	.pending-phone-card {
+		display: flex;
+		align-items: flex-start;
+		gap: 10px;
+	}
+	.pending-phone-thumb {
+		flex: none;
+		width: 40px;
+		height: 40px;
+	}
+	.pending-phone-body {
+		flex: 1 1 auto;
+		min-width: 0;
+		display: grid;
+		gap: 4px;
+	}
+	.pending-phone-title {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		min-width: 0;
+	}
+	.pending-phone-name {
+		min-width: 0;
+		min-height: 0;
+		padding: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		text-align: left;
+	}
+	.pending-phone-quantity {
+		margin-left: auto;
+		white-space: nowrap;
+	}
+	.pending-phone-quantity strong {
+		font-size: 1.05rem;
+	}
+	.pending-phone-body .card-fields-inline {
+		color: var(--p-muted);
+		font-size: 0.84rem;
+	}
+}
+</style>

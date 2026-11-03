@@ -27,7 +27,13 @@ import DataTable from "../../components/ui/DataTable.vue";
 import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
 import BrowseCard from "../../components/ui/BrowseCard.vue";
 import BrowseLoadMore from "../../components/ui/BrowseLoadMore.vue";
+import ViewModeToggle from "../../components/ui/ViewModeToggle.vue";
 import ViewModeMenuItem from "../../components/ui/ViewModeMenuItem.vue";
+import ColumnSettings from "../../components/ui/ColumnSettings.vue";
+import CardFields from "../../components/ui/CardFields.vue";
+import ActivityCell from "./ActivityCell.vue";
+import { partitionCardColumns, ROW_FIELD_LIMIT } from "../../lib/cardLayout";
+import { orderedVisibleColumns } from "../../lib/dataTable";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import type {
 	DataColumn,
@@ -41,13 +47,18 @@ import { useOptionalInventoryServices } from "../../services/contracts";
 import BrowseFilters from "../../components/filters/BrowseFilters.vue";
 import { RouterLink } from "vue-router";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
-import DetailPopover from "../../components/ui/DetailPopover.vue";
 import { activityLoansTarget, activityMovementTarget } from "./activityRoutes";
 import { activityColumns as activityColumnDefinitions } from "./activityColumns";
 import { exportFields } from "../../lib/exportColumns";
 import { sortByUnit, unitLabel } from "../../lib/units";
 import { formatQuantity, formatQuantityWithUnit } from "../../lib/formatQuantity";
 const exportMenu = ref<{ open(): void }>();
+const overflowMenu = ref<InstanceType<typeof BrowseOverflowMenu>>();
+const columnSettings = ref<InstanceType<typeof ColumnSettings>>();
+// Phone 列表 settings open from the "…" menu, anchored to its trigger.
+function showColumnSettings() {
+	columnSettings.value?.open(overflowMenu.value?.trigger());
+}
 const { isMobile } = useResponsiveLayout();
 const activityEditor = ref<InstanceType<typeof ActivityEditor>>();
 const filterSheetOpen = ref(false);
@@ -104,6 +115,7 @@ const {
 	removeSecondary,
 	more,
 	view,
+	viewOptions,
 } = props.controller;
 async function confirmActivityDelete() {
 	if (
@@ -208,6 +220,15 @@ const activityExportColumns = computed(() => {
 		: activityColumns.map((column) => String(column.id));
 	return exportFields(activityColumns, order, visible);
 });
+// The 列表 row shows the same visible fields, in the same order, as the table; 关联流动 is an
+// action and never a row field.
+const rowFields = computed(() =>
+	partitionCardColumns(
+		orderedVisibleColumns(activityColumns, activityPrefs),
+		{ title: "title", status: "status", omit: ["actions"] },
+		ROW_FIELD_LIMIT,
+	),
+);
 </script>
 <template>
 	<ReturnToTop :active="props.active" :hidden="isMobile && filterSheetOpen" />
@@ -257,11 +278,27 @@ const activityExportColumns = computed(() => {
 					title="活动"
 					:active="active"
 				/>
-				<BrowseOverflowMenu>
+				<BrowseOverflowMenu ref="overflowMenu">
 					<ViewModeMenuItem v-if="isMobile && !report.groupBy.length" v-model="view" />
+					<UiButton
+						v-if="
+							activityPrefs && isMobile && view === 'list' && !report.groupBy.length
+						"
+						icon="sliders"
+						@click="showColumnSettings"
+						>显示字段</UiButton
+					>
 					<RouterLink :to="{ name: 'activity-types' }">管理活动类型</RouterLink>
 					<UiButton icon="export" @click="exportMenu?.open()">导出</UiButton>
 				</BrowseOverflowMenu>
+				<!-- Phone 列表 settings open from the "…" menu; the table owns its own on desktop. -->
+				<ColumnSettings
+					v-if="activityPrefs && isMobile && view === 'list' && !report.groupBy.length"
+					ref="columnSettings"
+					:show-trigger="false"
+					:preferences="activityPrefs"
+					:columns="activityColumns"
+				/>
 				<BrowseSplitButton
 					label="新建活动"
 					kind="Activity"
@@ -374,12 +411,19 @@ const activityExportColumns = computed(() => {
 				v-if="projection.result.snapshot"
 				:label="`${projection.result.total} 个活动 · 标签数字为全部已提交单据，不随日期筛选`"
 				:metrics="[]"
+				><template v-if="!isMobile" #controls>
+					<ViewModeToggle
+						v-if="!report.groupBy.length"
+						v-model="view"
+						ariaLabel="活动显示方式"
+						:options="viewOptions"
+					/> </template
 			></BrowseResultSummary>
 			<SkeletonBlock
 				v-if="
 					isMobile &&
 					!report.groupBy.length &&
-					view === 'card' &&
+					view === 'list' &&
 					projection.result.loading &&
 					!projection.result.snapshot
 				"
@@ -390,32 +434,46 @@ const activityExportColumns = computed(() => {
 				v-if="
 					isMobile &&
 					!report.groupBy.length &&
-					view === 'card' &&
+					view === 'list' &&
 					projection.result.snapshot
 				"
 				class="activity-row-list"
 			>
 				<BrowseCard
-					v-for="activity in filtered"
-					:key="activity.id"
-					:row-key="activity.id"
+					v-for="entry in activityRows"
+					:key="entry.id"
+					:row-key="entry.id"
 					variant="row"
 					:selecting="false"
 					:selected="false"
 					select-label="打开活动"
-					@open="open(activity.id)"
+					@open="open(entry.id)"
 				>
 					<div class="activity-row-content">
-						<strong>{{ activity.title }}</strong
+						<strong>{{ String(entry.value.title || "") }}</strong
 						><span
+							v-if="rowFields.status"
 							class="browse-badge"
-							:class="activity.status === 'archived' ? 'is-neutral' : 'is-success'"
-							>{{ activity.status === "archived" ? "已归档" : "进行中" }}</span
+							:class="
+								entry.value.status === 'archived' ? 'is-neutral' : 'is-success'
+							"
+							>{{ entry.value.status === "archived" ? "已归档" : "进行中" }}</span
 						>
-						<small
-							>{{ activity.start || activity.end || "—" }} ·
-							{{ activityTypeLabel(activity.typeId) }}</small
+						<CardFields
+							variant="row"
+							:fields="rowFields.fields"
+							:overflow="rowFields.overflow"
+							:row="entry.value"
 						>
+							<template #cell="{ column, row }">
+								<ActivityCell
+									:column="column"
+									:row="row"
+									:type-label="activityTypeLabel"
+									:kind-counts="activityKindCounts"
+								/>
+							</template>
+						</CardFields>
 					</div>
 				</BrowseCard>
 			</div>
@@ -423,7 +481,7 @@ const activityExportColumns = computed(() => {
 				v-if="
 					isMobile &&
 					!report.groupBy.length &&
-					view === 'card' &&
+					view === 'list' &&
 					projection.mainTable.value
 				"
 				:has-more="projection.mainTable.value.next !== null"
@@ -492,54 +550,12 @@ const activityExportColumns = computed(() => {
 					@sort="sortActivity"
 				>
 					<template #cell="{ column, row }">
-						<RouterLink
-							v-if="column.id === 'title'"
-							class="browse-row-link"
-							:to="{
-								name: 'activity-detail',
-								params: { name: String(row.id || '') },
-							}"
-							>{{ String(row.title || "") }}</RouterLink
-						>
-						<template v-else-if="column.id === 'typeId'">{{
-							activityTypeLabel(String(row.typeId || ""))
-						}}</template>
-						<template v-else-if="column.id === 'period'"
-							>{{ row.start || "未设日期"
-							}}{{ row.end ? " 至 " + row.end : "" }}</template
-						>
-						<template v-else-if="column.id === 'status'"
-							>{{ row.status === "archived" ? "已归档" : "进行中"
-							}}<span v-if="row.has_outstanding" class="badge warning">
-								· 有未归还借用</span
-							></template
-						>
-						<template v-else-if="column.id === 'modified'">{{
-							formatSiteDateTime(String(row.modified || ""))
-						}}</template>
-						<div v-else-if="column.id === 'actions'" class="activity-kind-summary">
-							<RouterLink
-								v-for="count in activityKindCounts(String(row.id)).slice(0, 3)"
-								:key="count.kind"
-								:to="activityTarget(String(row.id), count.kind)"
-								>{{ movementLabels[count.kind] }} {{ count.count }}</RouterLink
-							>
-							<DetailPopover
-								v-if="activityKindCounts(String(row.id)).length > 3"
-								:label="`${String(row.title || '活动')}的全部流动类型`"
-								trigger-class="activity-kind-more"
-								:trigger-text="`+${activityKindCounts(String(row.id)).length - 3}`"
-							>
-								<RouterLink
-									v-for="count in activityKindCounts(String(row.id))"
-									:key="count.kind"
-									:to="activityTarget(String(row.id), count.kind)"
-									class="activity-kind-popover-link"
-									>{{ movementLabels[count.kind] || "其他类型" }}
-									{{ count.count }}</RouterLink
-								>
-							</DetailPopover>
-						</div>
+						<ActivityCell
+							:column="column"
+							:row="row"
+							:type-label="activityTypeLabel"
+							:kind-counts="activityKindCounts"
+						/>
 					</template>
 					<template #group="{ group }">
 						<div class="report-group-details">

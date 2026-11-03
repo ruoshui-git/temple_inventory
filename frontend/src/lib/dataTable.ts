@@ -287,3 +287,25 @@ export function moveColumn(order: string[], columnId: string, offset: -1 | 1) {
   [next[index], next[target]] = [next[target]!, next[index]!];
   return next;
 }
+
+/**
+ * Visible columns in the user's preference order. Without a controller (or before its
+ * preference refs exist) the declaration order and each column's default visibility decide.
+ */
+export function orderedVisibleColumns(
+  columns: DataColumn[],
+  controller?: ColumnPreferencesController,
+): DataColumn[] {
+  const visible =
+    controller?.effectiveVisible?.value ?? controller?.visible.value;
+  const order = controller?.order.value;
+  const byId = new Map(columns.map((column) => [String(column.id), column]));
+  if (!visible || !order)
+    return columns.filter(
+      (column) => column.defaultVisible !== false || column.required,
+    );
+  return order
+    .filter((id) => visible.includes(id))
+    .map((id) => byId.get(id))
+    .filter((column): column is DataColumn => Boolean(column));
+}

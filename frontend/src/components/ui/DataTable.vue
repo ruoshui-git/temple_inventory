@@ -10,13 +10,13 @@ import type {
 	ColumnPreferencesController,
 	TableCellValue,
 } from "../../lib/dataTable";
-import { dataColumnAlignment, dataColumnKind } from "../../lib/dataTable";
+import { dataColumnAlignment, dataColumnKind, orderedVisibleColumns } from "../../lib/dataTable";
 import DisclosureIcon from "./DisclosureIcon.vue";
 import { useOverflowEdges } from "../../composables/useOverflowEdges";
 import FloatingTableScrollbar from "./FloatingTableScrollbar.vue";
-import UnitText from "./UnitText.vue";
 import DetailPopover from "./DetailPopover.vue";
-import { formatSiteDateTime, formatSiteTime } from "../../lib/nativeTime";
+import ColumnSettings from "./ColumnSettings.vue";
+import DataCell from "./DataCell.vue";
 
 const props = withDefaults(
 	defineProps<{
@@ -102,11 +102,7 @@ const {
 } = useOverflowEdges(tableScroll, tableFrame);
 const stale = computed(() => props.stale ?? props.retained);
 const refreshing = computed(() => props.loading && props.initialized && !props.loadingMore);
-const settingsOpen = ref(false);
-const settingsTrigger = ref<HTMLButtonElement>();
 const settingsOutlet = ref<HTMLElement>();
-const settingsPanel = ref<HTMLDivElement>();
-const settingsPanelStyle = ref<Record<string, string>>({});
 const focusedRowId = ref<string>();
 const focusedRowElement = ref<HTMLTableRowElement>();
 const bodyRows = computed(() => props.rows);
@@ -289,59 +285,6 @@ function onRowKeydown(entry: DataTableEntry, event: KeyboardEvent) {
 	}
 }
 
-function positionSettingsPanel() {
-	const trigger = settingsTrigger.value;
-	const panel = settingsPanel.value;
-	if (!settingsOpen.value || !trigger || !panel) return;
-	const margin = 12;
-	const gap = 8;
-	const viewportHeight = window.innerHeight;
-	const viewportWidth = window.innerWidth;
-	const triggerRect = trigger.getBoundingClientRect();
-	const panelRect = panel.getBoundingClientRect();
-	const panelHeight = panelRect.height || panel.offsetHeight;
-	const panelWidth = panelRect.width || panel.offsetWidth;
-	const roomBelow = viewportHeight - triggerRect.bottom - margin;
-	const roomAbove = triggerRect.top - margin;
-	let top: number;
-	if (panelHeight <= roomBelow) top = triggerRect.bottom + gap;
-	else if (panelHeight <= roomAbove) top = triggerRect.top - panelHeight - gap;
-	else if (roomAbove > roomBelow) top = margin;
-	else top = Math.max(margin, viewportHeight - margin - panelHeight);
-	const left = Math.min(
-		Math.max(margin, triggerRect.right - panelWidth),
-		Math.max(margin, viewportWidth - panelWidth - margin),
-	);
-	settingsPanelStyle.value = {
-		position: "fixed",
-		top: `${top}px`,
-		left: `${left}px`,
-		maxHeight: `${Math.max(80, Math.min(520, viewportHeight - margin * 2))}px`,
-	};
-}
-
-function closeSettings(returnFocus = false) {
-	settingsOpen.value = false;
-	if (returnFocus) void nextTick(() => settingsTrigger.value?.focus());
-}
-
-function onDocumentKeydown(event: KeyboardEvent) {
-	if (!settingsOpen.value || event.key !== "Escape") return;
-	event.stopImmediatePropagation();
-	event.preventDefault();
-	closeSettings(true);
-}
-
-function toggleSettings() {
-	updateSettingsViewport();
-	settingsOpen.value = !settingsOpen.value;
-	if (settingsOpen.value)
-		void nextTick(() => {
-			positionSettingsPanel();
-			settingsPanel.value?.focus();
-		});
-}
-
 function updateSettingsViewport() {
 	if (settingsOutlet.value?.isConnected) return;
 	settingsOutlet.value = undefined;
@@ -364,55 +307,10 @@ function updateSettingsViewport() {
 	}
 }
 
-function repositionOpenPanel() {
+function syncSettingsOutlet() {
 	updateSettingsViewport();
-	if (settingsOpen.value) void nextTick(positionSettingsPanel);
 }
 
-function onDocumentPointer(event: PointerEvent) {
-	const target = event.target;
-	if (
-		settingsOpen.value &&
-		target instanceof Node &&
-		!settingsPanel.value?.contains(target) &&
-		!settingsTrigger.value?.contains(target)
-	)
-		closeSettings();
-}
-
-function moveColumn(id: string, direction: -1 | 1) {
-	if (!preferences.value) return;
-	const order = [...preferences.value.order.value];
-	const index = order.indexOf(id);
-	const next = index + direction;
-	if (index < 0 || next < 0 || next >= order.length) return;
-	[order[index], order[next]] = [order[next]!, order[index]!];
-	preferences.value.reorder(order);
-	void nextTick(() => {
-		const buttons = Array.from(
-			settingsPanel.value?.querySelectorAll<HTMLButtonElement>("button[data-column-move]") ||
-				[],
-		);
-		const validButtons = buttons.filter(
-			(button) => button.dataset.columnMove === id && !button.disabled,
-		);
-		(
-			validButtons.find((button) => button.dataset.columnDirection === String(direction)) ||
-			validButtons[0]
-		)?.focus();
-	});
-}
-
-watch(
-	[
-		settingsOpen,
-		() => props.columns.length,
-		() => preferences.value?.order.value.length,
-		() => preferences.value?.visible.value.length,
-	],
-	repositionOpenPanel,
-	{ flush: "post" },
-);
 onMounted(() => {
 	updateSettingsViewport();
 	const updateHeaderHeight = () => {
@@ -426,32 +324,16 @@ onMounted(() => {
 			: undefined;
 	const header = tableScroll.value?.querySelector("thead");
 	if (header) headerObserver?.observe(header);
-	document.addEventListener("pointerdown", onDocumentPointer);
-	document.addEventListener("keydown", onDocumentKeydown);
-	window.addEventListener("resize", repositionOpenPanel);
-	window.addEventListener("scroll", repositionOpenPanel, true);
+	window.addEventListener("resize", syncSettingsOutlet);
+	window.addEventListener("scroll", syncSettingsOutlet, true);
 });
 onScopeDispose(() => {
 	headerObserver?.disconnect();
-	document.removeEventListener("pointerdown", onDocumentPointer);
-	document.removeEventListener("keydown", onDocumentKeydown);
-	window.removeEventListener("resize", repositionOpenPanel);
-	window.removeEventListener("scroll", repositionOpenPanel, true);
+	window.removeEventListener("resize", syncSettingsOutlet);
+	window.removeEventListener("scroll", syncSettingsOutlet, true);
 });
 
-const orderedColumns = computed(() => {
-	const visible = preferences.value?.effectiveVisible?.value ?? preferences.value?.visible.value;
-	const order = preferences.value?.order.value;
-	const byId = new Map(props.columns.map((column) => [String(column.id), column]));
-	if (!visible || !order)
-		return props.columns.filter(
-			(column) => column.defaultVisible !== false || column.required,
-		);
-	return order
-		.filter((id) => visible.includes(id))
-		.map((id) => byId.get(id))
-		.filter((column): column is DataColumn => Boolean(column));
-});
+const orderedColumns = computed(() => orderedVisibleColumns(props.columns, preferences.value));
 function columnKind(column: DataColumn) {
 	const kind = dataColumnKind(column);
 	if (kind !== "primary") return kind;
@@ -534,100 +416,9 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 
 <template>
 	<section class="data-table" :aria-label="ariaLabel">
-		<Teleport to="body">
-			<div
-				v-if="settingsOpen && preferences"
-				ref="settingsPanel"
-				class="data-table-column-panel"
-				role="group"
-				aria-label="设置表格列"
-				tabindex="-1"
-				:style="settingsPanelStyle"
-			>
-				<div class="data-table-column-panel-heading">
-					<strong>设置列</strong>
-					<button
-						type="button"
-						class="data-table-link-button"
-						@click="preferences.reset"
-					>
-						恢复默认
-					</button>
-				</div>
-				<ul>
-					<li v-for="(column, index) in preferences.order.value" :key="column">
-						<label>
-							<input
-								type="checkbox"
-								:checked="
-									(
-										preferences.effectiveVisible?.value ||
-										preferences.visible.value
-									).includes(column)
-								"
-								:disabled="
-									Boolean(
-										props.columns.find((item) => String(item.id) === column)
-											?.required,
-									) || preferences.forcedVisible?.value.includes(column)
-								"
-								@change="preferences.toggle(column)"
-							/>
-							<span>{{
-								props.columns.find((item) => String(item.id) === column)?.label ||
-								column
-							}}</span>
-						</label>
-						<div class="data-table-column-order">
-							<button
-								type="button"
-								:disabled="index === 0"
-								:data-column-move="column"
-								data-column-direction="-1"
-								:aria-label="`上移${props.columns.find((item) => String(item.id) === column)?.label || column}`"
-								@click="moveColumn(column, -1)"
-							>
-								↑
-							</button>
-							<button
-								type="button"
-								:disabled="index === preferences.order.value.length - 1"
-								:data-column-move="column"
-								data-column-direction="1"
-								:aria-label="`下移${props.columns.find((item) => String(item.id) === column)?.label || column}`"
-								@click="moveColumn(column, 1)"
-							>
-								↓
-							</button>
-						</div>
-					</li>
-				</ul>
-				<p v-if="preferences.saveState.value === 'saving'" role="status">
-					正在保存列设置…
-				</p>
-				<div
-					v-else-if="preferences.saveState.value === 'error'"
-					class="data-table-save-error"
-					role="alert"
-				>
-					<span>{{ preferences.saveError.value }}</span
-					><button type="button" @click="preferences.retry">重试</button>
-				</div>
-			</div>
-		</Teleport>
 		<Teleport v-if="preferences && !compact && settingsOutlet" :to="settingsOutlet">
 			<div class="data-table-settings-outlet">
-				<button
-					ref="settingsTrigger"
-					type="button"
-					class="data-table-column-trigger"
-					:aria-expanded="settingsOpen"
-					aria-label="设置列"
-					title="设置列"
-					@click="toggleSettings"
-				>
-					☷
-				</button>
+				<ColumnSettings :preferences="preferences" :columns="columns" />
 			</div>
 		</Teleport>
 
@@ -771,17 +562,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 								v-if="preferences && !compact && !settingsOutlet"
 								class="data-table-settings-heading"
 							>
-								<button
-									ref="settingsTrigger"
-									type="button"
-									class="data-table-column-trigger"
-									:aria-expanded="settingsOpen"
-									aria-label="设置列"
-									title="设置列"
-									@click="toggleSettings"
-								>
-									☷
-								</button>
+								<ColumnSettings :preferences="preferences" :columns="columns" />
 							</th>
 						</tr>
 					</thead>
@@ -1073,21 +854,10 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 											:value="cellValue(entry, column)"
 											:index="index"
 										>
-											<template v-if="columnKind(column) === 'unit'"
-												><UnitText :name="cellValue(entry, column)"
-											/></template>
-											<template
-												v-else-if="columnKind(column) === 'datetime'"
-												>{{
-													formatSiteDateTime(cellValue(entry, column))
-												}}</template
-											>
-											<template v-else-if="columnKind(column) === 'time'">{{
-												formatSiteTime(cellValue(entry, column))
-											}}</template>
-											<template v-else>{{
-												cellValue(entry, column)
-											}}</template>
+											<DataCell
+												:column="column"
+												:value="cellValue(entry, column)"
+											/>
 										</slot>
 									</td>
 									<td

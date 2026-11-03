@@ -152,7 +152,9 @@ for (const width of [375, 1024, 1440]) {
       await page.evaluate(() => document.fonts.ready);
     }
     await expect(page.locator("[data-browse-row]")).toHaveCount(30);
-    await page.getByRole("button", { name: "列表视图", exact: true }).click();
+    // Phones open item lists as rows (no table option); desktop starts as the table.
+    if (width >= 1024)
+      await page.getByRole("button", { name: "表格视图", exact: true }).click();
     await page.getByRole("button", { name: /^加载更多/ }).click();
     await expect(page.locator("[data-browse-row]")).toHaveCount(60);
     // Row checkboxes exist only in select mode: phones enter it from the

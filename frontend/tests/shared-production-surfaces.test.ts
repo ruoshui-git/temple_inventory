@@ -77,8 +77,12 @@ describe("interactive preview", () => {
       .findAll(".stock-card")
       .find((card) => card.text().includes(items[2].name))!;
     expect(plainCard.find(".art-badge").exists()).toBe(false);
-    expect(plainCard.text()).not.toContain("批次");
-    await button(wrapper, "列表").trigger("click");
+    // Cards show the 位置 and 批次 fields through CardFields; an item without a batch reads as a dash.
+    expect(
+      plainCard.findAll(".card-field dt").map((label) => label.text()),
+    ).toEqual(expect.arrayContaining(["位置", "批次"]));
+    expect(plainCard.get(".card-field").text()).toContain("库位");
+    await button(wrapper, "表格").trigger("click");
     expect(wrapper.findAll("tbody .table-item-image")).toHaveLength(
       items.length,
     );
@@ -196,7 +200,7 @@ describe("interactive preview", () => {
     expect(wrapper.get(".browse-header-actions").text()).toContain("新建物品");
     await button(wrapper, "选择").trigger("click");
     await wrapper.get('input[aria-label="选择东北珍珠米"]').setValue(true);
-    await button(wrapper, "列表").trigger("click");
+    await button(wrapper, "表格").trigger("click");
     expect(wrapper.findAll("tbody tr.selected")).toHaveLength(1);
     expect(wrapper.find('select[aria-label="库存排序"]').exists()).toBe(false);
     const availableHeader = wrapper

@@ -3295,7 +3295,8 @@
 		margin-block-end: 2px;
 		font-size: var(--p-small);
 	}
-	.item-card-category {
+	.item-card-category,
+	.item-card-separator {
 		display: none;
 	}
 	.item-card-code {
@@ -3525,4 +3526,140 @@
 	background: transparent;
 	box-shadow: none;
 	color: var(--p-muted);
+}
+
+/* Card and 列表 field summaries (CardFields) and the text-only ItemCard. */
+.card-fields {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--p-space-2) var(--p-space-3);
+	min-width: 0;
+	margin: 0;
+}
+
+.card-field {
+	min-width: 0;
+}
+
+.card-field.is-wide {
+	grid-column: 1 / -1;
+}
+
+.card-field dt,
+.card-field dd {
+	min-width: 0;
+	margin: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.card-field dt {
+	color: var(--p-muted);
+	font-size: var(--p-small);
+	line-height: 1.4;
+}
+
+.card-field dd {
+	color: var(--p-ink);
+}
+
+/* Single-line values clip with an ellipsis, including a record ref or link wrapping the text. */
+.card-field:not(.is-wide) dd > * {
+	max-width: 100%;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	vertical-align: bottom;
+}
+
+.card-field.is-wide dd {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+
+.card-fields-more {
+	margin: var(--p-space-1) 0 0;
+	color: var(--p-muted);
+	font-size: var(--p-small);
+}
+
+.card-fields-inline {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	min-width: 0;
+	margin: 0;
+	overflow: hidden;
+	color: var(--p-muted);
+	font-size: var(--p-small);
+	line-height: 1.5;
+	overflow-wrap: anywhere;
+}
+
+.card-field-inline + .card-field-inline::before {
+	content: "·";
+	margin-inline: var(--p-space-1);
+}
+
+.card-field-label {
+	margin-inline-end: 0.3em;
+	opacity: 0.85;
+}
+
+.item-card.is-text-only .item-card-content {
+	padding: var(--p-card-pad);
+}
+
+.item-card.is-text-only .art-badge {
+	position: static;
+	display: inline-block;
+	margin: var(--p-card-pad) var(--p-card-pad) 0;
+}
+
+.item-card.is-text-only .card-checkbox {
+	position: static;
+	margin: var(--p-space-2) var(--p-space-2) 0;
+}
+
+/* 活动/记录 row fields */
+.browse-card-item--row
+	> :is(.activity-row-content, .native-record-row-content, .draft-entry-row-content)
+	> .card-fields-inline {
+	grid-column: 1 / -1;
+}
+
+/* 单据 and 明细 rows have no thumbnail or checkbox column. Their text takes only the flexible
+   track, and the status badge sits on the name line in the auto track: a badge left absolute
+   floats over the page header, and a field line spanning the auto track squeezes the name. */
+.operation-record-list > .browse-card-item--row > .operation-record-row-content {
+	grid-column: 2;
+}
+.operation-record-list .operation-record-row-content > .art-badge {
+	position: static;
+	grid-column: 2;
+	grid-row: 1;
+}
+.operation-record-list .operation-record-row-content > .card-fields-inline {
+	grid-column: 1;
+}
+
+/* 库存 card fields */
+/* 列表 rows: the field line sits under the name in the content column, never in the image column. */
+.stock-list-row > .card-fields-inline {
+	grid-column: 2 / -1;
+	grid-row: 2;
+}
+/* Text-only rows drop the thumbnail column and move the content and selection into the first two. */
+.stock-list-row.is-text-only {
+	grid-template-columns: minmax(0, 1fr) 44px;
+}
+.stock-list-row.is-text-only > .stock-list-open {
+	grid-column: 1;
+}
+.stock-list-row.is-text-only > .stock-list-checkbox {
+	grid-column: 2;
 }

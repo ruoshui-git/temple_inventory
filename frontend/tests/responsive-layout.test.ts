@@ -119,7 +119,8 @@ describe("responsive presentation contract", () => {
     );
     expect(controller.data.rows).toBe(rows);
     expect(controller.selected.value).toEqual(["ITEM-1"]);
-    expect(controller.view.value).toBe("table");
+    // Phones default to 列表; the desktop 表格 choice is not offered there.
+    expect(controller.view.value).toBe("list");
     expect(call.mock.calls.length).toBe(requests);
     wrapper.unmount();
     expect(media.removed).toBe(true);

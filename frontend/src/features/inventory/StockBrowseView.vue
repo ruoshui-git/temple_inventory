@@ -17,7 +17,9 @@ import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
 import BrowseCard from "../../components/ui/BrowseCard.vue";
 import BrowseLoadMore from "../../components/ui/BrowseLoadMore.vue";
 import ItemCard from "../../components/ui/ItemCard.vue";
+import CardFields from "../../components/ui/CardFields.vue";
 import ViewModeToggle from "../../components/ui/ViewModeToggle.vue";
+import ColumnSettings from "../../components/ui/ColumnSettings.vue";
 import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
 import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
 import FilterDisclosure from "../../components/ui/FilterDisclosure.vue";
@@ -27,7 +29,6 @@ import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import FilterRailEdge from "../../components/ui/FilterRailEdge.vue";
 import { compactGroupSummary } from "../../lib/groupSummary";
 import ItemImage from "../../components/ItemImage.vue";
-import StockDetails from "../../components/StockDetails.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import ScanPanel from "../scanner/ScanPanel.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
@@ -35,18 +36,17 @@ import SortControl from "../../components/ui/SortControl.vue";
 import DataTable from "../../components/ui/DataTable.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import BrowseRefreshNotice from "../../components/ui/BrowseRefreshNotice.vue";
-import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
-import type {
-	DataColumn,
-	DataTableEntry,
-	DataTableGroup,
-	DataTableRecord,
+import {
+	orderedVisibleColumns,
+	type DataColumn,
+	type DataTableEntry,
+	type DataTableGroup,
+	type DataTableRecord,
 } from "../../lib/dataTable";
+import { partitionCardColumns, ROW_FIELD_LIMIT, type CardRoles } from "../../lib/cardLayout";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import { exportFields } from "../../lib/exportColumns";
 import { useOptionalInventoryServices } from "../../services/contracts";
-import { RouterLink } from "vue-router";
-import { routeTarget } from "../../lib/routeRegistry";
 import { unitLabel } from "../../lib/units";
 import UnitText from "../../components/ui/UnitText.vue";
 import DetailPopover from "../../components/ui/DetailPopover.vue";
@@ -58,7 +58,16 @@ import {
 	stockGroupedSelectionKeys,
 	type useStockBrowseController,
 } from "./useStockBrowseController";
-import { inventoryColumnsForPage, stockExportTableFor } from "./stockColumns";
+import {
+	inventoryColumnsForPage,
+	stockCode,
+	stockExportTableFor,
+	stockExpiryLabel,
+	stockIdentity,
+	stockName,
+	type StockRow,
+} from "./stockColumns";
+import StockCell from "./StockCell.vue";
 import { stockStateLabels } from "../../lib/presentationLabels";
 const props = withDefaults(
 	defineProps<{
@@ -81,6 +90,7 @@ const {
 	search,
 	scope,
 	view,
+	viewOptions,
 	sort,
 	descending,
 	selected,
@@ -177,20 +187,10 @@ function groupUnitPreview(group: DataTableGroup, field: string) {
 	const values = groupUnitValues(group, field);
 	return values.slice(0, 2).join("；");
 }
-type StockTableRow = Record<string, unknown>;
-function stockCode(row: StockTableRow) {
-	return String(row.code || row.item_code || "");
-}
-function stockName(row: StockTableRow) {
-	return String(row.name || row.item_name || stockCode(row));
-}
-function stockSelectionKey(row: StockTableRow) {
+function stockSelectionKey(row: StockRow) {
 	return stockCode(row) || String(row.id || "");
 }
-function stockIdentity(row: StockTableRow) {
-	return { code: stockCode(row), name: stockName(row), image: String(row.image || "") };
-}
-function serialPreview(row: StockTableRow) {
+function serialPreview(row: StockRow) {
 	const locations = Array.isArray(row.locations)
 		? (row.locations as Record<string, unknown>[])
 		: [];
@@ -208,58 +208,8 @@ function serialPreview(row: StockTableRow) {
 		title: sorted.join("、"),
 	};
 }
-function openGroupedStock(row: StockTableRow) {
+function openGroupedStock(row: StockRow) {
 	props.controller.openItemCode(stockCode(row));
-}
-function isStockItemRow(row: StockTableRow): row is StockTableRow & StockItem {
-	return Array.isArray(row.locations);
-}
-function stockLocationLabel(row: StockTableRow) {
-	return (
-		warehouseLabel(
-			row.warehouse || row.warehouse_label,
-			reference.warehouses,
-			row.warehouse_label,
-		) || "—"
-	);
-}
-function stockLocationDetail(row: StockTableRow, field: "path" | "nativeName") {
-	if (!isStockItemRow(row))
-		return String(row[field === "path" ? "warehouse_path" : "warehouse_native_name"] || "");
-	return row.locations
-		.map((location) => location[field])
-		.filter(Boolean)
-		.join("；");
-}
-function stockComponentDetail(
-	row: StockTableRow,
-	field: "warehouse_label" | "batch_no" | "expiry_date" | "remaining_days" | "expiry_state",
-) {
-	const values = isStockItemRow(row)
-		? row.locations.flatMap((location) => {
-				if (field === "warehouse_label") return [location.label];
-				return (location.batches || []).map((batch) => {
-					if (field === "batch_no") return batch.id;
-					if (field === "expiry_date") return batch.expiry;
-					if (!batch.expiry) return "";
-					if (field === "expiry_state")
-						return batch.expiry < reference.siteDate ? "已过期" : "未过期";
-					return String(
-						Math.ceil(
-							(Date.parse(`${batch.expiry}T00:00:00Z`) -
-								Date.parse(`${reference.siteDate}T00:00:00Z`)) /
-								86_400_000,
-						),
-					);
-				});
-			})
-		: [row[field]];
-	return [...new Set(values.map((value) => String(value || "")).filter(Boolean))].join("；");
-}
-function stockExpiryLabel(row: StockTableRow) {
-	if (isStockItemRow(row)) return expiryStatus(row);
-	const date = String(row.expiry_date || "");
-	return date ? (date < reference.siteDate ? "已过期" : "未过期") : "无效期";
 }
 const services = useOptionalInventoryServices();
 const serialForcedColumns = computed(() =>
@@ -274,6 +224,46 @@ const tablePreferences = services
 			serialForcedColumns,
 		)
 	: undefined;
+// One field selection drives table columns, card fields and 列表 rows alike.
+const stockVisibleColumns = computed(() =>
+	orderedVisibleColumns(inventoryColumns.value, tablePreferences),
+);
+const stockCardRoles = computed<CardRoles>(() => {
+	const visible = new Set(stockVisibleColumns.value.map((column) => String(column.id)));
+	return {
+		media: "image",
+		title: "item_name",
+		eyebrow: ["category", "item_code"],
+		hero: "available",
+		status: "expiry",
+		omit: [
+			// The hero quantity already shows the stock unit.
+			...(visible.has("available") ? ["stock_uom"] : []),
+			// The serial preview under the title lists the same numbers.
+			...(quickReportQuery.value.scope.tracking === "serial" ? ["serial_nos"] : []),
+		],
+	};
+});
+const cardPartition = computed(() =>
+	partitionCardColumns(stockVisibleColumns.value, stockCardRoles.value),
+);
+const rowPartition = computed(() =>
+	partitionCardColumns(stockVisibleColumns.value, stockCardRoles.value, ROW_FIELD_LIMIT),
+);
+function cardEyebrow(partition: typeof cardPartition.value, id: string) {
+	return partition.eyebrow.some((column) => String(column.id) === id);
+}
+function asStockRow(item: StockItem): StockRow {
+	return item as unknown as StockRow;
+}
+function rowMeta(item: StockItem) {
+	return [
+		cardEyebrow(rowPartition.value, "item_code") ? item.code : "",
+		cardEyebrow(rowPartition.value, "category") ? item.category || "未分类" : "",
+	]
+		.filter(Boolean)
+		.join(" · ");
+}
 const stockExportVisible = computed(() => {
 	const columns = inventoryColumns.value;
 	return tablePreferences?.effectiveVisible.value.length
@@ -513,7 +503,7 @@ function acceptBrowseLocation(name: string) {
 					aria-label="已选物品操作"
 				>
 					<label
-						v-if="view === 'card' || (isMobile && view === 'table')"
+						v-if="view === 'card' || (isMobile && view === 'list')"
 						class="browse-select-visible"
 					>
 						<input
@@ -544,7 +534,23 @@ function acceptBrowseLocation(name: string) {
 				:loading="false"
 			>
 				<template #controls>
-					<ViewModeToggle v-model="view" :ariaLabel="'库存显示方式'" />
+					<ViewModeToggle
+						v-model="view"
+						:ariaLabel="'库存显示方式'"
+						:options="viewOptions"
+					/>
+					<!-- DataTable owns 显示字段 while it is mounted; cards and 列表 rows need their own. -->
+					<ColumnSettings
+						v-if="
+							tablePreferences &&
+							!(
+								(quickReportQuery.groupBy.length && view !== 'card') ||
+								(!quickReportQuery.groupBy.length && !isMobile && view === 'table')
+							)
+						"
+						:preferences="tablePreferences"
+						:columns="inventoryColumns"
+					/>
 					<SortControl
 						v-if="isMobile || view === 'card'"
 						v-model:field="sort"
@@ -619,7 +625,7 @@ function acceptBrowseLocation(name: string) {
 						v-else-if="status === 'loading'"
 						:class="[
 							'stock-grid-skeleton',
-							isMobile && view === 'table'
+							isMobile && view === 'list'
 								? 'stock-list stock-list-skeleton'
 								: 'browse-card-grid stock-grid',
 						]"
@@ -627,7 +633,7 @@ function acceptBrowseLocation(name: string) {
 						aria-label="库存结果加载中"
 					>
 						<SkeletonBlock
-							v-if="isMobile && view === 'table'"
+							v-if="isMobile && view === 'list'"
 							variant="stock-row"
 							:rows="8"
 						/>
@@ -694,29 +700,48 @@ function acceptBrowseLocation(name: string) {
 										"
 										:select-label="`选择${stockName(entry.value)}`"
 										:name="stockName(entry.value)"
-										:code="stockCode(entry.value)"
-										:category="String(entry.value.category || '')"
+										:code="
+											cardEyebrow(cardPartition, 'item_code')
+												? stockCode(entry.value)
+												: undefined
+										"
+										:category="
+											cardEyebrow(cardPartition, 'category')
+												? String(entry.value.category || '')
+												: undefined
+										"
 										:image="stockIdentity(entry.value)"
-										:quantity="Number(entry.value.available || 0)"
-										quantity-label="可用库存"
+										:media="Boolean(cardPartition.media)"
+										:quantity="
+											cardPartition.hero
+												? Number(entry.value.available || 0)
+												: undefined
+										"
+										:quantity-label="cardPartition.hero?.label"
 										:unit="
 											String(entry.value.uom || entry.value.stock_uom || '')
+										"
+										:status="
+											stockExpiryLabel(entry.value, reference.siteDate) ||
+											undefined
 										"
 										class="stock-card"
 										@toggle="toggle(stockSelectionKey(entry.value))"
 										@open="openGroupedStock(entry.value)"
 									>
-										<div class="stock-secondary">
-											<span
-												>总量
-												{{
-													Number(entry.value.available || 0) +
-													Number(entry.value.loaned || 0) +
-													Number(entry.value.damaged || 0)
-												}}</span
-											><span>借出 {{ entry.value.loaned || 0 }}</span
-											><span>损坏 {{ entry.value.damaged || 0 }}</span>
-										</div>
+										<CardFields
+											:fields="cardPartition.fields"
+											:overflow="cardPartition.overflow"
+											:row="entry.value"
+										>
+											<template #cell="{ column, row }">
+												<StockCell
+													:column="column"
+													:row="row"
+													:reference="reference"
+												/>
+											</template>
+										</CardFields>
 										<small
 											v-if="
 												quickReportQuery.scope.tracking === 'serial' &&
@@ -756,11 +781,18 @@ function acceptBrowseLocation(name: string) {
 								:selected="selected.includes(item.code)"
 								:select-label="`选择${item.name}`"
 								:name="item.name"
-								:code="item.code"
-								:category="item.category"
+								:code="
+									cardEyebrow(cardPartition, 'item_code') ? item.code : undefined
+								"
+								:category="
+									cardEyebrow(cardPartition, 'category')
+										? item.category
+										: undefined
+								"
 								:image="item"
-								:quantity="item.available"
-								quantity-label="可用库存"
+								:media="Boolean(cardPartition.media)"
+								:quantity="cardPartition.hero ? item.available : undefined"
+								:quantity-label="cardPartition.hero?.label"
 								:unit="item.uom"
 								:status="expiryStatus(item) || undefined"
 								:status-tone="
@@ -790,13 +822,22 @@ function acceptBrowseLocation(name: string) {
 								<template #flags>
 									<span v-if="item.disabled" class="badge neutral">已停用</span>
 								</template>
-								<div class="stock-secondary">
-									<span
-										>总量
-										{{ item.available + item.loaned + item.damaged }}</span
-									><span>借出 {{ item.loaned }}</span
-									><span>损坏 {{ item.damaged }}</span>
-								</div>
+								<CardFields
+									:fields="cardPartition.fields"
+									:overflow="cardPartition.overflow"
+									:row="asStockRow(item)"
+								>
+									<template #cell="{ column, row }">
+										<StockCell
+											:column="column"
+											:row="row"
+											:reference="reference"
+											:loading="status === 'refresh'"
+											:initialized="Boolean(data.snapshot)"
+											:stale="data.stale"
+										/>
+									</template>
+								</CardFields>
 								<small
 									v-if="
 										quickReportQuery.scope.tracking === 'serial' &&
@@ -810,16 +851,10 @@ function acceptBrowseLocation(name: string) {
 										>+{{ serialPreview(item).extra }}</span
 									>
 								</small>
-								<StockDetails
-									:item="item"
-									:loading="status === 'refresh'"
-									:initialized="Boolean(data.snapshot)"
-									:stale="data.stale"
-								/>
 							</ItemCard>
 						</div>
 						<div
-							v-if="!quickReportQuery.groupBy.length && isMobile && view === 'table'"
+							v-if="!quickReportQuery.groupBy.length && isMobile && view === 'list'"
 							class="stock-list"
 							:class="{ refreshing: data.stale }"
 							:inert="data.stale || undefined"
@@ -832,11 +867,14 @@ function acceptBrowseLocation(name: string) {
 								:selected="selected.includes(item.code)"
 								:select-label="`选择${item.name}`"
 								variant="row"
-								class="stock-list-row"
+								:class="[
+									'stock-list-row',
+									{ 'is-text-only': !rowPartition.media },
+								]"
 								@toggle="toggle(item.code)"
 								@open="openItem(item)"
 							>
-								<template #media>
+								<template v-if="rowPartition.media" #media>
 									<div class="stock-list-image">
 										<ItemImage
 											:has-artwork="!!hasArtwork?.(item)"
@@ -858,11 +896,20 @@ function acceptBrowseLocation(name: string) {
 											<span v-if="item.disabled" class="badge neutral"
 												>已停用</span
 											>
-											<span class="stock-list-meta"
-												>{{ item.code
-												}}{{
-													item.category ? ` · ${item.category}` : ""
-												}}</span
+											<span v-if="rowMeta(item)" class="stock-list-meta">{{
+												rowMeta(item)
+											}}</span>
+											<span
+												v-if="expiryStatus(item)"
+												class="badge"
+												:class="
+													expiryStatus(item) === '已过期'
+														? 'danger'
+														: expiryStatus(item) === '未过期'
+															? 'success'
+															: 'warning'
+												"
+												>{{ expiryStatus(item) }}</span
 											>
 											<small
 												v-if="
@@ -878,29 +925,37 @@ function acceptBrowseLocation(name: string) {
 												>
 											</small>
 										</span>
-										<span class="stock-list-quantity">
+										<span v-if="rowPartition.hero" class="stock-list-quantity">
 											<strong
 												><UnitText :name="item.uom" :qty="item.available"
 											/></strong>
-											<span
-												v-if="item.loaned || item.damaged"
-												class="stock-list-status"
-											>
-												<span v-if="item.loaned"
-													>借 {{ item.loaned }}</span
-												>
-												<span v-if="item.damaged"
-													>损 {{ item.damaged }}</span
-												>
-											</span>
 										</span>
 									</button>
+									<CardFields
+										v-if="rowPartition.fields.length || rowPartition.overflow"
+										variant="row"
+										:fields="rowPartition.fields"
+										:overflow="rowPartition.overflow"
+										:row="asStockRow(item)"
+									>
+										<template #cell="{ column, row }">
+											<StockCell
+												:column="column"
+												:row="row"
+												:reference="reference"
+												:loading="status === 'refresh'"
+												:initialized="Boolean(data.snapshot)"
+												:stale="data.stale"
+												compact
+											/>
+										</template>
+									</CardFields>
 								</template>
 							</BrowseCard>
 						</div>
 						<DataTable
 							v-if="
-								(quickReportQuery.groupBy.length && view === 'table') ||
+								(quickReportQuery.groupBy.length && view !== 'card') ||
 								(!quickReportQuery.groupBy.length && !isMobile && view === 'table')
 							"
 							data-browse-scroll="inventory-table"
@@ -979,103 +1034,14 @@ function acceptBrowseLocation(name: string) {
 							"
 						>
 							<template #cell="{ column, row }">
-								<div v-if="column.id === 'image'" class="table-item-image">
-									<ItemImage :item="stockIdentity(row)"></ItemImage>
-								</div>
-								<RouterLink
-									v-else-if="column.id === 'item_name'"
-									class="item-name browse-row-link"
-									:to="routeTarget('item-detail', { code: stockCode(row) })"
-									:title="stockName(row)"
-								>
-									{{ stockName(row) }}
-								</RouterLink>
-								<span v-if="row.disabled" class="badge neutral">已停用</span>
-								<template v-else-if="column.id === 'item_code'">{{
-									stockCode(row)
-								}}</template>
-								<template v-else-if="column.id === 'stock_uom'"
-									><UnitText :name="row.uom || row.stock_uom"
-								/></template>
-								<template v-else-if="column.id === 'category'">{{
-									row.category || "未分类"
-								}}</template>
-								<template v-else-if="column.id === 'warehouse_label'">{{
-									stockComponentDetail(row, "warehouse_label") || "—"
-								}}</template>
-								<template v-else-if="column.id === 'batch_no'">{{
-									stockComponentDetail(row, "batch_no") || "—"
-								}}</template>
-								<StockDetails
-									v-else-if="column.id === 'locations' && isStockItemRow(row)"
-									:item="row"
-									part="locations"
+								<StockCell
+									:column="column"
+									:row="row"
+									:reference="reference"
 									:loading="status === 'refresh'"
 									:initialized="Boolean(data.snapshot)"
 									:stale="data.stale"
 								/>
-								<StockDetails
-									v-else-if="column.id === 'batches' && isStockItemRow(row)"
-									:item="row"
-									part="batches"
-									:loading="status === 'refresh'"
-									:initialized="Boolean(data.snapshot)"
-									:stale="data.stale"
-								/>
-								<template v-else-if="column.id === 'batches'">{{
-									stockComponentDetail(row, "batch_no") || "—"
-								}}</template>
-								<template v-else-if="column.id === 'locations'"
-									><span
-										:title="
-											warehousePath(
-												row.warehouse || row.warehouse_label,
-												reference.warehouses,
-												row.warehouse_label,
-											)
-										"
-										>{{ stockLocationLabel(row) }}</span
-									></template
-								>
-								<template v-else-if="column.id === 'warehouse_path'">{{
-									stockLocationDetail(row, "path") || "—"
-								}}</template>
-								<template v-else-if="column.id === 'warehouse_native_name'">{{
-									stockLocationDetail(row, "nativeName") || "—"
-								}}</template>
-								<template v-else-if="column.id === 'available'">{{
-									row.available
-								}}</template>
-								<template v-else-if="column.id === 'loaned'">{{
-									row.loaned
-								}}</template>
-								<template v-else-if="column.id === 'damaged'">{{
-									row.damaged
-								}}</template>
-								<template v-else-if="column.id === 'total'">{{
-									row.stock_qty
-								}}</template>
-								<template v-else-if="column.id === 'expiry_date'">{{
-									stockComponentDetail(row, "expiry_date") || "—"
-								}}</template>
-								<template v-else-if="column.id === 'remaining_days'">{{
-									stockComponentDetail(row, "remaining_days") || "—"
-								}}</template>
-								<template v-else-if="column.id === 'expiry_state'">{{
-									stockComponentDetail(row, "expiry_state") || "—"
-								}}</template>
-								<span
-									v-else-if="column.id === 'expiry' && stockExpiryLabel(row)"
-									class="badge"
-									:class="
-										stockExpiryLabel(row) === '未过期'
-											? 'success'
-											: stockExpiryLabel(row) === '已过期'
-												? 'danger'
-												: 'warning'
-									"
-									>{{ stockExpiryLabel(row) }}</span
-								>
 							</template>
 							<template #group="{ group }">
 								<div class="report-group-details">

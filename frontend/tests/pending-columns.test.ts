@@ -55,7 +55,7 @@ const table = {
 describe("damaged page columns", () => {
   it("shows only the damaged column set in stock-page order", () => {
     const columns = pendingColumns(
-      reportExportColumns(table, "inventory", ["warehouse_label", "warehouse"]),
+      reportExportColumns(table, "inventory", ["warehouse"]),
     );
     expect(columns.map((column) => String(column.id))).toEqual([
       "image",
@@ -64,6 +64,7 @@ describe("damaged page columns", () => {
       "damaged",
       "stock_uom",
       "batch_no",
+      "warehouse_label",
     ]);
     expect(columns.find((column) => column.id === "item_name")).toMatchObject({
       pinned: "start",
@@ -75,7 +76,7 @@ describe("damaged page columns", () => {
 
   it("exports exactly the visible damaged columns and never the dropped quantities", () => {
     const columns = pendingColumns(
-      reportExportColumns(table, "inventory", ["warehouse_label", "warehouse"]),
+      reportExportColumns(table, "inventory", ["warehouse"]),
     );
     const ids = columns.map((column) => String(column.id));
     const fields = exportFields(columns, ids, ids);
@@ -85,6 +86,7 @@ describe("damaged page columns", () => {
       "damaged",
       "stock_uom",
       "batch_no",
+      "warehouse_label",
     ]);
     for (const dropped of ["available", "loaned", "stock_qty"])
       expect(fields).not.toContain(dropped);
@@ -99,7 +101,17 @@ describe("damaged page columns", () => {
 });
 
 describe("damaged page rendering", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   it("renders the item thumbnail, never the raw image URL, and unit text for stock_uom", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({
+        matches: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
     const reference = createReferenceData();
     Object.assign(reference, {
       user: "volunteer",

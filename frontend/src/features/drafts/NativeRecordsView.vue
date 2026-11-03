@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { formatSiteDateTime, formatSiteTime } from "../../lib/nativeTime";
+import { formatSiteDateTime } from "../../lib/nativeTime";
 import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
-import UnitValues from "../../components/ui/UnitValues.vue";
 import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
 import BrowseChip from "../../components/ui/BrowseChip.vue";
 import { computed, ref, watch } from "vue";
@@ -9,7 +8,6 @@ import type { NativeRecordsController, NativeRecord } from "./useNativeRecords";
 import type { RecoverySnapshot } from "../../lib/browserRecovery";
 import type { ReportQuery } from "../../lib/reportContract";
 import { movementLabels } from "../../lib/presentationLabels";
-import { enumPresentationLabel } from "../../lib/presentationLabels";
 import UiButton from "../../components/ui/UiButton.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import PeriodFilter from "../../components/ui/PeriodFilter.vue";
@@ -21,12 +19,11 @@ import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
 import { operationLabels } from "../../lib/presentationLabels";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import { kindIcons } from "../../lib/kindIcons";
-import { nativeRecordColumns } from "./nativeRecordColumns";
+import { nativeRecordColumns, type DraftRecordEntry } from "./nativeRecordColumns";
 import { exportFields } from "../../lib/exportColumns";
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import FilterDisclosure from "../../components/ui/FilterDisclosure.vue";
 import RecoverySummary from "../../components/ui/RecoverySummary.vue";
-import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 import BrowseFilters from "../../components/filters/BrowseFilters.vue";
 import GroupByFilter from "../../components/filters/GroupByFilter.vue";
 import { removeGroupByField } from "../../lib/groupBy";
@@ -39,7 +36,13 @@ import DataTable from "../../components/ui/DataTable.vue";
 import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
 import BrowseCard from "../../components/ui/BrowseCard.vue";
 import BrowseLoadMore from "../../components/ui/BrowseLoadMore.vue";
+import ViewModeToggle from "../../components/ui/ViewModeToggle.vue";
 import ViewModeMenuItem from "../../components/ui/ViewModeMenuItem.vue";
+import ColumnSettings from "../../components/ui/ColumnSettings.vue";
+import CardFields from "../../components/ui/CardFields.vue";
+import NativeRecordCell from "./NativeRecordCell.vue";
+import { partitionCardColumns, ROW_FIELD_LIMIT } from "../../lib/cardLayout";
+import { orderedVisibleColumns } from "../../lib/dataTable";
 import AsyncRegion from "../../components/ui/AsyncRegion.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import type {
@@ -53,8 +56,6 @@ import { reportColumnLabels } from "../../lib/reportCells";
 import { useOptionalInventoryServices } from "../../services/contracts";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import { summarizeItems } from "../../lib/itemSummary";
-import { sortByUnit, unitLabel } from "../../lib/units";
-import { formatQuantityWithUnit } from "../../lib/formatQuantity";
 import { relativeTime } from "../../lib/nativeTime";
 import RemoteSelect from "../../components/ui/RemoteSelect.vue";
 import { useFilterChoices } from "../references/useFilterChoices";
@@ -105,6 +106,7 @@ const {
 	localTarget,
 	extraChips,
 	view,
+	viewOptions,
 } = c;
 const scopeChips = computed(() => scopeFilterFieldChips(scope.value, c.reference));
 const {
@@ -144,17 +146,7 @@ function localTitle(entry: RecoverySnapshot) {
 		)[entry.editorKind] || entry.editorKind
 	);
 }
-type DraftListEntry = {
-	id: string;
-	type: "server" | "browser";
-	kind: string;
-	label: string;
-	summary: string;
-	updatedAt: string;
-	absolute: string;
-	server?: NativeRecord;
-	local?: RecoverySnapshot;
-};
+type DraftListEntry = DraftRecordEntry;
 const kindFilter = ref("");
 const typeFilter = ref("all");
 const draftSort = ref("recent");
@@ -273,23 +265,6 @@ const draftEntries = computed<DraftListEntry[]>(() => {
 				: new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
 		);
 });
-const quantities = (row: NativeRecord) =>
-	sortByUnit(row.whole.quantities, (value) => value.uom)
-		.map((value) => formatQuantityWithUnit(Number(value.qty), value.uom))
-		.join(" · ");
-const aggregateEntries = (row: NativeRecord, key: "gains" | "losses" | "quantities") => {
-	const values =
-		(
-			row.whole as typeof row.whole & {
-				gains?: { uom: string; qty: number }[];
-				losses?: { uom: string; qty: number }[];
-			}
-		)[key] || [];
-	return sortByUnit(values, (value) => value.uom).map((value) => ({
-		uom: value.uom,
-		qty: Number(value.qty),
-	}));
-};
 const services = useOptionalInventoryServices();
 const tableColumns = computed<DataColumn[]>(() => nativeRecordColumns(props.mode));
 const tableRows = computed<DataTableRecord[]>(() =>
@@ -302,18 +277,18 @@ const tableRows = computed<DataTableRecord[]>(() =>
 const browseRows = computed<DataTableEntry[]>(() =>
 	query.value.groupBy.length ? groups.entries.value : tableRows.value,
 );
-const draftListColumns: DataColumn[] = [
-	{ id: "title", label: "草稿", kind: "primary", required: true },
-	{ id: "status", label: "状态" },
-	{ id: "summary", label: "明细摘要" },
-	{ id: "date", label: "更新时间", kind: "date" },
-];
-const draftListRows = computed<DataTableRecord[]>(() =>
+function openDraftEntry(value: unknown) {
+	if (!value || typeof value !== "object") return;
+	const entry = value as DraftListEntry;
+	if (entry.server) open(entry.server);
+	else if (entry.local) emit("recover", entry.local);
+}
+const draftTableRows = computed<DataTableRecord[]>(() =>
 	draftEntries.value.map((entry) => ({
 		kind: "record",
 		id: entry.id,
 		value: {
-			title: entry.server ? `${entry.label} · ${entry.server.document}` : entry.label,
+			document: entry.server ? `${entry.label} · ${entry.server.document}` : entry.label,
 			status: entry.type === "server" ? "系统草稿" : "浏览器暂存",
 			summary: entry.summary,
 			date: entry.updatedAt,
@@ -321,14 +296,17 @@ const draftListRows = computed<DataTableRecord[]>(() =>
 		},
 	})),
 );
-function openDraftEntry(value: unknown) {
-	if (!value || typeof value !== "object") return;
-	const entry = value as DraftListEntry;
-	if (entry.server) open(entry.server);
-	else if (entry.local) emit("recover", entry.local);
+function openRecordRow(row: Record<string, unknown>) {
+	if (props.mode === "drafts") openDraftEntry(row.entry);
+	else open(nativeRow(row));
 }
-function draftDate(value: unknown) {
-	return String(value || "");
+function removeDraftRow(row: Record<string, unknown>) {
+	const entry = row.entry as DraftListEntry;
+	if (entry.server) deleteTarget.value = entry.server;
+}
+function discardDraftRow(row: Record<string, unknown>) {
+	const entry = row.entry as DraftListEntry;
+	if (entry.local) localTarget.value = entry.local;
 }
 const groupRoot = computed(() => groups.pages.value["[[],null]"]);
 function groupSummary(group: DataTableGroup) {
@@ -357,12 +335,26 @@ const exportColumns = computed(() => {
 function nativeRow(row: Record<string, unknown>): NativeRecord {
 	return row as unknown as NativeRecord;
 }
-function activityLabel(row: Record<string, unknown>) {
-	const agreed = row.activity_title || (props.mode === "drafts" ? row.borrower : "");
-	// A Return's header holds only the borrower and activity its settled loans agree on.
-	if (!agreed && row.kind === "Return") return "见原借用记录";
-	return agreed || "—";
+function recordValue(row: NativeRecord) {
+	return row as unknown as Record<string, unknown>;
 }
+// Grouped 盘点记录 keep their table; every other 列表 layout shows rows.
+const groupedCounts = computed(() => props.mode === "counts" && query.value.groupBy.length > 0);
+const rowsLayout = computed(() => isMobile.value && view.value === "list" && !groupedCounts.value);
+const layoutLabel = props.mode === "drafts" ? "草稿显示方式" : "盘点记录显示方式";
+const overflowMenu = ref<InstanceType<typeof BrowseOverflowMenu>>();
+const columnSettings = ref<InstanceType<typeof ColumnSettings>>();
+function showColumnSettings() {
+	columnSettings.value?.open(overflowMenu.value?.trigger());
+}
+// A 列表 row shows the same visible fields, in the same order, as the table; actions never do.
+const recordRowFields = computed(() =>
+	partitionCardColumns(
+		orderedVisibleColumns(tableColumns.value, tablePrefs),
+		{ title: "document", status: "status", omit: ["actions"] },
+		ROW_FIELD_LIMIT,
+	),
+);
 </script>
 <template>
 	<ReturnToTop :active="active" :hidden="isMobile && filterSheetOpen" />
@@ -381,8 +373,14 @@ function activityLabel(row: Record<string, unknown>) {
 			"
 		>
 			<template #actions>
-				<BrowseOverflowMenu>
+				<BrowseOverflowMenu ref="overflowMenu">
 					<ViewModeMenuItem v-if="isMobile" v-model="view" />
+					<UiButton
+						v-if="tablePrefs && rowsLayout"
+						icon="sliders"
+						@click="showColumnSettings"
+						>显示字段</UiButton
+					>
 					<UiButton
 						@click="
 							c.load();
@@ -511,8 +509,14 @@ function activityLabel(row: Record<string, unknown>) {
 					title="单据"
 					:active="active"
 				/>
-				<BrowseOverflowMenu>
+				<BrowseOverflowMenu ref="overflowMenu">
 					<ViewModeMenuItem v-if="isMobile && !query.groupBy.length" v-model="view" />
+					<UiButton
+						v-if="tablePrefs && rowsLayout"
+						icon="sliders"
+						@click="showColumnSettings"
+						>显示字段</UiButton
+					>
 					<UiButton
 						@click="
 							c.load();
@@ -668,7 +672,22 @@ function activityLabel(row: Record<string, unknown>) {
 						: `${total} 份记录`
 			"
 			:metrics="[]"
+			><template v-if="!isMobile" #controls>
+				<ViewModeToggle
+					v-if="!groupedCounts"
+					v-model="view"
+					:ariaLabel="layoutLabel"
+					:options="viewOptions"
+				/> </template
 		></BrowseResultSummary>
+		<!-- Phone 列表 settings open from the "…" menu; the table owns its own on desktop. -->
+		<ColumnSettings
+			v-if="tablePrefs && rowsLayout"
+			ref="columnSettings"
+			:show-trigger="false"
+			:preferences="tablePrefs"
+			:columns="tableColumns"
+		/>
 		<p v-if="routeError" class="utility-error" role="alert">{{ routeError }}</p>
 		<div v-else-if="mode === 'drafts'" class="drafts-browser">
 			<p class="drafts-explainer">草稿单据已保存到系统；浏览器暂存只保存在当前设备。</p>
@@ -776,35 +795,42 @@ function activityLabel(row: Record<string, unknown>) {
 						没有符合条件的草稿。
 					</li>
 				</ul>
-				<div v-else-if="view === 'card'" class="draft-entry-row-list">
+				<div v-else-if="rowsLayout" class="draft-entry-row-list">
 					<BrowseCard
-						v-for="entry in draftEntries"
+						v-for="entry in draftTableRows"
 						:key="entry.id"
 						:row-key="entry.id"
 						variant="row"
 						:selecting="false"
 						:selected="false"
 						select-label="打开草稿"
-						@open="
-							entry.server
-								? open(entry.server)
-								: entry.local && emit('recover', entry.local)
-						"
+						@open="openRecordRow(entry.value)"
 					>
 						<div class="draft-entry-row-content">
-							<strong>{{
-								entry.server
-									? `${entry.label} · ${entry.server.document}`
-									: entry.label
-							}}</strong>
-							<span
-								class="browse-badge"
-								:class="entry.type === 'server' ? 'is-warning' : 'is-neutral'"
-								>{{ entry.type === "server" ? "系统草稿" : "浏览器暂存" }}</span
+							<strong>{{ String(entry.value.document || "") }}</strong>
+							<NativeRecordCell
+								v-if="recordRowFields.status"
+								:column="recordRowFields.status"
+								:row="entry.value"
+								mode="drafts"
+								:local-supported="c.localSupported"
+							/>
+							<CardFields
+								variant="row"
+								:fields="recordRowFields.fields"
+								:overflow="recordRowFields.overflow"
+								:row="entry.value"
 							>
-							<small
-								>{{ relativeTime(entry.updatedAt) }} · {{ entry.summary }}</small
-							>
+								<template #cell="{ column, row }">
+									<NativeRecordCell
+										:column="column"
+										:row="row"
+										mode="drafts"
+										:timezone="c.reference.timezone"
+										:local-supported="c.localSupported"
+									/>
+								</template>
+							</CardFields>
 						</div>
 					</BrowseCard>
 					<p v-if="initialized && !draftEntries.length" class="browse-empty">
@@ -812,7 +838,7 @@ function activityLabel(row: Record<string, unknown>) {
 					</p>
 				</div>
 				<BrowseLoadMore
-					v-if="isMobile && view === 'card'"
+					v-if="isMobile && rowsLayout"
 					:has-more="next !== null"
 					:loaded-count="rows.length"
 					:total-count="total"
@@ -825,8 +851,9 @@ function activityLabel(row: Record<string, unknown>) {
 					v-else-if="isMobile && view === 'table'"
 					ariaLabel="草稿列表"
 					table-class="browse-table"
-					:columns="draftListColumns"
-					:rows="draftListRows"
+					:columns="tableColumns"
+					:rows="draftTableRows"
+					:column-preferences="tablePrefs"
 					:loading="loading"
 					:initialized="initialized"
 					:error="error"
@@ -837,23 +864,16 @@ function activityLabel(row: Record<string, unknown>) {
 					@retry="c.retry"
 				>
 					<template #cell="{ column, row }">
-						<button
-							v-if="column.id === 'title'"
-							class="browse-row-link"
-							@click="openDraftEntry(row.entry)"
-						>
-							{{ row.title }}
-						</button>
-						<span v-else-if="column.id === 'status'" class="browse-badge is-neutral">{{
-							row.status
-						}}</span>
-						<span v-else-if="column.id === 'summary'">{{ row.summary }}</span>
-						<time
-							v-else-if="column.id === 'date'"
-							:datetime="draftDate(row.date)"
-							:title="formatSiteDateTime(draftDate(row.date), c.reference.timezone)"
-							>{{ relativeTime(draftDate(row.date)) }}</time
-						>
+						<NativeRecordCell
+							:column="column"
+							:row="row"
+							mode="drafts"
+							:timezone="c.reference.timezone"
+							:local-supported="c.localSupported"
+							@open="openRecordRow"
+							@remove="removeDraftRow"
+							@discard="discardDraftRow"
+						/>
 					</template>
 				</DataTable>
 			</AsyncRegion>
@@ -886,15 +906,7 @@ function activityLabel(row: Record<string, unknown>) {
 					@toggle="toggleSidebar"
 				/>
 				<div class="browse-results">
-					<div
-						v-if="
-							mode === 'counts' &&
-							isMobile &&
-							!query.groupBy.length &&
-							view === 'card'
-						"
-						class="native-record-row-list"
-					>
+					<div v-if="mode === 'counts' && rowsLayout" class="native-record-row-list">
 						<SkeletonBlock v-if="loading && !initialized" variant="list" :rows="5" />
 						<BrowseCard
 							v-for="row in rows"
@@ -908,19 +920,28 @@ function activityLabel(row: Record<string, unknown>) {
 							@open="open(row)"
 						>
 							<div class="native-record-row-content">
-								<strong>{{ row.document }}</strong
-								><NativeStatusBadge :status="row.docstatus" />
-								<small
-									>{{
-										formatSiteDateTime(
-											row.time
-												? `${row.date || ""} ${row.time}`
-												: row.date || row.posting_timestamp,
-										) || "—"
-									}}
-									· {{ row.whole?.branches?.[0]?.source || "盘点范围" }} ·
-									{{ row.item_count || 0 }} 种物品</small
+								<strong>{{ row.document }}</strong>
+								<NativeRecordCell
+									v-if="recordRowFields.status"
+									:column="recordRowFields.status"
+									:row="recordValue(row)"
+									mode="counts"
+								/>
+								<CardFields
+									variant="row"
+									:fields="recordRowFields.fields"
+									:overflow="recordRowFields.overflow"
+									:row="recordValue(row)"
 								>
+									<template #cell="{ column, row: cellRow }">
+										<NativeRecordCell
+											:column="column"
+											:row="cellRow"
+											mode="counts"
+											:timezone="c.reference.timezone"
+										/>
+									</template>
+								</CardFields>
 							</div>
 						</BrowseCard>
 						<p v-if="initialized && !rows.length" class="browse-empty">
@@ -928,12 +949,7 @@ function activityLabel(row: Record<string, unknown>) {
 						</p>
 					</div>
 					<BrowseLoadMore
-						v-if="
-							mode === 'counts' &&
-							isMobile &&
-							view === 'card' &&
-							!query.groupBy.length
-						"
+						v-if="mode === 'counts' && isMobile && rowsLayout"
 						:has-more="next !== null"
 						:loaded-count="rows.length"
 						:total-count="total"
@@ -995,118 +1011,13 @@ function activityLabel(row: Record<string, unknown>) {
 						@load-more="query.groupBy.length ? groups.loadMore() : c.load(true)"
 					>
 						<template #cell="{ column, row }">
-							<button
-								v-if="column.id === 'document'"
-								class="browse-row-link"
-								@click="open(nativeRow(row))"
-							>
-								<strong>{{ row.document }}</strong
-								><small v-if="mode !== 'counts'">{{
-									enumPresentationLabel("doctype", row.doctype)
-								}}</small>
-								<NativeStatusBadge
-									v-if="mode !== 'counts'"
-									class="native-record-mobile-status"
-									:status="Number(row.docstatus)"
-								/>
-							</button>
-							<template v-else-if="column.id === 'count_kind'">{{
-								row.kind === "Opening" ? "期初库存" : "盘点调整"
-							}}</template>
-							<NativeStatusBadge
-								v-else-if="column.id === 'status'"
-								:status="Number(row.docstatus)"
+							<NativeRecordCell
+								:column="column"
+								:row="row"
+								:mode="mode"
+								:timezone="c.reference.timezone"
+								@open="openRecordRow"
 							/>
-							<template v-else-if="column.id === 'line_count'">{{
-								nativeRow(row).whole.line_count
-							}}</template>
-							<template v-else-if="column.id === 'item_count'">{{
-								nativeRow(row).whole.item_count
-							}}</template>
-							<UnitValues
-								v-if="
-									column.id === 'gains' &&
-									aggregateEntries(nativeRow(row), 'gains').length
-								"
-								:entries="aggregateEntries(nativeRow(row), 'gains')"
-								label="增加"
-								signed
-							/>
-							<UnitValues
-								v-else-if="
-									column.id === 'losses' &&
-									aggregateEntries(nativeRow(row), 'losses').length
-								"
-								:entries="aggregateEntries(nativeRow(row), 'losses')"
-								label="减少"
-								signed
-							/>
-							<UnitValues
-								v-else-if="
-									column.id === 'net' &&
-									aggregateEntries(nativeRow(row), 'quantities').length
-								"
-								:entries="aggregateEntries(nativeRow(row), 'quantities')"
-								label="增加与减少相抵后的净值"
-								signed
-							/>
-							<span
-								v-else-if="['gains', 'losses', 'net'].includes(String(column.id))"
-								>—</span
-							>
-							<template v-else-if="column.id === 'kind'">
-								<InventoryIcon
-									v-if="row.kind"
-									:name="
-										kindIcons[String(row.kind) as keyof typeof kindIcons]
-											?.icon || 'movement'
-									"
-								/>
-								{{
-									row.kind
-										? movementLabels[String(row.kind)] || "其他类型"
-										: "库存单据"
-								}}
-								·
-								<NativeStatusBadge :status="Number(row.docstatus)" />
-							</template>
-							<template v-else-if="column.id === 'activity_title'">{{
-								activityLabel(row)
-							}}</template>
-							<div v-else-if="column.id === 'summary'" class="native-record-summary">
-								{{ nativeRow(row).whole.line_count }} 行 ·
-								{{ nativeRow(row).whole.item_count }} 种物品
-								<small class="record-quantity">{{
-									quantities(nativeRow(row))
-								}}</small>
-								<small
-									v-if="
-										nativeRow(row).allocation_count !==
-										nativeRow(row).whole.line_count
-									"
-									class="record-quantity"
-									>符合筛选的明细：{{ nativeRow(row).allocation_count }}</small
-								>
-							</div>
-							<template v-else-if="column.id === 'date'"
-								>{{ row.date }} {{ formatSiteTime(row.time) }}</template
-							>
-							<div v-else-if="column.id === 'actions'" class="browse-row-actions">
-								<button class="browse-link" @click="open(nativeRow(row))">
-									{{ nativeRow(row).whole.editable ? "继续填写" : "查看记录" }}
-								</button>
-								<button
-									v-if="nativeRow(row).docstatus === 0"
-									class="browse-link is-danger-text"
-									:disabled="!c.canDelete(nativeRow(row))"
-									@click="
-										deleteError = '';
-										deleteTarget = nativeRow(row);
-									"
-								>
-									删除
-								</button>
-							</div>
 						</template>
 						<template #group="{ group }">
 							<div class="report-group-details">

@@ -22,7 +22,10 @@ import { onCategoryRenamed } from "../../lib/categoryRename";
 import { useReportGroups } from "../../composables/useReportGroups";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import { useBrowseSelection } from "../../composables/useBrowseSelection";
-import { useBrowseViewMode } from "../../composables/useBrowseViewMode";
+import {
+  browseLayoutStorageKey,
+  useBrowseViewMode,
+} from "../../composables/useBrowseViewMode";
 import type {
   DataTableEntry,
   DataTableGroup,
@@ -82,7 +85,18 @@ export function useStockBrowseController(
         : ""),
   );
   const { isMobile } = useResponsiveLayout();
-  const browseViewMode = useBrowseViewMode(isMobile),
+  // Phones default to 列表 rows; desktops to 表格. One layout choice per account and site.
+  const browseViewMode = useBrowseViewMode(isMobile, {
+      phone: "list",
+      desktop: "table",
+      phoneOptions: ["list", "card"],
+      desktopOptions: ["table", "card"],
+      storageKey: computed(() =>
+        reference.site && reference.user
+          ? browseLayoutStorageKey(reference.site, reference.user, "stock")
+          : undefined,
+      ),
+    }),
     search = ref(""),
     { view } = browseViewMode,
     sort = ref("item_name"),
@@ -450,6 +464,7 @@ export function useStockBrowseController(
     loadingMore,
     search,
     view,
+    viewOptions: computed(() => [...browseViewMode.viewOptions.value]),
     sort,
     descending,
     selected: selection.selected,

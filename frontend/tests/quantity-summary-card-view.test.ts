@@ -165,8 +165,12 @@ describe("native quantity summaries and inventory cards", () => {
     await wrapper.get('button[aria-label="卡片视图"]').trigger("click");
     expect(wrapper.findAll(".stock-card")).toHaveLength(1);
     expect(wrapper.get(".stock-number strong").text()).toBe("8");
-    expect(wrapper.get(".stock-secondary").text()).toContain("借出 3");
-    expect(wrapper.get(".stock-secondary").text()).toContain("损坏 1");
+    expect(wrapper.get(".stock-number small").text()).toBe("可用数量");
+    // 位置 and 批次 are the default desktop card fields; loaned and damaged stay hidden until chosen.
+    expect(
+      wrapper.findAll(".stock-card .card-field dt").map((dt) => dt.text()),
+    ).toEqual(["位置", "批次"]);
+    expect(wrapper.find(".stock-secondary").exists()).toBe(false);
     wrapper.findComponent(StockBrowsePage).vm.controller.enterSelection();
     await flushPromises();
     await wrapper.get('input[aria-label="选择大米"]').setValue(true);
@@ -191,9 +195,12 @@ describe("native quantity summaries and inventory cards", () => {
     const wrapper = await inventory([item()]);
     expect(wrapper.findAll(".stock-list-row")).toHaveLength(1);
     expect(wrapper.get(".stock-list-name").text()).toBe("大米");
-    expect(wrapper.get(".stock-list-meta").text()).toContain("ITEM-A · 食品");
+    // Phones keep category out of the default row meta; the code stays.
+    expect(wrapper.get(".stock-list-meta").text()).toBe("ITEM-A");
     expect(wrapper.get(".stock-list-quantity").text()).toContain("8 kg");
-    expect(wrapper.get(".stock-list-status").text()).toContain("借 3");
+    expect(wrapper.find(".stock-list-row .card-fields-inline").exists()).toBe(
+      false,
+    );
     expect(
       wrapper.get('.stock-list-image [role="img"]').attributes("aria-label"),
     ).toBe("大米");
@@ -240,7 +247,7 @@ describe("native quantity summaries and inventory cards", () => {
     }));
     const wrapper = await inventory([item()]);
     const controller = wrapper.findComponent(StockBrowsePage).vm.controller;
-    expect(controller.view.value).toBe("table");
+    expect(controller.view.value).toBe("list");
     await wrapper.get('button[aria-label="卡片视图"]').trigger("click");
     expect(controller.view.value).toBe("card");
 

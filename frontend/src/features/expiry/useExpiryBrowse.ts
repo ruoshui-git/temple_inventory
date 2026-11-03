@@ -29,7 +29,10 @@ import {
 } from "../../lib/filterPresentation";
 import { useReportGroups } from "../../composables/useReportGroups";
 import { useBrowseSelection } from "../../composables/useBrowseSelection";
-import { useBrowseViewMode } from "../../composables/useBrowseViewMode";
+import {
+  browseLayoutStorageKey,
+  useBrowseViewMode,
+} from "../../composables/useBrowseViewMode";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 export interface ExpiryPageData extends BrowseRowsPage {
   item_count: number;
@@ -49,7 +52,19 @@ export function useExpiryBrowse(
     account = reference.user,
     selection = useBrowseSelection();
   const { isMobile } = useResponsiveLayout();
-  const browseViewMode = useBrowseViewMode(isMobile);
+  // One field selection drives the table, cards and phone rows; the layout choice is per account.
+  const layoutKey = computed(() =>
+    reference.site && reference.user
+      ? browseLayoutStorageKey(reference.site, reference.user, "expiry")
+      : undefined,
+  );
+  const browseViewMode = useBrowseViewMode(isMobile, {
+    phone: "list",
+    desktop: "table",
+    phoneOptions: ["list", "card"],
+    desktopOptions: ["table", "card"],
+    storageKey: layoutKey,
+  });
   const query = ref(browseDefaults("expiry", "batches")),
     routeError = ref("");
   const groups = useReportGroups(query, services);
@@ -397,6 +412,7 @@ export function useExpiryBrowse(
     routeError,
     result,
     view: browseViewMode.view,
+    viewOptions: browseViewMode.viewOptions,
     reference,
     chips,
     metrics,

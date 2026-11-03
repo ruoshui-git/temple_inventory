@@ -136,20 +136,22 @@ describe("native expiry browser", () => {
     expect(segmented.text()).toContain("全部200");
     expect(segmented.text()).toContain("无效期1");
   });
-  it("renders phone batch cards as identity, batch and unseparated expiry metadata", async () => {
+  it("renders phone batch rows as a name and quantity line over the batch and expiry fields", async () => {
     const { wrapper } = setup(
       vi.fn(async (_endpoint, args) => page(Number(args.start || 0))),
       reactive({}),
       true,
     );
     await flushPromises();
-    const card = wrapper.find(".expiry-phone-card");
-    expect(card.exists()).toBe(true);
-    expect(card.find(".expiry-phone-identity").text()).toContain("物品甲");
-    expect(card.find(".expiry-phone-batch").text()).toContain("BATCH-0");
-    expect(card.find(".expiry-phone-meta .browse-badge").exists()).toBe(true);
-    expect(card.find(".expiry-phone-meta .browse-badge").text()).toBe("未过期");
-    expect(card.find(".expiry-phone-meta").text()).not.toContain("·");
+    expect(
+      wrapper.get('[aria-label="列表视图"]').attributes("aria-pressed"),
+    ).toBe("true");
+    const card = wrapper.get(".expiry-phone-card");
+    expect(card.get(".expiry-phone-name").text()).toContain("物品甲");
+    expect(card.get(".expiry-phone-quantity").text()).toContain("11");
+    expect(card.get(".card-fields-inline").text()).toContain("BATCH-0");
+    expect(card.get(".card-fields-inline").text()).toContain("2026-10-16");
+    expect(card.get(".card-fields-inline").text()).not.toContain("·");
   });
   it("offers an item card grid with the same batch identity and quantity", async () => {
     const { wrapper } = setup(

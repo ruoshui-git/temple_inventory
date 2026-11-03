@@ -30,6 +30,13 @@ import ItemCard from "../../components/ui/ItemCard.vue";
 import ViewModeToggle from "../../components/ui/ViewModeToggle.vue";
 import ViewModeMenuItem from "../../components/ui/ViewModeMenuItem.vue";
 import ItemGroupLines from "./ItemGroupLines.vue";
+import CardFields from "../../components/ui/CardFields.vue";
+import ColumnSettings from "../../components/ui/ColumnSettings.vue";
+import OperationItemCell from "./OperationItemCell.vue";
+import OperationRecordCell from "./OperationRecordCell.vue";
+import type { BrowseView } from "../../composables/useBrowseViewMode";
+import type { OperationCellHelpers } from "./operationColumns";
+import { CARD_FIELD_LIMIT, ROW_FIELD_LIMIT, partitionCardColumns } from "../../lib/cardLayout";
 import QuickExport from "../../components/QuickExport.vue";
 import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
 import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
@@ -44,11 +51,12 @@ import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
 import DataTable from "../../components/ui/DataTable.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import BrowseRefreshNotice from "../../components/ui/BrowseRefreshNotice.vue";
-import type {
-	DataColumn,
-	DataTableEntry,
-	DataTableGroup,
-	DataTableRecord,
+import {
+	orderedVisibleColumns,
+	type DataColumn,
+	type DataTableEntry,
+	type DataTableGroup,
+	type DataTableRecord,
 } from "../../lib/dataTable";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import { exportFields } from "../../lib/exportColumns";
@@ -58,20 +66,21 @@ import type { ReportRow } from "../../lib/reportContract";
 import type { HistoryRow } from "./useMovementHistory";
 import ItemImage from "../../components/ItemImage.vue";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
-import RecordRef from "../../components/ui/RecordRef.vue";
-import LocationEndpoint from "../../components/ui/LocationEndpoint.vue";
-import MultiLocationEndpoint from "../../components/ui/MultiLocationEndpoint.vue";
-import { loanReferenceIdentity } from "../../lib/relatedLoanPresentation";
 import { formatQuantity } from "../../lib/formatQuantity";
 import { createRecoveryStore } from "../../lib/browserRecovery";
 import { RouterLink } from "vue-router";
 import { routeTarget } from "../../lib/routeRegistry";
 import { sortByUnit, unitLabel } from "../../lib/units";
-import UnitText from "../../components/ui/UnitText.vue";
 import DetailPopover from "../../components/ui/DetailPopover.vue";
 import UnitValues from "../../components/ui/UnitValues.vue";
 import { stockEffectLabel } from "../../lib/stockEffectLabel";
 const exportMenu = ref<{ open(): void }>();
+const overflowMenu = ref<InstanceType<typeof BrowseOverflowMenu>>();
+const recordColumnSettings = ref<InstanceType<typeof ColumnSettings>>();
+// Phone 单据 settings open from the "…" menu, anchored to its trigger.
+function showRecordColumnSettings() {
+	recordColumnSettings.value?.open(overflowMenu.value?.trigger());
+}
 const props = withDefaults(
 	defineProps<{
 		controller: OperationBrowse;
@@ -796,6 +805,112 @@ const itemPreferences = services
 			serialForcedColumns,
 		)
 	: undefined;
+const recordViewOptions = computed<BrowseView[]>(() =>
+	query.value.groupBy.length ? ["table"] : [...c.browseViewOptions.value],
+);
+const itemViewOptions = computed<BrowseView[]>(() => [...c.browseViewOptions.value]);
+// 列表 record rows exist only on phones without grouping; grouped records are tables.
+const recordListLayout = computed(
+	() =>
+		props.records &&
+		isMobile.value &&
+		!query.value.groupBy.length &&
+		browseView.value === "list",
+);
+// Item 列表 (phone rows or group list) and 卡片 share the item column settings.
+const itemCardLayout = computed(
+	() => !props.records && canShowItemCards.value && browseView.value !== "table",
+);
+const visibleItemColumns = computed(() =>
+	orderedVisibleColumns(itemColumns.value, itemPreferences),
+);
+const itemHeroId = computed(() => (props.family === "loans" ? "borrowed" : "available_effect"));
+const itemHeroVisible = computed(() =>
+	visibleItemColumns.value.some((column) => String(column.id) === itemHeroId.value),
+);
+const itemRoles = computed(() => ({
+	media: "image",
+	title: "item_name",
+	status: "kind",
+	omit: itemHeroVisible.value ? ["stock_uom"] : [],
+}));
+const itemCardPartition = computed(() =>
+	partitionCardColumns(
+		visibleItemColumns.value,
+		{ ...itemRoles.value, eyebrow: ["category", "item_code"], hero: itemHeroId.value },
+		CARD_FIELD_LIMIT,
+	),
+);
+const itemRowPartition = computed(() =>
+	partitionCardColumns(
+		visibleItemColumns.value,
+		{ ...itemRoles.value, hero: itemHeroId.value },
+		ROW_FIELD_LIMIT,
+	),
+);
+// Rows keep the quantity change first so the field limit never hides it.
+const itemRowFields = computed(() =>
+	itemRowPartition.value.hero
+		? [itemRowPartition.value.hero, ...itemRowPartition.value.fields]
+		: itemRowPartition.value.fields,
+);
+const recordRowPartition = computed(() =>
+	partitionCardColumns(
+		orderedVisibleColumns(operationColumns.value, operationPreferences),
+		{ title: "document", status: props.family === "loans" ? "status" : "docstatus" },
+		ROW_FIELD_LIMIT,
+	),
+);
+const itemCardMedia = computed(() => itemCardPartition.value.media !== undefined);
+const itemCardHasCode = computed(() =>
+	itemCardPartition.value.eyebrow.some((column) => column.id === "item_code"),
+);
+const itemCardHasCategory = computed(() =>
+	itemCardPartition.value.eyebrow.some((column) => column.id === "category"),
+);
+function itemName(row: Record<string, unknown>) {
+	return String(row.item_name || row.item_code || "");
+}
+function itemStatusText(row: Record<string, unknown>) {
+	if (!itemCardPartition.value.status) return undefined;
+	return enumPresentationLabel("kind", String(row.kind || ""), query.value);
+}
+// The hero is the primary change column: signed for movements, and for loans when the row is signed.
+function heroText(row: Record<string, unknown>) {
+	const value =
+		props.family === "loans"
+			? (row.quantity ?? row.stock_qty ?? row.borrowed)
+			: row.available_effect;
+	if (value === null || value === undefined || value === "") return undefined;
+	const amount = Number(value);
+	if (Number.isNaN(amount)) return undefined;
+	const sign =
+		props.family === "movements" || row.signed
+			? amount > 0
+				? "+"
+				: amount < 0
+					? "−"
+					: ""
+			: "";
+	return `${sign}${formatQuantity(Math.abs(amount))}`;
+}
+const cellHelpers: OperationCellHelpers = {
+	operationRow,
+	operationLocationDetail,
+	openHistoryDocument,
+	openedRecord,
+	openedSettlement,
+	recordEffect,
+	recordEffectTone,
+	recordEffectLabel,
+	recordUnitRows,
+	itemTotals,
+	effectLabel,
+	countedLocations,
+	relatedLoanNames,
+	relatedLoanDetails,
+	relatedSettlementRecords,
+};
 function visibleExportColumns(columns: DataColumn[], order: string[], visible: string[]) {
 	return visible.length
 		? visible
@@ -1090,6 +1205,13 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 				@filter-open="filterSheetOpen = $event"
 			>
 				<template #actions>
+					<ColumnSettings
+						v-if="operationPreferences && recordListLayout"
+						ref="recordColumnSettings"
+						:show-trigger="false"
+						:preferences="operationPreferences"
+						:columns="operationColumns"
+					/>
 					<QuickExport
 						ref="exportMenu"
 						:show-trigger="false"
@@ -1101,11 +1223,17 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						:sort="exportSort"
 						:active="active"
 					/>
-					<BrowseOverflowMenu>
+					<BrowseOverflowMenu ref="overflowMenu">
 						<ViewModeMenuItem
 							v-if="records && isMobile && !query.groupBy.length"
 							v-model="browseView"
 						/>
+						<UiButton
+							v-if="operationPreferences && recordListLayout"
+							icon="sliders"
+							@click="showRecordColumnSettings"
+							>显示字段</UiButton
+						>
 						<UiButton
 							v-if="isMobile && family === 'loans'"
 							icon="select"
@@ -1258,9 +1386,23 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 				>
 					<template #controls>
 						<ViewModeToggle
+							v-if="records && !isMobile"
+							v-model="browseView"
+							:ariaLabel="
+								family === 'movements' ? '货物流动记录视图' : '借用记录视图'
+							"
+							:options="recordViewOptions"
+						/>
+						<ViewModeToggle
 							v-if="canShowItemCards"
 							v-model="browseView"
 							ariaLabel="物品汇总视图"
+							:options="itemViewOptions"
+						/>
+						<ColumnSettings
+							v-if="itemPreferences && itemCardLayout"
+							:preferences="itemPreferences"
+							:columns="itemColumns"
 						/>
 						<SortControl
 							v-if="showMobileItemCards"
@@ -1372,7 +1514,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						</p>
 					</Overlay>
 					<div
-						v-if="showMobileItemCards && browseView === 'table'"
+						v-if="showMobileItemCards && browseView === 'list'"
 						class="mobile-item-group-list browse-card"
 					>
 						<article
@@ -1445,7 +1587,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							</div>
 							<div
 								v-show="
-									browseView === 'table' &&
+									browseView === 'list' &&
 									group.expanded &&
 									!(family === 'loans' && c.selecting.value)
 								"
@@ -1579,8 +1721,15 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							:select-label="`选择物品 ${group.label}`"
 							:stale="result.stale"
 							:name="group.label"
-							:code="String(group.value?.item_code || '')"
-							:category="String(group.value?.category || '')"
+							:media="itemCardMedia"
+							:code="
+								itemCardHasCode ? String(group.value?.item_code || '') : undefined
+							"
+							:category="
+								itemCardHasCategory
+									? String(group.value?.category || '')
+									: undefined
+							"
 							:image="c.stockItem(groupItem(group)) || undefined"
 							:status="
 								family === 'loans'
@@ -1599,6 +1748,48 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						</ItemCard>
 					</div>
 					<div
+						v-if="
+							!records && isMobile && !query.groupBy.length && browseView === 'list'
+						"
+						class="browse-card-grid operation-record-list"
+					>
+						<BrowseCard
+							v-for="entry in flatItemCardRows"
+							:key="entry.id"
+							:row-key="entry.id"
+							variant="row"
+							:selecting="family === 'loans' && c.selecting.value"
+							:selected="c.selected.value.includes(entry.id)"
+							:select-label="`选择物品 ${itemName(entry.value || {}) || entry.id}`"
+							:stale="result.stale"
+							@toggle="c.setSelected(entry.id, !c.selected.value.includes(entry.id))"
+							@open="emit('openItem', String(entry.value?.item_code || entry.id))"
+						>
+							<div class="operation-record-row-content">
+								<strong>{{ itemName(entry.value || {}) }}</strong>
+								<span v-if="itemRowPartition.status" class="badge art-badge">{{
+									itemStatusText(entry.value || {})
+								}}</span>
+								<CardFields
+									variant="row"
+									:fields="itemRowFields"
+									:row="entry.value || {}"
+									:overflow="itemRowPartition.overflow"
+								>
+									<template #cell="{ column, row }">
+										<OperationItemCell
+											:column="column"
+											:row="row"
+											:controller="c"
+											:family="family"
+											:helpers="cellHelpers"
+										/>
+									</template>
+								</CardFields>
+							</div>
+						</BrowseCard>
+					</div>
+					<div
 						v-if="canShowItemCards && !query.groupBy.length && browseView === 'card'"
 						class="browse-card-grid operation-item-card-grid"
 					>
@@ -1606,88 +1797,100 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							v-for="entry in flatItemCardRows"
 							:key="entry.id"
 							:row-key="entry.id"
-							:name="String(entry.value?.item_name || entry.value?.item_code || '')"
-							:code="String(entry.value?.item_code || '')"
-							:category="String(entry.value?.category || '')"
+							:media="itemCardMedia"
+							:name="itemName(entry.value || {})"
+							:code="
+								itemCardHasCode ? String(entry.value?.item_code || '') : undefined
+							"
+							:category="
+								itemCardHasCategory
+									? String(entry.value?.category || '')
+									: undefined
+							"
 							:image="{
 								code: String(entry.value?.item_code || ''),
 								name: String(entry.value?.item_name || ''),
 								image: String(entry.value?.image || ''),
 							}"
 							:quantity="
-								Number(entry.value?.quantity ?? entry.value?.stock_qty ?? 0)
+								itemCardPartition.hero ? heroText(entry.value || {}) : undefined
 							"
 							:unit="entry.value?.stock_uom"
-							:status="
-								family === 'loans'
-									? enumPresentationLabel(
-											'outcome',
-											String(entry.value?.outcome || ''),
-											query,
-										)
-									: enumPresentationLabel(
-											'kind',
-											String(entry.value?.kind || ''),
-											query,
-										)
-							"
+							:status="itemStatusText(entry.value || {})"
 							:selecting="family === 'loans' && c.selecting.value"
 							:selected="c.selected.value.includes(entry.id)"
-							:select-label="`选择物品 ${String(entry.value?.item_name || entry.id)}`"
+							:select-label="`选择物品 ${itemName(entry.value || {}) || entry.id}`"
 							:stale="result.stale"
 							@toggle="c.setSelected(entry.id, !c.selected.value.includes(entry.id))"
 							@open="emit('openItem', String(entry.value?.item_code || entry.id))"
 						>
-							<small class="item-card-meta"
-								>{{ entry.value?.date }} · {{ entry.value?.document }}</small
+							<CardFields
+								:fields="itemCardPartition.fields"
+								:row="entry.value || {}"
+								:overflow="itemCardPartition.overflow"
 							>
+								<template #cell="{ column, row }">
+									<OperationItemCell
+										:column="column"
+										:row="row"
+										:controller="c"
+										:family="family"
+										:helpers="cellHelpers"
+									/>
+								</template>
+							</CardFields>
 						</ItemCard>
 					</div>
 					<BrowseLoadMore
-						v-if="
-							(records &&
-								isMobile &&
-								!query.groupBy.length &&
-								browseView === 'card') ||
-							(!records &&
-								((canShowItemCards && browseView === 'card') ||
-									(showMobileItemCards && browseView === 'table')))
-						"
+						v-if="recordListLayout"
+						:has-more="result.next !== null"
+						:loaded-count="result.rows.length"
+						:total-count="result.total"
+						:loading="result.loading"
+						:error="result.error && result.next !== null ? result.error : ''"
+						@load-more="c.load(true)"
+						@retry="c.retry()"
+					/>
+					<BrowseLoadMore
+						v-if="!records && itemCardLayout"
 						:has-more="
-							records || !query.groupBy.length
-								? result.next !== null
-								: c.groups.hasMore()
+							query.groupBy.length
+								? c.groups.hasMore()
+								: details[flatHistoryItem.id]?.next != null
 						"
 						:loaded-count="
-							records || !query.groupBy.length
-								? result.rows.length
-								: c.groups.progress().loaded
+							query.groupBy.length
+								? c.groups.progress().loaded
+								: details[flatHistoryItem.id]?.rows?.length || 0
 						"
 						:total-count="
-							records || !query.groupBy.length
-								? result.total
-								: c.groups.progress().total
+							query.groupBy.length
+								? c.groups.progress().total
+								: details[flatHistoryItem.id]?.total || 0
 						"
 						:loading="
-							query.groupBy.length ? Boolean(groupRoot?.loading) : result.loading
+							query.groupBy.length
+								? Boolean(groupRoot?.loading)
+								: Boolean(details[flatHistoryItem.id]?.loading)
 						"
 						:error="
 							query.groupBy.length
 								? groupRoot?.error || ''
-								: result.error && result.next !== null
-									? result.error
-									: ''
+								: details[flatHistoryItem.id]?.error || ''
 						"
 						@load-more="
-							records || !query.groupBy.length ? c.load(true) : c.groups.loadMore()
+							query.groupBy.length
+								? c.groups.loadMore()
+								: c.loadDetails(flatHistoryItem, true)
 						"
-						@retry="records || !query.groupBy.length ? c.retry() : c.groups.retry()"
+						@retry="
+							query.groupBy.length
+								? c.groups.retry()
+								: c.retryDetails(flatHistoryItem)
+						"
 					/>
 					<DataTable
-						v-if="
-							!records &&
-							(!canShowItemCards || (browseView === 'table' && !showMobileItemCards))
-						"
+						v-if="!records && (!canShowItemCards || browseView === 'table')"
 						data-browse-scroll="operation-items"
 						ariaLabel="物品流动汇总"
 						table-class="browse-table"
@@ -1796,319 +1999,13 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						"
 					>
 						<template #cell="{ column, row }">
-							<template v-if="String(column.id).includes('_warehouse_')">{{
-								operationLocationDetail(row, String(column.id)) || "—"
-							}}</template>
-							<template v-else-if="row.history_record">
-								<ItemImage
-									v-if="column.id === 'image'"
-									:item="{
-										code: String(row.item_code || ''),
-										name: String(row.item_name || row.item_code || ''),
-										image: String(row.image || ''),
-									}"
-									:thumbnail-size="32"
-									:target-size="32"
-								/>
-								<button
-									v-if="column.id === 'document'"
-									class="browse-row-link"
-									:disabled="result.stale"
-									@click="openHistoryDocument(row)"
-								>
-									{{ row.document }}
-								</button>
-								<template v-else-if="column.id === 'item_name'">{{
-									row.item_name || row.item_code
-								}}</template>
-								<template v-else-if="column.id === 'kind'">{{
-									enumPresentationLabel("kind", row.kind)
-								}}</template>
-								<template v-else-if="column.id === 'borrower'">{{
-									row.borrower || ""
-								}}</template>
-								<template v-else-if="column.id === 'activity_title'">{{
-									row.activity_title || ""
-								}}</template>
-								<template v-else-if="column.id === 'available_effect'">
-									<span
-										:class="
-											recordEffectTone(
-												operationRow(row),
-												String(row.stock_uom || ''),
-											)
-										"
-										:title="
-											recordEffectLabel(
-												operationRow(row),
-												String(row.stock_uom || ''),
-											)
-										"
-									>
-										{{
-											recordEffect(
-												operationRow(row),
-												String(row.stock_uom || ""),
-											) > 0
-												? "+"
-												: recordEffect(
-															operationRow(row),
-															String(row.stock_uom || ""),
-													  ) < 0
-													? "−"
-													: ""
-										}}{{
-											formatQuantity(
-												Math.abs(
-													recordEffect(
-														operationRow(row),
-														String(row.stock_uom || ""),
-													),
-												),
-											)
-										}}
-										<UnitText :name="row.stock_uom" />
-									</span>
-								</template>
-								<template v-else-if="column.id === 'date'">{{
-									row.date
-								}}</template>
-								<template v-else-if="column.id === 'borrowed'">
-									{{
-										row.signed &&
-										Number(row.quantity ?? row.stock_qty ?? row.borrowed) > 0
-											? "+"
-											: Number(
-														row.quantity ??
-															row.stock_qty ??
-															row.borrowed,
-												  ) < 0
-												? "−"
-												: ""
-									}}{{
-										formatQuantity(
-											Math.abs(
-												Number(
-													row.quantity ??
-														row.stock_qty ??
-														row.borrowed ??
-														0,
-												),
-											),
-										)
-									}}
-									<UnitText :name="row.stock_uom" />
-								</template>
-								<template
-									v-else-if="
-										column.id === 'outstanding' &&
-										row.kind === 'Loan' &&
-										row.outstanding != null
-									"
-								>
-									<UnitText
-										:name="row.stock_uom"
-										:qty="Number(row.outstanding)"
-									/>
-								</template>
-								<LocationEndpoint
-									v-else-if="column.id === 'source'"
-									:warehouse="
-										String(row.source_warehouse || row.warehouse || '')
-									"
-									:kind="String(row.kind || '')"
-									:borrower="String(row.borrower || '')"
-									role="来源位置"
-								/>
-								<LocationEndpoint
-									v-else-if="column.id === 'destination'"
-									:warehouse="String(row.destination_warehouse || '')"
-									:kind="String(row.kind || '')"
-									:borrower="String(row.borrower || '')"
-									role="去向位置"
-								/>
-								<template v-else-if="column.id === 'quantities'">
-									<span
-										:class="
-											family === 'movements'
-												? recordEffectTone(
-														operationRow(row),
-														String(row.stock_uom || ''),
-													)
-												: 'operation-total'
-										"
-										:title="
-											family === 'movements'
-												? recordEffectLabel(
-														operationRow(row),
-														String(row.stock_uom || ''),
-													)
-												: undefined
-										"
-									>
-										{{
-											row.signed && Number(row.quantity ?? row.stock_qty) > 0
-												? "+"
-												: Number(row.quantity ?? row.stock_qty) < 0
-													? "−"
-													: ""
-										}}{{
-											formatQuantity(
-												Math.abs(
-													Number(row.quantity ?? row.stock_qty ?? 0),
-												),
-											)
-										}}
-										<UnitText :name="row.stock_uom" />
-									</span>
-									<span v-if="family === 'movements'" class="sr-only">{{
-										recordEffectLabel(
-											operationRow(row),
-											String(row.stock_uom || ""),
-										)
-									}}</span>
-								</template>
-								<NativeStatusBadge
-									v-else-if="column.id === 'docstatus'"
-									:status="row.docstatus"
-								/>
-								<div v-else-if="column.id === 'status'" class="loan-record-status">
-									<NativeStatusBadge :status="row.docstatus" /><span
-										v-if="row.docstatus === 1 && row.kind === 'Loan'"
-										>{{
-											enumPresentationLabel(
-												"loan_status",
-												operationRow(row).whole?.loan_status,
-											)
-										}}</span
-									>
-								</div>
-								<RecordRef
-									v-else-if="
-										column.id === 'related_loans' &&
-										relatedLoanNames(row).length
-									"
-									kind="Loan"
-									:identity="
-										loanReferenceIdentity(
-											relatedLoanDetails(row)[0]?.borrower,
-											relatedLoanDetails(row)[0]?.date,
-										) ||
-										relatedLoanNames(row)[0] ||
-										''
-									"
-									:count="
-										relatedLoanNames(row).length > 1
-											? relatedLoanNames(row).length
-											: undefined
-									"
-									:document-name="
-										relatedLoanNames(row).length === 1
-											? relatedLoanDetails(row)[0]?.name ||
-												relatedLoanNames(row)[0] ||
-												''
-											: ''
-									"
-									tooltip="查看原借出记录"
-									@open="c.relatedLoans.show(relatedLoanNames(row))"
-								/>
-							</template>
-							<template v-else>
-								<ItemImage
-									v-if="column.id === 'image'"
-									:item="
-										c.stockItem(operationRow(row)) || {
-											code: String(row.item_code || ''),
-											name: String(row.item_name || row.item_code || ''),
-											image: String(row.image || ''),
-										}
-									"
-									:thumbnail-size="32"
-									:target-size="32"
-								/>
-								<div v-if="column.id === 'document'" class="browse-item-identity">
-									<RouterLink
-										class="browse-row-link"
-										:to="
-											routeTarget('item-detail', {
-												code: String(row.item_code || ''),
-											})
-										"
-									>
-										{{ row.item_name || row.item_code }}
-									</RouterLink>
-								</div>
-								<template v-else-if="column.id === 'kind'">{{
-									row.category || "物品汇总"
-								}}</template>
-								<template v-else-if="column.id === 'borrower'">{{
-									row.borrower || ""
-								}}</template>
-								<template v-else-if="column.id === 'activity_title'">{{
-									row.activity_title || ""
-								}}</template>
-								<template v-else-if="column.id === 'available_effect'">{{
-									row.available_effect == null
-										? ""
-										: stockEffectLabel(Number(row.available_effect))
-								}}</template>
-								<div
-									v-else-if="column.id === 'quantities'"
-									class="operation-item-totals"
-								>
-									<span
-										v-for="metric in itemTotals(operationRow(row))"
-										:key="metric.key"
-										class="operation-total"
-										:class="
-											typeof metric.effect === 'number'
-												? metric.effect > 0
-													? 'stock-effect is-increase'
-													: metric.effect < 0
-														? 'stock-effect is-decrease'
-														: 'stock-effect is-neutral'
-												: undefined
-										"
-										:title="
-											typeof metric.effect === 'number'
-												? effectLabel(
-														metric.effect,
-														metric.quantity.uom,
-														metric.quantity.status,
-													)
-												: undefined
-										"
-										>{{ metric.label }}
-										<UnitText
-											:name="metric.quantity.uom"
-											:qty="metric.quantity.qty"
-										/><small v-if="metric.quantity.status">
-											· {{ metric.quantity.status }}</small
-										></span
-									>
-								</div>
-								<div
-									v-else-if="
-										column.id === 'actions' || column.id === 'related_loans'
-									"
-									class="browse-row-actions"
-								>
-									<UiButton
-										:disabled="result.stale"
-										@click="
-											c.toggle(
-												operationRow(row),
-												!c.expanded.has(String(row.id)),
-											)
-										"
-										>{{
-											c.expanded.has(String(row.id))
-												? "收起历史"
-												: "查看历史"
-										}}</UiButton
-									>
-								</div>
-							</template>
+							<OperationItemCell
+								:column="column"
+								:row="row"
+								:controller="c"
+								:family="family"
+								:helpers="cellHelpers"
+							/>
 						</template>
 						<template #group-label="{ group }">
 							<span class="data-table-group-visual">
@@ -2235,12 +2132,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							</div>
 						</template>
 					</DataTable>
-					<div
-						v-if="
-							records && isMobile && !query.groupBy.length && browseView === 'card'
-						"
-						class="browse-card-grid operation-record-list"
-					>
+					<div v-if="recordListLayout" class="browse-card-grid operation-record-list">
 						<BrowseCard
 							v-for="row in result.rows"
 							:key="row.id"
@@ -2254,26 +2146,27 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							@open="openedRecord(row)"
 						>
 							<div class="operation-record-row-content">
-								<strong>{{
-									family === "loans"
-										? row.borrower || "借用单据"
-										: `${enumPresentationLabel("kind", String(row.kind || ""), query)} · ${row.item_name || "库存记录"}`
-								}}</strong
-								><NativeStatusBadge :status="row.docstatus" />
-								<small
-									>{{
-										formatSiteDateTime(
-											row.posting_timestamp || row.date,
-											reference.timezone,
-										) ||
-										row.date ||
-										"—"
-									}}
-									· {{ row.activity_title || row.document || "" }} ·
-									{{
-										recordUnitSummary(row) || `${row.item_count || 0} 种物品`
-									}}</small
+								<strong>{{ row.document || row.id }}</strong
+								><NativeStatusBadge
+									v-if="recordRowPartition.status"
+									:status="row.docstatus"
+								/>
+								<CardFields
+									variant="row"
+									:fields="recordRowPartition.fields"
+									:row="row"
+									:overflow="recordRowPartition.overflow"
 								>
+									<template #cell="{ column, row: cellRow }">
+										<OperationRecordCell
+											:column="column"
+											:row="cellRow"
+											:controller="c"
+											:family="family"
+											:helpers="cellHelpers"
+										/>
+									</template>
+								</CardFields>
 							</div>
 						</BrowseCard>
 						<p v-if="result.initialized && !result.rows.length" class="browse-empty">
@@ -2464,143 +2357,13 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							>
 						</template>
 						<template #cell="{ column, row }">
-							<template v-if="String(column.id).includes('_warehouse_')">{{
-								operationLocationDetail(row, String(column.id)) || "—"
-							}}</template>
-							<button
-								v-else-if="column.id === 'document'"
-								class="browse-row-link"
-								:disabled="result.stale"
-								@click="openedRecord(row as unknown as OperationGroup)"
-							>
-								{{ row.document }}
-							</button>
-							<RecordRef
-								v-else-if="
-									column.id === 'related_loans' && relatedLoanNames(row).length
-								"
-								kind="Loan"
-								:identity="
-									loanReferenceIdentity(
-										relatedLoanDetails(row)[0]?.borrower,
-										relatedLoanDetails(row)[0]?.date,
-									) ||
-									relatedLoanNames(row)[0] ||
-									''
-								"
-								:count="
-									relatedLoanNames(row).length > 1
-										? relatedLoanNames(row).length
-										: undefined
-								"
-								:document-name="
-									relatedLoanNames(row).length === 1
-										? relatedLoanDetails(row)[0]?.name ||
-											relatedLoanNames(row)[0] ||
-											''
-										: ''
-								"
-								tooltip="查看原借出记录"
-								:disabled="result.stale"
-								@open="c.relatedLoans.show(relatedLoanNames(row))"
+							<OperationRecordCell
+								:column="column"
+								:row="row"
+								:controller="c"
+								:family="family"
+								:helpers="cellHelpers"
 							/>
-							<div
-								v-else-if="column.id === 'related_settlements'"
-								class="record-ref-list"
-							>
-								<RecordRef
-									v-for="record in relatedSettlementRecords(row)"
-									:key="record.name"
-									:kind="record.kind"
-									:identity="record.name"
-									:document-name="record.name"
-									tooltip="查看结算记录"
-									:disabled="result.stale"
-									@open="openedSettlement(record.name)"
-								/>
-							</div>
-							<template v-else-if="column.id === 'kind'">{{
-								enumPresentationLabel("kind", row.kind)
-							}}</template>
-							<template v-else-if="column.id === 'borrower'">{{
-								row.borrower || ""
-							}}</template>
-							<template v-else-if="column.id === 'activity'">{{
-								row.activity_title || ""
-							}}</template>
-							<template v-else-if="column.id === 'activity_title'">{{
-								row.activity_title || ""
-							}}</template>
-							<template v-else-if="column.id === 'date'">{{ row.date }}</template>
-							<UnitValues
-								v-else-if="column.id === 'available_effect'"
-								:entries="recordUnitRows(row, 'available_effects')"
-								label="可用变化"
-								signed
-								class="operation-unit-summary"
-							/>
-							<template v-else-if="column.id === 'item_count'">{{
-								row.item_count ?? ""
-							}}</template>
-							<MultiLocationEndpoint
-								v-else-if="column.id === 'source' && row.kind === 'Reconcile'"
-								:locations="countedLocations(row)"
-								kind="Reconcile"
-								role="来源位置"
-							/>
-							<MultiLocationEndpoint
-								v-else-if="column.id === 'source'"
-								:locations="
-									(operationRow(row).whole?.branches || []).map(
-										(branch) => branch.source,
-									)
-								"
-								:kind="String(row.kind || '')"
-								:borrower="String(row.borrower || '')"
-								role="来源位置"
-							/>
-							<LocationEndpoint
-								v-else-if="column.id === 'destination' && row.kind === 'Reconcile'"
-								kind="Reconcile"
-								role="去向位置"
-							/>
-							<MultiLocationEndpoint
-								v-else-if="column.id === 'destination'"
-								:locations="
-									(operationRow(row).whole?.branches || []).map(
-										(branch) => branch.destination,
-									)
-								"
-								:kind="String(row.kind || '')"
-								:borrower="String(row.borrower || '')"
-								role="去向位置"
-							/>
-							<UnitValues
-								v-else-if="column.id === 'quantities'"
-								:entries="recordUnitRows(row, 'flow_quantities')"
-								label="流动数量"
-								class="operation-unit-summary"
-							/>
-							<UnitValues
-								v-else-if="column.id === 'outstanding' && row.docstatus === 1"
-								:entries="recordUnitRows(row, 'outstanding')"
-								label="未归还数量"
-								class="operation-unit-summary"
-							/>
-							<div v-else-if="column.id === 'docstatus'" class="loan-record-status">
-								<NativeStatusBadge :status="row.docstatus" />
-							</div>
-							<div v-else-if="column.id === 'status'" class="loan-record-status">
-								<NativeStatusBadge :status="row.docstatus" /><span
-									v-if="row.docstatus === 1 && row.kind === 'Loan'"
-									>{{
-										enumPresentationLabel(
-											"loan_status",
-											operationRow(row).whole?.loan_status,
-										)
-									}}</span
-								>
-							</div>
 						</template>
 					</DataTable>
 				</div>

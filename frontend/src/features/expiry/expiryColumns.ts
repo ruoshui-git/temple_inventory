@@ -1,4 +1,5 @@
 import type { DataColumn } from "../../lib/dataTable";
+import type { ReportRow } from "../../lib/reportContract";
 
 export const expiryColumnDefinitions: DataColumn[] = [
   { id: "image", label: "图片", defaultVisible: true, export: [] },
@@ -89,3 +90,21 @@ export const expiryColumnDefinitions: DataColumn[] = [
     export: ["warehouse_native_name"],
   },
 ];
+
+/** The 到期状态 badge: expired, expiring within 30 days, not expired, or undated. */
+export function expiryStatusOf(row: ReportRow, siteDate: string) {
+  if (!row.expiry_date) return { label: "无效期", tone: "is-neutral" };
+  if (String(row.expiry_date) < siteDate)
+    return { label: "已过期", tone: "is-danger" };
+  if (typeof row.remaining_days === "number" && row.remaining_days <= 30)
+    return { label: "即将到期", tone: "is-warning" };
+  return { label: "未过期", tone: "is-success" };
+}
+
+export function expiryRemainingText(days: number) {
+  return days < 0
+    ? `过期${Math.abs(days)}天`
+    : days === 0
+      ? "今天到期"
+      : `剩${days}天`;
+}

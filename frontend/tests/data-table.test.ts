@@ -333,7 +333,7 @@ describe("table column contracts", () => {
     expect(
       wrapper
         .find(
-          "thead th.data-table-settings-heading button[aria-label='设置列']",
+          "thead th.data-table-settings-heading button[aria-label='显示字段']",
         )
         .exists(),
     ).toBe(true);
@@ -558,7 +558,7 @@ describe("table column contracts", () => {
     });
     wrappers.push(wrapper);
     const trigger = wrapper.get<HTMLButtonElement>(
-      'button[aria-label="设置列"]',
+      'button[aria-label="显示字段"]',
     );
     await trigger.trigger("click");
     const moveUp = document.body.querySelector<HTMLButtonElement>(
@@ -648,7 +648,7 @@ describe("table column contracts", () => {
       },
     });
     wrappers.push(wrapper);
-    const trigger = wrapper.get('button[aria-label="设置列"]');
+    const trigger = wrapper.get('button[aria-label="显示字段"]');
     vi.spyOn(trigger.element, "getBoundingClientRect").mockReturnValue(
       new DOMRect(1280, 550, 44, 44),
     );
@@ -914,12 +914,12 @@ describe("shared data table", () => {
     });
     wrappers.push(wrapper);
     const settingsHeader = wrapper.get(
-      'thead th:has(button[aria-label="设置列"])',
+      'thead th:has(button[aria-label="显示字段"])',
     );
     expect(settingsHeader.element).toBe(
       wrapper.findAll("thead th").at(-1)?.element,
     );
-    expect(wrapper.get('button[aria-label="设置列"]').exists()).toBe(true);
+    expect(wrapper.get('button[aria-label="显示字段"]').exists()).toBe(true);
   });
 
   it("emits sort, selection and lazy group intent while exposing retained states", async () => {
@@ -1185,7 +1185,7 @@ describe("shared data table", () => {
     const wrapper = mount(root);
     wrappers.push(wrapper);
     await flushPromises();
-    await wrapper.get('button[aria-label="设置列"]').trigger("click");
+    await wrapper.get('button[aria-label="显示字段"]').trigger("click");
     const quantityInput = document.body.querySelectorAll<HTMLInputElement>(
       '.data-table-column-panel input[type="checkbox"]',
     )[1]!;
@@ -1207,7 +1207,7 @@ describe("shared data table", () => {
     expect(
       wrapper
         .findAll("thead th")
-        .filter((cell) => !cell.find('[aria-label="设置列"]').exists())
+        .filter((cell) => !cell.find('[aria-label="显示字段"]').exists())
         .map((cell) => cell.text()),
     ).toEqual(["物品", "旧列"]);
   });
@@ -1389,7 +1389,7 @@ describe("shared data table", () => {
     const wrapper = mount(root);
     wrappers.push(wrapper);
     await flushPromises();
-    await wrapper.get('button[aria-label="设置列"]').trigger("click");
+    await wrapper.get('button[aria-label="显示字段"]').trigger("click");
     const quantityInput = document.body.querySelectorAll<HTMLInputElement>(
       '.data-table-column-panel input[type="checkbox"]',
     )[1]!;
@@ -1417,7 +1417,7 @@ describe("shared data table", () => {
     expect(
       wrapper
         .findAll("thead th")
-        .filter((cell) => !cell.find('[aria-label="设置列"]').exists())
+        .filter((cell) => !cell.find('[aria-label="显示字段"]').exists())
         .map((cell) => cell.text()),
     ).toEqual(["物品", "旧列"]);
   });
@@ -1455,6 +1455,6 @@ describe("shared data table", () => {
     await flushPromises();
     expect(wrapper.get("table").text()).toContain("名称");
     expect(wrapper.get("table").text()).toContain("更新时间");
-    expect(wrapper.find('button[aria-label="设置列"]').exists()).toBe(true);
+    expect(wrapper.find('button[aria-label="显示字段"]').exists()).toBe(true);
   });
 });

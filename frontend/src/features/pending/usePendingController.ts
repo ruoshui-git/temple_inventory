@@ -20,7 +20,11 @@ import { useReportController } from "../export/useReportController";
 import type { InitialAllocation } from "../../lib/routeSelection";
 import { useBrowseState } from "../../lib/browseMemory";
 import { useBrowseSelection } from "../../composables/useBrowseSelection";
-import { useBrowseViewMode } from "../../composables/useBrowseViewMode";
+import {
+  browseLayoutStorageKey,
+  useBrowseViewMode,
+} from "../../composables/useBrowseViewMode";
+
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 export function usePendingController(
   props: { initialQuery?: ReportQuery; routeQuery?: string },
@@ -34,7 +38,19 @@ export function usePendingController(
     routeError = ref(""),
     analysisOpen = ref(false),
     dimension = ref("category");
-  const browseViewMode = useBrowseViewMode(responsive.isMobile);
+  // One field selection drives the table, cards and phone rows; the layout choice is per account.
+  const layoutKey = computed(() =>
+    reference.site && reference.user
+      ? browseLayoutStorageKey(reference.site, reference.user, "pending")
+      : undefined,
+  );
+  const browseViewMode = useBrowseViewMode(responsive.isMobile, {
+    phone: "list",
+    desktop: "table",
+    phoneOptions: ["list", "card"],
+    desktopOptions: ["table", "card"],
+    storageKey: layoutKey,
+  });
   function enter() {
     const decoded = decodeReportQuery(
       props.initialQuery || props.routeQuery,
@@ -207,6 +223,7 @@ export function usePendingController(
     reference,
     query,
     view: browseViewMode.view,
+    viewOptions: browseViewMode.viewOptions,
     scope,
     scopeChips,
     chips,

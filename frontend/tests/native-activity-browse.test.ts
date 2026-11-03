@@ -14,7 +14,10 @@ import ActivitiesView from "../src/features/activities/ActivitiesView.vue";
 import { createMemoryHistory, createRouter } from "vue-router";
 
 const wrappers: VueWrapper[] = [];
-afterEach(() => wrappers.splice(0).forEach((wrapper) => wrapper.unmount()));
+afterEach(() => {
+  wrappers.splice(0).forEach((wrapper) => wrapper.unmount());
+  localStorage.clear();
+});
 function setup(input: {
   mode: "list" | "detail" | "form";
   name?: string;

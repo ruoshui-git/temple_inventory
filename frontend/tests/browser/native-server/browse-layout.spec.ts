@@ -225,8 +225,8 @@ test("browse table chips stay single-line and browse pages retain their phone la
 }) => {
   await settled(page, "/inventory/stock");
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.getByRole("button", { name: "列表视图" }).click();
-  await page.getByRole("button", { name: "设置列" }).first().click();
+  await page.getByRole("button", { name: "表格视图" }).click();
+  await page.getByRole("button", { name: "显示字段" }).first().click();
   await page
     .getByRole("group", { name: "设置表格列" })
     .getByRole("button", { name: "恢复默认", exact: true })
@@ -284,20 +284,20 @@ test("browse table chips stay single-line and browse pages retain their phone la
 
   await settled(page, "/inventory/movements?view=records");
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.getByRole("button", { name: "设置列" }).first().click();
+  await page.getByRole("button", { name: "显示字段" }).first().click();
   await page
     .getByRole("group", { name: "设置表格列" })
     .getByRole("button", { name: "恢复默认", exact: true })
     .click();
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "设置列" }).first().click();
+  await page.getByRole("button", { name: "显示字段" }).first().click();
   const unitQuantityColumn = page
     .getByRole("group", { name: "设置表格列" })
     .getByRole("checkbox", { name: "流动数量" });
   await unitQuantityColumn.check();
   await page.keyboard.press("Escape");
   await assertSingleLineCells(page);
-  await page.getByRole("button", { name: "设置列" }).first().click();
+  await page.getByRole("button", { name: "显示字段" }).first().click();
   await page
     .getByRole("group", { name: "设置表格列" })
     .getByRole("checkbox", { name: "流动数量" })
@@ -495,7 +495,7 @@ test("group labels remain visible across browse groupings and phone toggles", as
   );
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(page.locator(".data-table-group-row").first()).toBeVisible();
-  await page.getByRole("button", { name: "设置列" }).first().click();
+  await page.getByRole("button", { name: "显示字段" }).first().click();
   await page
     .getByRole("group", { name: "设置表格列" })
     .getByRole("checkbox", { name: "物品名称" })
@@ -504,7 +504,7 @@ test("group labels remain visible across browse groupings and phone toggles", as
   await expect(page.locator(".data-table-group-row").first()).toBeVisible();
   await assertDesktopGroupLabels(page);
   await captureGroup(page, "movement-item-label-column-hidden");
-  await page.getByRole("button", { name: "设置列" }).first().click();
+  await page.getByRole("button", { name: "显示字段" }).first().click();
   await page
     .getByRole("group", { name: "设置表格列" })
     .getByRole("checkbox", { name: "物品名称" })

@@ -546,8 +546,8 @@ test("an overflowing stock table pins item identity and bolds quantities", async
   const release = await prepare(page, 100);
   await page.goto("/inventory/stock");
   release();
-  await page.getByRole("button", { name: "列表视图", exact: true }).click();
-  await page.getByRole("button", { name: "设置列" }).first().click();
+  await page.getByRole("button", { name: "表格视图", exact: true }).click();
+  await page.getByRole("button", { name: "显示字段" }).first().click();
   const columnMenu = page.getByRole("group", { name: "设置表格列" });
   for (const checkbox of await columnMenu.getByRole("checkbox").all())
     if (!(await checkbox.isChecked()) && (await checkbox.isEnabled()))
@@ -612,7 +612,7 @@ for (const scenario of [
     await expect(page.locator("[data-browse-row]").first()).toBeVisible();
 
     if (scenario.name === "stock total") {
-      await page.getByRole("button", { name: "设置列" }).click();
+      await page.getByRole("button", { name: "显示字段" }).click();
       await page
         .getByRole("group", { name: "设置表格列" })
         .getByRole("checkbox", { name: "合计" })

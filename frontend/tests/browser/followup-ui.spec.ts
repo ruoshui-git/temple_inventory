@@ -24,6 +24,8 @@ const locationColumns = [
 
 const stockRows = Array.from({ length: 12 }, (_, i) => ({
   id: `ROW-${i}`,
+  code: `ITEM-${i}`,
+  locations: [],
   item_code: `ITEM-${i}`,
   item_name: `测试物品${i}`,
   category: "用品",
@@ -120,9 +122,9 @@ async function openSelectMode(page: Page) {
   await expect(page.locator(".stock-selection-actions")).toBeVisible();
 }
 
-for (const width of [1440, 390]) {
+// Phones open the damaged list as rows, so sortable column headers exist on desktop only.
+for (const width of [1440]) {
   test(`sort glyph is centred on its label at ${width}px`, async ({ page }) => {
-    // The damaged table renders its sortable headers at phone width too.
     await page.setViewportSize({ width, height: 900 });
     await mockBrowse(page, damagedRows);
     await nativeUiSession(page, 100);
@@ -201,23 +203,38 @@ for (const width of [1440, 390]) {
     await nativeUiSession(page, 100);
     await page.goto("/stock/damaged");
     const results = page.locator(".damaged-results-card");
-    await expect(results.locator("tbody tr").first()).toBeVisible();
-    const headers = await results
-      .locator("thead th:not(.data-table-settings-heading)")
-      .allTextContents();
-    expect(headers.map((text) => text.trim())).toEqual([
-      "图片",
-      "物品名称",
-      "物品编号",
-      "损坏",
-      "库存单位",
-      "批次编号",
-    ]);
-    await expect(
-      results
-        .locator(".table-item-image img, .table-item-image button")
-        .first(),
-    ).toBeVisible();
+    if (width >= 1024) {
+      await expect(results.locator("tbody tr").first()).toBeVisible();
+      const headers = await results
+        .locator("thead th:not(.data-table-settings-heading)")
+        .allTextContents();
+      expect(headers.map((text) => text.trim())).toEqual([
+        "图片",
+        "物品名称",
+        "物品编号",
+        "损坏",
+        "库存单位",
+        "批次编号",
+      ]);
+      await expect(
+        results
+          .locator(".table-item-image img, .table-item-image button")
+          .first(),
+      ).toBeVisible();
+    } else {
+      // Phones open the damaged list as rows: thumbnail and damaged quantity per row.
+      await expect(
+        results.locator(".pending-phone-card").first(),
+      ).toBeVisible();
+      await expect(
+        results
+          .locator(".pending-phone-thumb img, .pending-phone-thumb button")
+          .first(),
+      ).toBeVisible();
+      await expect(
+        results.locator(".pending-phone-quantity").first(),
+      ).toContainText("2");
+    }
     expect(await results.textContent()).not.toContain(
       "/files/damaged-item.png",
     );

@@ -1,3 +1,4 @@
+import type { OperationGroup } from "./useOperationBrowse";
 import type { DataColumn } from "../../lib/dataTable";
 import { sortableColumnsForView } from "../../lib/reportContract";
 
@@ -306,6 +307,12 @@ export function operationItemColumnsFor(
           sortField: "item_code",
         },
         {
+          id: "category",
+          label: "类别",
+          export: ["category"],
+          defaultVisible: false,
+        },
+        {
           id: "image",
           label: "图片",
           kind: "thumb",
@@ -435,6 +442,12 @@ export function operationItemColumnsFor(
           defaultVisible: true,
           sortable: sortableColumnsForView(family, view).includes("item_code"),
           sortField: "item_code",
+        },
+        {
+          id: "category",
+          label: "类别",
+          export: ["category"],
+          defaultVisible: false,
         },
         {
           id: "image",
@@ -576,4 +589,28 @@ export function operationItemColumnsFor(
           export: ["stock_uom"],
         },
       ];
+}
+
+/**
+ * Cell lookups the 货物流动/借用 table and card layouts share. The page owns the row state; the
+ * cell components only render it.
+ */
+export interface OperationCellHelpers {
+  operationRow(row: Record<string, unknown>): OperationGroup;
+  operationLocationDetail(row: Record<string, any>, column: string): string;
+  openHistoryDocument(row: Record<string, unknown>): void;
+  openedRecord(row: OperationGroup): void;
+  openedSettlement(name: string): void;
+  recordEffect(row: OperationGroup, uom: string): number;
+  recordEffectTone(row: OperationGroup, uom: string): string;
+  recordEffectLabel(row: OperationGroup, uom: string): string;
+  recordUnitRows(row: Record<string, any>, key: string): any[];
+  itemTotals(row: OperationGroup): any[];
+  effectLabel(effect: number, uom: string, status?: string): string;
+  countedLocations(row: Record<string, unknown>): any[];
+  relatedLoanNames(row: Record<string, unknown>): string[];
+  relatedLoanDetails(row: Record<string, unknown>): Record<string, any>[];
+  relatedSettlementRecords(
+    row: Record<string, unknown>,
+  ): { name: string; kind: string }[];
 }

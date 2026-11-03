@@ -10,7 +10,7 @@ import { decodeReportQuery } from "../src/lib/reportQuery";
 describe("activity summary destinations", () => {
   it("uses the shared anchored popover for overflow kinds", () => {
     const source = readFileSync(
-      resolve(process.cwd(), "src/features/activities/ActivitiesView.vue"),
+      resolve(process.cwd(), "src/features/activities/ActivityCell.vue"),
       "utf8",
     );
     expect(source).toContain("<DetailPopover");

@@ -19,7 +19,10 @@ import type { OperationGroup } from "../movements/useOperationBrowse";
 import { isUnavailableError } from "../../lib/serviceFailure";
 import { useBrowseState } from "../../lib/browseMemory";
 import { useReportGroups } from "../../composables/useReportGroups";
-import { useBrowseViewMode } from "../../composables/useBrowseViewMode";
+import {
+  browseLayoutStorageKey,
+  useBrowseViewMode,
+} from "../../composables/useBrowseViewMode";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 
 export interface NativeRecord extends OperationGroup {
@@ -49,8 +52,21 @@ export function useNativeRecords(
   const query = ref(browseDefaults("movements", "records")),
     routeError = ref("");
   const responsive = useResponsiveLayout();
-  const browseViewMode = useBrowseViewMode(responsive.isMobile);
-  browseViewMode.phoneView.value = "card";
+  const browseViewMode = useBrowseViewMode(responsive.isMobile, {
+    phone: "list",
+    desktop: "table",
+    phoneOptions: ["list", "table"],
+    desktopOptions: ["table"],
+    storageKey: computed(() =>
+      reference.site && account
+        ? browseLayoutStorageKey(
+            reference.site,
+            account,
+            `native-records.${props.mode}`,
+          )
+        : undefined,
+    ),
+  });
   const groups = useReportGroups(query, services);
   const rows = ref<NativeRecord[]>([]),
     total = ref(0),
@@ -165,11 +181,7 @@ export function useNativeRecords(
     `records/${props.mode}`,
     () => query.value,
     () => browseViewMode.snapshot(),
-    (value) =>
-      browseViewMode.restore({
-        ...value,
-        phoneView: value.phoneView ?? "card",
-      }),
+    (value) => browseViewMode.restore(value),
     () => initialized.value && !loading.value && !stale.value,
   );
   async function load(more = false, refresh = false) {
@@ -341,6 +353,7 @@ export function useNativeRecords(
     reference,
     query,
     view: browseViewMode.view,
+    viewOptions: computed(() => [...browseViewMode.viewOptions.value]),
     groups,
     scope,
     routeError,

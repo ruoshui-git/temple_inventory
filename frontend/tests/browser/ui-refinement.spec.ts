@@ -402,7 +402,7 @@ for (const width of [390, 1440]) {
     await page.goto("/inventory/movements?view=records");
     // Phones open record lists as rows; these checks cover the table.
     if (width < 1024) await showPhoneTable(page);
-    await page.getByRole("button", { name: "设置列" }).click();
+    await page.getByRole("button", { name: "显示字段" }).click();
     await page
       .getByRole("group", { name: "设置表格列" })
       .getByRole("checkbox", { name: "原借出" })
@@ -822,7 +822,7 @@ test("stock card selection uses the whole card and select all covers loaded card
   await page.screenshot({
     path: info.outputPath("stock-card-thumbnail-selection-desktop.png"),
   });
-  await page.getByRole("button", { name: "列表视图", exact: true }).click();
+  await page.getByRole("button", { name: "表格视图", exact: true }).click();
   await page.screenshot({
     path: info.outputPath("stock-table-selection-desktop.png"),
   });
@@ -954,7 +954,8 @@ test("expiry phone cards show loaded location and right-aligned quantity", async
   await expect(card.locator(".expiry-phone-quantity")).toContainText("24 个");
   await page.getByRole("button", { name: "更多操作", exact: true }).click();
   await page.getByRole("menuitem", { name: "选择", exact: true }).click();
-  await card.locator(".expiry-phone-batch").click();
+  // Selection is whole-card: a tap on the card's title row toggles the batch.
+  await card.locator(".expiry-phone-title").click();
   await expect(
     page.getByRole("region", { name: "批次批量操作" }),
   ).toContainText("已选择 1 项");
@@ -1254,7 +1255,7 @@ test("large-text related-loan context keeps its close action visible", async ({
   await page.goto("/inventory/movements?view=records");
   // Phones open record lists as rows; this check covers the table.
   await showPhoneTable(page);
-  await page.getByRole("button", { name: "设置列" }).click();
+  await page.getByRole("button", { name: "显示字段" }).click();
   await page
     .getByRole("group", { name: "设置表格列" })
     .getByRole("checkbox", { name: "原借出" })

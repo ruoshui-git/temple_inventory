@@ -42,12 +42,10 @@ describe("item image columns", () => {
 
   it("keeps the damaged page image branch on ItemImage and out of the raw value fallback", () => {
     const source = readFileSync(
-      join(root, "features/pending/PendingView.vue"),
+      join(root, "features/pending/PendingCell.vue"),
       "utf8",
     );
-    const branch = source.match(
-      /v-if="column\.id === 'image'"[\s\S]*?<\/div>/,
-    )?.[0];
+    const branch = source.match(/v-if="id === 'image'"[\s\S]*?<\/div>/)?.[0];
     expect(branch).toContain("<ItemImage");
     expect(branch).not.toContain("{{ value }}");
   });

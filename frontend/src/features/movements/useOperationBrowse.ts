@@ -24,7 +24,10 @@ import { useBrowseState } from "../../lib/browseMemory";
 import { sortableColumnsForView } from "../../lib/reportContract";
 import { useReportGroups } from "../../composables/useReportGroups";
 import { useBrowseSelection } from "../../composables/useBrowseSelection";
-import { useBrowseViewMode } from "../../composables/useBrowseViewMode";
+import {
+  browseLayoutStorageKey,
+  useBrowseViewMode,
+} from "../../composables/useBrowseViewMode";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 export interface OperationGroup {
   id: string;
@@ -110,12 +113,27 @@ export function useOperationBrowse(
 ) {
   const relatedLoans = useRelatedLoans();
   const { isMobile } = useResponsiveLayout();
-  const browseViewMode = useBrowseViewMode(isMobile);
-  browseViewMode.phoneView.value = props.records ? "card" : "table";
   const services = useInventoryServices(),
     reference = useReferenceData(),
     account = reference.user,
     selection = useBrowseSelection();
+  // One field selection drives the table, list and card layouts; the layout choice is remembered
+  // per account and page.
+  const browseViewMode = useBrowseViewMode(isMobile, {
+    phone: "list",
+    desktop: "table",
+    phoneOptions: props.records ? ["list", "table"] : ["list", "card"],
+    desktopOptions: props.records ? ["table"] : ["table", "card"],
+    storageKey: computed(() =>
+      reference.site && reference.user
+        ? browseLayoutStorageKey(
+            reference.site,
+            reference.user,
+            `operations.${props.family}.${props.records ? "records" : "items"}`,
+          )
+        : undefined,
+    ),
+  });
   function defaults(records = props.records) {
     const view = records
       ? "records"
@@ -271,7 +289,7 @@ export function useOperationBrowse(
       dimension.value = String(value.dimension || "category");
       browseViewMode.restore({
         ...value,
-        phoneView: value.phoneView ?? (props.records ? "card" : "table"),
+        phoneView: value.phoneView ?? "list",
       });
     },
     () =>
@@ -756,6 +774,7 @@ export function useOperationBrowse(
     relatedLoans,
     query,
     browseView: browseViewMode.view,
+    browseViewOptions: browseViewMode.viewOptions,
     groups,
     routeError,
     result,

@@ -23,7 +23,10 @@ import {
 } from "../../services/contracts";
 import { useReportController } from "../export/useReportController";
 import { useBrowseState } from "../../lib/browseMemory";
-import { useBrowseViewMode } from "../../composables/useBrowseViewMode";
+import {
+  browseLayoutStorageKey,
+  useBrowseViewMode,
+} from "../../composables/useBrowseViewMode";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import type { NativeActivity } from "./useActivityEditor";
 
@@ -72,8 +75,17 @@ export function useActivitiesController(
   const services = useInventoryServices(),
     reference = useReferenceData();
   const responsive = useResponsiveLayout();
-  const browseViewMode = useBrowseViewMode(responsive.isMobile);
-  browseViewMode.phoneView.value = "card";
+  const browseViewMode = useBrowseViewMode(responsive.isMobile, {
+    phone: "list",
+    desktop: "table",
+    phoneOptions: ["list", "table"],
+    desktopOptions: ["table"],
+    storageKey: computed(() =>
+      reference.site && reference.user
+        ? browseLayoutStorageKey(reference.site, reference.user, "activities")
+        : undefined,
+    ),
+  });
   const inherited = ref(browseDefaults("activities", "metadata"));
   const scopeError = ref("");
   const state = reactive({
@@ -154,11 +166,7 @@ export function useActivitiesController(
     `activities/${props.mode}/${props.name || "list"}`,
     () => report.value,
     () => browseViewMode.snapshot(),
-    (value) =>
-      browseViewMode.restore({
-        ...value,
-        phoneView: value.phoneView ?? "card",
-      }),
+    (value) => browseViewMode.restore(value),
     () =>
       !loading.value &&
       !projection.result.loading &&
@@ -378,6 +386,7 @@ export function useActivitiesController(
     filtered,
     report,
     view: browseViewMode.view,
+    viewOptions: computed(() => [...browseViewMode.viewOptions.value]),
     projection,
     loading,
     error,

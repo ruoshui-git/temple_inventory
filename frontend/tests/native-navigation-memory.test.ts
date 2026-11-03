@@ -123,7 +123,8 @@ describe("routed native browse restoration", () => {
     expect(returned).not.toBe(initial);
     expect(returned.data.rows).toHaveLength(60);
     expect(returned.search.value).toBe("物品");
-    expect(returned.view.value).toBe("table");
+    // Phones offer 列表 and 卡片 only, so the 表格 choice set above is not a phone layout.
+    expect(returned.view.value).toBe("list");
     expect(returned.selected.value).toEqual(["ITEM-0"]);
     expect(window.history.state.position).toBe(stockPosition);
     router.forward();
@@ -144,7 +145,7 @@ describe("routed native browse restoration", () => {
     expect(fresh).not.toBe(returned);
     expect(fresh.search.value).toBe("");
     expect(fresh.selected.value).toEqual([]);
-    expect(fresh.view.value).toBe("table");
+    expect(fresh.view.value).toBe("list");
     expect(fresh.data.rows).toHaveLength(30);
     const freshPosition = window.history.state.position;
     // Pressing the active primary again also creates a fresh, independent entry.

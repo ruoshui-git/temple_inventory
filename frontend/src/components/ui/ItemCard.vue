@@ -22,8 +22,9 @@ const props = withDefaults(
 		selected: boolean;
 		selectLabel: string;
 		stale?: boolean;
+		media?: boolean;
 	}>(),
-	{ statusTone: "neutral" },
+	{ statusTone: "neutral", media: true },
 );
 const emit = defineEmits<{ open: []; toggle: [] }>();
 const mediaItem = computed(
@@ -39,11 +40,11 @@ const mediaItem = computed(
 		:select-label="selectLabel"
 		variant="card"
 		:stale="stale"
-		class="item-card"
+		:class="['item-card', { 'is-text-only': !media }]"
 		@open="emit('open')"
 		@toggle="emit('toggle')"
 	>
-		<template #media>
+		<template v-if="media" #media>
 			<div class="item-card-image">
 				<slot name="media">
 					<ItemImage
@@ -60,9 +61,17 @@ const mediaItem = computed(
 		</template>
 		<template #default="{ activate }">
 			<div class="item-card-content">
-				<span class="eyebrow"
-					><span class="item-card-category">{{ category || "未分类" }}</span>
-					<span class="item-card-code">{{ code }}</span></span
+				<span v-if="category !== undefined || code !== undefined" class="eyebrow"
+					><span v-if="category !== undefined" class="item-card-category">{{
+						category || "未分类"
+					}}</span
+					><span
+						v-if="category !== undefined && code !== undefined"
+						class="item-card-separator"
+						aria-hidden="true"
+					>
+						· </span
+					><span v-if="code !== undefined" class="item-card-code">{{ code }}</span></span
 				>
 				<button class="item-name" @click="activate">{{ name }}</button>
 				<slot name="flags" />

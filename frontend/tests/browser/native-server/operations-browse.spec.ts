@@ -89,7 +89,7 @@ test("loan scope, movement effects and multi-location records render at desktop 
 
   await settled(page, "/inventory/movements?view=items");
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.getByRole("button", { name: "设置列" }).first().click();
+  await page.getByRole("button", { name: "显示字段" }).first().click();
   await page
     .getByRole("group", { name: "设置表格列" })
     .getByRole("button", { name: "恢复默认", exact: true })

@@ -1,33 +1,29 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import InventoryIcon from "../InventoryIcon.vue";
+import type { BrowseView } from "../../composables/useBrowseViewMode";
 
-// Item pages switch 卡片/列表; document lists switch two-line 列表 rows and the 表格.
-const props = withDefaults(defineProps<{ ariaLabel: string; kind?: "cards" | "rows" }>(), {
-	kind: "cards",
-});
-const view = defineModel<"card" | "table">({ required: true });
-const first =
-	props.kind === "rows" ? { label: "列表", icon: "list" } : { label: "卡片", icon: "card" };
-const second = props.kind === "rows" ? { label: "表格" } : { label: "列表" };
+const props = defineProps<{ ariaLabel: string; options: BrowseView[] }>();
+const view = defineModel<BrowseView>({ required: true });
+const meta: Record<BrowseView, { label: string; icon: string }> = {
+	table: { label: "表格", icon: "table" },
+	list: { label: "列表", icon: "list" },
+	card: { label: "卡片", icon: "card" },
+};
+const items = computed(() => props.options.map((value) => ({ value, ...meta[value] })));
 </script>
 
 <template>
-	<div class="segmented stock-view-icons" :aria-label="ariaLabel">
+	<div v-if="options.length > 1" class="segmented stock-view-icons" :aria-label="ariaLabel">
 		<button
-			:aria-label="`${first.label}视图`"
-			:title="first.label"
-			:aria-pressed="view === 'card'"
-			@click="view = 'card'"
+			v-for="item in items"
+			:key="item.value"
+			:aria-label="`${item.label}视图`"
+			:title="item.label"
+			:aria-pressed="view === item.value"
+			@click="view = item.value"
 		>
-			<InventoryIcon :name="first.icon" /><span>{{ first.label }}</span>
-		</button>
-		<button
-			:aria-label="`${second.label}视图`"
-			:title="second.label"
-			:aria-pressed="view === 'table'"
-			@click="view = 'table'"
-		>
-			<InventoryIcon name="table" /><span>{{ second.label }}</span>
+			<InventoryIcon :name="item.icon" /><span>{{ item.label }}</span>
 		</button>
 	</div>
 </template>

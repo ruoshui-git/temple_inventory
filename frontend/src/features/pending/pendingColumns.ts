@@ -5,7 +5,8 @@ import { sortableColumnsForView } from "../../lib/reportContract";
  * Damaged rows only ever carry a damaged quantity (available, loaned and total
  * repeat or zero it), so the page shows the stock page's identity order with
  * the damaged quantity in place of the other quantities. Export follows these
- * visible columns, so the export never carries the dropped quantities.
+ * visible columns, so the export never carries the dropped quantities. 库位 is
+ * offered but hidden by default so the documented default table stays unchanged.
  */
 const pendingColumnIds = [
   "image",
@@ -14,6 +15,7 @@ const pendingColumnIds = [
   "damaged",
   "stock_uom",
   "batch_no",
+  "warehouse_label",
 ] as const;
 
 export function pendingColumns(columns: DataColumn[]): DataColumn[] {
@@ -25,7 +27,7 @@ export function pendingColumns(columns: DataColumn[]): DataColumn[] {
     return [
       {
         ...column,
-        defaultVisible: true,
+        defaultVisible: id !== "warehouse_label",
         pinned: id === "item_name" ? "start" : undefined,
         sortable: sortable.has(id) || undefined,
       },

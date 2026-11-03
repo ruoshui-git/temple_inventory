@@ -1,19 +1,34 @@
 import type { DataColumn } from "../../lib/dataTable";
+import type { RecoverySnapshot } from "../../lib/browserRecovery";
+import type { NativeRecord } from "./useNativeRecords";
+
+/** One 草稿 row: a saved draft document or a browser-only recovery snapshot. */
+export interface DraftRecordEntry {
+  id: string;
+  type: "server" | "browser";
+  kind: string;
+  label: string;
+  summary: string;
+  updatedAt: string;
+  absolute: string;
+  server?: NativeRecord;
+  local?: RecoverySnapshot;
+}
 
 export function nativeRecordColumns(mode: "drafts" | "counts"): DataColumn[] {
-  if (mode !== "counts")
+  if (mode === "drafts")
     return [
       {
         id: "document",
-        label: "编号",
+        label: "草稿",
         required: true,
         defaultVisible: true,
+        kind: "primary",
         pinned: "start",
       },
-      { id: "kind", label: "类型 / 状态", defaultVisible: true },
-      { id: "activity_title", label: "活动 / 借用方", defaultVisible: true },
-      { id: "summary", label: "整份记录", defaultVisible: true },
-      { id: "date", label: "记账日期", defaultVisible: true, sortable: true },
+      { id: "status", label: "类型", defaultVisible: true, kind: "status" },
+      { id: "summary", label: "明细摘要", defaultVisible: true },
+      { id: "date", label: "更新时间", defaultVisible: true, kind: "date" },
       {
         id: "actions",
         label: "操作",
