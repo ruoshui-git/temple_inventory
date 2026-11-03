@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   detectInstallPlatform,
   installInstructions,
@@ -48,5 +48,101 @@ describe("PWA installation helpers", () => {
     dismissUpdate("worker-a");
     expect(isUpdateDismissed("worker-a")).toBe(true);
     expect(isUpdateDismissed("worker-b")).toBe(false);
+  });
+});
+
+describe("PWA updates", () => {
+  type Listener = (event?: Event) => void;
+  let containerListeners: Map<string, Listener[]>;
+  let registrationListeners: Map<string, Listener[]>;
+  let registration: {
+    waiting: { postMessage: ReturnType<typeof vi.fn> } | null;
+    installing: unknown;
+    update: ReturnType<typeof vi.fn>;
+    addEventListener: (type: string, listener: Listener) => void;
+  };
+  let container: {
+    controller: { scriptURL: string } | null;
+    register: ReturnType<typeof vi.fn>;
+    addEventListener: (type: string, listener: Listener) => void;
+  };
+  const fire = (listeners: Map<string, Listener[]>, type: string) =>
+    listeners.get(type)?.forEach((listener) => listener());
+  const listen =
+    (listeners: Map<string, Listener[]>) =>
+    (type: string, listener: Listener) =>
+      listeners.set(type, [...(listeners.get(type) || []), listener]);
+
+  beforeEach(() => {
+    vi.resetModules();
+    vi.stubEnv("DEV", false);
+    containerListeners = new Map();
+    registrationListeners = new Map();
+    registration = {
+      waiting: null,
+      installing: null,
+      update: vi.fn(() => Promise.resolve()),
+      addEventListener: listen(registrationListeners),
+    };
+    container = {
+      controller: { scriptURL: "/temple-inventory-sw.js" },
+      register: vi.fn(() => Promise.resolve(registration)),
+      addEventListener: listen(containerListeners),
+    };
+    Object.defineProperty(navigator, "serviceWorker", {
+      configurable: true,
+      value: container,
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.resolve(new Response("worker"))),
+    );
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("activates a worker already waiting at load without offering an update", async () => {
+    const waiting = { postMessage: vi.fn() };
+    registration.waiting = waiting;
+    const pwa = await import("../src/lib/pwa");
+    await pwa.registerPwa();
+    expect(waiting.postMessage).toHaveBeenCalledWith({ type: "SKIP_WAITING" });
+    fire(containerListeners, "controllerchange");
+    await vi.waitFor(() => expect(fetch).not.toHaveBeenCalled());
+    expect(pwa.updateAvailable.value).toBe(false);
+  });
+
+  it("offers an update found while the page is open", async () => {
+    const pwa = await import("../src/lib/pwa");
+    await pwa.registerPwa();
+    const worker = {
+      state: "installing",
+      addEventListener: (type: string, listener: Listener) =>
+        type === "statechange" && (worker.onstate = listener),
+      onstate: undefined as Listener | undefined,
+    };
+    registration.installing = worker;
+    fire(registrationListeners, "updatefound");
+    worker.state = "installed";
+    worker.onstate?.();
+    await vi.waitFor(() => expect(pwa.updateAvailable.value).toBe(true));
+  });
+
+  it("offers an update when another tab activates a newer worker", async () => {
+    const pwa = await import("../src/lib/pwa");
+    await pwa.registerPwa();
+    fire(containerListeners, "controllerchange");
+    await vi.waitFor(() => expect(pwa.updateAvailable.value).toBe(true));
+  });
+
+  it("reloads on 更新 when the new worker is already active", async () => {
+    const reload = vi.fn();
+    vi.stubGlobal("location", { ...window.location, reload });
+    const pwa = await import("../src/lib/pwa");
+    await pwa.registerPwa();
+    pwa.applyUpdate();
+    expect(reload).toHaveBeenCalledOnce();
   });
 });

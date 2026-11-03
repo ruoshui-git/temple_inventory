@@ -41,9 +41,12 @@ function runAction(message: ToastMessage) {
 		// The action owner displays its own persistent error if it cannot proceed.
 	}
 }
+// Only a switch between signed-in accounts drops notices; the first sign-in fills the empty
+// account in and must keep notices raised while the app loaded, such as the update prompt.
 watch(
 	() => reference?.user,
-	() => {
+	(user, previous) => {
+		if (!previous || user === previous) return;
 		for (const timer of timers.values()) clearTimeout(timer);
 		timers.clear();
 		messages.value = [];

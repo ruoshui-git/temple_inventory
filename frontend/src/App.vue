@@ -62,6 +62,17 @@ function announceUpdate() {
 	);
 }
 watch([updateAvailable, updateVersion], announceUpdate);
+// An account switch clears the toast stack (after this watcher would run, hence "post");
+// a pending update still applies to the new account.
+watch(
+	() => reference.user,
+	(user, previous) => {
+		if (!previous || user === previous) return;
+		announcedUpdateVersion.value = "";
+		announceUpdate();
+	},
+	{ flush: "post" },
+);
 onMounted(() => {
 	appMounted.value = true;
 	announceUpdate();

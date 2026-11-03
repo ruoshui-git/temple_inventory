@@ -61,6 +61,8 @@ it("keeps actionable warning feedback in the global toast stack and runs its act
 it("deduplicates repeated events and clears queued notices on account changes", async () => {
   vi.useFakeTimers();
   const { reference, wrapper } = setup();
+  reference.user = "first-account";
+  await flushPromises();
   showToast("已保存", "success", undefined, "save-1");
   showToast("已保存", "success", undefined, "save-1");
   await flushPromises();
@@ -93,4 +95,22 @@ it("keeps update notices visible until dismissal and runs the reload action", as
   await flushPromises();
   expect(reload).toHaveBeenCalledOnce();
   expect(document.querySelector(".notification-toast")).toBeNull();
+});
+
+it("keeps the update notice when the app signs in for the first time", async () => {
+  const { reference } = setup();
+  showToast(
+    "发现新版本，可以更新。",
+    "warning",
+    { label: "更新", action: vi.fn() },
+    "pwa-update:test",
+    true,
+  );
+  await flushPromises();
+  // Bootstrap fills the empty account in once the dashboard has loaded.
+  reference.user = "volunteer";
+  await flushPromises();
+  expect(document.querySelector(".notification-toast")?.textContent).toContain(
+    "发现新版本",
+  );
 });

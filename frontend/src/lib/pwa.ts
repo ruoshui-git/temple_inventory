@@ -29,6 +29,8 @@ const standalone = ref(false);
 let registration: ServiceWorkerRegistration | undefined;
 let registered = false;
 let reloading = false;
+// Set when this tab asks a worker to take over, so its own controller change is not news.
+let expectingController = false;
 
 async function workerVersion(worker: ServiceWorker) {
   try {
@@ -112,11 +114,26 @@ export async function registerPwa() {
         updateViaCache: "none",
       },
     );
-    if (registration.waiting && navigator.serviceWorker.controller)
-      void markUpdateAvailable(
-        registration.waiting,
-        navigator.serviceWorker.controller,
-      );
+    // The /inventory shell is never cached, so this page loaded the deployed bundle and is
+    // current; a worker still waiting from that deploy only lags behind it. Activate it without
+    // a prompt, which would offer an update this page already has.
+    if (registration.waiting && navigator.serviceWorker.controller) {
+      expectingController = true;
+      registration.waiting.postMessage({ type: "SKIP_WAITING" });
+    }
+    // Another tab activated a newer worker: this tab still runs the code it loaded with.
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (expectingController) {
+        expectingController = false;
+        return;
+      }
+      const controller = navigator.serviceWorker.controller;
+      if (!controller) return;
+      void workerVersion(controller).then((version) => {
+        updateVersion.value = version;
+        updateAvailable.value = true;
+      });
+    });
     registration.addEventListener("updatefound", () => {
       const worker = registration?.installing;
       worker?.addEventListener(
@@ -138,14 +155,18 @@ export async function registerPwa() {
   }
 }
 
+function reload() {
+  if (reloading) return;
+  reloading = true;
+  window.location.reload();
+}
+
 export function applyUpdate() {
   const waiting = registration?.waiting;
-  if (!waiting) return;
-  const reload = () => {
-    if (reloading) return;
-    reloading = true;
-    window.location.reload();
-  };
+  // Without a waiting worker the new one is already active (another tab activated it); this
+  // tab only needs to load the new bundle.
+  if (!waiting) return reload();
+  expectingController = true;
   navigator.serviceWorker.addEventListener("controllerchange", reload, {
     once: true,
   });
