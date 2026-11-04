@@ -150,6 +150,10 @@ test("a page with little scroll room keeps its full toolbar instead of flickerin
     "/inventory/stock?query=%7B%22groupBy%22%3A%5B%22category%22%5D%7D",
   );
   await expect(page.locator("tr.data-table-group-row").first()).toBeVisible();
+  // The filter rail is sized from the viewport, which would keep the page's scroll room constant.
+  await page.addStyleTag({
+    content: ".browse-filter-rail { display: none !important; }",
+  });
   // Leave the page 20px of scroll room, less than the toolbar's height.
   const pageHeight = await page.evaluate(
     () => document.documentElement.scrollHeight,
@@ -164,8 +168,8 @@ test("a page with little scroll room keeps its full toolbar instead of flickerin
     .toBe(20);
   await page.mouse.move(700, 150);
   await page.mouse.wheel(0, 30);
-  await expect
-    .poll(() => page.evaluate(() => window.scrollY))
-    .toBeGreaterThan(0);
+  // A condensing toolbar would remove the scroll room and snap the page back to the top.
+  await page.waitForTimeout(400);
+  expect(await page.evaluate(() => window.scrollY)).toBe(20);
   await expect(page.locator(".browse-chrome.is-stuck")).toHaveCount(0);
 });
