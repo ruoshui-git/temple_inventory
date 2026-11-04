@@ -8,6 +8,7 @@ This document owns tokens, geometry and shared visual contracts. [UI_UX_DECISION
 - Jade, bronze and blue are the app palettes. Non-production environment badge colors are sample amber `#8a4b08`, staging violet `#593d8c`, development blue `#245b9e`, all with white text. Production uses jade `#28684e` chrome and no badge.
 - AppFrame owns navigation and measured mobile obstruction. ApplicationShell supplies route/account context and registry breadcrumbs. Shared breakpoint is 1024px; coordinators mount one surface at a time.
 - Text scale is independent of density, including teleported content. Use semantic HTML, explicit labels, visible focus, reduced motion and 44px mobile/coarse-pointer targets.
+- Sticky table layers: unstuck pinned cells 7, stuck group rows 8–9, stuck pinned cells 10, column header 11, all below sticky page chrome. `--browse-sticky-bottom` is the viewport y where the sticky toolbar ends (`BrowseToolbar`); `--data-table-sticky-top` overrides it per table, as the 盘点 editor does. Group rows are 40px with a fine pointer and at least 44px with a coarse one, and never change height when they stick. Sticky tables use separate borders with no spacing, because collapsed borders leave a gap around sticky cells. Expanded group rows stay on one line; their totals are in the detail row below.
 - Layer order: sticky table content 10, sticky page chrome 20, FAB 25, app navigation 30, menus/popovers 40, overlays 50, toasts 60. Menus from header/form chrome stay above sticky content and FAB.
 
 ## Shared component catalogue
@@ -71,6 +72,7 @@ Before visual browser inspection, run the browser under `scripts/ui-visual-prefl
 
 ## Changelog
 
+- 2026-11-04: sticky table layers, `--browse-sticky-bottom`, 40px group rows with a fine pointer.
 - 2026-11-02: ItemCard, BrowseLoadMore, TaskTray and overlay layers; 6 mm print margins.
 - 2026-11-01: column preferences accept forced-visible columns (序列号 under 按序列号管理); compact serial chip lists with +N on loans, review and cards; grouped stock card sections.
 - 2026-11-01: ItemGallery; ViewModeToggle `kind` and ViewModeMenuItem; row badges position only a row's own status badge; PDF tables size columns on the server.

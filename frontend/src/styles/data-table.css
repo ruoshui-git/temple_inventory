@@ -815,9 +815,10 @@
 
 .data-table-scroll.is-overflowing :is(th, td).data-table-pinned-start,
 .data-table-scroll.is-overflowing :is(th, td).data-table-selection-pinned,
+/* Below stuck group rows (z-index 8-10) and the sticky header (11): see the stuck rules below. */
 .data-table-scroll.is-overflowing :is(th, td).data-table-pinned-end {
 	position: sticky;
-	z-index: 10;
+	z-index: 7;
 	background: var(--p-surface);
 }
 .data-table-scroll.is-overflowing :is(th, td).data-table-pinned-start {
@@ -1279,7 +1280,7 @@
 		--data-table-sticky-top,
 		var(--browse-sticky-bottom, var(--app-desktop-nav-height, 0px))
 	);
-	/* Above pinned body cells (z-index 10) so rows scrolling under the header never paint over it. */
+	/* Above stuck group rows (z-index 8-10) so rows scrolling under the header never paint over it. */
 	z-index: 11;
 }
 /* Without single-axis scroll containers (Safari, Firefox, Chromium before 156) `auto clip` scrolls
@@ -1295,6 +1296,104 @@
 			var(--browse-sticky-bottom, var(--app-desktop-nav-height, 0px))
 		);
 	}
+}
+/* Stuck group rows (useStickyGroupRows): the current group path stays under the header. Only the
+   sticky offset, background and shadow change, never the row height. Stacking: header 11, pinned
+   stuck cells 10, stuck cells 9, nested stuck cells 8 (they slide under their parent group), and
+   unstuck pinned cells 7 so rows scrolling underneath never paint over a stuck row. */
+.data-table-scroll tbody tr.data-table-group-row.is-stuck > td {
+	position: sticky;
+	/* 1px under the header, so a fractional header height leaves no hairline above the stack. */
+	top: calc(
+		var(
+				--data-table-sticky-top,
+				var(--browse-sticky-bottom, var(--app-desktop-nav-height, 0px))
+			) +
+			var(--data-table-head-height, 0px) + var(--stuck-offset, 0px) - 1px
+	);
+	z-index: 9;
+	background: var(--p-soft);
+}
+.data-table-scroll tbody tr.data-table-group-row.is-stuck.is-stuck-deeper > td {
+	z-index: 8;
+}
+.data-table-scroll tbody tr.data-table-group-row.is-stuck > td.data-table-pinned-start,
+.data-table-scroll tbody tr.data-table-group-row.is-stuck > td.data-table-selection-pinned,
+.data-table-scroll tbody tr.data-table-group-row.is-stuck > td.data-table-pinned-end {
+	z-index: 10;
+}
+.data-table-scroll
+	tbody
+	tr.data-table-group-row.is-stuck.is-stuck-deeper
+	> td.data-table-pinned-start,
+.data-table-scroll
+	tbody
+	tr.data-table-group-row.is-stuck.is-stuck-deeper
+	> td.data-table-selection-pinned,
+.data-table-scroll
+	tbody
+	tr.data-table-group-row.is-stuck.is-stuck-deeper
+	> td.data-table-pinned-end {
+	z-index: 9;
+}
+/* Unpinned-end columns are static on phones; a stuck group row still sticks vertically. */
+.data-table-scroll.is-mobile-unpin-end
+	tbody
+	tr.data-table-group-row.is-stuck
+	> td.data-table-pinned-end {
+	position: sticky !important;
+}
+/* Collapsed borders stay with the table and leave a gap around sticky cells that rows show through,
+   so sticky tables use separate borders, which travel with their cell. */
+.data-table-scroll.is-sticky-header table {
+	border-collapse: separate;
+	border-spacing: 0;
+}
+/* A separate border adds to the row's height, so the last row keeps one to match the others. */
+.data-table-scroll.is-sticky-header tbody tr:last-child > td {
+	border-bottom: 1px solid transparent;
+}
+.data-table-scroll.is-sticky-header
+	tbody
+	tr.data-table-group-row.is-stuck-last:not(:focus-visible)
+	> td {
+	box-shadow: 0 2px 4px -2px var(--p-shadow-color);
+}
+/* Only expanded groups stay stuck, so they keep to one line: their totals are in the detail row
+   directly below, and a wrapped row would fill a phone screen once two levels stack. */
+.data-table-scroll.is-sticky-header
+	tr.data-table-group-row.is-expanded
+	.data-table-group-identity {
+	flex-wrap: nowrap;
+}
+.data-table-scroll.is-sticky-header
+	tr.data-table-group-row.is-expanded
+	.data-table-group-identity
+	> .operation-unit-summary {
+	display: none;
+}
+.data-table-scroll.is-sticky-header
+	tr.data-table-group-row.is-expanded
+	td.data-table-group-identity-cell
+	.data-table-group-toggle {
+	flex-wrap: nowrap;
+}
+.data-table-scroll.is-sticky-header tr.data-table-group-row.is-expanded .data-table-group-name {
+	display: block;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+/* The label stays in view while a wide table scrolls sideways. */
+.data-table-scroll.is-sticky-header.is-overflowing tr.data-table-group-row > td {
+	overflow: visible;
+}
+.data-table-scroll.is-sticky-header.is-overflowing
+	tr.data-table-group-row
+	.data-table-group-identity {
+	position: sticky;
+	left: var(--data-table-pinned-offset, var(--p-space-3));
+	width: fit-content;
 }
 .data-table-scroll.is-sticky-header tbody > tr {
 	scroll-margin-block-start: calc(

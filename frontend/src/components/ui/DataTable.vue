@@ -13,6 +13,7 @@ import type {
 import { dataColumnAlignment, dataColumnKind, orderedVisibleColumns } from "../../lib/dataTable";
 import DisclosureIcon from "./DisclosureIcon.vue";
 import { useOverflowEdges } from "../../composables/useOverflowEdges";
+import { useStickyGroupRows, type StickyGroupMeta } from "../../composables/useStickyGroupRows";
 import FloatingTableScrollbar from "./FloatingTableScrollbar.vue";
 import DetailPopover from "./DetailPopover.vue";
 import ColumnSettings from "./ColumnSettings.vue";
@@ -132,6 +133,23 @@ function groupLabelSpan(group: DataTableGroup) {
 	return firstSummary < 0 ? orderedColumns.value.length : Math.max(1, firstSummary);
 }
 
+const stickyRowMeta = computed<StickyGroupMeta[]>(() =>
+	props.rows.map((entry) =>
+		entry.kind === "group" ? { kind: "group", depth: entry.depth } : { kind: "record" },
+	),
+);
+const stickyGroups = useStickyGroupRows({
+	table: tableScroll,
+	entries: () => stickyRowMeta.value,
+	rowElements,
+	enabled: () => props.stickyHeader,
+});
+watch(
+	[stickyRowMeta, overflowStart, overflowEnd, headerHeight, () => props.stickyHeader],
+	() => stickyGroups.refresh(),
+	{ flush: "post" },
+);
+
 function pinStyle(column: DataColumn) {
 	if (column.pinned !== "start") return undefined;
 	const selectionWidth = props.selectionEnabled
@@ -248,7 +266,7 @@ function onRowKeydown(entry: DataTableEntry, event: KeyboardEvent) {
 		const shouldExpand = event.key === "ArrowRight";
 		if (entry.hasChildren && entry.expanded !== shouldExpand) {
 			event.preventDefault();
-			emit("toggleGroup", entry.id);
+			toggleGroupInPlace(entry);
 		}
 		return;
 	}
@@ -420,7 +438,13 @@ function activateGroup(entry: DataTableGroup, event: Event) {
 		const control = target.closest("button,input,select,a,[role='button']");
 		if (control && control !== event.currentTarget) return;
 	}
+	toggleGroupInPlace(entry);
+}
+/** A stuck group keeps its place under the column header when it toggles. */
+function toggleGroupInPlace(entry: DataTableGroup) {
+	const keepInPlace = stickyGroups.placeOf(entry.id);
 	emit("toggleGroup", entry.id);
+	if (keepInPlace) void nextTick(keepInPlace);
 }
 function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 	if (event.key !== "Enter" && event.key !== " ") return;
@@ -713,7 +737,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 												class="data-table-group-toggle"
 												:aria-expanded="entry.expanded"
 												:disabled="!entry.hasChildren"
-												@click.stop="emit('toggleGroup', entry.id)"
+												@click.stop="toggleGroupInPlace(entry)"
 											>
 												<DisclosureIcon variant="inline" />
 												<span
@@ -786,7 +810,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 													class="data-table-group-toggle"
 													:aria-expanded="entry.expanded"
 													:disabled="!entry.hasChildren"
-													@click.stop="emit('toggleGroup', entry.id)"
+													@click.stop="toggleGroupInPlace(entry)"
 												>
 													<DisclosureIcon variant="inline" />
 													<span
