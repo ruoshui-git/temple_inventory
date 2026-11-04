@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { existsSync } from "node:fs";
 
 export const auditCjkFont = [
@@ -213,4 +213,14 @@ export async function showPhoneTable(page: Page) {
     .locator(".browse-summary-controls")
     .getByRole("button", { name: "表格视图", exact: true })
     .click();
+}
+
+/**
+ * Sticky table headers cover rows that scroll beneath them. Playwright does not scroll a target that
+ * is visible but covered, so centre it first and click where a reader would.
+ */
+export async function centerForPointer(target: Locator) {
+  await target.evaluate((element) =>
+    element.scrollIntoView({ block: "center" }),
+  );
 }

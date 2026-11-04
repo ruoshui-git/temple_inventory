@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { newReportQuery } from "../../src/lib/reportContract";
-import { nativeUiSession } from "./fixtures/nativeUi";
+import { centerForPointer, nativeUiSession } from "./fixtures/nativeUi";
 
 test("desktop stock and expiry table thumbnails keep the lightbox open", async ({
   page,
@@ -65,6 +65,7 @@ test("desktop stock and expiry table thumbnails keep the lightbox open", async (
       .getByRole("button", { name: /放大查看.*图片/ })
       .first();
     await expect(thumbnail).toBeVisible();
+    await centerForPointer(thumbnail);
     await thumbnail.click();
     const lightbox = page.getByRole("dialog").last();
     await expect(lightbox).toBeVisible();

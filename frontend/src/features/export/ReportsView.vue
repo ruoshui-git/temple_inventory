@@ -747,6 +747,7 @@ function setGroup(index: number, value: string) {
 					{{ result.error }} <UiButton @click="refresh(true)">重试读取</UiButton>
 				</p>
 				<ReportTable
+					sticky-header
 					v-if="mainTable"
 					:table="mainTable"
 					:forced-visible="serialForcedColumns"
@@ -792,6 +793,7 @@ function setGroup(index: number, value: string) {
 						{{ table.total }} 条匹配结果
 					</summary>
 					<ReportTable
+						sticky-header
 						:table="table"
 						:forced-visible="serialForcedColumns"
 						:preference-id="`reports.${query.dataset}.${query.view}.${table.id}`"

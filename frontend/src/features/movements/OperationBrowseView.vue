@@ -1516,6 +1516,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 							</select></label
 						>
 						<ReportTable
+							sticky-header
 							v-if="analysis"
 							:preference-id="`operations.${family}.${query.view}.analysis.${dimension}`"
 							:table="{
@@ -1953,6 +1954,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						"
 					/>
 					<DataTable
+						sticky-header
 						v-if="itemTableMounted"
 						data-browse-scroll="operation-items"
 						ariaLabel="物品流动汇总"
@@ -2292,6 +2294,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						/>
 					</Overlay>
 					<DataTable
+						sticky-header
 						v-if="
 							records &&
 							(!isMobile || browseView === 'table' || query.groupBy.length)

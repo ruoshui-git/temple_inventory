@@ -621,6 +621,7 @@ function acceptBrowseLocation(name: string) {
 						class="stock-table-initial-skeleton"
 					>
 						<DataTable
+							sticky-header
 							ariaLabel="库存物品"
 							table-class="data-table"
 							:columns="inventoryColumns"
@@ -975,6 +976,7 @@ function acceptBrowseLocation(name: string) {
 							</BrowseCard>
 						</div>
 						<DataTable
+							sticky-header
 							v-if="usesTable"
 							data-browse-scroll="inventory-table"
 							ariaLabel="库存物品"
@@ -1145,6 +1147,7 @@ function acceptBrowseLocation(name: string) {
 					</select></label
 				>
 				<ReportTable
+					sticky-header
 					:preference-id="`inventory.analysis.${analysisDimension}`"
 					:table="{
 						id: 'stock-analysis',

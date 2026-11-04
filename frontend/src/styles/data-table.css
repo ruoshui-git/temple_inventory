@@ -1262,3 +1262,61 @@
 		white-space: nowrap;
 	}
 }
+
+/* Sticky column header. `clip` creates no scroll container, so header cells stick to the page.
+   Overflowing tables scroll sideways only (`auto clip`, see the @supports rule below). */
+.data-table-scroll.is-sticky-header:not(.is-overflowing) {
+	overflow: clip;
+}
+.data-table-scroll.is-sticky-header.is-overflowing {
+	overflow: auto clip;
+}
+.data-table-scroll.is-sticky-header thead th,
+.data-table-scroll.is-sticky-header thead th.data-table-pinned-start,
+.data-table-scroll.is-sticky-header thead th.data-table-selection-pinned,
+.data-table-scroll.is-sticky-header thead th.data-table-pinned-end {
+	top: var(
+		--data-table-sticky-top,
+		var(--browse-sticky-bottom, var(--app-desktop-nav-height, 0px))
+	);
+	/* Above pinned body cells (z-index 10) so rows scrolling under the header never paint over it. */
+	z-index: 11;
+}
+/* Without single-axis scroll containers (Safari, Firefox, Chromium before 156) `auto clip` scrolls
+   both axes, so a page offset would push the header down over the first rows. The header stays in
+   its normal place there and sticks only where the browser supports it. */
+.data-table-scroll.is-sticky-header.is-overflowing thead th {
+	top: auto;
+}
+@supports named-feature(single-axis-scroll-container) {
+	.data-table-scroll.is-sticky-header.is-overflowing thead th {
+		top: var(
+			--data-table-sticky-top,
+			var(--browse-sticky-bottom, var(--app-desktop-nav-height, 0px))
+		);
+	}
+}
+.data-table-scroll.is-sticky-header tbody > tr {
+	scroll-margin-block-start: calc(
+		var(
+				--data-table-sticky-top,
+				var(--browse-sticky-bottom, var(--app-desktop-nav-height, 0px))
+			) +
+			var(--data-table-head-height, 56px) + var(--data-table-stuck-height, 0px)
+	);
+}
+
+/* Group rows are one line tall: 40px with a mouse, at least 44px for touch. */
+@media (pointer: fine) {
+	.data-table-scroll tbody tr.data-table-group-row {
+		height: 40px;
+	}
+	.data-table-scroll tbody tr.data-table-group-row .data-table-group-toggle {
+		min-height: 30px;
+	}
+}
+@media (pointer: coarse) {
+	.data-table-scroll tbody tr.data-table-group-row {
+		height: 44px;
+	}
+}

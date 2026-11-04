@@ -4,6 +4,7 @@ import {
   auditCjkFontType,
   nativeUiSession,
   requiredAuditCjkFont,
+  centerForPointer,
   showPhoneTable,
 } from "./fixtures/nativeUi";
 const font = requiredAuditCjkFont();
@@ -446,6 +447,7 @@ for (const width of [390, 1440]) {
     ).toHaveCount(0);
     const action = page.getByRole("button", { name: /借出记录 2 笔借出/ });
     await expect(action).toBeVisible();
+    await centerForPointer(action);
     await action.click();
     await expect(page.getByRole("dialog")).toBeVisible();
     await page.keyboard.press("Escape");
@@ -1266,6 +1268,7 @@ test("large-text related-loan context keeps its close action visible", async ({
     .check();
   await page.keyboard.press("Escape");
   const trigger = page.getByRole("button", { name: /借出记录 2 笔借出/ });
+  await centerForPointer(trigger);
   await trigger.click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("寺院志工服务组");

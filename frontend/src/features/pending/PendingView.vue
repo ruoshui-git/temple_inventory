@@ -498,6 +498,7 @@ watch([() => props.active, isMobile], () => {
 					text="没有符合条件的记录"
 				/>
 				<DataTable
+					sticky-header
 					v-if="table && usesTable"
 					data-browse-scroll="damaged-table"
 					ariaLabel="损坏待处理明细"
@@ -569,6 +570,7 @@ watch([() => props.active, isMobile], () => {
 						<UiButton @click="c.analysis.refresh">重试分析</UiButton>
 					</p>
 					<ReportTable
+						sticky-header
 						v-if="analysisTable && !c.analysis.result.stale"
 						:preference-id="`pending.analysis.${dimension}`"
 						:table="{

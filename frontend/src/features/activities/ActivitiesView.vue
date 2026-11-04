@@ -516,6 +516,7 @@ function openDetailsRow() {
 			/>
 			<div class="activity-list-scroll" data-browse-scroll="activities">
 				<DataTable
+					sticky-header
 					v-if="!isMobile || view === 'table' || report.groupBy.length"
 					ariaLabel="活动列表"
 					table-class="browse-table"

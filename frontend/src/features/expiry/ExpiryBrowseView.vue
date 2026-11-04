@@ -764,6 +764,7 @@ function canExpiryAction() {
 				</div>
 				<!-- The table layout is the desktop table and every grouped result; cards and rows are the rest. -->
 				<DataTable
+					sticky-header
 					v-if="usesTable"
 					data-browse-scroll="expiry-table"
 					ariaLabel="效期批次"
@@ -941,6 +942,7 @@ function canExpiryAction() {
 						</select></label
 					>
 					<ReportTable
+						sticky-header
 						v-if="analysis"
 						:preference-id="`expiry.analysis.${dimension}`"
 						:table="analysisTable"

@@ -842,6 +842,7 @@ function openDetailsRow() {
 					@retry="c.retry"
 				/>
 				<DataTable
+					sticky-header
 					v-else-if="isMobile && view === 'table'"
 					ariaLabel="草稿列表"
 					table-class="browse-table"
@@ -955,6 +956,7 @@ function openDetailsRow() {
 						@retry="c.retry"
 					/>
 					<DataTable
+						sticky-header
 						v-if="!isMobile || view === 'table' || query.groupBy.length"
 						data-browse-scroll="records"
 						ariaLabel="库存记录"

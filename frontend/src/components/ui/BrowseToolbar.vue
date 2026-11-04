@@ -148,9 +148,23 @@ function filterPanelChanged(open: boolean) {
 			new CustomEvent("browse-filter-panel-close", { detail: filterSessionId }),
 		);
 }
-const { top } = useScrollSurface(root, () => props.active);
+const { top, owner } = useScrollSurface(root, () => props.active);
 // A stuck phone header hides its title row, so page actions (with 选择) move into the search bar.
-const stuck = computed(() => top.value > 0);
+const stuck = ref(false);
+function scrollRoom() {
+	const scroller = owner.value;
+	return !scroller || scroller === window
+		? document.documentElement.scrollHeight - window.innerHeight
+		: (scroller as HTMLElement).scrollHeight - (scroller as HTMLElement).clientHeight;
+}
+// Condensing shortens the page by less than the toolbar's height. A page with less scroll room
+// than that would snap back to the top and flicker between the two states.
+function syncStuck() {
+	if (top.value <= 0) stuck.value = false;
+	else if (!stuck.value)
+		stuck.value = scrollRoom() > (root.value?.getBoundingClientRect().height ?? 0);
+	root.value?.classList.toggle("is-stuck", stuck.value);
+}
 let headerObserver: ResizeObserver | undefined;
 let chipObserver: ResizeObserver | undefined;
 let chipMutationObserver: MutationObserver | undefined;
@@ -159,11 +173,27 @@ function measureHeader() {
 	const element = root.value;
 	const parent = element?.parentElement;
 	if (!element || !parent) return;
-	element.classList.toggle("is-stuck", top.value > 0);
+	syncStuck();
 	measuredParent = parent;
 	parent.style.setProperty(
 		"--browse-toolbar-height",
 		`${element.getBoundingClientRect().height}px`,
+	);
+	// Phones stick only the persistent search bar; desktop and tablets stick the whole chrome.
+	const phone =
+		typeof window.matchMedia === "function" && window.matchMedia("(max-width: 600px)").matches;
+	const sticking = phone
+		? element.querySelector<HTMLElement>(".browse-persistent-bar")
+		: element;
+	const navHeight =
+		Number.parseFloat(
+			getComputedStyle(document.documentElement).getPropertyValue(
+				"--app-desktop-nav-height",
+			),
+		) || 0;
+	parent.style.setProperty(
+		"--browse-sticky-bottom",
+		`${navHeight + (sticking ?? element).getBoundingClientRect().height}px`,
 	);
 }
 onMounted(() => {
@@ -174,6 +204,7 @@ onMounted(() => {
 		headerObserver = new ResizeObserver(measureHeader);
 		headerObserver.observe(root.value);
 	}
+	window.addEventListener("resize", measureHeader, { passive: true });
 	chips.value?.addEventListener("scroll", measureChips, { passive: true });
 	if (typeof ResizeObserver !== "undefined" && chips.value) {
 		chipObserver = new ResizeObserver(measureChips);
@@ -198,14 +229,16 @@ onActivated(() => {
 onDeactivated(() => headerObserver?.disconnect());
 onBeforeUnmount(() => {
 	document.removeEventListener("keydown", focusSearchShortcut);
+	window.removeEventListener("resize", measureHeader);
 	headerObserver?.disconnect();
 	chipObserver?.disconnect();
 	chipMutationObserver?.disconnect();
 	chips.value?.removeEventListener("scroll", measureChips);
 	if (measuredParent?.style.getPropertyValue("--browse-toolbar-height"))
 		measuredParent.style.removeProperty("--browse-toolbar-height");
+	measuredParent?.style.removeProperty("--browse-sticky-bottom");
 });
-watch(top, (value) => root.value?.classList.toggle("is-stuck", value > 0));
+watch(top, syncStuck);
 defineExpose({ editFilter });
 </script>
 <template>
@@ -240,7 +273,7 @@ defineExpose({ editFilter });
 				>
 					<slot name="chips" :open-filters="openFilters" :edit-filter="editFilter" />
 					<span
-						v-if="isMobile && chipOverflowEnd"
+						v-if="(isMobile || stuck) && chipOverflowEnd"
 						class="browse-chip-scroll-hint"
 						aria-hidden="true"
 					>

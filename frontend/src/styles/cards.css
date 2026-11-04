@@ -33,6 +33,11 @@
 	gap: 0.4rem 0.75rem;
 	margin-block-end: 0.75rem;
 	border-bottom: 1px solid var(--p-border);
+	/* Each group heading stays under the browse toolbar until its own group section ends. */
+	position: sticky;
+	top: var(--browse-sticky-bottom, var(--app-desktop-nav-height, 0px));
+	z-index: var(--p-z-sticky-content, 10);
+	background: var(--p-canvas);
 }
 .stock-card-group-heading {
 	display: flex;

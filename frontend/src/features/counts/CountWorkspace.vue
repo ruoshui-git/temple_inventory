@@ -598,8 +598,10 @@ function itemImage(row: CountRow) {
 			</article>
 		</div>
 		<DataTable
+			sticky-header
 			v-else-if="!isMobile && showCountRowsOrEmpty(!!baselineError, rows.length)"
 			class="count-data-table"
+			:style="{ '--data-table-sticky-top': 'var(--app-desktop-nav-height, 0px)' }"
 			ariaLabel="盘点明细"
 			table-class="count-table"
 			:columns="countColumns"

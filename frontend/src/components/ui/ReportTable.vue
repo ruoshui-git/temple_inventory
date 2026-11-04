@@ -48,6 +48,7 @@ const props = withDefaults(
 		sortDirection?: "asc" | "desc";
 		groupPages?: ReturnType<typeof useReportGroups>;
 		suppressedColumns?: string[];
+		stickyHeader?: boolean;
 	}>(),
 	{ documentLinks: true },
 );
@@ -451,6 +452,7 @@ function groupMetric(group: DataTableGroup, column: string) {
 			"
 			:retry-text="'重试加载'"
 			:suppressed-columns="suppressedColumns"
+			:sticky-header="stickyHeader"
 			:row-attributes="
 				(row) => ({ 'data-browse-row': `${table.id}:${String(row.id ?? '')}` })
 			"

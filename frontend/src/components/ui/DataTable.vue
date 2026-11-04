@@ -52,6 +52,8 @@ const props = withDefaults(
 		retryText?: string;
 		columnPreferences?: ColumnPreferencesController;
 		compact?: boolean;
+		/** Sticks the column header to the page below the browse toolbar. */
+		stickyHeader?: boolean;
 	}>(),
 	{
 		loading: false,
@@ -69,6 +71,7 @@ const props = withDefaults(
 		loadedCount: undefined,
 		totalCount: undefined,
 		rowClass: undefined,
+		stickyHeader: false,
 		sortDirection: "asc",
 	},
 );
@@ -432,7 +435,11 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 </script>
 
 <template>
-	<section class="data-table" :aria-label="ariaLabel">
+	<section
+		class="data-table"
+		:aria-label="ariaLabel"
+		:style="{ '--data-table-head-height': `${headerHeight}px` }"
+	>
 		<Teleport v-if="preferences && !compact && settingsOutlet" :to="settingsOutlet">
 			<div class="data-table-settings-outlet">
 				<ColumnSettings
@@ -467,6 +474,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 				ref="tableScroll"
 				class="data-table-scroll"
 				:class="{
+					'is-sticky-header': stickyHeader,
 					'is-refreshing': refreshing,
 					'is-overflow-start': overflowStart,
 					'is-overflow-end': overflowEnd,

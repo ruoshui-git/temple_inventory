@@ -714,6 +714,7 @@ async function back() {
 						</div>
 					</div>
 					<DataTable
+						sticky-header
 						v-else
 						ariaLabel="盘点明细"
 						table-class="count-table count-native-table"

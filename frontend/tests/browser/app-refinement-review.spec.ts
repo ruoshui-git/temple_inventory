@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  centerForPointer,
   nativeUiSession,
   sampleWarehouses,
   showPhoneTable,
@@ -466,10 +467,11 @@ for (const width of [1440, 390]) {
         await page.getByRole("menuitem", { name: "选择", exact: true }).click();
       else
         await page.getByRole("button", { name: "选择", exact: true }).click();
-      await page
+      const rowCheckbox = page
         .locator("tbody .data-table-selection-column input")
-        .first()
-        .check();
+        .first();
+      await centerForPointer(rowCheckbox);
+      await rowCheckbox.check();
       await expect(page.locator(".selection-bar")).toContainText("已选择 1 项");
       await expect(
         page
