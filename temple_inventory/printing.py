@@ -192,7 +192,7 @@ def render_pdf(doctype, name, print_format, doc=None):
 def _quantity(value):
 	try:
 		return f"{float(value or 0):.3f}".rstrip("0").rstrip(".")
-	except (TypeError, ValueError):
+	except TypeError, ValueError:
 		return str(value or "")
 
 
@@ -547,7 +547,7 @@ def print_record_html(doctype, name):
 			as_pdf=False,
 			no_letterhead=1,
 		)
-	except (frappe.PermissionError, frappe.ValidationError):
+	except frappe.PermissionError, frappe.ValidationError:
 		raise
 	except Exception:
 		frappe.log_error(title=f"HTML print failed: {doctype} {name}")

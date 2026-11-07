@@ -320,6 +320,7 @@ class PermissionTests(NativeDocumentTests):
 			counts,
 			native_api,
 			native_files,
+			opening,
 			units,
 			warehouses,
 		)
@@ -373,6 +374,8 @@ class PermissionTests(NativeDocumentTests):
 		viewer = self._user(VIEWER)
 		request_id = f"ti-permission-{self.token}-request"
 		calls = {
+			"opening.ensure_batch": lambda: opening.ensure_batch(self.item, f"Viewer batch {self.token}"),
+			"opening.generate_serials": lambda: opening.generate_serials(self.item, 1),
 			"activities.delete_activity": lambda: activities.delete_activity(
 				self.activity["name"], activity_version
 			),
@@ -680,12 +683,9 @@ class PermissionTests(NativeDocumentTests):
 				continue
 			source = re.sub(
 				r"except ([\w.]+), ([\w.]+)(, [\w.]+)*:",
-				lambda match: "except ("
-				+ match.group(1)
-				+ ", "
-				+ match.group(2)
-				+ (match.group(3) or "")
-				+ "):",
+				lambda match: (
+					"except (" + match.group(1) + ", " + match.group(2) + (match.group(3) or "") + "):"
+				),
 				path.read_text(),
 			)
 			module = ast.parse(source)
@@ -742,6 +742,7 @@ def _endpoint_policies():
 		"browse.operation_contributions": "READ",
 		"browse.operation_page": "READ",
 		"catalog.available_serials": "READ",
+		"opening.batch_options": "READ",
 		"catalog.batch_details": "READ",
 		"catalog.batch_history": "READ",
 		"catalog.batch_locations": "READ",
@@ -786,6 +787,8 @@ def _endpoint_policies():
 		"loans.outstanding_lines": "READ",
 		"native_api.amend_document": "WRITE",
 		"native_api.cancel_document": "WRITE",
+		"opening.ensure_batch": "WRITE",
+		"opening.generate_serials": "WRITE",
 		"native_api.create_document": "WRITE",
 		"native_api.delete_document": "WRITE",
 		"native_api.duplicate_document": "WRITE",

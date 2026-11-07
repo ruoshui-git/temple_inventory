@@ -978,7 +978,10 @@ def whole_operation(context, doctype, name):
 			doc.docstatus == 0
 			and (
 				(doctype == "Stock Entry" and doc.purpose in MOVEMENT_PURPOSES.values())
-				or (doctype == "Stock Reconciliation" and doc.purpose == "Stock Reconciliation")
+				or (
+					doctype == "Stock Reconciliation"
+					and doc.purpose in ("Stock Reconciliation", "Opening Stock")
+				)
 			)
 		),
 		"quantities": [{"uom": unit, "qty": quantity} for unit, quantity in sorted(quantities.items())],

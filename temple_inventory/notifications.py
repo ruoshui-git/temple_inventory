@@ -26,7 +26,7 @@ def _prefs(user=None):
 	user = user or frappe.session.user
 	try:
 		value = json.loads(frappe.defaults.get_user_default(KEY, user=user) or "null")
-	except (TypeError, ValueError):
+	except TypeError, ValueError:
 		value = None
 	if not isinstance(value, dict):
 		return json.loads(json.dumps(DEFAULTS))
@@ -271,7 +271,7 @@ def deliver_document_event(doctype, name, notification_event, actor, amended=Fal
 						},
 						from_user=actor,
 					)
-			except (frappe.PermissionError, frappe.DoesNotExistError):
+			except frappe.PermissionError, frappe.DoesNotExistError:
 				pass
 	finally:
 		frappe.set_user(original)
@@ -439,7 +439,7 @@ def daily_expiry_digest():
 			seen_key = "temple_inventory_expiry_digest_seen_v1"
 			try:
 				seen = set(json.loads(frappe.defaults.get_user_default(seen_key, user=user) or "[]"))
-			except (TypeError, ValueError):
+			except TypeError, ValueError:
 				seen = set()
 			identified = {
 				f"{row.get('batch_no')}:{row.get('item_code')}:{row.get('warehouse')}" for row in rows

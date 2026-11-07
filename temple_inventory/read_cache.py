@@ -87,7 +87,7 @@ def invalidate_now():
 	try:
 		raw = _redis()
 		raw.incr(_redis_key(raw, GENERATION_KEY))
-	except (redis.exceptions.RedisError, OSError):
+	except redis.exceptions.RedisError, OSError:
 		# A cache outage must never make the source transaction fail.
 		return False
 	return True
@@ -423,7 +423,7 @@ def begin_read_request():
 		database.commit()
 		frappe.local.inventory_cache_request_generation = data_generation()
 		frappe.local.inventory_cache_request_started = str(now_datetime())
-	except (redis.exceptions.RedisError, OSError, ValueError, TypeError, RuntimeError):
+	except redis.exceptions.RedisError, OSError, ValueError, TypeError, RuntimeError:
 		frappe.local.inventory_cache_request_generation = None
 
 
@@ -540,7 +540,7 @@ def capture_cache_context():
 			"configuration": _configuration_signature(),
 			"user": frappe.session.user,
 		}
-	except (redis.exceptions.RedisError, OSError, ValueError, TypeError):
+	except redis.exceptions.RedisError, OSError, ValueError, TypeError:
 		return None
 
 
@@ -553,7 +553,7 @@ def cache_context_current(context):
 			and _permission_signature(frappe.session.user) == context["permission"]
 			and _configuration_signature() == context["configuration"]
 		)
-	except (redis.exceptions.RedisError, OSError, ValueError, TypeError):
+	except redis.exceptions.RedisError, OSError, ValueError, TypeError:
 		return None
 
 
@@ -576,7 +576,7 @@ def acquire_projection_lock(projection):
 			blocking_timeout=getattr(projection, "cache_wait_seconds", LOCK_WAIT_SECONDS),
 		)
 		return lock if lock.acquire(blocking=True) else None
-	except (redis.exceptions.RedisError, OSError, ValueError, TypeError):
+	except redis.exceptions.RedisError, OSError, ValueError, TypeError:
 		return None
 
 
@@ -584,7 +584,7 @@ def release_projection_lock(lock):
 	if lock:
 		try:
 			lock.release()
-		except (redis.exceptions.RedisError, OSError):
+		except redis.exceptions.RedisError, OSError:
 			pass
 
 
@@ -593,7 +593,7 @@ def _fresh(snapshot):
 
 	try:
 		age = (now_datetime() - get_datetime(snapshot)).total_seconds()
-	except (TypeError, ValueError, OverflowError):
+	except TypeError, ValueError, OverflowError:
 		return False
 	return 0 <= age < CACHE_TTL
 
@@ -650,7 +650,7 @@ def restore_projection(projection):
 		projection.sums = tuple(metadata["sums"])
 		projection.context.snapshot = snapshot.decode("utf-8")
 		return True
-	except (redis.exceptions.RedisError, OSError, ValueError, TypeError, sqlite3.Error, zlib.error):
+	except redis.exceptions.RedisError, OSError, ValueError, TypeError, sqlite3.Error, zlib.error:
 		return False
 
 
@@ -713,5 +713,5 @@ def store_projection(projection):
 			entry,
 			ex=max(1, int(CACHE_TTL - age)),
 		)
-	except (redis.exceptions.RedisError, OSError, ValueError, TypeError, sqlite3.Error, zlib.error):
+	except redis.exceptions.RedisError, OSError, ValueError, TypeError, sqlite3.Error, zlib.error:
 		return

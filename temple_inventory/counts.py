@@ -388,6 +388,7 @@ def save_count(request_id, data, name=None, version=None):
 	data = frappe.parse_json(data)
 	if not isinstance(data, dict):
 		frappe.throw("盘点内容无效")
+	data.pop("purpose", None)
 	existing = None
 	if name:
 		existing = native_api.load_locked("Stock Reconciliation", name, version)
@@ -478,6 +479,10 @@ def before_validate(doc, method=None):
 	lock_stock_locations(doc)
 	validate_request_identity(doc)
 	validate_assignment(doc)
+	if doc.purpose == "Opening Stock":
+		from temple_inventory.opening import validate_opening
+
+		validate_opening(doc)
 	if not doc.get("ti_count_review"):
 		return
 	_lock_count_locations()

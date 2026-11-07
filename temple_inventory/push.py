@@ -222,7 +222,7 @@ def send_notification(name):
 		return
 	try:
 		structured = json.loads(doc.email_content or "{}")
-	except (TypeError, ValueError):
+	except TypeError, ValueError:
 		structured = {}
 	kind = structured.get("kind") if event == "movement_submitted" else None
 	if not _user_allowed(doc.for_user, event, kind):

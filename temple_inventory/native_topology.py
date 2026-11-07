@@ -152,7 +152,7 @@ def _can_edit(name, systems):
 		return False
 	try:
 		return bool(frappe.has_permission("Warehouse", "write", doc=name))
-	except (frappe.DoesNotExistError, frappe.PermissionError):
+	except frappe.DoesNotExistError, frappe.PermissionError:
 		return False
 
 

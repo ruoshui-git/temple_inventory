@@ -107,7 +107,7 @@ CREATION_LOCATIONS_KEY = "temple_inventory_creation_locations_v1"
 def _creation_locations():
 	try:
 		value = json.loads(frappe.defaults.get_user_default(CREATION_LOCATIONS_KEY) or "{}")
-	except (TypeError, ValueError):
+	except TypeError, ValueError:
 		value = {}
 	return value if isinstance(value, dict) else {}
 

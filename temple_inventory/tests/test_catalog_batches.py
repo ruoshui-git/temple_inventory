@@ -203,7 +203,7 @@ class CatalogBatchesTests(NativeDocumentTests):
 		queries = []
 		with patch(
 			"temple_inventory.catalog.report_page",
-			side_effect=lambda query, **_kwargs: (queries.append(query) or {}),
+			side_effect=lambda query, **_kwargs: queries.append(query) or {},
 		):
 			catalog.item_detail(self.item)
 			catalog.batch_details(batch["name"])

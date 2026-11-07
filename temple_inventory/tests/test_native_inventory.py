@@ -36,6 +36,7 @@ from temple_inventory.tests.test_native_samples import (
 )
 from temple_inventory.tests.test_native_warehouses import NativeWarehouseTests
 from temple_inventory.tests.test_notifications import NotificationTests
+from temple_inventory.tests.test_opening import OpeningStockTests
 from temple_inventory.tests.test_permissions import PermissionTests
 from temple_inventory.tests.test_printing import PrintingTests
 from temple_inventory.tests.test_schema_audit import SchemaAuditTests
@@ -72,6 +73,7 @@ def run(test_name=None):
 		NativeReportsLoansTests,
 		NativeReportsProjectionsTests,
 		NativeDocumentTests,
+		OpeningStockTests,
 		BrowseGoldenTests,
 		ConfigurationTests,
 		NativeWarehouseTests,

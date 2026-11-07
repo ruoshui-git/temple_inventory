@@ -1062,7 +1062,14 @@ def _opening(company, data, costumes, items, rooms, *, include_generated=True):
 		doc = frappe.get_doc("Stock Entry", draft.name)
 		doc.is_opening = "Yes"
 		opening_account = frappe.db.get_value(
-			"Account", {"company": company, "account_name": "Temporary Opening", "is_group": 0}, "name"
+			"Account",
+			{
+				"company": company,
+				"account_name": "Temporary Opening",
+				"account_type": "Temporary",
+				"is_group": 0,
+			},
+			"name",
 		)
 		if not opening_account:
 			frappe.throw("样例期初库存需要标准 Temporary Opening 科目")
@@ -1796,7 +1803,14 @@ def _mixed_count(company, rooms, items):
 
 def _opening_reconciliation(company, rooms):
 	account = frappe.db.get_value(
-		"Account", {"company": company, "account_name": "Temporary Opening", "is_group": 0}, "name"
+		"Account",
+		{
+			"company": company,
+			"account_name": "Temporary Opening",
+			"account_type": "Temporary",
+			"is_group": 0,
+		},
+		"name",
 	)
 	if not account:
 		frappe.throw("期初库存样例需要标准 Temporary Opening 科目")
@@ -2111,7 +2125,14 @@ def _generated_volume(company, rooms, catalog_data, costumes, *, movement_count=
 		opening_doc = frappe.get_doc("Stock Entry", draft.name)
 		opening_doc.is_opening = "Yes"
 		opening_account = frappe.db.get_value(
-			"Account", {"company": company, "account_name": "Temporary Opening", "is_group": 0}, "name"
+			"Account",
+			{
+				"company": company,
+				"account_name": "Temporary Opening",
+				"account_type": "Temporary",
+				"is_group": 0,
+			},
+			"name",
 		)
 		if not opening_account:
 			frappe.throw("期初库存需要标准 Temporary Opening 科目")

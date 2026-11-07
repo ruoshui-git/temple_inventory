@@ -3,6 +3,7 @@
 # ruff: noqa: RUF001 — Chinese UI punctuation is intentional.
 
 import hashlib
+import re
 
 import frappe
 from frappe.utils import cint
@@ -59,6 +60,7 @@ ENTRY_LINE_FIELDS = {
 	"ti_allocation_note",
 }
 COUNT_LINE_FIELDS = {"item_code", "warehouse", "batch_no", "qty", "use_serial_batch_fields"}
+OPENING_LINE_FIELDS = COUNT_LINE_FIELDS | {"valuation_rate", "serial_no", "allow_zero_valuation_rate"}
 COUNT_HEADER_FIELDS = {
 	"ti_time_mode",
 	"ti_notes",
@@ -85,7 +87,7 @@ def _require_supported_edit(doc):
 	if doc.doctype == "Stock Entry":
 		if doc.purpose not in set(MOVEMENT_PURPOSES.values()):
 			frappe.throw("此库存用途请在 ERPNext 中处理")
-	elif doc.purpose != "Stock Reconciliation":
+	elif doc.purpose not in ("Stock Reconciliation", "Opening Stock"):
 		frappe.throw("此盘点调整用途请在 ERPNext 中处理")
 
 
@@ -101,7 +103,11 @@ def _apply_lines(doc, values, fieldname="items"):
 	existing = {row.name: row for row in doc.get(fieldname, [])}
 	used = set()
 	rows = []
-	allowed = ENTRY_LINE_FIELDS if doc.doctype == "Stock Entry" else COUNT_LINE_FIELDS
+	allowed = (
+		ENTRY_LINE_FIELDS
+		if doc.doctype == "Stock Entry"
+		else (OPENING_LINE_FIELDS if doc.purpose == "Opening Stock" else COUNT_LINE_FIELDS)
+	)
 	if fieldname == "ti_count_review":
 		allowed = REVIEW_FIELDS
 	for value in values:
@@ -147,6 +153,18 @@ def _apply(doc, data):
 		if field in data:
 			value = data[field]
 			doc.set(field, value)
+	if doc.doctype == "Stock Reconciliation":
+		if doc.is_new():
+			purpose = data.get("purpose", "Stock Reconciliation")
+			if purpose not in ("Stock Reconciliation", "Opening Stock"):
+				frappe.throw("不支持此盘点用途")
+			doc.purpose = purpose
+			if purpose == "Opening Stock":
+				from temple_inventory.opening import set_difference_account
+
+				set_difference_account(doc)
+		else:
+			_require_supported_edit(doc)
 	if "items" in data:
 		_apply_lines(doc, data["items"])
 	if doc.doctype == "Stock Reconciliation" and "ti_count_review" in data:
@@ -165,12 +183,6 @@ def _apply(doc, data):
 		doc.purpose = purpose
 		if doc.is_new():
 			doc.stock_entry_type = purpose
-	else:
-		# A frontend count is an adjustment, never a fabricated opening or revaluation.
-		if doc.is_new():
-			doc.purpose = "Stock Reconciliation"
-		else:
-			_require_supported_edit(doc)
 
 
 def serialize(doc):
@@ -214,10 +226,15 @@ def serialize(doc):
 			metadata = item_metadata.get(line.get("item_code"), {})
 			line["ti_display_item_name"] = metadata.get("item_name", "")
 			line["ti_display_image"] = metadata.get("image", "")
-			if doc.doctype == "Stock Entry":
+			if doc.doctype == "Stock Entry" or doc.purpose == "Opening Stock":
 				line["ti_display_tracks_batch"] = bool(metadata.get("has_batch_no"))
 				line["ti_display_tracks_expiry"] = bool(metadata.get("has_expiry_date"))
 				line["ti_display_tracks_serial"] = bool(metadata.get("has_serial_no"))
+				line["ti_display_serial_no_series"] = metadata.get("serial_no_series", "")
+				if doc.purpose == "Opening Stock" and line.get("batch_no"):
+					batch = get_batch(line["batch_no"])
+					line["ti_display_expiry_date"] = str(batch.expiry_date or "")
+					line["ti_display_manufacturing_date"] = str(batch.manufacturing_date or "")
 		for original, line in zip(doc.get("items"), data["items"], strict=True):
 			if doc.doctype != "Stock Entry":
 				continue
@@ -260,25 +277,38 @@ def serialize(doc):
 		ptype: doc.has_permission(ptype) for ptype in ("write", "submit", "cancel", "amend", "delete")
 	}
 	permissions["create"] = frappe.has_permission(doc.doctype, "create")
-	editable = bool(doc.docstatus == 0 and kind and kind != "Opening" and permissions["write"])
+	editable = bool(doc.docstatus == 0 and kind and permissions["write"])
+	queue_error = ""
+	if doc.doctype == "Stock Reconciliation" and doc.docstatus == 0 and len(doc.get("items", [])) > 100:
+		failure_prefix = frappe._("Action Failed")
+		comments = frappe.get_all(
+			"Comment",
+			filters={
+				"reference_doctype": "Stock Reconciliation",
+				"reference_name": doc.name,
+				"comment_type": "Comment",
+				"content": ["like", f"{failure_prefix}%"],
+			},
+			fields=["content"],
+			order_by="creation desc",
+			limit_page_length=1,
+		)
+		if comments and comments[0].content.startswith(failure_prefix):
+			queue_error = re.sub(r"<[^>]*>", "", comments[0].content[len(failure_prefix) :]).strip()
 	data.update(
 		{
 			"identity": {"doctype": doc.doctype, "name": doc.name},
 			"version": str(doc.modified),
 			"kind": kind,
 			"editable": editable,
+			"queued": bool(getattr(doc, "is_locked", False)),
+			"queue_error": queue_error,
 			"actions": {
 				"edit": editable,
-				"submit": bool(doc.docstatus == 0 and kind and kind != "Opening" and permissions["submit"]),
-				"cancel": bool(doc.docstatus == 1 and kind and kind != "Opening" and permissions["cancel"]),
-				"amend": bool(
-					doc.docstatus == 2
-					and kind
-					and kind != "Opening"
-					and permissions["amend"]
-					and permissions["create"]
-				),
-				"delete": bool(doc.docstatus == 0 and kind and kind != "Opening" and permissions["delete"]),
+				"submit": bool(doc.docstatus == 0 and kind and permissions["submit"]),
+				"cancel": bool(doc.docstatus == 1 and kind and permissions["cancel"]),
+				"amend": bool(doc.docstatus == 2 and kind and permissions["amend"] and permissions["create"]),
+				"delete": bool(doc.docstatus == 0 and kind and permissions["delete"]),
 				"duplicate": bool(
 					doc.doctype == "Stock Entry" and kind and kind != "Opening" and permissions["create"]
 				),
@@ -358,6 +388,18 @@ def submit_document(doctype, name, version):
 		current = frappe.utils.now_datetime()
 		doc.posting_date, doc.posting_time = current.date(), current.time()
 		doc.set_posting_time = 1
+	if len(doc.get("items") or []) > 100 and doc.doctype == "Stock Reconciliation":
+		frappe.db.set_value(
+			doc.doctype,
+			doc.name,
+			{
+				"ti_confirmation_version": str(version),
+				"posting_date": doc.posting_date,
+				"posting_time": doc.posting_time,
+				"set_posting_time": 1,
+			},
+			update_modified=False,
+		)
 	doc.submit()
 	return serialize(doc)
 
@@ -448,6 +490,8 @@ def amend_document(doctype, name, version, request_id):
 	if doctype == "Stock Entry":
 		_copy_zero_valuation_allowance(doc, amended)
 		_copy_entry_batches(doc, amended)
+	elif doc.purpose == "Opening Stock":
+		_copy_opening_allocations(doc, amended)
 	amended.insert()
 	return serialize(amended)
 
@@ -456,6 +500,30 @@ def _copy_zero_valuation_allowance(original, copied):
 	"""Restore the no-copy allowance for each matching copied Stock Entry row."""
 	for previous, row in zip(original.get("items"), copied.get("items"), strict=True):
 		row.allow_zero_valuation_rate = previous.allow_zero_valuation_rate
+
+
+def _copy_opening_allocations(original, copied):
+	"""Restore serials and batch identities retained by cancelled native bundles."""
+	from temple_inventory.native_balances import reconciliation_serial_allocations
+
+	for previous, row in zip(original.get("items"), copied.get("items"), strict=True):
+		item = frappe.get_cached_value("Item", row.item_code, ["has_batch_no", "has_serial_no"], as_dict=True)
+		row.use_serial_batch_fields = 1
+		row.serial_and_batch_bundle = None
+		if item.has_serial_no:
+			allocations = reconciliation_serial_allocations(previous)
+			serials = allocations.get("actual_serials") or []
+			if not serials and previous.get("serial_no"):
+				serials = [
+					value.strip()
+					for value in previous.serial_no.replace(",", "\n").splitlines()
+					if value.strip()
+				]
+			row.serial_no = "\n".join(serials)
+		elif item.has_batch_no:
+			bundle = entry_bundle(previous)
+			batches = sorted({entry.batch_no for entry in bundle.entries if entry.batch_no}) if bundle else []
+			row.batch_no = batches[0] if len(batches) == 1 else previous.batch_no
 
 
 def _copy_entry_batches(original, copied):

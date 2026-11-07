@@ -304,7 +304,7 @@ def tracking_change_status(item):
 		linked = item._get_linked_submitted_documents(
 			["has_batch_no", "has_expiry_date", "has_serial_no", "serial_no_series"]
 		)
-	except (AttributeError, TypeError):
+	except AttributeError, TypeError:
 		linked = None
 	if linked:
 		return {"allowed": False, "reason": "已有已提交库存单据，不能更改批次、序列号或效期追踪；请新建物品"}
@@ -348,7 +348,15 @@ def item_display_summaries(item_codes):
 	items = frappe.get_list(
 		"Item",
 		filters={"name": ["in", sorted(set(item_codes)) or [""]]},
-		fields=["name", "item_name", "image", "has_batch_no", "has_expiry_date", "has_serial_no"],
+		fields=[
+			"name",
+			"item_name",
+			"image",
+			"has_batch_no",
+			"has_expiry_date",
+			"has_serial_no",
+			"serial_no_series",
+		],
 		limit_page_length=0,
 	)
 	# Only the cover is shown, so authorize just the File that Item.image names,
@@ -384,6 +392,7 @@ def item_display_summaries(item_codes):
 				"has_batch_no": bool(row.has_batch_no),
 				"has_serial_no": bool(row.has_serial_no),
 				"has_expiry_date": bool(row.has_expiry_date),
+				"serial_no_series": row.serial_no_series or "",
 			}
 	return result
 
@@ -491,7 +500,7 @@ def operation_items(item_codes, timestamp=None):
 					"snapshot": context.snapshot,
 				}
 			)
-		except (frappe.PermissionError, frappe.DoesNotExistError):
+		except frappe.PermissionError, frappe.DoesNotExistError:
 			errors.append({"item_code": code, "error": "物品不存在或无权访问"})
 	return {"items": items, "errors": errors, "snapshot": context.snapshot}
 
