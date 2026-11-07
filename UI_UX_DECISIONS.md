@@ -13,6 +13,13 @@ This document owns user-visible behavior, interaction and language. [DESIGN_SYST
 - Category is optional. Hide root categories in ordinary labels/selectors. Category filters combine selected subtrees with an independent exact-match `无分类` option. Renaming updates linked Items; native permission, child and link guards control deletion.
 - Environment branding comes from `temple_inventory_environment`: `development`, `sample`, `staging` or `production`. Missing config defaults to development only on `developer_mode`, otherwise production; unknown values default to production. Visible labels are 开发, 演示, 预发布. Production has no environment badge. See [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) for colors.
 
+## Roles and permissions
+
+- Four native roles, one per account, set in ERPNext Desk (Role Profiles 物资只读 / 物资录入员 / 物资负责人 / 物资管理员 are the presets): 只读 Inventory Viewer, 录入员 Inventory Operator, 负责人 Inventory Manager, 管理员 Inventory Administrator (the 物资管理员 profile adds System Manager, which is what allows Desk user administration). The app has no user, role or permission screens. Accounts without one of these roles see an explained no-access page; `Administrator` always gets in. Company, warehouse-root and User Permission limits apply on top of the role.
+- 只读 browses, searches, exports and prints everything authorized. 录入员 adds Items, Batches, Activities and every Stock Entry operation through submit. 负责人 adds 盘点 and 期初库存, cancel and amend, deleting drafts, and managing 类别, 单位 and 活动类型. 管理员 adds Warehouse configuration, Settings, and deleting Items and Activities. Disabling an Item is an ordinary edit.
+- Unavailable actions are not offered: a page shows only what the account can do, and 选择 mode appears only when at least one bulk action is available. A record the account can read but not edit opens as the normal read-only view, drafts included, and never autosaves; on 草稿 its action reads 查看 instead of 继续编辑. A direct URL to a page the account cannot use shows 无权限 inside the app with navigation intact. A permission failure, an empty result and any other error stay distinct. Exports, print, column choices, notifications and display settings are available to every role.
+- Autosaved drafts are persisted documents, so 录入员 cannot delete them; they can only discard unsaved input, and 负责人 clears unwanted drafts. Whoever can edit a draft or Item can add and remove its attachments; removing one from a submitted record needs cancel permission (负责人 and above).
+
 ## Navigation, routes and browse
 
 - Primary destinations are 首页、库存、货物流动、借用、更多. Desktop 库存 opens an accessible menu for 库存列表、效期批次、仓库、损坏待处理; it does not navigate on open. Mobile keeps the same five destinations and contextual inventory links. 更多 is a menu and holds 报表; browse pages are the reports.
@@ -100,6 +107,8 @@ This document owns user-visible behavior, interaction and language. [DESIGN_SYST
 
 ## Changelog
 
+- 2026-11-07: tapping 完成 on the phone filter sheet no longer falls through to the 更多 tab underneath.
+- 2026-11-06: four native roles (只读、录入员、负责人、管理员) replace System Manager-only access; every page shows only what the account can do, with read-only views and 无权限 for direct URLs.
 - 2026-11-04: sticky column headers and group rows on browse tables, 报表 and the 盘点 editor; the desktop toolbar condenses when stuck; card and phone-list group headings stick.
 - 2026-11-03: more groupings (库存/损坏待处理 位置·批次, 效期批次 批次·到期月份, 货物流动 明细 来源/去向位置·活动·月份, 借用 明细 借用方·活动·月份); grouped 明细 lines render as lines with thumbnails and real units; nested 物品 groups show only their parent's lines; grouped tables hide columns the group header shows.
 - 2026-11-03: browse group totals share one GroupTotals control (every non-zero metric before extra units, a tappable `+N` lists every metric and unit); stock card group toggles hold only label and count.

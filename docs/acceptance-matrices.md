@@ -154,6 +154,26 @@ Submitted stock records follow ERPNext: drafts can be edited or deleted; submitt
 | 🆕 批次 | via 入库 | ✅ | ✅ | — | — | Fix 过期日期 / 生产日期 |
 | 🆕 草稿 | autosave | ✅ | ✅ | ✅ | — | 更多 → 草稿 lists server drafts and browser recovery |
 
+### 🆕 Roles (2026-11-06)
+
+Demo accounts and their permissions are listed in [README.md](../README.md#demo-accounts). `frontend/tests/browser/native-server/roles.spec.ts` checks them with real logins and doubles as the Sample smoke.
+
+| 能力 | 只读 | 录入员 | 负责人 | 管理员 |
+|---|---|---|---|---|
+| 浏览、搜索、导出、打印 | ✅ | ✅ | ✅ | ✅ |
+| 物品新建 / 修改 / 停用 | — | ✅ | ✅ | ✅ |
+| 物品、活动删除 | — | — | — | ✅ |
+| 活动新建 / 修改 | — | ✅ | ✅ | ✅ |
+| 批次修改 | — | ✅ | ✅ | ✅ |
+| 货物流动各类型：草稿与确认 | — | ✅ | ✅ | ✅ |
+| 取消 / 修订 / 删除草稿 | — | — | ✅ | ✅ |
+| 盘点调整 | 只读 | 只读 | ✅ | ✅ |
+| 类别、单位、活动类型 | 只读 | 只读 | ✅ | ✅ |
+| 仓库配置、系统设置 | 只读 | 只读 | 只读 | ✅ |
+| 附件：添加；从草稿和物品移除 | — | ✅ | ✅ | ✅ |
+| 附件：从已确认记录移除 | — | — | ✅ | ✅ |
+| 用户与角色（ERPNext Desk） | — | — | — | ✅ 需 System Manager |
+
 ### 🆕 Notifications
 
 | 要求 | 结果 | 说明 |
@@ -166,7 +186,7 @@ Submitted stock records follow ERPNext: drafts can be edited or deleted; submitt
 
 | 项目 | 做法 |
 |---|---|
-| 用户账号 | Create in ERPNext Desk; frontend accounts are System Managers |
+| 用户账号 | Create in ERPNext Desk and assign one Role Profile (物资只读 / 物资录入员 / 物资负责人 / 物资管理员); see the role matrix above |
 | 初始数据 / 批量导入 | Prepared in Excel with images named by 物品编号; loaded by a script after launch. The export ZIP layout (`images/<物品编号>.*`) is the intended input layout |
 | 活动类型 | Managed in the app at 活动 → 管理活动类型: create, rename, reorder, disable; delete only when unused |
 

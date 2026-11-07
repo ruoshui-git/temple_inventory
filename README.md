@@ -79,6 +79,51 @@ The script accepts only `development.localhost`. The public sample site is creat
 once by [deploy/stack/bootstrap.sh](deploy/stack/bootstrap.sh); see
 [deploy/README.md](deploy/README.md).
 
+### Demo accounts
+
+Every full sample seed creates these accounts, so <https://sample.kufang.online/inventory>
+has them after each deployment. So does `development.localhost` after a sample reset.
+All of them, and `Administrator`, sign in with the password `admin`. These are public
+demo logins; production disables every `*@example.com` account.
+
+| Account | Role in the app | Native role | For testing |
+|---|---|---|---|
+| `viewer@example.com` | 只读 | Inventory Viewer | Read-only pages and exports |
+| `operator@example.com` | 录入员 | Inventory Operator | Daily stock work and Items |
+| `manager@example.com` | 负责人 | Inventory Manager | 盘点, cancel and amend, catalog data |
+| `inventory.admin@example.com` | 管理员 | Inventory Administrator + System Manager | Warehouses, settings, Desk users |
+| `noaccess@example.com` | none | Stock User | The no-access page |
+| `Administrator` | 管理员 | built-in | Recovery account; always admitted |
+
+`chen.ming`, `lin.hui`, `wang.jianguo`, `zhao.ya` and `zhou.ping` (all `@example.com`) are
+Inventory Managers who appear as the actors in sample history. Use `inventory.admin@example.com`,
+not `admin@example.com`, which Frappe reserves for the built-in `Administrator`.
+
+What each role can do:
+
+| Action | 只读 | 录入员 | 负责人 | 管理员 |
+|---|---|---|---|---|
+| Browse, search, report, export and print | ✅ | ✅ | ✅ | ✅ |
+| Create, edit and disable Items; edit Batches | — | ✅ | ✅ | ✅ |
+| Create and edit Activities | — | ✅ | ✅ | ✅ |
+| Create, save and submit every movement kind | — | ✅ | ✅ | ✅ |
+| Add attachments; remove them from drafts and Items | — | ✅ | ✅ | ✅ |
+| Remove attachments from submitted records | — | — | ✅ | ✅ |
+| Create, edit and submit 盘点调整 (and read drafts of them) | read only | read only | ✅ | ✅ |
+| Cancel and amend records; delete drafts | — | — | ✅ | ✅ |
+| Manage 类别, 单位 and 活动类型 | read only | read only | ✅ | ✅ |
+| Delete Items and Activities | — | — | — | ✅ |
+| Configure Warehouses and settings | read only | read only | read only | ✅ |
+| Manage users and roles in ERPNext Desk | — | — | — | ✅ |
+
+An 录入员 cannot delete an autosaved draft; only unsaved input can be discarded. Later
+rollout phases add 期初库存 and imports for 负责人 and 管理员. See
+[docs/rollout-progress.md](docs/rollout-progress.md).
+
+To give a real user a role, open the User in ERPNext Desk and set one Role Profile:
+物资只读, 物资录入员, 物资负责人 or 物资管理员. Company, warehouse root and User Permission
+limits apply on top of the role.
+
 ### Development environment and deployment
 
 Agents and Git run on the WSL2 host; Bench, MariaDB and Redis run in Docker. See
