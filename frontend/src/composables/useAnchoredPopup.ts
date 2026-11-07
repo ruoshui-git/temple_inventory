@@ -96,6 +96,8 @@ export function useAnchoredPopup(options: {
   maxWidth?: number;
   /** Register nesting and dismissal without changing the popup's own layout. */
   managePosition?: boolean;
+  /** Targets that belong to the popup outside its element, such as a modal sheet's footer. */
+  ignoreOutside?: (target: Node) => boolean;
   /** Stable owner used by a host Overlay that emits the same transient event. */
   owner?: string;
   /** Keep this surface open when a nested selector commits an option. */
@@ -219,6 +221,7 @@ export function useAnchoredPopup(options: {
   }
   function outside(event: PointerEvent) {
     if (!options.open.value || !(event.target instanceof Node)) return;
+    if (options.ignoreOutside?.(event.target)) return;
     if (containsPopup(record, event.target)) return;
     options.onClose(false);
   }

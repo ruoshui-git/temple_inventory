@@ -44,6 +44,7 @@ const popupNesting = useAnchoredPopup({
 	owner: id,
 	managePosition: false,
 	retainOnChildActivate: true,
+	ignoreOutside: (target) => Boolean(panel.value?.closest('[role="dialog"]')?.contains(target)),
 	onClose: () => close(),
 });
 
