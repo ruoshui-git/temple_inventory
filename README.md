@@ -111,7 +111,7 @@ What each role can do:
 | Remove attachments from submitted records | — | — | ✅ | ✅ |
 | Create, edit and submit 盘点调整 and 期初库存 | read only | read only | ✅ | ✅ |
 | Cancel and amend records; delete drafts | — | — | ✅ | ✅ |
-| Import Items | — | — | ✅ | ✅ |
+| Import Items and Opening Stock | — | — | ✅ | ✅ |
 | Manage 类别, 单位 and 活动类型 | read only | read only | ✅ | ✅ |
 | Delete Items and Activities | — | — | — | ✅ |
 | Configure Warehouses and settings | read only | read only | read only | ✅ |

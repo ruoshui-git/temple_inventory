@@ -80,6 +80,7 @@ This document owns user-visible behavior, interaction and language. [DESIGN_SYST
 
 - 物品导入 (`/imports/items`, 更多 → 工作工具, 负责人 and 管理员) runs 下载模板 / 下载物品目录 → upload → preview → 确认导入 → result. The preview writes nothing and shows each row as 新建, 更新, 无变化 or 无法导入, with summary tiles that filter, search, and before/after for updates. Commit rechecks everything against live data; if anything changed it stops at 数据已变化，请重新预览 with nothing written. Rows that cannot be imported block the import until 跳过 N 行无法导入的行 is ticked. All Items in one import are written together or not at all. The result shows generated 物品编号 and offers a report; the catalog download has the same columns, so it doubles as a code list and an update file.
 - 物品编号 means update. Otherwise 导入参考号, or a fingerprint of name, category, unit and description when it is blank, identifies a row, so a retried file creates no duplicates. A matching name alone is only a warning. A blank cell keeps the existing value. Barcodes are only added, never removed; one cell may hold several, separated by ；. Unknown categories and units are rejected, never created. 记录效期 turns on batch tracking, as in the Item editor. 库存单位 and locked tracking follow the same rules as the editor.
+- 期初库存导入 (`/imports/opening`, 负责人 and 管理员) takes 期初日期 and 时间 before the upload; they are never in the future and they are the time the stock is recorded. Rows give 物品编号, 位置 (label, path or ERPNext name, from the template's 位置清单), 数量, 估值单价, and 批次 or 序列号 where the Item tracks them. Items are never created here: an unknown 物品编号 is rejected, so 物品导入 comes first. The preview writes nothing and shows each row as 新增, 无变化 (the same opening already exists) or 无法导入 with the reason, using the same eligibility as the 期初库存 editor. One import becomes exactly one native 期初库存 across all its locations; it is never split. A retried import finds the same document instead of creating another. If submission fails, the draft stays for correction and the result says so. Writes to the import's locations wait while it submits, so large imports belong in a quiet time.
 
 ## Dashboard, reports and export
 
@@ -113,6 +114,7 @@ This document owns user-visible behavior, interaction and language. [DESIGN_SYST
 
 ## Changelog
 
+- 2026-11-07: 期初库存导入 creates one native 期初库存 per import from a workbook, with the same preview and confirmation as 物品导入.
 - 2026-11-07: 物品导入 and 物品目录 download for 负责人 and 管理员, with a preview that writes nothing.
 - 2026-11-07: 期初库存 editor for 负责人 and 管理员, with eligibility per Item and location.
 - 2026-11-07: tapping 完成 on the phone filter sheet no longer falls through to the 更多 tab underneath.

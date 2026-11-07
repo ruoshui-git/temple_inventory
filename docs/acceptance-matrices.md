@@ -150,6 +150,7 @@ Submitted stock records follow ERPNext: drafts can be edited or deleted; submitt
 | 借出记录 | ✅ | ✅ | ✅ draft | ✅ draft | ✅ 取消 / 修订 | |
 | 归还记录 | ✅ | ✅ | ✅ draft | ✅ draft | ✅ 取消 / 修订 | Starts from the outstanding loan, or in bulk from 库存/借用 选择. 2026-10-31: one 归还 may settle loans of several 借用方 and 活动 (per-loan context; header shows 多个借用方 when they differ) |
 | 库房盘点记录 | ✅ | ✅ | ✅ draft | ✅ draft | ✅ 取消 / 修订 | Matching counts create no record |
+| 🆕 期初库存导入 | ✅ | ✅ | — | — | — | 2026-11-07. One native Opening Stock per import; preview writes nothing; retry finds the same document |
 | 🆕 物品导入 | ✅ | ✅ | ✅ | — | — | 2026-11-07. Preview writes nothing; all-or-nothing commit; 负责人 and 管理员 only |
 | 🆕 期初库存 | ✅ | ✅ | ✅ draft | ✅ draft | ✅ 取消 / 修订 | 2026-11-07. Native Opening Stock reconciliation; one Item × location once; batches and serials; Temporary difference account |
 | 活动 | ✅ | ✅ | ✅ | ✅ | ✅ 归档 | Delete only if unreferenced |
@@ -171,7 +172,7 @@ Demo accounts and their permissions are listed in [README.md](../README.md#demo-
 | 取消 / 修订 / 删除草稿 | — | — | ✅ | ✅ |
 | 盘点调整、期初库存 | 只读 | 只读 | ✅ | ✅ |
 | 类别、单位、活动类型 | 只读 | 只读 | ✅ | ✅ |
-| 导入 | — | — | ✅ | ✅ |
+| 导入（物品、期初库存） | — | — | ✅ | ✅ |
 | 仓库配置、系统设置 | 只读 | 只读 | 只读 | ✅ |
 | 附件：添加；从草稿和物品移除 | — | ✅ | ✅ | ✅ |
 | 附件：从已确认记录移除 | — | — | ✅ | ✅ |

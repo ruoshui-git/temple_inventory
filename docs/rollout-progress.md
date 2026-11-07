@@ -6,8 +6,8 @@ Tracks the four-phase rollout. Status words are used strictly: Implemented (code
 |---|---|---|---|---|---|
 | 1 Permissions | ✅ | ✅ | ✅ `a89f326` | ✅ run 42363216839 | ✅ 15/15 real-login smoke on Sample |
 | 2 Opening Stock | ✅ | ✅ | ✅ `0cdd812` | ✅ run 42388149090 | ✅ 14/14 real-login smoke on Sample |
-| 3 Item import | ✅ | ✅ locally | | | |
-| 4 Opening Stock import | | | | | |
+| 3 Item import | ✅ | ✅ | ✅ `dcbf956` | ✅ run 42399028934 | ✅ 16/16 real-login smoke on Sample |
+| 4 Opening Stock import | ✅ | ✅ locally | | | |
 
 ## Decisions confirmed by the owner (2026-11-06)
 
@@ -80,4 +80,26 @@ Tracks the four-phase rollout. Status words are used strictly: Implemented (code
 
 **Visual review.** Real-data start, preview, before/after, confirm and result at 1440 and preview at 390 (`notes/evidence/2026-11-07-imports/`, gitignored).
 
+**Deployment.** Commit `dcbf956`, Sample run 42399028934, image `sha256:6c83a9ee28592304b4fd8dfea65f765acd116c73124f0a91f3cc70092ed114f2`, full reinstall and reseed, CI passed first time. Smoke against sample.kufang.online with the committed spec: 16 of 16, including a Manager importing a workbook over HTTP and Viewer and Operator refused at the page and the API.
+
 **Limits.** 5 MB, 5,000 rows. Images are not imported. The concurrency proof is ordering-based: no test runs a second connection during a job.
+
+## Phase 4 — Opening Stock import
+
+**Scope.** Opening Stock import type on the shared import flow: template with a 位置清单 of authorized leaves, explicit posting date and time, dry run, commit, report, and a wizard at `/imports/opening`.
+
+**Decisions.**
+
+- One import makes exactly one native Stock Reconciliation across every location, keyed by `ti_request_key = sha256(import name)`, so a retry finds the same document instead of creating another.
+- The draft and its batches commit first. The worker then submits with `_submit()`, because `submit()` re-queues documents over 100 lines and the job already is the worker. A failed submit keeps the draft and says so.
+- Eligibility is the Phase 2 query, extracted into `opening.opening_pair_blockers` and shared by the editor and the import.
+- Items are never created here; an unknown 物品编号 is rejected, so the documented order is Item import first.
+- Posting date and time default to the site's current time and stay editable; they become the recorded stock time.
+
+**Found by real-data review, not by the suites.** Posting date empty by default, leaving the upload button silently disabled; the context box repeated on the result page; `0:00:01` time formatting; a unitless quantity reading 未知单位; leading separators on phone cards.
+
+**Tests.** Local, on the final code: backend 482 tests, 0 failures, 1 skipped; Vitest 1,165; browser 158 passed, 1 skipped; live acceptance 39; Ruff, Prettier and type-check clean. A real browser import ran end to end: six rows, three new and three rejected, submitted as one document with three lines across two locations at the declared 00:00:01.
+
+**Visual review.** Real-data start, preview, confirm, result and resulting document at 1440, and preview at 390 (`notes/evidence/2026-11-07-opening-import/`, gitignored).
+
+**Limits.** Writes to the import's locations wait while it submits.
