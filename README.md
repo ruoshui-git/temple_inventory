@@ -109,7 +109,7 @@ What each role can do:
 | Create, save and submit every movement kind | — | ✅ | ✅ | ✅ |
 | Add attachments; remove them from drafts and Items | — | ✅ | ✅ | ✅ |
 | Remove attachments from submitted records | — | — | ✅ | ✅ |
-| Create, edit and submit 盘点调整 (and read drafts of them) | read only | read only | ✅ | ✅ |
+| Create, edit and submit 盘点调整 and 期初库存 | read only | read only | ✅ | ✅ |
 | Cancel and amend records; delete drafts | — | — | ✅ | ✅ |
 | Manage 类别, 单位 and 活动类型 | read only | read only | ✅ | ✅ |
 | Delete Items and Activities | — | — | — | ✅ |
@@ -117,7 +117,7 @@ What each role can do:
 | Manage users and roles in ERPNext Desk | — | — | — | ✅ |
 
 An 录入员 cannot delete an autosaved draft; only unsaved input can be discarded. Later
-rollout phases add 期初库存 and imports for 负责人 and 管理员. See
+rollout phases add imports for 负责人 and 管理员. See
 [docs/rollout-progress.md](docs/rollout-progress.md).
 
 To give a real user a role, open the User in ERPNext Desk and set one Role Profile:

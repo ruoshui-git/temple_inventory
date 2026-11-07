@@ -4,8 +4,8 @@ Tracks the four-phase rollout. Status words are used strictly: Implemented (code
 
 | Phase | Implemented | Tested | Committed | Deployed | Verified |
 |---|---|---|---|---|---|
-| 1 Permissions | in progress | | | | |
-| 2 Opening Stock | | | | | |
+| 1 Permissions | ✅ | ✅ | ✅ `a89f326` | ✅ run 42363216839 | ✅ 15/15 real-login smoke on Sample |
+| 2 Opening Stock | ✅ | ✅ locally | | | |
 | 3 Item import | | | | | |
 | 4 Opening Stock import | | | | | |
 
@@ -31,4 +31,31 @@ Tracks the four-phase rollout. Status words are used strictly: Implemented (code
 
 **Also fixed.** Tapping 完成 on the phone filter sheet could fall through to the 更多 tab (present on main; the test failed 2 of 3 runs there, 8 of 8 pass now).
 
-**Tests.** See the phase table once deployed.
+**Tests.** Local, on the final code: backend 421 tests, 0 failures, 1 skipped; Vitest 1,155; browser 153 passed, 1 skipped; live acceptance 36; Ruff, Prettier and type-check clean. Branch CI run 42361580602 passed, including the full sample seed under the new roles.
+
+**Visual review.** 240 real-login screenshots: four accounts at 1440, 1024 and 390 across every reviewed page (`notes/evidence/2026-11-07-roles/`, gitignored).
+
+**Deployment.** Commit `a89f326`, Sample run 42363216839, image `sha256:a2b788d5f97f7b2e1c4d1b70dda598a45455c88a5de1e1b56c0c5bff39241484`, full reinstall and reseed. Smoke against sample.kufang.online with the committed spec: 15 of 15, covering all accounts, refused direct API calls, Operator submit with Manager cancel, Viewer export and the no-access page.
+
+**Risks.** Operators cannot delete autosaved drafts, by design, so drafts can accumulate until a Manager clears them. Nothing reached staging or production; the patch that moves System Managers to Inventory Administrator has run only on development, not on a site with real accounts.
+
+## Phase 2 — Opening Stock
+
+**Scope.** Native Stock Reconciliation with purpose Opening Stock, its own editor at `/counts/opening/new`, read view, batch and serial lines, Temporary difference account, per Item × location eligibility, cancel and amend, background submit above 100 lines.
+
+**Decisions.**
+
+- A separate editor, not a Purpose dropdown: a count compares against a baseline, an opening declares a first quantity.
+- Eligibility and scope run in `before_validate`, so Desk and the API agree. Any active ledger entry for an Item × location blocks it, at any date. Other locations of the same Item stay open.
+- `OPENING_LINE_FIELDS` is separate, so ordinary counts still cannot revalue through the API.
+- The declared date is honoured: `ti_time_mode` is forced to Historical, because Stock Reconciliation defaults to Current and submit would otherwise replace the date with now.
+- A blank or zero rate uses ERPNext's fallback, else zero value with a note, matching donated goods.
+- The difference account is server-set for the app; a Desk user's own choice is kept and ERPNext's account rules still apply.
+
+**Found by real-data review, not by the suites.** Submit replacing the declared posting time; merely opening a draft saving it; desktop cells shifting under the wrong headers; count wording on the read view; native unit names; a batch field that could not create a batch.
+
+**Tests.** Local, on the final code: backend 441 tests, 0 failures, 1 skipped; Vitest 1,161; browser 156 passed, 1 skipped; live acceptance 37; Ruff, Prettier and type-check clean.
+
+**Visual review.** Real-data draft, submitted and read views at 1440, 1024 and 390 (`notes/evidence/2026-11-07-opening/`, gitignored).
+
+**Risks.** Item × location eligibility ignores dates by design, so stock received through 入库 before a location's opening must be corrected with 盘点调整.
