@@ -156,18 +156,27 @@ def status():
 	)
 	if not frappe.has_permission("Stock Entry", "read"):
 		blockers.append({"code": "stock_permission", "message": "当前账户缺少库存记录读取权限"})
+	can_write = bool(settings.has_permission("write"))
+	if blockers and not can_write:
+		return {
+			"version": _version(settings),
+			"ready": False,
+			"setup_required": True,
+			"is_manager": False,
+			"message": "物资管理尚未配置，请联系管理员",
+		}
 	return {
 		"version": _version(settings),
 		"ready": not blockers,
 		"setup_required": bool(blockers),
-		"is_manager": True,
+		"is_manager": can_write,
 		"companies": companies,
 		"selected_company": company,
 		"can_initialize": bool(
 			companies
 			and not any(settings.get(field) for field in POINTERS)
 			and frappe.has_permission("Warehouse", "create")
-			and settings.has_permission("write")
+			and can_write
 		),
 		"blockers": blockers,
 		"warnings": [],

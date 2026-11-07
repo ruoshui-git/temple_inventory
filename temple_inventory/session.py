@@ -2,7 +2,7 @@
 
 import frappe
 
-from temple_inventory.native_access import require_frontend_account
+from temple_inventory.native_access import capabilities, require_frontend_account, role_label
 from temple_inventory.preferences import display_preferences
 
 
@@ -13,4 +13,6 @@ def info():
 		"user": frappe.session.user,
 		"csrf_token": frappe.sessions.get_csrf_token(),
 		"ui_preferences": display_preferences(),
+		"capabilities": capabilities(),
+		"role_label": role_label(),
 	}

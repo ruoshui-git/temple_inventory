@@ -231,6 +231,8 @@ class ReportContext:
 		)
 		if not names:
 			return
+		if doctype == "Stock Reconciliation" and not frappe.has_permission(doctype, "read"):
+			return
 		meta = frappe.get_meta(doctype)
 		child_fields = [
 			field
@@ -1186,6 +1188,8 @@ def movement_rows(
 ):
 	query = context.query
 	for doctype in ("Stock Entry", "Stock Reconciliation"):
+		if doctype == "Stock Reconciliation" and not frappe.has_permission(doctype, "read"):
+			continue
 		if document_names is not None and doctype != "Stock Entry":
 			continue
 		filters = {
@@ -1551,6 +1555,7 @@ def linked_settlement_rows(context):
 
 
 def count_rows(context):
+	frappe.has_permission("Stock Reconciliation", "read", throw=True)
 	query = context.query
 	values = list(
 		paged(

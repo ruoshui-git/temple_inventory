@@ -69,6 +69,8 @@ def entry_bundle(
 		)
 		== 2
 	):
+		if not frappe.has_permission("Stock Reconciliation", "read"):
+			return None
 		book = fieldname == "current_serial_and_batch_bundle"
 		quantity = float(row.get("current_qty" if book else "qty") or 0)
 		if quantity:

@@ -6,7 +6,7 @@ from decimal import Decimal
 import frappe
 from frappe.utils import nowdate
 
-from temple_inventory.native_access import require_app
+from temple_inventory.native_access import enabled_inventory_user, require_app
 from temple_inventory.native_stock import MOVEMENT_LABELS, MOVEMENT_PURPOSES
 from temple_inventory.uom_labels import uom_label
 
@@ -71,12 +71,10 @@ def save_preferences(preferences):
 
 
 def _user_allowed(user, event, kind=None):
-	user_row = frappe.db.get_value("User", user, ["enabled", "user_type"], as_dict=True)
-	if not user_row or not user_row.enabled or user_row.user_type != "System User":
+	if not enabled_inventory_user(user):
 		return False
-	roles = set(frappe.get_roles(user))
 	prefs = _prefs(user)
-	if "System Manager" not in roles or not prefs["enabled"] or not prefs[event]:
+	if not prefs["enabled"] or not prefs[event]:
 		return False
 	if kind and not prefs["movement_kinds"].get(kind, False):
 		return False

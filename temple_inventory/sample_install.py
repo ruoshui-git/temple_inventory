@@ -497,8 +497,13 @@ def verify_development_sample(*, require_images=True, data="full"):
 		raise AssertionError("Full seed must contain ten cancelled typed movements")
 	if len(frappe.db.sql("select name from `tabStock Entry` where amended_from is not null limit 4")) < 4:
 		raise AssertionError("Full seed must contain four native amendments")
-	if frappe.db.count("User", {"user_type": "System User", "enabled": 1}) < 6:
-		raise AssertionError("Full seed must contain five acting test users")
+	from temple_inventory.native_samples import SEED_ACCOUNTS
+
+	for _name, email, role in SEED_ACCOUNTS:
+		if not frappe.db.exists(
+			"Has Role", {"parent": email, "parenttype": "User", "role": role}
+		) or not frappe.db.get_value("User", email, "enabled"):
+			raise AssertionError(f"Full seed must contain enabled {email} with {role}")
 	t2 = frappe.db.get_value("Warehouse", {"parent_warehouse": root, "ti_label": "第2寺院"}, "name")
 	room_a = frappe.db.get_value("Warehouse", {"parent_warehouse": t2, "ti_label": "A02"}, "name")
 	shelf = frappe.db.get_value("Warehouse", {"parent_warehouse": room_a, "ti_label": "货架1"}, "name")
@@ -722,6 +727,17 @@ def verify_development_sample(*, require_images=True, data="full"):
 	}
 
 
+def _set_demo_passwords():
+	"""Every demo login is public: development and Sample use the same password."""
+	from frappe.utils.password import update_password
+
+	from temple_inventory.native_samples import SEED_ACCOUNTS
+
+	for _name, email, _role in SEED_ACCOUNTS:
+		update_password(email, "admin")
+	frappe.db.commit()
+
+
 def prepare_development_sample_site(
 	company="Org",
 	abbr="O",
@@ -782,5 +798,7 @@ def prepare_development_sample_site(
 	frappe.db.commit()
 
 	result = install_sample_data(company=company, data=data)
+	if data == "full":
+		_set_demo_passwords()
 	_progress(f"最终验证：完成（{result['transactions']} 个样例事务）")
 	return result

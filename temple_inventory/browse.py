@@ -29,6 +29,14 @@ from temple_inventory.report_sources import (
 DASHBOARD_EXPIRY_PREVIEW_LIMIT = 5
 
 
+def _readable_native_doctypes():
+	return tuple(
+		doctype
+		for doctype in ("Stock Entry", "Stock Reconciliation")
+		if doctype != "Stock Reconciliation" or frappe.has_permission(doctype, "read")
+	)
+
+
 @frappe.whitelist()
 def bootstrap():
 	from temple_inventory.uom_labels import ranked_uoms
@@ -63,7 +71,9 @@ def bootstrap():
 			and (destinations or kind in ("Issue", "Loss", "Disposal"))
 			and (kind != "Transfer" or len(physical) >= 2)
 		)
-	operations["Reconcile"] = bool(physical)
+	if not frappe.has_permission("Stock Entry", "create"):
+		operations = dict.fromkeys(operations, False)
+	operations["Reconcile"] = bool(physical) and frappe.has_permission("Stock Reconciliation", "create")
 	return {
 		"user": frappe.session.user,
 		"site": frappe.local.site,
@@ -129,7 +139,7 @@ def native_draft_count():
 
 	context = ReportContext(query, load_item_attachments=False)
 	count = 0
-	for doctype in ("Stock Entry", "Stock Reconciliation"):
+	for doctype in _readable_native_doctypes():
 		names = frappe.get_list(
 			doctype,
 			filters={"company": context.company, "docstatus": 0},
@@ -156,6 +166,7 @@ def counts_page(query=None, start=0, page_length=30, refresh=False):
 	)
 	if query["dataset"] != "counts":
 		frappe.throw("盘点列表需要盘点数据集")
+	frappe.has_permission("Stock Reconciliation", "read", throw=True)
 	query.update({"view": "records"})
 	return _native_record_page(query, start, page_length, refresh=refresh)
 
@@ -189,7 +200,7 @@ def _native_record_page(query, start, page_length, refresh=False):
 			(),
 		)
 		rows = list(projection.rows("native_records", offset=start, limit=size))
-		for doctype in ("Stock Entry", "Stock Reconciliation"):
+		for doctype in _readable_native_doctypes():
 			projection.context.preload_parents(
 				doctype, [row["document"] for row in rows if row["doctype"] == doctype]
 			)
@@ -873,7 +884,7 @@ def _whole_operation_totals(projection, source):
 	for row in projection.rows(source):
 		identity = (row["doctype"], row["document"])
 		documents.setdefault(identity, row)
-	for doctype in ("Stock Entry", "Stock Reconciliation"):
+	for doctype in _readable_native_doctypes():
 		projection.context.preload_parents(
 			doctype, [name for parent_doctype, name in documents if parent_doctype == doctype]
 		)
@@ -957,7 +968,7 @@ def operation_page(query, records=False, start=0, page_length=20):
 		)
 		rows = list(projection.rows("browse_groups", offset=start, limit=size))
 		if records and rows:
-			for doctype in ("Stock Entry", "Stock Reconciliation"):
+			for doctype in _readable_native_doctypes():
 				projection.context.preload_parents(
 					doctype, [row["document"] for row in rows if row["doctype"] == doctype]
 				)

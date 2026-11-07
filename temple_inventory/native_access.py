@@ -9,6 +9,7 @@ import frappe
 from frappe.utils import get_datetime
 
 NATIVE_DOCTYPES = {"Stock Entry", "Stock Reconciliation"}
+NO_INVENTORY_ROLE = "当前账户尚未分配物资管理角色，请联系管理员"
 _request_write_depth = ContextVar("inventory_request_write_depth", default=0)
 
 
@@ -62,6 +63,25 @@ def erpnext_installed():
 	return "erpnext" in frappe.get_installed_apps()
 
 
+def has_inventory_role(user, user_roles=None):
+	"""Check a live role list for any app role."""
+	from temple_inventory.roles import ROLES
+
+	if user_roles is None:
+		user_roles = frappe.db.get_all(
+			"Has Role", filters={"parent": user, "parenttype": "User"}, pluck="role"
+		)
+	return bool(set(user_roles).intersection(ROLES))
+
+
+def enabled_inventory_user(user):
+	"""Return whether a user is an enabled System User assigned an app role."""
+	account = frappe.db.get_value("User", user, ["enabled", "user_type"], as_dict=True)
+	if not account or not account.enabled or account.user_type != "System User":
+		return False
+	return has_inventory_role(user)
+
+
 def frontend_account_denial():
 	"""Return (message, exception) when the session may not use the frontend, else None."""
 	if frappe.session.user == "Guest":
@@ -75,9 +95,14 @@ def frontend_account_denial():
 	account = frappe.db.get_value("User", user, ["enabled", "user_type"], as_dict=True)
 	if not account or not account.enabled or account.user_type != "System User":
 		return "当前账户无权使用物资管理", frappe.PermissionError
-	roles = frappe.db.get_all("Has Role", filters={"parent": user, "parenttype": "User"}, pluck="role")
-	if "System Manager" not in roles:
-		return "当前账户无权使用物资管理", frappe.PermissionError
+	db_roles = set(
+		frappe.db.get_all("Has Role", filters={"parent": user, "parenttype": "User"}, pluck="role")
+	)
+	cached_roles = set(frappe.get_roles(user)) - set(frappe.permissions.AUTOMATIC_ROLES)
+	if db_roles != cached_roles:
+		frappe.cache.hdel("roles", user)
+	if not has_inventory_role(user, db_roles):
+		return NO_INVENTORY_ROLE, frappe.PermissionError
 	return None
 
 
@@ -194,3 +219,42 @@ def check_document_scope(
 				bundle_cache=bundle_cache,
 				bundle_loader=bundle_loader,
 			)
+
+
+def capabilities():
+	"""Native DocPerm capability payload; never infer rights from role labels."""
+	checks = {
+		"stock_entry": ("Stock Entry", ("read", "create", "write", "submit", "cancel", "amend", "delete")),
+		"stock_reconciliation": (
+			"Stock Reconciliation",
+			("read", "create", "write", "submit", "cancel", "amend", "delete"),
+		),
+		"item": ("Item", ("create", "write", "delete")),
+		"batch": ("Batch", ("create", "write")),
+		"activity": ("Inventory Activity", ("create", "write", "delete")),
+		"activity_type": ("Inventory Activity Type", ("create", "write", "delete")),
+		"item_group": ("Item Group", ("create", "write", "delete")),
+		"uom": ("UOM", ("create", "write", "delete")),
+		"warehouse": ("Warehouse", ("create", "write", "delete")),
+		"settings": ("Temple Inventory Settings", ("write",)),
+	}
+	return {
+		key: {ptype: bool(frappe.has_permission(doctype, ptype)) for ptype in ptypes}
+		for key, (doctype, ptypes) in checks.items()
+	}
+
+
+def role_label():
+	from temple_inventory.roles import ROLE_LABELS
+
+	if frappe.session.user == "Administrator":
+		return ROLE_LABELS["Inventory Administrator"]
+	roles = set(
+		frappe.db.get_all(
+			"Has Role", filters={"parent": frappe.session.user, "parenttype": "User"}, pluck="role"
+		)
+	)
+	for role in reversed(tuple(ROLE_LABELS)):
+		if role in roles:
+			return ROLE_LABELS[role]
+	return ""

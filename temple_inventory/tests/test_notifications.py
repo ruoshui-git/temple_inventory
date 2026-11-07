@@ -144,7 +144,7 @@ class NotificationTests(NativeDocumentTests):
 		prefs = dict(notifications.DEFAULTS)
 		with (
 			patch.object(frappe.db, "get_value", side_effect=[account, 1]),
-			patch.object(frappe, "get_roles", return_value=["System Manager"]),
+			patch.object(frappe.db, "get_all", return_value=["Inventory Manager"]),
 			patch.object(notifications, "_prefs", return_value=prefs),
 		):
 			self.assertTrue(
@@ -153,7 +153,7 @@ class NotificationTests(NativeDocumentTests):
 		prefs["movement_kinds"]["Receive"] = False
 		with (
 			patch.object(frappe.db, "get_value", side_effect=[account, 1]),
-			patch.object(frappe, "get_roles", return_value=["System Manager"]),
+			patch.object(frappe.db, "get_all", return_value=["Inventory Manager"]),
 			patch.object(notifications, "_prefs", return_value=prefs),
 		):
 			self.assertFalse(

@@ -14,7 +14,7 @@ website_route_rules = [
 	{"from_route": "/inventory/<path:app_path>", "to_route": "inventory"},
 ]
 
-after_install = ["temple_inventory.deployment.after_install"]
+after_install = ["temple_inventory.deployment.after_install", "temple_inventory.roles.after_install"]
 after_migrate = ["temple_inventory.deployment.after_migrate"]
 update_website_context = ["temple_inventory.environment.update_website_context"]
 

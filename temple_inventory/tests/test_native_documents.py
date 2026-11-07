@@ -931,7 +931,7 @@ class NativeDocumentTests(unittest.TestCase):
 		with self.assertRaisesRegex(frappe.PermissionError, "已取消的库存记录附件不能修改"):
 			native_files.remove_attachment("Stock Entry", cancelled.name, file_doc.name)
 
-	def test_system_manager_can_attach_and_remove_a_submitted_stock_file(self):
+	def test_inventory_manager_can_attach_and_remove_a_submitted_stock_file(self):
 		entry = self.submit(self.create(self.movement()))
 		user = frappe.get_doc(
 			{
@@ -940,11 +940,7 @@ class NativeDocumentTests(unittest.TestCase):
 				"first_name": "Attachment Manager",
 				"user_type": "System User",
 				"send_welcome_email": 0,
-				"roles": [
-					{"role": "System Manager"},
-					{"role": "Stock Manager"},
-					{"role": "Stock User"},
-				],
+				"roles": [{"role": "Inventory Manager"}],
 			}
 		).insert()
 		previous_request = getattr(frappe.local, "request", None)

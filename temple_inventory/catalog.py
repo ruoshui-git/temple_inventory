@@ -1360,6 +1360,8 @@ def available_serials(item_code, warehouse, search="", start=0, limit=50):
 def receipt_batches(rows):
 	"""Resolve/create receipt batches under one account lock with stable retry identities."""
 	require_app()
+	if not (frappe.has_permission("Batch", "create") or frappe.has_permission("Batch", "write")):
+		frappe.throw("无权创建或修改批次", frappe.PermissionError)
 	if isinstance(rows, str):
 		rows = frappe.parse_json(rows)
 	if not isinstance(rows, list) or len(rows) > 200:
@@ -1432,6 +1434,7 @@ def receipt_batches(rows):
 					for field, value in requested_dates.items()
 				)
 				if changed_dates:
+					batch.check_permission("write")
 					generated_for_request = (
 						bool(batch.get("ti_request_key"))
 						and batch.get("ti_request_user") == frappe.session.user
@@ -1644,7 +1647,7 @@ def batch_history(name, start=0, page_length=20):
 	)
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def save_batch(name, version, data):
 	"""Edit batch metadata while preserving its ERPNext identity and stock state."""
 	from frappe.utils import getdate

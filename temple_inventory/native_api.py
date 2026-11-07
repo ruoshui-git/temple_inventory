@@ -256,12 +256,38 @@ def serialize(doc):
 						"manufacturing_date": str(batch.manufacturing_date or "") if batch else "",
 					}
 				]
+	permissions = {
+		ptype: doc.has_permission(ptype) for ptype in ("write", "submit", "cancel", "amend", "delete")
+	}
+	permissions["create"] = frappe.has_permission(doc.doctype, "create")
+	editable = bool(doc.docstatus == 0 and kind and kind != "Opening" and permissions["write"])
 	data.update(
 		{
 			"identity": {"doctype": doc.doctype, "name": doc.name},
 			"version": str(doc.modified),
 			"kind": kind,
-			"editable": bool(doc.docstatus == 0 and kind and kind != "Opening"),
+			"editable": editable,
+			"actions": {
+				"edit": editable,
+				"submit": bool(doc.docstatus == 0 and kind and kind != "Opening" and permissions["submit"]),
+				"cancel": bool(doc.docstatus == 1 and kind and kind != "Opening" and permissions["cancel"]),
+				"amend": bool(
+					doc.docstatus == 2
+					and kind
+					and kind != "Opening"
+					and permissions["amend"]
+					and permissions["create"]
+				),
+				"delete": bool(doc.docstatus == 0 and kind and kind != "Opening" and permissions["delete"]),
+				"duplicate": bool(
+					doc.doctype == "Stock Entry" and kind and kind != "Opening" and permissions["create"]
+				),
+				"attach": bool(doc.docstatus != 2 and permissions["write"]),
+				"remove_attachment": bool(
+					(doc.docstatus == 0 and permissions["write"])
+					or (doc.docstatus == 1 and permissions["cancel"])
+				),
+			},
 		}
 	)
 	return data

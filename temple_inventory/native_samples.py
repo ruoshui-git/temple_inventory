@@ -841,15 +841,25 @@ def _line(item, quantity, *, source=None, target=None, **values):
 	}
 
 
+# Frappe gives the built-in Administrator admin@example.com; no seed account may reuse it.
+SEED_ACCOUNTS = (
+	("陈明", "chen.ming@example.com", "Inventory Manager"),
+	("林慧", "lin.hui@example.com", "Inventory Manager"),
+	("王建国", "wang.jianguo@example.com", "Inventory Manager"),
+	("赵雅", "zhao.ya@example.com", "Inventory Manager"),
+	("周平", "zhou.ping@example.com", "Inventory Manager"),
+	("只读员", "viewer@example.com", "Inventory Viewer"),
+	("录入员", "operator@example.com", "Inventory Operator"),
+	("负责人", "manager@example.com", "Inventory Manager"),
+	("管理员", "inventory.admin@example.com", "Inventory Administrator"),
+	# An ordinary ERPNext account without an inventory role: shows the no-access page.
+	("无权限账户", "noaccess@example.com", "Stock User"),
+)
+
+
 def _seed_users():
 	users = []
-	for first_name, email in (
-		("陈明", "chen.ming@example.com"),
-		("林慧", "lin.hui@example.com"),
-		("王建国", "wang.jianguo@example.com"),
-		("赵雅", "zhao.ya@example.com"),
-		("周平", "zhou.ping@example.com"),
-	):
+	for first_name, email, role in SEED_ACCOUNTS:
 		user_name = frappe.db.get_value("User", {"email": email}, "name")
 		if not user_name:
 			user_name = (
@@ -860,19 +870,20 @@ def _seed_users():
 						"first_name": first_name,
 						"user_type": "System User",
 						"send_welcome_email": 0,
-						"roles": [
-							{"role": "System Manager"},
-							{"role": "Item Manager"},
-							{"role": "Stock Manager"},
-							{"role": "Stock User"},
-						],
+						"roles": [{"role": role}],
 					}
 				)
-				.insert()
+				.insert(ignore_permissions=True)
 				.name
 			)
+		roles = {role} | ({"System Manager"} if role == "Inventory Administrator" else set())
+		doc = frappe.get_doc("User", user_name)
+		if {row.role for row in doc.roles} != roles:
+			doc.role_profile_name = None
+			doc.set("roles", [{"role": value} for value in sorted(roles)])
+			doc.save(ignore_permissions=True)
 		users.append(user_name)
-	return users
+	return users[:5]
 
 
 def _as_user(user, method, *args):

@@ -121,6 +121,34 @@
       "write": 1,
       "create": 1,
       "delete": 1
+    },
+    {
+      "role": "Inventory Viewer",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "if_owner": 1
+    },
+    {
+      "role": "Inventory Operator",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "if_owner": 1
+    },
+    {
+      "role": "Inventory Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "if_owner": 1
+    },
+    {
+      "role": "Inventory Administrator",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "if_owner": 1
     }
   ]
 }

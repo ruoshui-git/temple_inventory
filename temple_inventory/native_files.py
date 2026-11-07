@@ -61,6 +61,17 @@ def is_private_original(doc):
 	return bool(doc.is_private and (doc.file_url or "").startswith("/private/files/"))
 
 
+def _attachment_parent(doctype, name, *, deleting=False):
+	"""Apply the native attachment rule to both the API and direct File deletion."""
+	doc = _parent(doctype, name, write=True)
+	if deleting and doctype in NATIVE_DOCTYPES:
+		if doc.docstatus == 2:
+			frappe.throw("已取消的库存记录附件不能修改", frappe.PermissionError)
+		if doc.docstatus == 1:
+			doc.check_permission("cancel")
+	return doc
+
+
 def validate_file_write(doc, deleting=False):
 	check_request_account()
 	previous = None
@@ -92,17 +103,15 @@ def validate_file_write(doc, deleting=False):
 	links = {
 		(value.attached_to_doctype, value.attached_to_name)
 		for value in (previous, doc)
-		if value and value.attached_to_doctype in PARENTS and value.attached_to_name
+		if value and value.attached_to_name and value.attached_to_doctype in PARENTS
 	}
 	if not links:
 		return
 	for doctype, name in sorted(links):
-		# Frappe removes a document's attachments after deleting the parent row.
-		# During that native cleanup the parent cannot be reloaded for a write check;
-		# the File's own delete permission below still gates removal.
+		# Native parent deletion cascades its Files after the parent row is gone.
 		if deleting and not frappe.db.exists(doctype, name):
 			continue
-		_parent(doctype, name, write=True)
+		_attachment_parent(doctype, name, deleting=deleting)
 	permission = "delete" if deleting else ("create" if doc.is_new() else "write")
 	doc.check_permission(permission)
 	if previous and previous.owner != frappe.session.user and not frappe.has_permission("File", "write", doc):
@@ -186,7 +195,7 @@ def remove_attachment(doctype, name, file_name):
 	require_app()
 	if doctype not in PARENTS:
 		frappe.throw("不支持的附件记录类型")
-	parent = _parent(doctype, name, write=True)
+	parent = _attachment_parent(doctype, name, deleting=True)
 	file_doc = frappe.get_doc("File", file_name, for_update=True)
 	if (file_doc.attached_to_doctype, file_doc.attached_to_name) != (doctype, name):
 		frappe.throw("附件不属于此记录", frappe.PermissionError)

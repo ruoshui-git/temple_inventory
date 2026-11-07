@@ -742,7 +742,7 @@ class NativeReportsProjectionsTests(NativeReportTestCase):
 				"first_name": "Worker owner",
 				"send_welcome_email": 0,
 				"user_type": "System User",
-				"roles": [{"role": "System Manager"}, {"role": "Stock Manager"}, {"role": "Stock User"}],
+				"roles": [{"role": "Inventory Manager"}, {"role": "Stock Manager"}, {"role": "Stock User"}],
 			}
 		).insert()
 		self.addCleanup(clear_defaults_cache, user.name)
@@ -765,12 +765,17 @@ class NativeReportsProjectionsTests(NativeReportTestCase):
 			patch("frappe.db.rollback"),
 			patch("temple_inventory.exports._write", side_effect=revoke_after_write) as writer,
 			patch("temple_inventory.exports._private_file") as private_file,
+			patch("temple_inventory.exports.frappe.log_error") as log_error,
 		):
 			exports.generate_export(request["name"])
 		self.assertEqual(frappe.session.user, "Administrator")
+		failed = frappe.get_doc("Inventory Export Request", request["name"])
+		self.assertEqual(failed.status, "Failed", failed.error)
+		self.assertTrue(
+			writer.called,
+			log_error.call_args.kwargs.get("message", failed.error) if log_error.called else failed.error,
+		)
 		writer.assert_called_once()
 		private_file.assert_not_called()
-		failed = frappe.get_doc("Inventory Export Request", request["name"])
-		self.assertEqual(failed.status, "Failed")
 		self.assertFalse(failed.output_file)
 		self.assertFalse(failed.access_manifest)

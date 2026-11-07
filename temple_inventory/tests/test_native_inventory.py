@@ -36,6 +36,7 @@ from temple_inventory.tests.test_native_samples import (
 )
 from temple_inventory.tests.test_native_warehouses import NativeWarehouseTests
 from temple_inventory.tests.test_notifications import NotificationTests
+from temple_inventory.tests.test_permissions import PermissionTests
 from temple_inventory.tests.test_printing import PrintingTests
 from temple_inventory.tests.test_schema_audit import SchemaAuditTests
 from temple_inventory.tests.test_serial_reports import SerialReportTests
@@ -88,6 +89,7 @@ def run(test_name=None):
 		SerialReportTests,
 		PrintingTests,
 		ActivityTypeTests,
+		PermissionTests,
 	):
 		# Feature suites inherit the shared savepoint setup and helpers. Run their
 		# own scenarios once; the base document cases already run above.

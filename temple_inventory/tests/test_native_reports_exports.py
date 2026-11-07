@@ -1552,7 +1552,12 @@ class NativeReportsExportsTests(NativeReportTestCase):
 				"first_name": "Export manager",
 				"send_welcome_email": 0,
 				"user_type": "System User",
-				"roles": [{"role": "System Manager"}, {"role": "Stock Manager"}, {"role": "Stock User"}],
+				"roles": [
+					{"role": "Inventory Manager"},
+					{"role": "System Manager"},
+					{"role": "Stock Manager"},
+					{"role": "Stock User"},
+				],
 			}
 		).insert()
 		self.addCleanup(clear_defaults_cache, user.name)

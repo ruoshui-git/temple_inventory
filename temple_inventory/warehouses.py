@@ -277,14 +277,14 @@ def _check_parent(parent, kind, physical, settings):
 
 def _insert_location(kind, label, parent, short_label=None):
 	settings, _, physical = _context()
+	if not frappe.has_permission("Warehouse", "create"):
+		frappe.throw("无权创建仓库", frappe.PermissionError)
 	if kind not in ("Area", "Room", "Shelf"):
 		frappe.throw("请选择区域、房间或货位")
 	label, short_label = str(label or "").strip(), str(short_label or "").strip()
 	if not label or len(label) > 140 or len(short_label) > 60:
 		frappe.throw("请填写名称（不超过 140 字）；简称最多 60 字")
 	parent_doc = _check_parent(parent, kind, physical, settings)
-	if not frappe.has_permission("Warehouse", "create"):
-		frappe.throw("无权创建仓库", frappe.PermissionError)
 
 	def insert_node(node_parent, node_kind, group, direct=False):
 		doc = frappe.get_doc(

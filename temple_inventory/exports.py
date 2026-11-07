@@ -16,7 +16,13 @@ import frappe
 import xlsxwriter
 
 from temple_inventory.export_columns import DEFAULT_COLUMNS, LABELS, allowed_columns, default_columns, label
-from temple_inventory.native_access import check_document_scope, check_item, check_version, require_app
+from temple_inventory.native_access import (
+	check_document_scope,
+	check_item,
+	check_version,
+	enabled_inventory_user,
+	require_app,
+)
 from temple_inventory.native_stock import MOVEMENT_LABELS
 from temple_inventory.printing import _pdf_layout
 from temple_inventory.projections import (
@@ -56,10 +62,14 @@ GROUP_LABELS = {
 
 
 def request_permission(doc, ptype=None, user=None, **kwargs):
+	if service_write.get():
+		return True
 	user = user or frappe.session.user
 	if user == "Guest" or doc.owner != user:
 		return False
-	return "System Manager" in frappe.get_roles(user)
+	if user == "Administrator":
+		return True
+	return enabled_inventory_user(user)
 
 
 def request_query(user=None):
@@ -78,7 +88,7 @@ def _get(name, *, lock=False):
 def _save(doc):
 	token = service_write.set(True)
 	try:
-		doc.save()
+		doc.save(ignore_permissions=True)
 	finally:
 		service_write.reset(token)
 
