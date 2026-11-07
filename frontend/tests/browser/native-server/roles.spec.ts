@@ -367,6 +367,8 @@ test("operator keeps counts read-only and movements usable", async ({
   });
   await open(page, "/counts/new");
   await expect(page.getByTestId("forbidden-state")).toBeVisible();
+  await open(page, "/counts/opening/new");
+  await expect(page.getByTestId("forbidden-state")).toBeVisible();
   await open(page, "/counts");
   await expect(page.getByTestId("forbidden-state")).toHaveCount(0);
   await expect(
@@ -400,6 +402,119 @@ test("manager sees counts and reversal but no warehouse writes", async ({
   await manager.close();
 });
 
+test("manager creates and submits Opening Stock over HTTP; operator create is refused", async ({
+  browser,
+}) => {
+  const operator = await login(browser, "operator");
+  const manager = await login(browser, "manager");
+  const boot = await operator.ok("browse.bootstrap");
+  const item = await operator.ok("catalog.save_item", {
+    data: {
+      item_name: `期初验收 ${crypto.randomUUID().slice(0, 8)}`,
+      stock_uom: "Nos",
+    },
+  });
+  const code = item.item_code || item.name;
+  const data = {
+    company: boot.company,
+    purpose: "Opening Stock",
+    posting_date: boot.site_date,
+    posting_time: String(boot.site_time).split(" ")[1],
+    items: [
+      {
+        item_code: code,
+        warehouse: boot.physical_leaves[0],
+        qty: 2,
+        valuation_rate: 4,
+      },
+    ],
+  };
+  const managerDraft = await manager.ok("native_api.create_document", {
+    doctype: "Stock Reconciliation",
+    request_id: crypto.randomUUID(),
+    data,
+  });
+  expect(managerDraft.kind).toBe("Opening");
+  expect(managerDraft.editable).toBe(true);
+  const managerSaved = await manager.ok("native_api.save_document", {
+    doctype: "Stock Reconciliation",
+    name: managerDraft.identity.name,
+    version: managerDraft.version,
+    data,
+  });
+  await open(
+    manager.page,
+    `/counts/${encodeURIComponent(managerDraft.identity.name)}`,
+  );
+  await expect(
+    manager.page.getByText(managerDraft.identity.name).first(),
+  ).toBeVisible();
+  const beforeIdle = await manager.ok("native_api.load_document", {
+    doctype: "Stock Reconciliation",
+    name: managerDraft.identity.name,
+  });
+  expect(beforeIdle.version).toBe(managerSaved.version);
+  await manager.page.waitForTimeout(2000);
+  const afterIdle = await manager.ok("native_api.load_document", {
+    doctype: "Stock Reconciliation",
+    name: managerDraft.identity.name,
+  });
+  expect(afterIdle.version, "opening a draft must not autosave it").toBe(
+    beforeIdle.version,
+  );
+  const submitted = await manager.ok("native_api.submit_document", {
+    doctype: "Stock Reconciliation",
+    name: managerDraft.identity.name,
+    version: afterIdle.version,
+  });
+  expect(submitted.docstatus).toBe(1);
+  const operatorOpening = await operator.ok("native_api.load_document", {
+    doctype: "Stock Reconciliation",
+    name: submitted.name,
+  });
+  expect(operatorOpening.actions.cancel).toBe(false);
+  expect(operatorOpening.actions.amend).toBe(false);
+  await open(manager.page, `/counts/${encodeURIComponent(submitted.name)}`);
+  await expect(
+    manager.page.getByRole("button", { name: "取消记录" }),
+  ).toBeVisible();
+  await expect(manager.page.getByRole("button", { name: "修订" })).toHaveCount(
+    0,
+  );
+  await open(operator.page, `/counts/${encodeURIComponent(submitted.name)}`);
+  await expect(
+    operator.page.getByRole("button", { name: "取消记录" }),
+  ).toHaveCount(0);
+  await expect(operator.page.getByRole("button", { name: "修订" })).toHaveCount(
+    0,
+  );
+  const beforeCancel = await manager.ok("native_api.load_document", {
+    doctype: "Stock Reconciliation",
+    name: submitted.name,
+  });
+  const cancelledOpening = await manager.ok("native_api.cancel_document", {
+    doctype: "Stock Reconciliation",
+    name: submitted.name,
+    version: beforeCancel.version,
+  });
+  expect(cancelledOpening.actions.amend).toBe(true);
+  await open(manager.page, `/counts/${encodeURIComponent(submitted.name)}`);
+  await expect(
+    manager.page.getByRole("button", { name: "修订" }),
+  ).toBeVisible();
+  await open(operator.page, `/counts/${encodeURIComponent(submitted.name)}`);
+  await expect(operator.page.getByRole("button", { name: "修订" })).toHaveCount(
+    0,
+  );
+  await operator.denied("native_api.create_document", {
+    doctype: "Stock Reconciliation",
+    request_id: crypto.randomUUID(),
+    data,
+  });
+  await operator.close();
+  await manager.close();
+});
+
 const reviewed = [
   ["home", ""],
   ["stock", "/stock"],
@@ -419,13 +534,14 @@ const reviewed = [
   ["more", "/more"],
   ["new-receive", "/movements/new/Receive"],
   ["new-count", "/counts/new"],
+  ["new-opening", "/counts/opening/new"],
 ] as const;
 
 const banned: Partial<Record<Key, RegExp>> = {
   viewer:
-    /新建|新增|添加物品|登记|编辑|删除|修订|取消记录|^选择$|入库$|出库$|调拨$/,
+    /新建|新增|期初库存|添加物品|登记|编辑|删除|修订|取消记录|^选择$|入库$|出库$|调拨$/,
   operator:
-    /新建盘点|新建分类|新建单位|新建类型|添加区域|删除|修订|取消记录|核对并确认/,
+    /期初库存|新建盘点|新建分类|新建单位|新建类型|添加区域|删除|修订|取消记录|核对并确认/,
   manager: /添加区域/,
 };
 for (const key of ["viewer", "operator", "manager"] as const) {
@@ -439,7 +555,9 @@ for (const key of ["viewer", "operator", "manager"] as const) {
     const paths = [
       ...reviewed
         .map(([, path]) => path)
-        .filter((path) => !path.includes("/new")),
+        .filter(
+          (path) => !path.includes("/new") || path === "/counts/opening/new",
+        ),
       ...(entry ? [`/movements/${encodeURIComponent(entry)}`] : []),
     ];
     for (const path of paths) {

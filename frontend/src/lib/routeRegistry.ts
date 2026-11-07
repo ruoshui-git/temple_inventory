@@ -36,6 +36,7 @@ type AppRouteName =
   | "loan-overview"
   | "counts"
   | "count-new"
+  | "opening-new"
   | "count-detail"
   | "activities"
   | "activity-types"
@@ -156,12 +157,14 @@ const route = (
     "movement-new",
     "movement-detail",
     "count-new",
+    "opening-new",
     "count-detail",
   ].includes(name),
   requires: (
     {
       "movement-new": "stock_entry.create",
       "count-new": "stock_reconciliation.create",
+      "opening-new": "stock_reconciliation.create",
       "item-new": "item.create",
       "item-edit": "item.write",
       "activity-new": "activity.create",
@@ -343,6 +346,17 @@ export const routeRegistry: readonly AppRouteDefinition[] = [
     "more",
     ["browse"],
     [root, counts],
+  ),
+  route(
+    "opening-new",
+    "/counts/opening/new",
+    "Reconciliation",
+    "more",
+    ["create", "recovery"],
+    [root, counts, { label: "新建期初库存" }],
+    undefined,
+    undefined,
+    "opening-editor",
   ),
   route(
     "count-new",

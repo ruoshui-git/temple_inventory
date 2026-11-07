@@ -52,6 +52,7 @@ import PopupMenu from "../../components/ui/PopupMenu.vue";
 import { useConfirm } from "../../services/confirm";
 import ConversionEditor from "../conversions/ConversionEditor.vue";
 import { operationLabels } from "../../lib/presentationLabels";
+import InboundSerialField from "./InboundSerialField.vue";
 import {
 	shouldShowLineTools,
 	transferDestinationOptions,
@@ -383,6 +384,14 @@ function removeSerial(line: AllocationLine, serial: string) {
 function toggleAutoSerial(line: AllocationLine, enabled: boolean) {
 	line.serials = [];
 	line.autoSerialCount = enabled ? Math.max(1, Number(line.qty || 1)) : undefined;
+	syncSerialQuantity(line);
+}
+function acceptInboundSerialInput(line: AllocationLine, value: string) {
+	serialInput.value[line.id] = value;
+	addSerialInput(line, value);
+}
+function setAutoSerialCount(line: AllocationLine, value: number) {
+	line.autoSerialCount = value;
 	syncSerialQuantity(line);
 }
 function existingQuantity(line: AllocationLine) {
@@ -1870,69 +1879,20 @@ function receiveBatchChanged(line: AllocationLine) {
 						<div class="operation-row-cell operation-row-serial-field">
 							<span class="operation-phone-field-label">序列号</span>
 							<template v-if="receive">
-								<label v-if="hasSerialSeries(line)" class="operation-serial-auto">
-									<input
-										type="checkbox"
-										:checked="line.autoSerialCount !== undefined"
-										:disabled="disabled || hydrating"
-										@change="
-											toggleAutoSerial(
-												line,
-												($event.target as HTMLInputElement).checked,
-											)
-										"
-									/>
-									自动生成
-								</label>
-								<input
-									v-if="line.autoSerialCount !== undefined"
-									type="number"
-									min="1"
-									step="1"
-									aria-label="自动生成序列号数量"
-									:value="line.autoSerialCount"
+								<InboundSerialField
+									:label="lineName(line)"
+									:serials="line.serials || []"
+									:input-value="serialInput[line.id] || ''"
+									:auto-count="line.autoSerialCount"
+									:has-series="hasSerialSeries(line)"
+									:auto-count-label="'自动生成序列号数量'"
 									:disabled="disabled || hydrating"
-									@input="
-										line.autoSerialCount = Math.max(
-											1,
-											Number(($event.target as HTMLInputElement).value) || 1,
-										);
-										syncSerialQuantity(line);
-									"
+									@update:input-value="serialInput[line.id] = $event"
+									@toggle-auto="toggleAutoSerial(line, $event)"
+									@update:auto-count="setAutoSerialCount(line, $event)"
+									@add="acceptInboundSerialInput(line, $event)"
+									@remove="removeSerial(line, $event)"
 								/>
-								<template v-else>
-									<div class="operation-serial-chips">
-										<span
-											v-for="serial in line.serials || []"
-											:key="serial"
-											class="operation-serial-chip"
-										>
-											{{ serial }}
-											<button
-												type="button"
-												:disabled="disabled || hydrating"
-												:aria-label="`移除序列号 ${serial}`"
-												@click="removeSerial(line, serial)"
-											>
-												×
-											</button>
-										</span>
-									</div>
-									<input
-										v-model="serialInput[line.id]"
-										data-field="serials"
-										:aria-label="`${lineName(line)}序列号`"
-										placeholder="输入或扫描后按回车"
-										:disabled="disabled || hydrating"
-										@keydown.enter.prevent="addSerialInput(line)"
-										@paste.prevent="
-											addSerialInput(
-												line,
-												$event.clipboardData?.getData('text') || '',
-											)
-										"
-									/>
-								</template>
 							</template>
 							<template v-else>
 								<div class="operation-serial-chips">

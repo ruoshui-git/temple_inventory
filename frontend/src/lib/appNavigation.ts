@@ -101,6 +101,14 @@ export const moreNavigation: NavigationGroup[] = [
         description: "查看和调整盘点调整记录",
       },
       {
+        key: "opening",
+        label: "期初库存",
+        route: routeTarget("opening-new"),
+        icon: "document",
+        requires: "stock_reconciliation.create",
+        description: "录入尚无库存流水的期初数量",
+      },
+      {
         key: "drafts",
         label: "草稿",
         route: routeTarget("drafts"),

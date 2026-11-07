@@ -320,10 +320,15 @@ export function createNativeEditor(options: {
       if (active(requestEpoch)) fail(error);
     }
   }
-  async function load(identity: NativeIdentity, discardDirty = false) {
+  async function load(
+    identity: NativeIdentity,
+    discardDirty = false,
+    suppliedResponse?: NativeDocument,
+  ) {
     const requestEpoch = ++epoch;
     try {
-      const response = await options.services.load(identity);
+      const response =
+        suppliedResponse || (await options.services.load(identity));
       if (!active(requestEpoch)) return;
       if (
         !discardDirty &&

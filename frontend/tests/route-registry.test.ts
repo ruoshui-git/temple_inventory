@@ -38,6 +38,12 @@ const router = createRouter({
 router.beforeEach(guardReservedRoute);
 
 describe("canonical application route registry", () => {
+  it("routes opening stock to its dedicated editor and requires native create permission", () => {
+    const opening = routeRegistry.find((route) => route.name === "opening-new");
+    expect(opening?.path).toBe("/counts/opening/new");
+    expect(opening?.requires).toBe("stock_reconciliation.create");
+    expect(routeTarget("opening-new").name).toBe("opening-new");
+  });
   it("round trips every sortable field and direction against each browse view default", () => {
     const surfaces = [
       ["inventory", "summary"],
@@ -106,6 +112,7 @@ describe("canonical application route registry", () => {
       "loan-overview",
       "counts",
       "count-new",
+      "opening-new",
       "count-detail",
       "activities",
       "activity-new",

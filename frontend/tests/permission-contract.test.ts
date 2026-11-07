@@ -22,6 +22,7 @@ describe("Phase 1 permission contract", () => {
     );
     expect(requires["movement-new"]).toBe("stock_entry.create");
     expect(requires["count-new"]).toBe("stock_reconciliation.create");
+    expect(requires["opening-new"]).toBe("stock_reconciliation.create");
     expect(requires["item-new"]).toBe("item.create");
     expect(requires["item-edit"]).toBe("item.write");
     expect(requires.setup).toBe("settings.write");
@@ -76,12 +77,25 @@ describe("Phase 1 permission contract", () => {
         capabilities,
       ).some((item) => item.key === "setup"),
     ).toBe(false);
+    expect(
+      filterNavigation(
+        moreNavigation.flatMap((group) => group.items),
+        capabilities,
+      ).some((item) => item.key === "opening"),
+    ).toBe(false);
     capabilities.settings.write = true;
     expect(
       filterNavigation(
         moreNavigation.flatMap((group) => group.items),
         capabilities,
       ).some((item) => item.key === "setup"),
+    ).toBe(true);
+    capabilities.stock_reconciliation.create = true;
+    expect(
+      filterNavigation(
+        moreNavigation.flatMap((group) => group.items),
+        capabilities,
+      ).some((item) => item.key === "opening"),
     ).toBe(true);
   });
 });

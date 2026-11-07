@@ -29,6 +29,9 @@ function recover(entry: RecoverySnapshot) {
 function newCount() {
 	void router.push(routeTarget("count-new", {}, { editor: crypto.randomUUID() }));
 }
+function newOpening() {
+	void router.push(routeTarget("opening-new", {}, { editor: crypto.randomUUID() }));
+}
 </script>
 <template>
 	<NativeRecordsPage
@@ -39,6 +42,7 @@ function newCount() {
 		@open-document="(doctype, name) => router.push(documentDestination(doctype, name))"
 		@recover="recover"
 		@new-count="newCount"
+		@new-opening="newOpening"
 		@open-export="router.push(exportDestination($event))"
 		@new-operation="(kind) => router.push(routeTarget('movement-new', { kind }))"
 	/>

@@ -133,6 +133,16 @@ async function capture(page: Page, route: string, label: string) {
           .getByText("确认时自动记录当前时间。")
           .or(page.getByRole("combobox", { name: "时间方式" })),
       ).toBeVisible();
+    } else if (label === "count-opening-stock") {
+      await expect(page.locator(".opening-readonly")).toBeVisible();
+      await expect(page.locator(".opening-summary .metric")).toHaveCount(4);
+      await expect(
+        page.locator(".opening-readonly .count-readonly-table"),
+      ).toBeVisible();
+      await expect(
+        page.getByText("估值金额", { exact: true }).first(),
+      ).toBeVisible();
+      await expect(page.locator(".count-workspace")).toHaveCount(0);
     } else {
       await expect(page.locator(".count-readonly")).toBeVisible();
       await expect(page.locator(".count-readonly th")).toHaveCount(8);

@@ -36,6 +36,7 @@ export function useCountEditor(props: {
   name?: string;
   warehouse?: string;
   recoveryId?: string;
+  initialDocument?: NativeDocument;
 }) {
   const services = useInventoryServices(),
     reference = useReferenceData(),
@@ -415,6 +416,7 @@ export function useCountEditor(props: {
             name: props.name || state.identity!.name,
           },
           discardDirty,
+          props.initialDocument,
         );
       if (!active()) return;
       if (state.identity?.doctype === "Stock Reconciliation") {

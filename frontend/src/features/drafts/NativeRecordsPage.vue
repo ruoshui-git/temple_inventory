@@ -17,6 +17,7 @@ const emit = defineEmits<{
 	openDocument: [doctype: string, name: string];
 	recover: [entry: RecoverySnapshot];
 	newCount: [];
+	newOpening: [];
 	openExport: [query: ReportQuery];
 	newOperation: [kind: string];
 }>();
@@ -31,6 +32,7 @@ defineExpose({ controller });
 		@open-document="(doctype, name) => emit('openDocument', doctype, name)"
 		@recover="emit('recover', $event)"
 		@new-count="emit('newCount')"
+		@new-opening="emit('newOpening')"
 		@open-export="emit('openExport', $event)"
 		@new-operation="emit('newOperation', $event)"
 	/>

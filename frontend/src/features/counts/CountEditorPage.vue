@@ -2,12 +2,14 @@
 import type { ReportQuery } from "../../lib/reportContract";
 import CountEditorView from "./CountEditorView.vue";
 import { useCountEditor } from "./useCountEditor";
+import type { NativeDocument } from "../documents/nativeEditor";
 const props = withDefaults(
 	defineProps<{
 		name?: string;
 		warehouse?: string;
 		recoveryId?: string;
 		active?: boolean;
+		initialDocument?: NativeDocument;
 	}>(),
 	{ active: true },
 );

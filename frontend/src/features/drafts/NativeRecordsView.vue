@@ -79,6 +79,7 @@ const emit = defineEmits<{
 	openDocument: [doctype: string, name: string];
 	recover: [entry: RecoverySnapshot];
 	newCount: [];
+	newOpening: [];
 	openExport: [query: ReportQuery];
 	newOperation: [kind: string];
 }>();
@@ -528,20 +529,13 @@ function openDetailsRow() {
 					<UiButton icon="export" @click="exportMenu?.open()">导出</UiButton>
 				</BrowseOverflowMenu>
 				<BrowseSplitButton
-					v-if="isMobile && can('stock_reconciliation.create')"
+					v-if="can('stock_reconciliation.create')"
 					label="新建盘点"
 					kind="count"
 					icon="count"
-					:options="[]"
-					@select="emit('newCount')"
+					:options="[{ label: '新建期初库存', kind: 'opening', icon: 'document' }]"
+					@select="$event === 'opening' ? emit('newOpening') : emit('newCount')"
 				/>
-				<UiButton
-					v-else-if="can('stock_reconciliation.create')"
-					variant="primary"
-					icon="count"
-					@click="emit('newCount')"
-					>新建盘点</UiButton
-				>
 			</template>
 			<template #subtitle>
 				<p class="browse-subtitle">
