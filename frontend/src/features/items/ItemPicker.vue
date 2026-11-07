@@ -23,7 +23,8 @@ import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import { itemPickerColumns } from "./itemPickerColumns";
 import { earliestBatchExpiry, showOnlyStockFilter } from "../documents/creationFormPresentation";
-import { useOptionalInventoryServices } from "../../services/contracts";
+import { useOptionalInventoryServices, useReferenceData } from "../../services/contracts";
+import { can } from "../../lib/capabilities";
 import FilterRailEdge from "../../components/ui/FilterRailEdge.vue";
 import { useConfirm } from "../../services/confirm";
 
@@ -97,7 +98,11 @@ const emit = defineEmits<{
 const multiple = computed(
 	() => props.mode === "add-multiple" && props.createBarcode === undefined,
 );
-const creating = ref(!!props.allowCreate && props.createBarcode !== undefined),
+const capabilityReference = useReferenceData();
+const mayCreate = computed(() =>
+	Boolean(props.allowCreate && can(capabilityReference.capabilities, "item.create")),
+);
+const creating = ref(mayCreate.value && props.createBarcode !== undefined),
 	pendingMultiple = ref(false);
 const picker = useItemPicker(props, (item) => emit("itemLoaded", item));
 const createdPreview = ref<{ code: string; name: string; image: string }>();
@@ -378,7 +383,7 @@ function captureScanContext() {
 	};
 }
 function scanCreateBarcode(barcode: string, context?: unknown) {
-	if (!props.allowCreate) return;
+	if (!mayCreate.value) return;
 	scanCreate.value = true;
 	scanCreateError.value = "";
 	scanCreateCode.value = "";
@@ -650,7 +655,7 @@ async function selectExisting(code: string, warehouse: string) {
 					</section>
 					<ScanPanel
 						ref="scanPanel"
-						:allow-create="allowCreate"
+						:allow-create="mayCreate"
 						:hide-trigger="true"
 						:inline="true"
 						:hide-finish-action="true"
@@ -705,7 +710,7 @@ async function selectExisting(code: string, warehouse: string) {
 								load(true);
 						"
 					>
-						<div v-if="allowCreate" class="picker-create-sticky">
+						<div v-if="mayCreate" class="picker-create-sticky">
 							<UiButton variant="secondary" @click="showCreate(true)"
 								>新建物品</UiButton
 							>

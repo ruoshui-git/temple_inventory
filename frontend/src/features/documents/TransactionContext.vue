@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useCapabilities } from "../../composables/useCapabilities";
 import { nextTick, ref, watch } from "vue";
 import type { OperationDraft } from "./operationModel";
 import { useInventoryServices, useReferenceData } from "../../services/contracts";
@@ -14,6 +15,7 @@ const props = defineProps<{
 	activityLabel: string;
 	mode?: "edit" | "display";
 }>();
+const { can } = useCapabilities();
 const emit = defineEmits<{ dirtyChange: [value: boolean] }>();
 const services = useInventoryServices(),
 	reference = useReferenceData();
@@ -134,7 +136,7 @@ async function search(search: string, start: number, signal: AbortSignal) {
 						: undefined
 				"
 			/><UiButton
-				v-if="!draft.loanName"
+				v-if="!draft.loanName && can('activity.create')"
 				ref="trigger"
 				:disabled="disabled"
 				class="form-field-action"

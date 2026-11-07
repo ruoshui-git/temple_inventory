@@ -67,7 +67,10 @@ watch([field, warehouse], () => c.clearPreview());
 					已存在但无权读取的仓库须先处理授权，不能重新创建。配置变更后请重新检查库存页面。
 				</p>
 			</section>
-			<section v-if="status.can_initialize" class="surface utility-panel">
+			<section
+				v-if="status.can_initialize && c.canWrite.value"
+				class="surface utility-panel"
+			>
 				<h2>建立必需仓库</h2>
 				<FormField
 					for="configuration-company"
@@ -106,7 +109,10 @@ watch([field, warehouse], () => c.clearPreview());
 					>
 				</dl>
 			</section>
-			<section v-if="status.selected_company" class="surface utility-panel">
+			<section
+				v-if="status.selected_company && c.canWrite.value"
+				class="surface utility-panel"
+			>
 				<h2>修复配置引用</h2>
 				<p>
 					选择当前可读取的仓库，查看替代范围与影响后再确认。修改引用不会移动库存或调整仓库上级。

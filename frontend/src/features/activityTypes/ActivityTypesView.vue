@@ -13,10 +13,15 @@ import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import type { useActivityTypesController } from "./useActivityTypesController";
 import type { ActivityTypeRow } from "../../services/activityTypes";
+import { useCapabilities } from "../../composables/useCapabilities";
 
 const props = defineProps<{ controller: ReturnType<typeof useActivityTypesController> }>();
 const c = props.controller;
 const { isMobile } = useResponsiveLayout();
+const { can } = useCapabilities();
+const mayCreate = computed(() => can("activity_type.create"));
+const mayWrite = computed(() => can("activity_type.write"));
+const mayDelete = computed(() => can("activity_type.delete"));
 const filtered = computed(() => Boolean(c.search.value.trim()) || c.statusFilter.value !== "all");
 const columns: DataColumn[] = [
 	{ id: "label", label: "名称", kind: "primary", required: true, pinned: "start" },
@@ -49,11 +54,11 @@ function orderDisabled(row: Record<string, unknown>, delta: -1 | 1) {
 			:filter-count="Number(c.statusFilter.value !== 'all')"
 		>
 			<template #actions>
-				<UiButton v-if="!isMobile" variant="primary" @click="c.openCreate"
+				<UiButton v-if="!isMobile && mayCreate" variant="primary" @click="c.openCreate"
 					>新建类型</UiButton
 				>
 				<BrowseSplitButton
-					v-else
+					v-else-if="mayCreate"
 					label="新建类型"
 					kind="Activity"
 					icon="calendar"
@@ -100,24 +105,35 @@ function orderDisabled(row: Record<string, unknown>, delta: -1 | 1) {
 					row.enabled ? "启用" : "停用"
 				}}</template>
 				<template v-else-if="column.id === 'actions'">
-					<div class="activity-type-actions">
+					<div v-if="mayWrite || mayDelete" class="activity-type-actions">
 						<IconButton
+							v-if="mayWrite"
 							label="上移"
 							:disabled="orderDisabled(row, -1)"
 							@click="c.move(activityType(row), -1)"
 							>↑</IconButton
 						>
 						<IconButton
+							v-if="mayWrite"
 							label="下移"
 							:disabled="orderDisabled(row, 1)"
 							@click="c.move(activityType(row), 1)"
 							>↓</IconButton
 						>
-						<PopupMenu label="活动类型操作" variant="icon" align="end">
-							<UiButton icon="settings" @click="c.openEdit(activityType(row))"
+						<PopupMenu
+							v-if="mayWrite || mayDelete"
+							label="活动类型操作"
+							variant="icon"
+							align="end"
+						>
+							<UiButton
+								v-if="mayWrite"
+								icon="settings"
+								@click="c.openEdit(activityType(row))"
 								>编辑</UiButton
 							>
 							<UiButton
+								v-if="mayDelete"
 								icon="disposal"
 								variant="danger"
 								:disabled="!row.deletable"
@@ -149,22 +165,32 @@ function orderDisabled(row: Record<string, unknown>, delta: -1 | 1) {
 					<span>活动数 {{ row.activity_count }}</span
 					><span>{{ row.enabled ? "启用" : "停用" }}</span>
 				</div>
-				<div class="activity-types-phone-actions">
+				<div v-if="mayWrite || mayDelete" class="activity-types-phone-actions">
 					<IconButton
+						v-if="mayWrite"
 						label="上移"
 						:disabled="filtered || index === 0"
 						@click="c.move(row, -1)"
 						>↑</IconButton
 					>
 					<IconButton
+						v-if="mayWrite"
 						label="下移"
 						:disabled="filtered || index === c.visible.value.length - 1"
 						@click="c.move(row, 1)"
 						>↓</IconButton
 					>
-					<PopupMenu label="活动类型操作" variant="icon" align="end">
-						<UiButton icon="settings" @click="c.openEdit(row)">编辑</UiButton>
+					<PopupMenu
+						v-if="mayWrite || mayDelete"
+						label="活动类型操作"
+						variant="icon"
+						align="end"
+					>
+						<UiButton v-if="mayWrite" icon="settings" @click="c.openEdit(row)"
+							>编辑</UiButton
+						>
 						<UiButton
+							v-if="mayDelete"
 							icon="disposal"
 							variant="danger"
 							:disabled="!row.deletable"

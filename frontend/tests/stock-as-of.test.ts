@@ -175,6 +175,8 @@ describe("stock page as-of reading", () => {
     reference.siteDate = "2026-11-02";
     reference.user = "Administrator";
     reference.operations = { Receive: true, Issue: true, Transfer: true };
+    reference.capabilities.stock_entry.create = true;
+    reference.capabilities.item.create = true;
     let result!: ReturnType<typeof useStockBrowseController>;
     const child = defineComponent({
       setup() {

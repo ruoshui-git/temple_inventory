@@ -42,7 +42,10 @@ function setup(call: ReturnType<typeof vi.fn>, recovery?: RecoverySnapshot) {
   Object.assign(reference, {
     user: "volunteer",
     site: "unit-site",
-    capabilities: { "Item Group": { create: true, write: true, delete: true } },
+    capabilities: {
+      ...reference.capabilities!,
+      item_group: { create: true, write: true, delete: true },
+    },
   });
   if (recovery)
     createRecoveryStore(reference.site, reference.user, localStorage).save(

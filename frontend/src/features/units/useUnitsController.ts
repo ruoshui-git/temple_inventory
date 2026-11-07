@@ -5,6 +5,7 @@ import {
   useInventoryServices,
 } from "../../services/contracts";
 import { useConfirm } from "../../services/confirm";
+import { isForbiddenError } from "../../lib/serviceFailure";
 import { showToast } from "../../services/toast";
 import {
   deleteUnit,
@@ -33,6 +34,7 @@ export function useUnitsController() {
   const error = ref("");
   const labelError = ref("");
   const refreshError = ref("");
+  const forbidden = ref(false);
   const name = ref("");
   const label = ref("");
   const whole = ref(false);
@@ -66,11 +68,13 @@ export function useUnitsController() {
   async function refresh() {
     loading.value = true;
     refreshError.value = "";
+    forbidden.value = false;
     try {
       rows.value = await listUnits(services);
       categories.value = await listUnitCategories(services);
       initialized.value = true;
     } catch (reason) {
+      forbidden.value = isForbiddenError(reason);
       refreshError.value =
         reason instanceof Error ? reason.message : "单位列表读取失败";
     } finally {
@@ -201,6 +205,7 @@ export function useUnitsController() {
     error,
     labelError,
     refreshError,
+    forbidden,
     name,
     label,
     whole,

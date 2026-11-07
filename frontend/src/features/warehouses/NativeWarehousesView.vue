@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import PageHeader from "../../components/ui/PageHeader.vue";
 import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
+import ForbiddenState from "../../components/ui/ForbiddenState.vue";
 import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
 import BackButton from "../../components/ui/BackButton.vue";
 import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
@@ -35,6 +36,7 @@ const emit = defineEmits<{
 	newOperation: [kind: string, warehouse: string];
 }>();
 const c = props.controller;
+const back = () => window.history.back();
 const { isMobile } = useResponsiveLayout();
 const {
 	tree,
@@ -143,7 +145,8 @@ function parentLabel(name?: string) {
 				<SkeletonBlock variant="detail" :count="3" :rows="5" />
 			</div>
 		</div>
-		<p v-if="error" class="utility-error" role="alert">{{ error }}</p>
+		<ForbiddenState v-if="c.forbidden.value" @back="back" />
+		<p v-else-if="error" class="utility-error" role="alert">{{ error }}</p>
 		<BrowseResultSummary
 			v-if="!detail && tree"
 			:label="`${visibleRows.length} 个仓库节点`"
@@ -266,27 +269,44 @@ function parentLabel(name?: string) {
 								>缺少直接存放位置 · 补建</UiButton
 							>
 							<PopupMenu
-								v-if="selected.can_edit && !selected.protected"
+								v-if="
+									selected.can_edit &&
+									!selected.protected &&
+									c.reference.capabilities?.warehouse?.write === true
+								"
 								label="更多位置操作"
 								variant="icon"
 								align="end"
 								class="warehouse-action-menu"
 							>
-								<button type="button" @click="c.openEditor(selected, 'rename')">
+								<button
+									v-if="c.reference.capabilities?.warehouse?.write === true"
+									type="button"
+									@click="c.openEditor(selected, 'rename')"
+								>
 									<InventoryIcon class="menu-item-icon" name="settings" />
 									重命名
 								</button>
-								<button type="button" @click="c.openEditor(selected, 'move')">
+								<button
+									v-if="c.reference.capabilities?.warehouse?.write === true"
+									type="button"
+									@click="c.openEditor(selected, 'move')"
+								>
 									<InventoryIcon class="menu-item-icon" name="transfer" />
 									移动
 								</button>
-								<button type="button" @click="c.toggleDisabled(selected)">
+								<button
+									v-if="c.reference.capabilities?.warehouse?.write === true"
+									type="button"
+									@click="c.toggleDisabled(selected)"
+								>
 									<InventoryIcon class="menu-item-icon" name="adjust" />
 									{{ selected.disabled ? "启用" : "停用" }}
 								</button>
 								<button
 									type="button"
 									class="is-danger-text"
+									v-if="c.reference.capabilities?.warehouse?.delete === true"
 									:disabled="deleteBusy"
 									@click="c.deleteLocation(selected)"
 								>

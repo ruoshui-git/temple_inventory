@@ -4,6 +4,10 @@ import { computed, defineComponent, h, ref } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 import UnitsView from "../src/features/units/UnitsView.vue";
 import { useFormValidation } from "../src/composables/useFormValidation";
+import {
+  createReferenceData,
+  provideReferenceData,
+} from "../src/services/contracts";
 
 const stubs = {
   BrowseToolbar: defineComponent({
@@ -138,10 +142,19 @@ function fixture(isMobile = true) {
     toggleEnabled: vi.fn(),
     remove: vi.fn(),
   };
-  const wrapper = mount(UnitsView, {
-    props: { controller: controller as never },
-    global: { stubs },
-  });
+  const reference = createReferenceData();
+  reference.capabilities.uom.create = true;
+  reference.capabilities.uom.write = true;
+  reference.capabilities.uom.delete = true;
+  const wrapper = mount(
+    defineComponent({
+      setup() {
+        provideReferenceData(reference);
+        return () => h(UnitsView, { controller: controller as never });
+      },
+    }),
+    { global: { stubs } },
+  );
   return { wrapper, controller };
 }
 

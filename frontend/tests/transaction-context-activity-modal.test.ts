@@ -41,6 +41,7 @@ function mountContext() {
     kind: "Loan",
   });
   const reference = createReferenceData();
+  reference.capabilities.activity.create = true;
   const host = defineComponent({
     setup() {
       provideInventoryServices(

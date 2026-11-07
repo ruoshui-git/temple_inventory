@@ -16,7 +16,7 @@ import {
 } from "../../lib/filterPresentation";
 import { reportFilterChips } from "../../lib/reportFilters";
 import { expiryStatus, type StockItem } from "../../lib/stockPresentation";
-import { isUnavailableError } from "../../lib/serviceFailure";
+import { isForbiddenError, isUnavailableError } from "../../lib/serviceFailure";
 import { useBrowseState } from "../../lib/browseMemory";
 import { onCategoryRenamed } from "../../lib/categoryRename";
 import { useReportGroups } from "../../composables/useReportGroups";
@@ -122,6 +122,7 @@ export function useStockBrowseController(
     next: null as number | null,
     loading: true,
     error: "",
+    forbidden: false,
     moreError: "",
     refreshFailed: false,
     summary: [] as ReportRow[],
@@ -247,10 +248,12 @@ export function useStockBrowseController(
       data.analysis = result.analysis;
       data.snapshot = result.snapshot;
       data.stale = false;
+      data.forbidden = false;
       data.refreshFailed = false;
     } catch (error) {
       if (current !== generation || reference.user !== account) return;
       if (isUnavailableError(error)) clearData();
+      data.forbidden = isForbiddenError(error);
       const message = error instanceof Error ? error.message : "库存加载失败";
       if (more) data.moreError = message;
       else {
@@ -376,14 +379,18 @@ export function useStockBrowseController(
         kind: "Transfer",
         icon: kindIcons.Transfer.icon,
       },
-    ].filter(
-      (action) =>
-        action.kind === "Item" ||
-        (!asOfActive.value && reference.operations[action.kind] === true),
+    ].filter((action) =>
+      action.kind === "Item"
+        ? Boolean(reference.capabilities?.item?.create)
+        : !asOfActive.value &&
+          Boolean(reference.capabilities?.stock_entry?.create) &&
+          reference.operations[action.kind] === true,
     ),
   );
   const selectedActions = computed<BulkAction[]>(() =>
-    selection.selected.value.length && !asOfActive.value
+    selection.selected.value.length &&
+    !asOfActive.value &&
+    Boolean(reference.capabilities?.stock_entry?.create)
       ? [
           {
             name: kindIcons.Receive.label,
@@ -414,6 +421,11 @@ export function useStockBrowseController(
             : []),
         ].filter((action) => reference.operations[action.kind] === true)
       : [],
+  );
+  const selectionAvailable = computed(
+    () =>
+      actions.value.some((action) => action.kind !== "Item") ||
+      selectedActions.value.length > 0,
   );
   function selectedAction(kind: string) {
     if (
@@ -453,6 +465,7 @@ export function useStockBrowseController(
   }
   return {
     actions,
+    selectionAvailable,
     selectedActions,
     selectedAction,
     rowAction,

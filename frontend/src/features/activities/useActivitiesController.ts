@@ -29,6 +29,7 @@ import {
 } from "../../composables/useBrowseViewMode";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import type { NativeActivity } from "./useActivityEditor";
+import { isForbiddenError } from "../../lib/serviceFailure";
 
 interface ActivityDetail extends NativeActivity {
   summary: ReportRow;
@@ -102,6 +103,7 @@ export function useActivitiesController(
   const detail = ref<ActivityDetail>(),
     loading = ref(false),
     error = ref(""),
+    forbidden = ref(false),
     busy = ref(false),
     deleteOpen = ref(false);
   let generation = 0,
@@ -182,6 +184,7 @@ export function useActivitiesController(
     request?.abort();
     detail.value = undefined;
     error.value = "";
+    forbidden.value = false;
     deleteOpen.value = false;
     if (props.mode !== "detail" || !props.name) return;
     loading.value = true;
@@ -195,8 +198,10 @@ export function useActivitiesController(
       if (disposed || current !== generation) return;
       detail.value = value;
     } catch (reason) {
-      if (!disposed && current === generation)
+      if (!disposed && current === generation) {
+        forbidden.value = isForbiddenError(reason);
         error.value = reason instanceof Error ? reason.message : "活动读取失败";
+      }
     } finally {
       if (!disposed && current === generation) loading.value = false;
     }
@@ -390,6 +395,7 @@ export function useActivitiesController(
     projection,
     loading,
     error,
+    forbidden,
     busy,
     deleteOpen,
     loadDetail,
@@ -416,8 +422,14 @@ export function useActivitiesController(
     secondaryChips,
     activityMovementCounts,
     activityTypeLabel,
-    canWrite: computed(() => Boolean(detail.value)),
-    canDelete: computed(() => Boolean(detail.value)),
+    canWrite: computed(() =>
+      Boolean(detail.value && reference.capabilities?.activity?.write === true),
+    ),
+    canDelete: computed(() =>
+      Boolean(
+        detail.value && reference.capabilities?.activity?.delete === true,
+      ),
+    ),
     open: (id: string) => navigate("detail", id),
     saved: (id: string) => navigate("detail", id),
     edit: () => navigate("form", props.name),

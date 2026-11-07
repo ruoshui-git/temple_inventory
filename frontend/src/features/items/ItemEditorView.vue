@@ -62,6 +62,9 @@ function submit() {
 					images-only
 					image-role="main"
 					:disabled="!canWrite || busy || conflict"
+					:can-add="canWrite"
+					:can-remove="canWrite"
+					:can-primary="canWrite"
 				/>
 			</section>
 			<dl v-if="!canWrite && !loading" class="info-grid">
@@ -98,6 +101,9 @@ function submit() {
 				v-if="controller.stockItem.value"
 				:item="controller.stockItem.value"
 				:disabled="!canWrite || busy || conflict"
+				:can-add="canWrite"
+				:can-remove="canWrite"
+				:can-primary="canWrite"
 				:inline="contextual"
 				@dirty-change="conversionDirty = $event"
 				@updated="controller.conversionsUpdated"

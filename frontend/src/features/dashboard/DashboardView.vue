@@ -185,12 +185,20 @@ const scopeLabel = computed(() => {
 });
 const hasMoreActions = computed(
 	() =>
-		reference.operations.Reconcile === true ||
+		canCreate("Reconcile") ||
 		["Damage", "Loss", "Repair", "Disposal"].some(canCreate) ||
-		reference.operations.Return === true,
+		canCreate("Return"),
 );
 function canCreate(kind: string) {
-	return reference.operations[kind] === true;
+	return kind === "Reconcile"
+		? Boolean(
+				reference.operations.Reconcile === true &&
+				Boolean(reference.capabilities?.stock_reconciliation?.create),
+			)
+		: Boolean(
+				reference.operations[kind] === true &&
+				Boolean(reference.capabilities?.stock_entry?.create),
+			);
 }
 function quickAction(kind: string) {
 	emit("navigate", operationDestination(kind));
@@ -301,7 +309,7 @@ function datasetChanged(dataset: ReportDataset) {
 				<template #trigger>更多<DisclosureIcon variant="popup" /></template>
 				<div class="dashboard-more-actions-menu">
 					<UiButton
-						v-if="reference.operations.Reconcile === true"
+						v-if="canCreate('Reconcile')"
 						:icon="kindIcons.Reconcile.icon"
 						@click="navigateMore(countDestination())"
 						>{{ kindIcons.Reconcile.label }}</UiButton
@@ -331,7 +339,7 @@ function datasetChanged(dataset: ReportDataset) {
 						>{{ kindIcons.Disposal.label }}</UiButton
 					>
 					<UiButton
-						v-if="reference.operations.Return === true"
+						v-if="canCreate('Return')"
 						:icon="kindIcons.Return.icon"
 						@click="chooseOutstandingLoan"
 						>{{ kindIcons.Return.label }} · 选择未结清借用</UiButton
@@ -350,7 +358,7 @@ function datasetChanged(dataset: ReportDataset) {
 				<template #trigger>更多<DisclosureIcon variant="popup" /></template>
 				<div class="dashboard-more-actions-menu">
 					<UiButton
-						v-if="reference.operations.Reconcile === true"
+						v-if="canCreate('Reconcile')"
 						:icon="kindIcons.Reconcile.icon"
 						@click="navigateMore(countDestination())"
 						>{{ kindIcons.Reconcile.label }}</UiButton
@@ -380,7 +388,7 @@ function datasetChanged(dataset: ReportDataset) {
 						>{{ kindIcons.Disposal.label }}</UiButton
 					>
 					<UiButton
-						v-if="reference.operations.Return === true"
+						v-if="canCreate('Return')"
 						:icon="kindIcons.Return.icon"
 						@click="chooseOutstandingLoan"
 						>{{ kindIcons.Return.label }} · 选择未结清借用</UiButton

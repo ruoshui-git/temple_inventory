@@ -53,7 +53,11 @@ function setup() {
     { name: "包", whole: true },
     { name: "kg", whole: false },
   ];
-  reference.capabilities = { Item: { write: true }, UOM: { create: true } };
+  reference.capabilities = {
+    ...reference.capabilities!,
+    item: { create: true, write: true, delete: true },
+    uom: { create: true, write: true, delete: true },
+  };
   const child = defineComponent({
     setup() {
       controller = useConversionEditor({ line, item }, applied, dirty, updated);
@@ -186,11 +190,11 @@ describe("recorded line and native reusable conversions", () => {
         "",
       );
   });
-  it("does not gate conversion editing by Item permissions and allows historical factors", async () => {
-    const { controller, line, item, call } = setup();
-    item.canEdit = false;
+  it("gates reusable conversion writes by Item permission and allows historical factors", async () => {
+    const { controller, line, reference, call } = setup();
+    reference.capabilities!.item.write = false;
     await flushPromises();
-    expect(controller.canUpdate.value).toBe(true);
+    expect(controller.canUpdate.value).toBe(false);
     controller.reuse.value = false;
     controller.factor.value = 5;
     await controller.apply();

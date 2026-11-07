@@ -25,6 +25,35 @@ for (const width of [375, 1024, 1440]) {
             density: "balanced",
             textScale: 100,
           },
+          role_label: "管理员",
+          capabilities: {
+            stock_entry: {
+              read: true,
+              create: true,
+              write: true,
+              submit: true,
+              cancel: true,
+              amend: true,
+              delete: true,
+            },
+            stock_reconciliation: {
+              read: true,
+              create: true,
+              write: true,
+              submit: true,
+              cancel: true,
+              amend: true,
+              delete: true,
+            },
+            item: { create: true, write: true, delete: true },
+            batch: { create: true, write: true },
+            activity: { create: true, write: true, delete: true },
+            activity_type: { create: true, write: true, delete: true },
+            item_group: { create: true, write: true, delete: true },
+            uom: { create: true, write: true, delete: true },
+            warehouse: { create: true, write: true, delete: true },
+            settings: { write: true },
+          },
         };
       else if (method === "temple_inventory.configuration.status")
         message = { setup_required: false, blockers: [], warnings: [] };
@@ -43,7 +72,13 @@ for (const width of [375, 1024, 1440]) {
           uoms: [],
           activity_types: [],
           capabilities: {},
-          operations: {},
+          operations: {
+            Receive: true,
+            Issue: true,
+            Transfer: true,
+            Loan: true,
+            Return: true,
+          },
         };
       else if (method === "temple_inventory.browse.inventory_page") {
         const start = Number(args.start || 0),

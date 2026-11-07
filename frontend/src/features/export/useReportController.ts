@@ -17,7 +17,7 @@ import {
 import { decodeReportQuery } from "../../lib/reportQuery";
 import { browseDefaults } from "../../lib/browseDefaults";
 import { onCategoryRenamed } from "../../lib/categoryRename";
-import { isUnavailableError } from "../../lib/serviceFailure";
+import { isForbiddenError, isUnavailableError } from "../../lib/serviceFailure";
 import { useBrowseState } from "../../lib/browseMemory";
 import { useReportGroups } from "../../composables/useReportGroups";
 
@@ -53,6 +53,7 @@ export function useReportController(
     total: 0,
     loading: false,
     error: "",
+    forbidden: false,
     refreshFailed: false,
     stale: false,
     period: "",
@@ -119,6 +120,7 @@ export function useReportController(
     requests.add(controller);
     result.loading = true;
     result.error = "";
+    result.forbidden = false;
     result.refreshFailed = false;
     result.stale = result.tables.some((table) => table.rows.length > 0);
     try {
@@ -160,6 +162,7 @@ export function useReportController(
       result.refreshFailed = false;
     } catch (error) {
       if (requestGeneration === generation && reference.user === account) {
+        result.forbidden = isForbiddenError(error);
         if (isUnavailableError(error)) clearUnavailable();
         result.error =
           error instanceof Error ? error.message : "读取导出数据失败";
@@ -207,6 +210,7 @@ export function useReportController(
       merge(table, page, more);
     } catch (error) {
       if (requestGeneration === generation && reference.user === account) {
+        if (isForbiddenError(error)) result.forbidden = true;
         if (isUnavailableError(error)) clearUnavailable();
         table.error = error instanceof Error ? error.message : "加载数据失败";
         if (isUnavailableError(error)) result.error = table.error;

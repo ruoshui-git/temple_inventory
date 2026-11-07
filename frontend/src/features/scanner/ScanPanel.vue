@@ -41,6 +41,9 @@ const emit = defineEmits<{
 	finish: [];
 }>();
 const reference = useReferenceData();
+const mayCreate = computed(() =>
+	Boolean(props.allowCreate && reference.capabilities?.item?.create),
+);
 const {
 	value,
 	result,
@@ -418,7 +421,7 @@ defineExpose({
 				</template>
 				<template v-if="result.unknown">
 					<p>未找到 {{ result.barcode }}</p>
-					<UiButton v-if="allowCreate" @click="createUnknown(result.barcode)"
+					<UiButton v-if="mayCreate" @click="createUnknown(result.barcode)"
 						>新建物品</UiButton
 					>
 					<p v-else>请检查条码或在入库时新建物品。</p>

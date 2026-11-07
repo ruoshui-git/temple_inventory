@@ -6,6 +6,7 @@ import {
 import type { MovementHistoryRow, ReportRow } from "../../lib/reportContract";
 import { useFormValidation } from "../../composables/useFormValidation";
 import { useConfirm } from "../../services/confirm";
+import { isForbiddenError } from "../../lib/serviceFailure";
 
 export interface BatchDetail {
   name: string;
@@ -53,6 +54,7 @@ export function useBatchDetailController(props: {
     locationsSortBy = ref("identity"),
     locationsSortDirection = ref<"asc" | "desc">("asc"),
     error = ref(""),
+    forbidden = ref(false),
     historyError = ref(""),
     locationError = ref(""),
     success = ref(""),
@@ -108,6 +110,7 @@ export function useBatchDetailController(props: {
     clear();
     loading.value = true;
     error.value = "";
+    forbidden.value = false;
     try {
       const result = await services.call<BatchDetail>(
         "catalog.batch_details",
@@ -118,8 +121,10 @@ export function useBatchDetailController(props: {
       batch.value = result;
       setDraft(result);
     } catch (reason) {
-      if (active(current))
+      if (active(current)) {
+        forbidden.value = isForbiddenError(reason);
         error.value = reason instanceof Error ? reason.message : "批次读取失败";
+      }
     } finally {
       if (active(current)) loading.value = false;
     }
@@ -367,6 +372,7 @@ export function useBatchDetailController(props: {
     locationsSortBy,
     locationsSortDirection,
     error,
+    forbidden,
     historyError,
     locationError,
     success,

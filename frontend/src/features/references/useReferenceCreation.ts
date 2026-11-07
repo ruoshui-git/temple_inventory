@@ -30,7 +30,11 @@ export function useReferenceCreation(
     parent = ref(""),
     busy = ref(false),
     error = ref("");
-  const permitted = computed(() => true);
+  const permitted = computed(() =>
+    kind === "unit"
+      ? Boolean(reference.capabilities?.uom?.create)
+      : Boolean(reference.capabilities?.item_group?.create),
+  );
   const stopCategoryRename = onCategoryRenamed(({ oldName, category }) => {
     if (kind === "category" && parent.value === oldName)
       parent.value = category.name;

@@ -5,6 +5,7 @@ import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h, reactive } from "vue";
 import {
   createReferenceData,
+  emptyCapabilities,
   provideInventoryServices,
   type ReportPage,
 } from "../src/services/contracts";
@@ -81,9 +82,9 @@ describe("native Activity browse scopes", () => {
     reference.user = "Administrator";
     reference.site = "unit-site";
     reference.siteDate = "2026-10-23";
-    reference.capabilities = {
-      "Inventory Activity": { read: true, write: true, create: true },
-    };
+    reference.capabilities = emptyCapabilities();
+    reference.capabilities.activity.write = true;
+    reference.capabilities.activity.create = true;
     reference.activityTypes = [
       { value: "TYPE-A", label: "分发", enabled: true },
     ];

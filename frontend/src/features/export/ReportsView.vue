@@ -10,6 +10,7 @@ import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import { formatSiteDateTime } from "../../lib/nativeTime";
 import UiButton from "../../components/ui/UiButton.vue";
 import BrowseRefreshNotice from "../../components/ui/BrowseRefreshNotice.vue";
+import ForbiddenState from "../../components/ui/ForbiddenState.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import PeriodFilter from "../../components/ui/PeriodFilter.vue";
 import RemoteSelect from "../../components/ui/RemoteSelect.vue";
@@ -48,6 +49,7 @@ const props = withDefaults(
 	}>(),
 	{ active: true },
 );
+const back = () => window.history.back();
 const emit = defineEmits<{
 	openDocument: [doctype: string, name: string];
 	newOperation: [kind: string];
@@ -696,7 +698,10 @@ function setGroup(index: number, value: string) {
 			期初 + 流入 − 流出 + 有符号调整 = 期末。按 ERPNext 库存流水计算。
 		</p>
 
-		<p v-if="result.error" role="alert">{{ result.error }}</p>
+		<ForbiddenState v-if="result.forbidden" @back="back" />
+		<p v-else-if="result.error" role="alert">
+			{{ result.error }} <UiButton @click="refresh(true)">重试读取</UiButton>
+		</p>
 		<div class="browse-body">
 			<aside
 				v-if="sidebarOpen && sidebarAvailable && !isMobile"

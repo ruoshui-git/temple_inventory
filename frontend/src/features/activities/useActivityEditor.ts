@@ -99,7 +99,12 @@ export function useActivityEditor(
     () => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(),
   );
   const writable = computed(
-    () => active() && (existing.value ? true : !props.activityId),
+    () =>
+      active() &&
+      (existing.value
+        ? reference.capabilities?.activity?.write === true
+        : !props.activityId &&
+          reference.capabilities?.activity?.create === true),
   );
   function retain() {
     if (!ready || !active() || discarded) return;
@@ -270,7 +275,7 @@ export function useActivityEditor(
       conflict.value = [
         "TimestampMismatchError",
         "DoesNotExistError",
-        "PermissionError",
+        "forbidden",
       ].includes(String((reason as { kind?: string })?.kind));
       retain();
     } finally {

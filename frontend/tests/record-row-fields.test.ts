@@ -7,6 +7,7 @@ import {
   createReferenceData,
   provideInventoryServices,
   type ReferenceData,
+  emptyCapabilities,
 } from "../src/services/contracts";
 import { useActivitiesController } from "../src/features/activities/useActivitiesController";
 import ActivitiesView from "../src/features/activities/ActivitiesView.vue";
@@ -40,8 +41,12 @@ function referenceData(): ReferenceData {
     units: [{ name: "Nos", label: "个" }],
     activityTypes: [{ value: "TYPE-A", label: "分发", enabled: true }],
     capabilities: {
-      "Inventory Activity": { read: true, write: true, create: true },
-      "Stock Reconciliation": { create: true },
+      ...emptyCapabilities(),
+      stock_entry: { ...emptyCapabilities().stock_entry, write: true },
+      stock_reconciliation: {
+        ...emptyCapabilities().stock_reconciliation,
+        write: true,
+      },
     },
   });
   return reference;
@@ -364,6 +369,7 @@ describe("草稿 rows and table share 显示字段", () => {
     expect(headers.some((text) => text.includes("明细摘要"))).toBe(false);
     expect(headers.some((text) => text.includes("草稿"))).toBe(true);
     expect(table.text()).toContain("继续编辑");
+    expect(table.text()).not.toContain("删除");
   });
 
   it("keeps the phone 表格视图 toggle and 显示字段 in the summary row", async () => {

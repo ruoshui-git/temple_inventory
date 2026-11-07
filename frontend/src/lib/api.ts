@@ -81,6 +81,10 @@ export async function request(
             /Not permitted|permission denied/i.test(clean)
           ? "您没有执行此操作的权限"
           : clean || "操作失败";
+    if (errorKind === "PermissionError" || r.status === 403) {
+      window.dispatchEvent(new Event("inventory-permission-error"));
+      throw new ApiError(translated, r.status, "forbidden");
+    }
     throw new ApiError(translated, r.status, errorKind);
   }
   return body.message;
@@ -149,5 +153,7 @@ export async function refreshSession() {
     user: string;
     csrf_token: string;
     ui_preferences: DisplayPreferences;
+    role_label?: string;
+    capabilities?: import("../services/contracts").CapabilitySet;
   };
 }

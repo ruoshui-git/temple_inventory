@@ -156,6 +156,65 @@ export interface InventoryServices {
     progress?: (value: number) => void,
   ): Promise<Record<string, unknown>>;
 }
+
+export interface CapabilitySet {
+  stock_entry: Record<
+    "read" | "create" | "write" | "submit" | "cancel" | "amend" | "delete",
+    boolean
+  >;
+  stock_reconciliation: Record<
+    "read" | "create" | "write" | "submit" | "cancel" | "amend" | "delete",
+    boolean
+  >;
+  item: Record<"create" | "write" | "delete", boolean>;
+  batch: Record<"create" | "write", boolean>;
+  activity: Record<"create" | "write" | "delete", boolean>;
+  activity_type: Record<"create" | "write" | "delete", boolean>;
+  item_group: Record<"create" | "write" | "delete", boolean>;
+  uom: Record<"create" | "write" | "delete", boolean>;
+  warehouse: Record<"create" | "write" | "delete", boolean>;
+  settings: { write: boolean };
+}
+export function emptyCapabilities(): CapabilitySet {
+  const all = (keys: string[]) =>
+    Object.fromEntries(keys.map((key) => [key, false]));
+  return {
+    stock_entry: all([
+      "read",
+      "create",
+      "write",
+      "submit",
+      "cancel",
+      "amend",
+      "delete",
+    ]) as CapabilitySet["stock_entry"],
+    stock_reconciliation: all([
+      "read",
+      "create",
+      "write",
+      "submit",
+      "cancel",
+      "amend",
+      "delete",
+    ]) as CapabilitySet["stock_reconciliation"],
+    item: all(["create", "write", "delete"]) as CapabilitySet["item"],
+    batch: all(["create", "write"]) as CapabilitySet["batch"],
+    activity: all(["create", "write", "delete"]) as CapabilitySet["activity"],
+    activity_type: all([
+      "create",
+      "write",
+      "delete",
+    ]) as CapabilitySet["activity_type"],
+    item_group: all([
+      "create",
+      "write",
+      "delete",
+    ]) as CapabilitySet["item_group"],
+    uom: all(["create", "write", "delete"]) as CapabilitySet["uom"],
+    warehouse: all(["create", "write", "delete"]) as CapabilitySet["warehouse"],
+    settings: { write: false },
+  };
+}
 export interface ReferenceOption {
   value: string;
   label: string;
@@ -164,6 +223,8 @@ export interface ReferenceOption {
   enabled?: boolean;
 }
 export interface ReferenceData {
+  capabilities: CapabilitySet | null;
+  role_label: string;
   user: string;
   site: string;
   siteDate: string;
@@ -191,6 +252,8 @@ export interface ReferenceData {
 }
 export function createReferenceData(): ReferenceData {
   return reactive({
+    capabilities: emptyCapabilities(),
+    role_label: "",
     user: "",
     site: "",
     siteDate: "",

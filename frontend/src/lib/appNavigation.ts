@@ -5,6 +5,8 @@ import {
   type AppRouteTarget,
 } from "./routeRegistry";
 import { kindIcons } from "./kindIcons";
+import { routeAllowed, type CapabilityKey } from "./capabilities";
+import type { CapabilitySet } from "../services/contracts";
 
 type AppDestination = AppOwner;
 export interface NavigationItem {
@@ -12,6 +14,24 @@ export interface NavigationItem {
   label: string;
   route: AppRouteTarget;
   icon: string;
+  requires?: CapabilityKey;
+  description?: string;
+}
+export interface NavigationGroup {
+  label: string;
+  items: NavigationItem[];
+}
+
+export function filterNavigation<T extends object>(
+  items: readonly T[],
+  capabilities: CapabilitySet | null,
+) {
+  return items.filter((item) =>
+    routeAllowed(
+      (item as T & { requires?: CapabilityKey }).requires,
+      capabilities,
+    ),
+  );
 }
 
 export const primaryNavigation: (NavigationItem & { key: AppDestination })[] = [
@@ -55,7 +75,7 @@ export const inventoryNavigation: NavigationItem[] = [
   },
 ];
 
-export const moreNavigation = [
+export const moreNavigation: NavigationGroup[] = [
   {
     label: "工作工具",
     items: [
@@ -119,6 +139,7 @@ export const moreNavigation = [
         route: routeTarget("setup"),
         icon: "sliders",
         description: "配置库存范围并恢复开发样例",
+        requires: "settings.write",
       },
       {
         key: "settings",

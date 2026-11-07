@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import PageHeader from "./components/ui/PageHeader.vue";
 import { computed, onMounted, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import ApplicationShell from "./components/ApplicationShell.vue";
 import RouteBreadcrumbs from "./components/RouteBreadcrumbs.vue";
 import UiButton from "./components/ui/UiButton.vue";
@@ -18,7 +18,10 @@ import { showToast } from "./services/toast";
 import { createBrowseMemory, provideBrowseMemory } from "./lib/browseMemory";
 import { routeViewIdentity } from "./lib/routeRegistry";
 import { configurePreferenceSave } from "./lib/uiPreferences";
+import { routeAllowed } from "./lib/capabilities";
+import ForbiddenState from "./components/ui/ForbiddenState.vue";
 const route = useRoute(),
+	router = useRouter(),
 	reference = createReferenceData();
 const pageIdentity = computed(() => {
 	// Query replacement keeps the editor/controller; Back/Forward and a fresh
@@ -78,6 +81,12 @@ onMounted(() => {
 	announceUpdate();
 });
 const contentKey = computed(() => `${state.version}:${pageIdentity.value}`);
+const routeForbidden = computed(() => {
+	return !routeAllowed(
+		route.meta.requires as import("./lib/capabilities").CapabilityKey | undefined,
+		reference.capabilities,
+	);
+});
 </script>
 <template>
 	<div class="inventory-app" data-inventory-app>
@@ -114,7 +123,10 @@ const contentKey = computed(() => `${state.version}:${pageIdentity.value}`);
 		</main>
 		<main v-else-if="state.gate === 'setup'" class="app-content">
 			<RouteBreadcrumbs />
-			<ConfigurationPage @changed="c.check" />
+			<ConfigurationPage v-if="reference.capabilities?.settings?.write" @changed="c.check" />
+			<section v-else class="surface form-section">
+				<p>尚未完成配置，请联系管理员</p>
+			</section>
 		</main>
 		<template v-else>
 			<ApplicationShell>
@@ -149,7 +161,8 @@ const contentKey = computed(() => `${state.version}:${pageIdentity.value}`);
 						>检查库存设置</a
 					><UiButton :loading="state.loading" @click="c.check">重新检查</UiButton>
 				</section>
-				<RouterView :key="contentKey" />
+				<ForbiddenState v-if="routeForbidden" @back="router.push({ name: 'home' })" />
+				<RouterView v-else :key="contentKey" />
 			</ApplicationShell>
 			<TaskTray />
 			<Overlay

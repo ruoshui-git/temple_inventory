@@ -426,7 +426,10 @@ function stock(site = "header-test") {
     user: "manager",
     site,
     operations: { Receive: true, Issue: true, Transfer: true },
-    capabilities: { Item: { create: true } },
+    capabilities: {
+      ...reference.capabilities!,
+      item: { ...reference.capabilities!.item, create: true },
+    },
     categories: [
       { name: "food", label: "食品", is_group: true, lft: 1, rgt: 4 },
       { name: "rice", label: "米", parent: "food", lft: 2, rgt: 3 },
@@ -434,6 +437,7 @@ function stock(site = "header-test") {
     ],
     warehouses: [{ name: "ROOM", label: "库房" }],
   });
+  reference.capabilities.stock_entry.create = true;
   const call = vi.fn(async () => ({
     rows: [
       {

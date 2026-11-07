@@ -5,6 +5,7 @@ import { defineComponent, h, reactive } from "vue";
 import { createMemoryHistory, createRouter } from "vue-router";
 import {
   createReferenceData,
+  emptyCapabilities,
   provideInventoryServices,
 } from "../src/services/contracts";
 import {
@@ -98,7 +99,12 @@ function setup(
     site: "unit-site",
     user: "volunteer",
     operations: { Return: true },
+    capabilities: emptyCapabilities(),
   });
+  reference.capabilities.stock_entry.create = true;
+  reference.capabilities.stock_entry.write = true;
+  reference.capabilities.stock_entry.submit = true;
+  reference.capabilities.item.create = true;
   const changed = vi.fn();
   const child = defineComponent({
     setup() {

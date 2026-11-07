@@ -61,6 +61,7 @@ const preview = {
 function setup(call = vi.fn(async () => status), gallery = false) {
   const reference = createReferenceData();
   Object.assign(reference, { user: "manager", site: "site" });
+  reference.capabilities.settings.write = true;
   const wrapper = mount(
     defineComponent({
       setup() {

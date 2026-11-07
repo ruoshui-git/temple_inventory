@@ -16,7 +16,8 @@ import {
   clearReportSecondaryFilters,
 } from "../../lib/reportFilters";
 import type { OperationGroup } from "../movements/useOperationBrowse";
-import { isUnavailableError } from "../../lib/serviceFailure";
+import { isForbiddenError, isUnavailableError } from "../../lib/serviceFailure";
+import { canOnDoctype } from "../../lib/capabilities";
 import { useBrowseState } from "../../lib/browseMemory";
 import { useReportGroups } from "../../composables/useReportGroups";
 import {
@@ -74,7 +75,8 @@ export function useNativeRecords(
   const loading = ref(false),
     initialized = ref(false),
     stale = ref(false),
-    error = ref("");
+    error = ref(""),
+    forbidden = ref(false);
   const snapshot = ref(""),
     deleteTarget = ref<NativeRecord>(),
     deleteBusy = ref(false),
@@ -222,6 +224,7 @@ export function useNativeRecords(
       total.value = page.matched_count;
       next.value = page.next_start;
       snapshot.value = page.snapshot;
+      forbidden.value = false;
       initialized.value = true;
       stale.value = false;
     } catch (reason) {
@@ -234,6 +237,7 @@ export function useNativeRecords(
           initialized.value = false;
           stale.value = false;
         }
+        forbidden.value = isForbiddenError(reason);
         error.value = reason instanceof Error ? reason.message : "记录读取失败";
       }
     } finally {
@@ -297,7 +301,13 @@ export function useNativeRecords(
     filtersAtDefaults(query.value, pageDefaults(), ["groupBy"]),
   );
   function canDelete(row: NativeRecord) {
-    return active() && !loading.value && !stale.value && row.docstatus === 0;
+    return (
+      canOnDoctype(reference.capabilities, row.doctype, "delete") &&
+      active() &&
+      !loading.value &&
+      !stale.value &&
+      row.docstatus === 0
+    );
   }
   async function removeNative() {
     const selected = deleteTarget.value;
@@ -364,6 +374,7 @@ export function useNativeRecords(
     initialized,
     stale,
     error,
+    forbidden,
     snapshot,
     extraChips,
     atDefaults,

@@ -104,7 +104,6 @@ describe("ItemPicker unknown barcode creation", () => {
       user: "operator",
       site: "picker-test.local",
       units: [{ name: "Nos", whole: true }],
-      capabilities: { Item: { create: true } },
       categories: [
         { name: "ROOT", label: "用品", parent: "", is_group: false },
       ],
@@ -114,6 +113,7 @@ describe("ItemPicker unknown barcode creation", () => {
         { name: "ROOM-B", label: "房间乙", is_group: false },
       ],
     });
+    reference.capabilities.item.create = true;
     const host = defineComponent({
       setup() {
         provideInventoryServices(

@@ -7,6 +7,8 @@ import InventoryIcon from "../../components/InventoryIcon.vue";
 import type { AppRouteTarget } from "../../lib/routeRegistry";
 import { routeTarget } from "../../lib/routeRegistry";
 import { computed } from "vue";
+import { useOptionalReferenceData } from "../../services/contracts";
+import { filterNavigation } from "../../lib/appNavigation";
 const props = defineProps<{ controller: MoreController }>();
 const emit = defineEmits<{ navigate: [route: AppRouteTarget] }>();
 const c = props.controller,
@@ -22,28 +24,12 @@ const c = props.controller,
 		guidance,
 		canInstall,
 	} = c;
+const reference = useOptionalReferenceData();
 const displayGroups = computed(() =>
-	c.groups.map((group) =>
-		group.label === "管理与设置"
-			? {
-					...group,
-					items: group.items.flatMap((item) =>
-						item.key === "settings"
-							? [
-									item,
-									{
-										key: "notification-settings",
-										label: "通知设置",
-										route: routeTarget("notification-settings"),
-										icon: "notice",
-										description: "管理应用内通知与本设备推送",
-									},
-								]
-							: [item],
-					),
-				}
-			: group,
-	),
+	c.groups.map((group) => ({
+		...group,
+		items: filterNavigation(group.items, reference?.capabilities ?? null),
+	})),
 );
 </script>
 <template>
@@ -93,6 +79,7 @@ const displayGroups = computed(() =>
 				<div class="more-card surface account-card">
 					<strong>当前账户</strong>
 					<p :title="c.reference.user">{{ c.reference.user }}</p>
+					<small>{{ c.reference.role_label }}</small>
 					<UiButton variant="ghost" @click="logoutOpen = true">退出登录</UiButton>
 				</div>
 			</div>

@@ -41,7 +41,9 @@ export function useConversionEditor(
   const unit = ref(initialUnit),
     quantity = ref(enteredQty(props.line)),
     factor = ref<number | string>("");
-  const canUpdate = computed(() => true);
+  const canUpdate = computed(() =>
+    Boolean(reference.capabilities?.item?.write),
+  );
   const reuse = ref(canUpdate.value),
     busy = ref(false),
     error = ref(""),
@@ -141,18 +143,6 @@ export function useConversionEditor(
     }
     if ((reuse.value || props.reusableOnly) && !canUpdate.value) {
       error.value = "没有更新物品的权限；输入已保留。";
-      return;
-    }
-    if (
-      !canUpdate.value &&
-      unit.value !== props.line.uom &&
-      Number(factor.value) !== savedFactor.value &&
-      !(
-        unit.value === props.line.entryUom &&
-        Number(factor.value) === props.line.conversionFactor
-      )
-    ) {
-      error.value = "您只能使用此物品已有或本行已记录的计量单位与换算。";
       return;
     }
     error.value = props.reusableOnly

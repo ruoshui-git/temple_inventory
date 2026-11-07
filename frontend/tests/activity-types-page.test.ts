@@ -4,6 +4,10 @@ import { computed, defineComponent, h, ref } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 import ActivityTypesView from "../src/features/activityTypes/ActivityTypesView.vue";
 import type { ActivityTypeRow } from "../src/services/activityTypes";
+import {
+  createReferenceData,
+  provideReferenceData,
+} from "../src/services/contracts";
 
 const stubs = {
   BrowseToolbar: defineComponent({
@@ -130,10 +134,19 @@ function fixture(mobile = true) {
     remove: vi.fn(),
     move: vi.fn(),
   };
-  const wrapper = mount(ActivityTypesView, {
-    props: { controller: controller as never },
-    global: { stubs },
-  });
+  const reference = createReferenceData();
+  reference.capabilities.activity_type.create = true;
+  reference.capabilities.activity_type.write = true;
+  reference.capabilities.activity_type.delete = true;
+  const wrapper = mount(
+    defineComponent({
+      setup() {
+        provideReferenceData(reference);
+        return () => h(ActivityTypesView, { controller: controller as never });
+      },
+    }),
+    { global: { stubs } },
+  );
   return { wrapper, controller };
 }
 afterEach(() => {

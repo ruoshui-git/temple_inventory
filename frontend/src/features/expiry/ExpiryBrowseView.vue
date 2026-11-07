@@ -50,6 +50,7 @@ import ExpiryCell from "./ExpiryCell.vue";
 import CardFields from "../../components/ui/CardFields.vue";
 import RowFieldsSheet from "../../components/ui/RowFieldsSheet.vue";
 import BrowseEmpty from "../../components/ui/BrowseEmpty.vue";
+import ForbiddenState from "../../components/ui/ForbiddenState.vue";
 import ColumnSettings from "../../components/ui/ColumnSettings.vue";
 import { orderedVisibleColumns } from "../../lib/dataTable";
 import { partitionCardColumns, ROW_FIELD_LIMIT } from "../../lib/cardLayout";
@@ -66,6 +67,7 @@ const emit = defineEmits<{
 		allocations?: { item_code: string; warehouse: string; batch_no: string; qty: number }[],
 	];
 }>();
+const back = () => window.history.back();
 const c = props.controller,
 	{
 		query,
@@ -80,6 +82,11 @@ const c = props.controller,
 		view,
 		viewOptions,
 	} = c;
+const selectionAvailable = computed(
+	() =>
+		Boolean(c.reference.capabilities?.stock_entry?.create) &&
+		["Issue", "Transfer", "Damage"].some((kind) => c.reference.operations[kind] === true),
+);
 const { isMobile } = useResponsiveLayout();
 function clearExpiryFilters() {
 	c.reset();
@@ -414,7 +421,7 @@ function canExpiryAction() {
 				/>
 				<BrowseOverflowMenu>
 					<UiButton
-						v-if="isMobile"
+						v-if="isMobile && (c.selecting.value || selectionAvailable)"
 						icon="select"
 						:aria-pressed="c.selecting.value"
 						@click="c.selecting.value ? c.exitSelection() : c.enterSelection()"
@@ -425,7 +432,7 @@ function canExpiryAction() {
 					>
 				</BrowseOverflowMenu>
 				<UiButton
-					v-if="!isMobile"
+					v-if="!isMobile && (c.selecting.value || selectionAvailable)"
 					icon="select"
 					:aria-pressed="c.selecting.value"
 					@click="c.selecting.value ? c.exitSelection() : c.enterSelection()"
@@ -562,7 +569,8 @@ function canExpiryAction() {
 			variant="list"
 			:rows="5"
 		/>
-		<p v-if="!usesTable && result.error" role="alert">
+		<ForbiddenState v-if="result.forbidden" @back="back" />
+		<p v-else-if="!usesTable && result.error" role="alert">
 			{{ result.error }} <UiButton @click="c.retry">重试</UiButton>
 		</p>
 

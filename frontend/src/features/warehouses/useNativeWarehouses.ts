@@ -12,6 +12,7 @@ import {
 } from "../../lib/browserRecovery";
 import { useUpdateBlocker } from "../../lib/updateSafety";
 import { useBrowseState } from "../../lib/browseMemory";
+import { isForbiddenError } from "../../lib/serviceFailure";
 import { showToast } from "../../services/toast";
 import { useFormValidation } from "../../composables/useFormValidation";
 import { useConfirm } from "../../services/confirm";
@@ -48,6 +49,7 @@ export function useNativeWarehouses(
     error = ref(""),
     selectedName = ref(props.initialWarehouse || ""),
     search = ref(props.initialSearch || "");
+  const forbidden = ref(false);
   const expanded = ref(new Set<string>()),
     dialogOpen = ref(false),
     busy = ref(false),
@@ -256,6 +258,7 @@ export function useNativeWarehouses(
     request = controller;
     loading.value = true;
     error.value = "";
+    forbidden.value = false;
     try {
       const [value, configuration] = await Promise.all([
         services.call<WarehouseTree>("warehouses.tree", {}, controller.signal),
@@ -297,9 +300,11 @@ export function useNativeWarehouses(
         openEditor();
       }
     } catch (reason) {
-      if (active() && current === generation)
+      if (active() && current === generation) {
+        forbidden.value = isForbiddenError(reason);
         error.value =
           reason instanceof Error ? reason.message : "位置资料读取失败";
+      }
     } finally {
       if (active() && current === generation) loading.value = false;
     }
@@ -500,7 +505,14 @@ export function useNativeWarehouses(
     );
   }
   async function deleteLocation(row: NativeWarehouse) {
-    if (!active() || deleteBusy.value || !row.can_edit || row.protected) return;
+    if (
+      !active() ||
+      deleteBusy.value ||
+      !row.can_edit ||
+      row.protected ||
+      reference.capabilities?.warehouse?.delete !== true
+    )
+      return;
     const accepted = await useConfirm().confirm({
       title: `删除位置「${row.full_label || row.label}」？`,
       message: "此操作不能撤销。仅未使用的位置可以删除。",
@@ -593,6 +605,7 @@ export function useNativeWarehouses(
     tree,
     loading,
     error,
+    forbidden,
     search,
     selected,
     selectedName,

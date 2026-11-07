@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import type { BatchDetailController } from "./useBatchDetailController";
 import PageHeader from "../../components/ui/PageHeader.vue";
+import ForbiddenState from "../../components/ui/ForbiddenState.vue";
 import BackButton from "../../components/ui/BackButton.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
@@ -155,7 +156,8 @@ function openDocument(row: Record<string, unknown>) {
 			:count="3"
 			:rows="3"
 		/>
-		<div v-if="c.error.value" role="alert" class="utility-error">
+		<ForbiddenState v-if="c.forbidden?.value === true" @back="emit('back')" />
+		<div v-else-if="c.error.value" role="alert" class="utility-error">
 			{{ c.error.value }} <UiButton @click="c.reload">重新读取</UiButton>
 		</div>
 		<p v-if="c.success.value" role="status">{{ c.success.value }}</p>

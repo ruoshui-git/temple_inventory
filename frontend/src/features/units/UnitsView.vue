@@ -14,10 +14,17 @@ import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import { useArrayTableSort } from "../../composables/useArrayTableSort";
 import type { useUnitsController } from "./useUnitsController";
 import type { UnitRow } from "../../services/units";
+import { useCapabilities } from "../../composables/useCapabilities";
+import ForbiddenState from "../../components/ui/ForbiddenState.vue";
 
 const props = defineProps<{ controller: ReturnType<typeof useUnitsController> }>();
 const c = props.controller;
+const back = () => window.history.back();
 const { isMobile } = useResponsiveLayout();
+const { can } = useCapabilities();
+const mayCreate = computed(() => can("uom.create"));
+const mayWrite = computed(() => can("uom.write"));
+const mayDelete = computed(() => can("uom.delete"));
 // The server refuses to disable a unit that Items still use.
 function inUse(row: Record<string, unknown>) {
 	return Boolean(row.enabled) && Number(row.item_count) + Number(row.conversion_count) > 0;
@@ -111,11 +118,11 @@ const filterLabels = computed(() => ({
 			:filter-count="filterCount"
 		>
 			<template #actions>
-				<UiButton v-if="!isMobile" variant="primary" @click="c.openCreate"
+				<UiButton v-if="!isMobile && mayCreate" variant="primary" @click="c.openCreate"
 					>新建单位</UiButton
 				>
 				<BrowseSplitButton
-					v-else
+					v-else-if="mayCreate"
 					label="新建单位"
 					kind="Unit"
 					icon="box"
@@ -175,12 +182,13 @@ const filterLabels = computed(() => ({
 				</div>
 			</template>
 		</BrowseToolbar>
-		<p v-if="c.refreshError.value" class="notice-bar danger" role="alert">
+		<ForbiddenState v-if="c.forbidden?.value === true" @back="back" />
+		<p v-else-if="c.refreshError.value" class="notice-bar danger" role="alert">
 			{{ c.refreshError.value }}
 			<UiButton :loading="c.loading.value" @click="c.refresh">重新读取</UiButton>
 		</p>
 		<DataTable
-			v-if="!isMobile"
+			v-if="!isMobile && c.forbidden?.value !== true"
 			ariaLabel="计量单位"
 			:columns="columns"
 			:rows="groupedRows"
@@ -201,13 +209,16 @@ const filterLabels = computed(() => ({
 					row.enabled ? "启用" : "停用"
 				}}</template>
 				<PopupMenu
-					v-else-if="column.id === 'actions'"
+					v-else-if="column.id === 'actions' && (mayWrite || mayDelete)"
 					label="单位操作"
 					variant="icon"
 					align="end"
 				>
-					<UiButton icon="settings" @click="c.openEdit(row as never)">编辑</UiButton>
+					<UiButton v-if="mayWrite" icon="settings" @click="c.openEdit(row as never)"
+						>编辑</UiButton
+					>
 					<UiButton
+						v-if="mayWrite"
 						icon="warning"
 						:disabled="inUse(row)"
 						@click="c.toggleEnabled(row as never)"
@@ -218,6 +229,7 @@ const filterLabels = computed(() => ({
 						>
 					</UiButton>
 					<UiButton
+						v-if="mayDelete"
 						icon="disposal"
 						variant="danger"
 						:disabled="!row.deletable"
@@ -233,7 +245,11 @@ const filterLabels = computed(() => ({
 				<template v-else>{{ row[String(column.id)] }}</template>
 			</template>
 		</DataTable>
-		<div v-else class="units-phone-rows" aria-label="计量单位">
+		<div
+			v-else-if="c.forbidden?.value !== true"
+			class="units-phone-rows"
+			aria-label="计量单位"
+		>
 			<template v-for="entry in groupedRows" :key="entry.id">
 				<button
 					v-if="entry.kind === 'group'"
@@ -266,11 +282,16 @@ const filterLabels = computed(() => ({
 							variant="icon"
 							align="end"
 							class="units-phone-actions"
+							v-if="mayWrite || mayDelete"
 						>
-							<UiButton icon="settings" @click="c.openEdit(row as never)"
+							<UiButton
+								v-if="mayWrite"
+								icon="settings"
+								@click="c.openEdit(row as never)"
 								>编辑</UiButton
 							>
 							<UiButton
+								v-if="mayWrite"
 								icon="warning"
 								:disabled="inUse(row)"
 								@click="c.toggleEnabled(row as never)"
@@ -283,6 +304,7 @@ const filterLabels = computed(() => ({
 								>
 							</UiButton>
 							<UiButton
+								v-if="mayDelete"
 								icon="disposal"
 								variant="danger"
 								:disabled="!row.deletable"
@@ -350,7 +372,7 @@ const filterLabels = computed(() => ({
 						</select>
 					</template>
 				</FormField>
-				<div class="unit-category-create">
+				<div v-if="mayWrite" class="unit-category-create">
 					<input
 						v-model="c.categoryName.value"
 						aria-label="新单位类别名称"

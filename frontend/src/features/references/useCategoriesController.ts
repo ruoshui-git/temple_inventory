@@ -14,6 +14,7 @@ import { showToast } from "../../services/toast";
 import type { CategoryDraft } from "./CategoryFormFields.vue";
 import { useFormValidation } from "../../composables/useFormValidation";
 import { useConfirm } from "../../services/confirm";
+import { isForbiddenError } from "../../lib/serviceFailure";
 
 export interface Category extends Record<string, unknown> {
   name: string;
@@ -43,6 +44,7 @@ export function useCategoriesController() {
   const initializedState = ref(false);
   const error = ref("");
   const refreshError = ref("");
+  const forbidden = ref(false);
   const success = ref("");
   const removeTarget = ref<Category>();
   const editing = ref<Category>();
@@ -83,9 +85,15 @@ export function useCategoriesController() {
   const active = (current = generation) =>
     !disposed && current === generation && account === reference.user;
   const categories = computed(() => reference.categories as Category[]);
-  const canCreate = computed(() => true);
-  const canWrite = computed(() => true);
-  const canDelete = computed(() => true);
+  const canCreate = computed(() =>
+    Boolean(reference.capabilities?.item_group?.create),
+  );
+  const canWrite = computed(() =>
+    Boolean(reference.capabilities?.item_group?.write),
+  );
+  const canDelete = computed(() =>
+    Boolean(reference.capabilities?.item_group?.delete),
+  );
   const dirty = computed(
     () =>
       dialog.value &&
@@ -186,6 +194,7 @@ export function useCategoriesController() {
     request = controller;
     loading.value = true;
     refreshError.value = "";
+    forbidden.value = false;
     try {
       const result = await services.call<Category[]>(
         "catalog.category_tree",
@@ -196,9 +205,15 @@ export function useCategoriesController() {
       reference.categories.splice(0, reference.categories.length, ...result);
       initializedState.value = true;
     } catch (reason) {
-      if (!controller.signal.aborted && active(current))
+      if (!controller.signal.aborted && active(current)) {
+        forbidden.value = isForbiddenError(reason);
+        if (forbidden.value) {
+          reference.categories.splice(0);
+          initializedState.value = false;
+        }
         refreshError.value =
           reason instanceof Error ? reason.message : "分类列表读取失败";
+      }
     } finally {
       if (active(current) && request === controller) loading.value = false;
     }
@@ -490,6 +505,7 @@ export function useCategoriesController() {
     loading,
     initialized: initializedState,
     refreshError,
+    forbidden,
     error,
     success,
     removeTarget,

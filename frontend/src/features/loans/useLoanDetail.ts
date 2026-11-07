@@ -9,6 +9,7 @@ import type { NativeDocument } from "../documents/nativeEditor";
 import { useAttachments } from "../attachments/useAttachments";
 import { useMovementHistory } from "../movements/useMovementHistory";
 import { useBrowseState } from "../../lib/browseMemory";
+import { isForbiddenError } from "../../lib/serviceFailure";
 
 export interface LoanOutcomes {
   Returned: number;
@@ -76,7 +77,8 @@ export function useLoanDetail(props: { name: string }) {
     account = reference.user;
   const loan = ref<LoanDocument>(),
     loading = ref(false),
-    error = ref("");
+    error = ref(""),
+    forbidden = ref(false);
   let generation = 0,
     disposed = false,
     request: AbortController | undefined;
@@ -186,6 +188,7 @@ export function useLoanDetail(props: { name: string }) {
     files.error.value = "";
     loading.value = true;
     error.value = "";
+    forbidden.value = false;
     try {
       const value = await loadLoanDocument(
         services,
@@ -196,9 +199,15 @@ export function useLoanDetail(props: { name: string }) {
       loan.value = value;
       void loadFiles(current);
     } catch (reason) {
-      if (active() && current === generation)
+      if (active() && current === generation) {
+        forbidden.value = isForbiddenError(reason);
+        if (forbidden.value) {
+          loan.value = undefined;
+          files.clear();
+        }
         error.value =
           reason instanceof Error ? reason.message : "借出记录不存在或无权访问";
+      }
     } finally {
       if (active() && current === generation) loading.value = false;
     }
@@ -217,6 +226,7 @@ export function useLoanDetail(props: { name: string }) {
     loan,
     loading,
     error,
+    forbidden,
     files,
     load,
     loadFiles,

@@ -14,6 +14,7 @@ import {
   normalizeReportQuery,
 } from "./reportQuery";
 import { browseDefaults } from "./browseDefaults";
+import type { CapabilityKey } from "./capabilities";
 
 type AppRouteName =
   | "home"
@@ -79,6 +80,7 @@ interface AppRouteDefinition {
   capabilities: readonly (
     "browse" | "create" | "edit" | "detail" | "recovery" | "auth"
   )[];
+  requires?: CapabilityKey;
   breadcrumbs: readonly BreadcrumbDefinition[];
 }
 
@@ -156,6 +158,17 @@ const route = (
     "count-new",
     "count-detail",
   ].includes(name),
+  requires: (
+    {
+      "movement-new": "stock_entry.create",
+      "count-new": "stock_reconciliation.create",
+      "item-new": "item.create",
+      "item-edit": "item.write",
+      "activity-new": "activity.create",
+      "activity-edit": "activity.write",
+      setup: "settings.write",
+    } as Record<string, CapabilityKey>
+  )[name],
 });
 
 export const routeRegistry: readonly AppRouteDefinition[] = [
@@ -477,6 +490,7 @@ export const routeRecords: RouteRecordRaw[] = routeRegistry.map((entry) => ({
     stateIdentity: entry.stateIdentity,
     reservedParams: entry.reservedParams,
     taskEditor: entry.taskEditor,
+    requires: entry.requires,
   },
 }));
 

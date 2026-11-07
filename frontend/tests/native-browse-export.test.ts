@@ -160,7 +160,7 @@ describe("scope and permission refresh boundaries", () => {
     vi.mocked(service.call).mockRejectedValueOnce(
       Object.assign(new Error("已无权读取"), {
         status: 403,
-        kind: "PermissionError",
+        kind: "forbidden",
       }),
     );
     await controller.load();
@@ -179,7 +179,7 @@ describe("scope and permission refresh boundaries", () => {
     vi.mocked(service.report).mockRejectedValueOnce(
       Object.assign(new Error("已无权读取"), {
         status: 403,
-        kind: "PermissionError",
+        kind: "forbidden",
       }),
     );
     await controller.refresh();
@@ -830,8 +830,9 @@ describe("native dashboard cards", () => {
       siteDate: "2026-10-16",
       user: "planner",
       capabilities: {
-        "Stock Entry": { create: true, read: true },
-        "Stock Reconciliation": { create: true },
+        ...createReferenceData().capabilities,
+        stock_entry: { create: true },
+        stock_reconciliation: { create: true },
       },
       operations: {
         Receive: true,

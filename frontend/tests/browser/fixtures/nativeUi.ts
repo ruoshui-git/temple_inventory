@@ -1,4 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
+import type { CapabilitySet } from "../../src/services/contracts";
 import { existsSync } from "node:fs";
 
 export const auditCjkFont = [
@@ -17,6 +18,35 @@ export function requiredAuditCjkFont() {
   if (!auditCjkFont) throw new Error("No readable CJK audit font is available");
   return auditCjkFont;
 }
+
+export const fullNativeCapabilities: CapabilitySet = {
+  stock_entry: {
+    read: true,
+    create: true,
+    write: true,
+    submit: true,
+    cancel: true,
+    amend: true,
+    delete: true,
+  },
+  stock_reconciliation: {
+    read: true,
+    create: true,
+    write: true,
+    submit: true,
+    cancel: true,
+    amend: true,
+    delete: true,
+  },
+  item: { create: true, write: true, delete: true },
+  batch: { create: true, write: true },
+  activity: { create: true, write: true, delete: true },
+  activity_type: { create: true, write: true, delete: true },
+  item_group: { create: true, write: true, delete: true },
+  uom: { create: true, write: true, delete: true },
+  warehouse: { create: true, write: true, delete: true },
+  settings: { write: true },
+};
 
 function place(
   name: string,
@@ -149,11 +179,96 @@ export async function nativeUiSession(
   page: Page,
   textScale = 100,
   bootstrap: Record<string, unknown> = {},
+  role: "Administrator" | "Viewer" | "Operator" | "Manager" = "Administrator",
 ) {
+  const capabilities = Object.fromEntries(
+    [
+      [
+        "stock_entry",
+        ["read", "create", "write", "submit", "cancel", "amend", "delete"],
+      ],
+      [
+        "stock_reconciliation",
+        ["read", "create", "write", "submit", "cancel", "amend", "delete"],
+      ],
+      ["item", ["create", "write", "delete"]],
+      ["batch", ["create", "write"]],
+      ["activity", ["create", "write", "delete"]],
+      ["activity_type", ["create", "write", "delete"]],
+      ["item_group", ["create", "write", "delete"]],
+      ["uom", ["create", "write", "delete"]],
+      ["warehouse", ["create", "write", "delete"]],
+      ["settings", ["write"]],
+    ].map(([domain, keys]) => [
+      domain,
+      Object.fromEntries((keys as string[]).map((key) => [key, true])),
+    ]),
+  );
+  const matrix: Record<string, string[]> = {
+    Viewer: [],
+    Operator: [
+      "stock_entry.create",
+      "stock_entry.write",
+      "stock_entry.submit",
+      "item.create",
+      "item.write",
+      "batch.create",
+      "batch.write",
+      "activity.create",
+      "activity.write",
+    ],
+    Manager: [
+      "stock_entry.create",
+      "stock_entry.write",
+      "stock_entry.submit",
+      "stock_entry.cancel",
+      "stock_entry.amend",
+      "stock_entry.delete",
+      "stock_reconciliation.create",
+      "stock_reconciliation.write",
+      "stock_reconciliation.submit",
+      "stock_reconciliation.cancel",
+      "stock_reconciliation.amend",
+      "stock_reconciliation.delete",
+      "item.create",
+      "item.write",
+      "batch.create",
+      "batch.write",
+      "activity.create",
+      "activity.write",
+      "activity_type.create",
+      "activity_type.write",
+      "activity_type.delete",
+      "item_group.create",
+      "item_group.write",
+      "item_group.delete",
+      "uom.create",
+      "uom.write",
+      "uom.delete",
+    ],
+  };
+  if (role !== "Administrator") {
+    for (const domain of Object.keys(capabilities))
+      for (const action of Object.keys((capabilities as any)[domain]))
+        (capabilities as any)[domain][action] = false;
+    for (const item of matrix[role]) {
+      const [domain, action] = item.split(".");
+      (capabilities as any)[domain][action] = true;
+    }
+    for (const domain of ["stock_entry", "stock_reconciliation"])
+      (capabilities as any)[domain].read = true;
+  }
   const replies = {
     "session.info": {
       user: "manager",
       csrf_token: "native-ui-test",
+      role_label: {
+        Administrator: "管理员",
+        Viewer: "只读",
+        Operator: "录入员",
+        Manager: "负责人",
+      }[role],
+      capabilities,
       ui_preferences: {
         theme: "jade",
         density: "balanced",
@@ -170,6 +285,25 @@ export async function nativeUiSession(
       setup_required: false,
       blockers: [],
       warnings: [],
+    },
+    "warehouses.tree": {
+      rows: (
+        (bootstrap.warehouses as typeof sampleWarehouses | undefined) ||
+        sampleWarehouses
+      ).map((row) => ({
+        ...row,
+        can_edit: role === "Administrator" && row.can_edit,
+      })),
+      physical_root: "PHYSICAL",
+      can_create: role === "Administrator",
+      company: "TEST",
+    },
+    "catalog.item_lifecycle": {
+      disabled: false,
+      can_edit: role !== "Viewer",
+      can_delete: role === "Administrator",
+      tracking_changeable: true,
+      tracking_change_reason: "",
     },
     "browse.bootstrap": {
       user: "manager",
@@ -192,8 +326,17 @@ export async function nativeUiSession(
         { name: "箱", must_be_whole_number: true },
       ],
       activity_types: [],
-      capabilities: {},
-      operations: {},
+      capabilities,
+      operations: {
+        Receive: true,
+        Issue: true,
+        Transfer: true,
+        Loan: true,
+        Return: true,
+        Repair: true,
+        Disposal: true,
+        Reconcile: true,
+      },
       ...bootstrap,
     },
   };
@@ -201,6 +344,38 @@ export async function nativeUiSession(
     await page.route("**/api/method/temple_inventory." + method, (route) =>
       route.fulfill({ json: { message } }),
     );
+  await page.route(
+    "**/api/method/temple_inventory.native_api.load_document",
+    (route) => {
+      const payload = route.request().postDataJSON() as {
+        args?: { doctype?: string; name?: string };
+        doctype?: string;
+        name?: string;
+      };
+      const args = payload.args || payload;
+      const submitted = args.name === "TEST-SUBMITTED";
+      const reconciliation = args.doctype === "Stock Reconciliation";
+      route.fulfill({
+        json: {
+          message: {
+            doctype: args.doctype,
+            name: args.name,
+            version: "test-v1",
+            modified: "2026-10-16 12:00:00",
+            docstatus: submitted ? 1 : 0,
+            editable: false,
+            purpose: reconciliation ? "Stock Reconciliation" : undefined,
+            ti_movement_kind: reconciliation ? undefined : "Receive",
+            posting_date: "2026-10-16",
+            posting_time: "12:00:00",
+            items: [],
+            ti_count_review: [],
+            actions: submitted && role === "Manager" ? { cancel: true } : {},
+          },
+        },
+      });
+    },
+  );
 }
 
 /**

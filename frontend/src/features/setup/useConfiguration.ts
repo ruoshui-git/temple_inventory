@@ -47,6 +47,9 @@ export function useConfiguration(changed: () => void) {
     busy = ref(false),
     reviewing = ref(false),
     error = ref("");
+  const canWrite = computed(
+    () => reference.capabilities?.settings?.write === true,
+  );
   const company = ref(""),
     field = ref("physical_root_warehouse"),
     warehouse = ref("");
@@ -113,6 +116,7 @@ export function useConfiguration(changed: () => void) {
   async function review() {
     if (
       busy.value ||
+      !canWrite.value ||
       !status.value ||
       !active() ||
       !validation.validateField("configuration-warehouse")
@@ -144,6 +148,7 @@ export function useConfiguration(changed: () => void) {
       return;
     if (
       busy.value ||
+      !canWrite.value ||
       !active() ||
       !status.value ||
       (initialize
@@ -209,6 +214,7 @@ export function useConfiguration(changed: () => void) {
   void load();
   return {
     reference,
+    canWrite,
     status,
     loading,
     busy,

@@ -5,6 +5,7 @@ import { defineComponent, h } from "vue";
 import { createMemoryHistory, createRouter } from "vue-router";
 import {
   createReferenceData,
+  emptyCapabilities,
   provideInventoryServices,
   type InventoryServices,
 } from "../src/services/contracts";
@@ -69,11 +70,12 @@ function setup<T>(
     leasedLeaves: ["LEASED"],
     damagedLeaves: ["DAMAGED"],
     units: [{ name: "Nos", whole: true }],
-    capabilities: {
-      "Stock Entry": { create: true, submit: true },
-      Item: { create: true },
-    },
+    capabilities: emptyCapabilities(),
   });
+  reference.capabilities.stock_entry.create = true;
+  reference.capabilities.stock_entry.write = true;
+  reference.capabilities.stock_entry.submit = true;
+  reference.capabilities.item.create = true;
   const child = defineComponent({
     setup() {
       controller = factory();

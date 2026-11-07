@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import {
   auditCjkFontType,
+  fullNativeCapabilities,
   nativeUiSession,
   requiredAuditCjkFont,
   centerForPointer,
@@ -287,7 +288,14 @@ async function setup(
       },
     ],
     capabilities: { Item: { create: true }, "Stock Entry": { create: true } },
-    operations: { Receive: true, ...operationOverrides },
+    operations: {
+      Receive: true,
+      Issue: true,
+      Transfer: true,
+      Damage: true,
+      Return: true,
+      ...operationOverrides,
+    },
   });
   await page.route("**/api/method/temple_inventory.session.info", (route) =>
     route.fulfill({
@@ -295,6 +303,8 @@ async function setup(
         message: {
           user: "manager",
           csrf_token: "test",
+          role_label: "管理员",
+          capabilities: fullNativeCapabilities,
           ui_preferences: { theme: "jade", density, textScale: scale },
         },
       },
@@ -1236,6 +1246,47 @@ for (const width of [390, 1440]) {
   }, info) => {
     await page.setViewportSize({ width, height: 1000 });
     await setup(page, 200, width === 390 ? "spacious" : "compact");
+    await page.route(
+      "**/api/method/temple_inventory.warehouses.tree",
+      (route) =>
+        route.fulfill({
+          json: {
+            message: {
+              company: "TEST",
+              physical_root: "ROOT",
+              can_create: false,
+              rows: [
+                {
+                  name: "ROOT",
+                  label: "东院供灯与法会物资仓库",
+                  parent: "",
+                  type: "Location",
+                  is_group: true,
+                  disabled: false,
+                  protected: true,
+                  can_edit: false,
+                  lft: 1,
+                  rgt: 4,
+                  version: "v1",
+                },
+                {
+                  name: "ROOM-A",
+                  label: "供灯-用品与法会储备物资长名称库位",
+                  parent: "ROOT",
+                  type: "Room",
+                  is_group: false,
+                  disabled: false,
+                  protected: false,
+                  can_edit: false,
+                  lft: 2,
+                  rgt: 3,
+                  version: "v1",
+                },
+              ],
+            },
+          },
+        }),
+    );
     await page.goto("/inventory/stock/warehouses");
     const warehouse = page.getByRole("button", {
       name: /供灯-用品与法会储备物资长名称库位/,

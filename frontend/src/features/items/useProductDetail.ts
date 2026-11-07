@@ -14,6 +14,7 @@ import type { SavedItemConversions } from "../conversions/useConversionEditor";
 import { useBrowseState } from "../../lib/browseMemory";
 import { onCategoryRenamed } from "../../lib/categoryRename";
 import { useMovementHistory } from "../movements/useMovementHistory";
+import { isForbiddenError } from "../../lib/serviceFailure";
 export function useProductDetail(props: { code: string; tab?: string }) {
   const services = useInventoryServices(),
     reference = useReferenceData(),
@@ -42,6 +43,7 @@ export function useProductDetail(props: { code: string; tab?: string }) {
     serialLoading = ref(false),
     serialError = ref(""),
     conversionDirty = ref(false);
+  const forbidden = ref(false);
   let generation = 0,
     serialGeneration = 0,
     disposed = false,
@@ -162,6 +164,7 @@ export function useProductDetail(props: { code: string; tab?: string }) {
     request = new AbortController();
     loading.value = true;
     error.value = "";
+    forbidden.value = false;
     if (item.value?.item_code !== props.code) {
       item.value = undefined;
       files.clear();
@@ -193,9 +196,15 @@ export function useProductDetail(props: { code: string; tab?: string }) {
         result.image,
       );
     } catch (reason) {
-      if (active() && current === generation)
+      if (active() && current === generation) {
+        forbidden.value = isForbiddenError(reason);
+        if (forbidden.value) {
+          item.value = undefined;
+          files.clear();
+        }
         error.value =
           reason instanceof Error ? reason.message : "物品不存在或无权访问";
+      }
     } finally {
       if (active() && current === generation) loading.value = false;
     }
@@ -272,6 +281,7 @@ export function useProductDetail(props: { code: string; tab?: string }) {
     stockItem,
     loading,
     error,
+    forbidden,
     tab,
     batches,
     serialRows,

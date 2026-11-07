@@ -528,7 +528,11 @@ async function back() {
 				原有草稿 {{ state.identity.name }} 保持原样。请明确删除该草稿，或继续编辑。
 			</p>
 			<UiButton
-				v-if="state.identity && state.server?.docstatus === 0"
+				v-if="
+					state.identity &&
+					state.server?.docstatus === 0 &&
+					state.server.actions?.delete === true
+				"
 				@click="requestLifecycle('delete')"
 				>删除原有草稿单据</UiButton
 			>
@@ -550,10 +554,16 @@ async function back() {
 				target="_blank"
 				rel="noopener"
 				>在 ERPNext 查看</a
-			><UiButton v-if="state.server?.docstatus === 1" @click="requestLifecycle('cancel')"
+			><UiButton
+				v-if="state.server?.docstatus === 1 && state.server.actions?.cancel === true"
+				@click="requestLifecycle('cancel')"
 				>取消记录</UiButton
 			><UiButton
-				v-if="state.server?.docstatus === 2 && !opening"
+				v-if="
+					state.server?.docstatus === 2 &&
+					!opening &&
+					state.server.actions?.amend === true
+				"
 				@click="requestLifecycle('amend')"
 				>创建修订草稿</UiButton
 			>
@@ -796,6 +806,12 @@ async function back() {
 					/><Attachments
 						:controller="files"
 						:mode="writable || state.server?.docstatus === 1 ? 'edit' : 'display'"
+						:can-add="
+							state.server?.actions?.attach === true ||
+							(!state.server &&
+								c.reference.capabilities?.stock_reconciliation?.create === true)
+						"
+						:can-remove="state.server?.actions?.remove_attachment === true"
 						:disabled="(!writable && state.server?.docstatus !== 1) || busy"
 					/>
 					<div v-if="writable" class="form-fields">
@@ -863,7 +879,11 @@ async function back() {
 						>检查上次确认结果</UiButton
 					>
 					<UiButton
-						v-if="state.identity && state.server?.docstatus === 0"
+						v-if="
+							state.identity &&
+							state.server?.docstatus === 0 &&
+							state.server.actions?.delete === true
+						"
 						:disabled="busy || !writable"
 						variant="danger"
 						@click="requestLifecycle('delete')"

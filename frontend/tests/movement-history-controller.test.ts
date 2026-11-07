@@ -132,7 +132,7 @@ describe("movement history controller", () => {
     const call = vi
       .fn()
       .mockResolvedValueOnce(page([row]))
-      .mockRejectedValueOnce({ kind: "PermissionError" });
+      .mockRejectedValueOnce({ kind: "forbidden", status: 403 });
     const wrapper = host(call);
     await flushPromises();
     wrapper.vm.scope.location = "W2";

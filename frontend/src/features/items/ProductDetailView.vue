@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import PageHeader from "../../components/ui/PageHeader.vue";
+import ForbiddenState from "../../components/ui/ForbiddenState.vue";
 import BackButton from "../../components/ui/BackButton.vue";
 import { useOptionalReferenceData } from "../../services/contracts";
 import { warehouseLabel } from "../../lib/warehouseLabel";
@@ -58,7 +59,7 @@ function openSerialMovement(value: unknown) {
 const c = props.controller;
 const { isMobile } = useResponsiveLayout();
 const { confirm } = useConfirm();
-const { stockItem: item, loading, error, tab, batches, files } = c;
+const { stockItem: item, loading, error, forbidden, tab, batches, files } = c;
 const metrics = computed(() =>
 	item.value
 		? (
@@ -225,9 +226,19 @@ const productExportColumns = computed(() => {
 					title="物品详情"
 					:active="active"
 				/>
-				<UiButton v-if="item" @click="emit('edit', item.code)">编辑物品资料</UiButton>
-				<PopupMenu v-if="item" label="物品操作" align="end" sheet>
+				<UiButton
+					v-if="lifecycleItem?.can_edit === true && item"
+					@click="emit('edit', item.code)"
+					>编辑物品资料</UiButton
+				>
+				<PopupMenu
+					v-if="lifecycleItem?.can_edit === true || lifecycleItem?.can_delete === true"
+					label="物品操作"
+					align="end"
+					sheet
+				>
 					<button
+						v-if="lifecycleItem?.can_edit === true"
 						type="button"
 						:disabled="
 							c.lifecycleBusy.value ||
@@ -238,6 +249,7 @@ const productExportColumns = computed(() => {
 						{{ lifecycleItem?.disabled ? "启用物品" : "停用物品" }}
 					</button>
 					<button
+						v-if="lifecycleItem?.can_delete === true"
 						type="button"
 						class="danger"
 						:disabled="c.lifecycleBusy.value || lifecycleItem?.can_delete !== true"
@@ -249,7 +261,8 @@ const productExportColumns = computed(() => {
 			</template></PageHeader
 		>
 		<SkeletonBlock v-if="loading && !item" variant="detail" :count="3" :rows="4" />
-		<p v-if="error" class="notice-bar danger" role="alert">
+		<ForbiddenState v-if="forbidden" @back="emit('back')" />
+		<p v-else-if="error" class="notice-bar danger" role="alert">
 			{{ error }} <UiButton @click="c.load">重新读取</UiButton>
 		</p>
 		<article v-if="item" class="browse-detail-card item-detail-card">

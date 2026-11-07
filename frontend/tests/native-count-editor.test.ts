@@ -4,6 +4,7 @@ import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h } from "vue";
 import {
   createReferenceData,
+  emptyCapabilities,
   provideInventoryServices,
 } from "../src/services/contracts";
 import { useCountEditor } from "../src/features/counts/useCountEditor";
@@ -65,8 +66,11 @@ function setup(
     siteTime: "2026-10-16 10:00:00",
     physicalLeaves: ["ROOM-A", "ROOM-B"],
     units: [{ name: "Nos", label: "个", whole: true }],
-    capabilities: { "Stock Reconciliation": { create: true, submit: true } },
+    capabilities: emptyCapabilities(),
   });
+  reference.capabilities.stock_reconciliation.create = true;
+  reference.capabilities.stock_reconciliation.write = true;
+  reference.capabilities.stock_reconciliation.submit = true;
   const child = defineComponent({
     setup() {
       c = useCountEditor(props);

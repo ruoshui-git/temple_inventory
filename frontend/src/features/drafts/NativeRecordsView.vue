@@ -4,6 +4,8 @@ import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
 import BrowseChip from "../../components/ui/BrowseChip.vue";
 import { computed, ref, watch } from "vue";
+import { useCapabilities } from "../../composables/useCapabilities";
+import { canOnDoctype } from "../../lib/capabilities";
 import type { NativeRecordsController, NativeRecord } from "./useNativeRecords";
 import type { RecoverySnapshot } from "../../lib/browserRecovery";
 import type { ReportQuery } from "../../lib/reportContract";
@@ -46,6 +48,7 @@ import NativeRecordCell from "./NativeRecordCell.vue";
 import { partitionCardColumns, ROW_FIELD_LIMIT } from "../../lib/cardLayout";
 import { orderedVisibleColumns } from "../../lib/dataTable";
 import AsyncRegion from "../../components/ui/AsyncRegion.vue";
+import ForbiddenState from "../../components/ui/ForbiddenState.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import type {
 	DataColumn,
@@ -71,6 +74,7 @@ const props = withDefaults(
 	}>(),
 	{ active: true },
 );
+const { can } = useCapabilities();
 const emit = defineEmits<{
 	openDocument: [doctype: string, name: string];
 	recover: [entry: RecoverySnapshot];
@@ -79,6 +83,7 @@ const emit = defineEmits<{
 	newOperation: [kind: string];
 }>();
 const c = props.controller;
+const back = () => window.history.back();
 const createOptions = computed(() =>
 	(Object.keys(operationLabels) as (keyof typeof operationLabels)[])
 		.filter((kind) => kind !== "Receive" && c.reference.operations[kind])
@@ -392,6 +397,7 @@ function openDetailsRow() {
 					>
 				</BrowseOverflowMenu>
 				<BrowseSplitButton
+					v-if="c.reference.operations.Receive"
 					label="新建"
 					kind="Receive"
 					:icon="kindIcons.Receive.icon"
@@ -522,14 +528,18 @@ function openDetailsRow() {
 					<UiButton icon="export" @click="exportMenu?.open()">导出</UiButton>
 				</BrowseOverflowMenu>
 				<BrowseSplitButton
-					v-if="isMobile"
+					v-if="isMobile && can('stock_reconciliation.create')"
 					label="新建盘点"
 					kind="count"
 					icon="count"
 					:options="[]"
 					@select="emit('newCount')"
 				/>
-				<UiButton v-else variant="primary" icon="count" @click="emit('newCount')"
+				<UiButton
+					v-else-if="can('stock_reconciliation.create')"
+					variant="primary"
+					icon="count"
+					@click="emit('newCount')"
 					>新建盘点</UiButton
 				>
 			</template>
@@ -703,6 +713,12 @@ function openDetailsRow() {
 				label="草稿刷新中。"
 			>
 				<template #skeleton><SkeletonBlock variant="list" :rows="5" /></template>
+				<template #error>
+					<ForbiddenState v-if="c.forbidden.value" @back="back" />
+					<div v-else class="empty-panel" role="alert">
+						{{ error }} <UiButton @click="c.retry">重试</UiButton>
+					</div>
+				</template>
 				<ul v-if="!isMobile" class="draft-entry-list">
 					<li v-for="entry in draftEntries" :key="entry.id" class="draft-entry">
 						<div class="draft-entry-heading">
@@ -756,7 +772,15 @@ function openDetailsRow() {
 								class="draft-continue-action"
 								size="compact"
 								@click="open(entry.server)"
-								>继续编辑</UiButton
+								>{{
+									canOnDoctype(
+										c.reference.capabilities,
+										entry.server.doctype,
+										"write",
+									)
+										? "继续编辑"
+										: "查看"
+								}}</UiButton
 							>
 							<UiButton
 								v-else-if="entry.local && c.localSupported(entry.local)"
@@ -767,14 +791,21 @@ function openDetailsRow() {
 								>继续编辑</UiButton
 							>
 							<UiButton
-								v-if="entry.server?.docstatus === 0"
+								v-if="
+									entry.server?.docstatus === 0 &&
+									canOnDoctype(
+										c.reference.capabilities,
+										entry.server.doctype,
+										'delete',
+									)
+								"
 								variant="danger"
 								size="compact"
 								@click="deleteTarget = entry.server"
 								>删除</UiButton
 							>
 							<UiButton
-								v-else-if="entry.local"
+								v-else-if="!entry.server && entry.local"
 								variant="danger"
 								size="compact"
 								@click="localTarget = entry.local"

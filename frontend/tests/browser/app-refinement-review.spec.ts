@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   centerForPointer,
+  fullNativeCapabilities,
   nativeUiSession,
   sampleWarehouses,
   showPhoneTable,
@@ -341,6 +342,8 @@ async function prepare(page: Page, scale = 100, density = "balanced") {
         message: {
           user: "manager",
           csrf_token: "native-ui-test",
+          role_label: "管理员",
+          capabilities: fullNativeCapabilities,
           ui_preferences: { theme: "jade", density, textScale: scale },
         },
       },

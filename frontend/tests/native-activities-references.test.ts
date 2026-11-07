@@ -5,6 +5,7 @@ import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h, ref } from "vue";
 import {
   createReferenceData,
+  emptyCapabilities,
   provideInventoryServices,
   type InventoryServices,
   type ReferenceData,
@@ -28,6 +29,11 @@ function setup<T>(
 ) {
   let controller!: T;
   const reference = createReferenceData();
+  reference.capabilities = emptyCapabilities();
+  reference.capabilities.activity.create = true;
+  reference.capabilities.activity.write = true;
+  reference.capabilities.item_group.create = true;
+  reference.capabilities.uom.create = true;
   reference.site = "unit-site";
   reference.user = "volunteer";
   reference.activityTypes = [

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { nativeUiSession } from "./fixtures/nativeUi";
+import { fullNativeCapabilities, nativeUiSession } from "./fixtures/nativeUi";
 
 const shots = "/tmp/codex-runs/followups-shots";
 const viewports = [
@@ -165,6 +165,8 @@ test.describe("default filter chips", () => {
             message: {
               user: "manager",
               csrf_token: "native-ui-test",
+              role_label: "管理员",
+              capabilities: fullNativeCapabilities,
               ui_preferences: {
                 theme: "jade",
                 density: "balanced",

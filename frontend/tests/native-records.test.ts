@@ -7,6 +7,7 @@ import NativeRecordsPage from "../src/features/drafts/NativeRecordsPage.vue";
 import PreviewBrowsePages from "./support/FixtureHostBrowsePages.vue";
 import {
   createReferenceData,
+  emptyCapabilities,
   provideInventoryServices,
 } from "../src/services/contracts";
 import {
@@ -92,8 +93,12 @@ function setup(
       { name: "Nos", label: "个" },
       { name: "Kg", label: "kg" },
     ],
-    capabilities: { "Stock Reconciliation": { create: true } },
+    capabilities: emptyCapabilities(),
   });
+  reference.capabilities.stock_entry.delete = true;
+  reference.capabilities.stock_entry.write = true;
+  reference.capabilities.stock_reconciliation.delete = true;
+  reference.capabilities.stock_reconciliation.write = true;
   const root = defineComponent({
     setup() {
       provideInventoryServices(

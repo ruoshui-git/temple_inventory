@@ -4,6 +4,7 @@ import PageHeader from "../../components/ui/PageHeader.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import AsyncRegion from "../../components/ui/AsyncRegion.vue";
+import ForbiddenState from "../../components/ui/ForbiddenState.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import CategoryFormFields from "./CategoryFormFields.vue";
 import type { useCategoriesController } from "./useCategoriesController";
@@ -13,6 +14,7 @@ import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
 
 const props = defineProps<{ controller: ReturnType<typeof useCategoriesController> }>();
 const c = props.controller;
+const back = () => window.history.back();
 const {
 	categories,
 	canCreate,
@@ -51,7 +53,8 @@ const {
 			</template>
 		</PageHeader>
 		<p v-if="success" role="status">{{ success }}</p>
-		<p v-if="error && !dialog && !removeTarget" role="alert">{{ error }}</p>
+		<ForbiddenState v-if="c.forbidden.value" @back="back" />
+		<p v-else-if="error && !dialog && !removeTarget" role="alert">{{ error }}</p>
 		<p v-if="recoveryError" role="alert">{{ recoveryError }}</p>
 		<p v-if="recoveryConflict" class="notice-bar warning" role="alert">
 			{{ recoveryConflict }}
@@ -78,6 +81,10 @@ const {
 			label="分类刷新中。"
 		>
 			<template #skeleton><SkeletonBlock variant="list" :rows="6" /></template>
+			<template #error>
+				<ForbiddenState v-if="c.forbidden.value" @back="back" />
+				<p v-else role="alert">{{ error }} <UiButton @click="c.refresh">重试</UiButton></p>
+			</template>
 			<ul class="category-tree" aria-label="物品分类层级">
 				<li v-for="row in categories.filter(c.visible)" :key="row.name">
 					<div

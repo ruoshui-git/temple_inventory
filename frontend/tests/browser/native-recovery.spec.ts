@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { nativeUiSession } from "./fixtures/nativeUi";
+import { fullNativeCapabilities, nativeUiSession } from "./fixtures/nativeUi";
 
 // Real browser storage and routed production controllers; controlled HTTP data.
 // These checks do not claim real-server authentication or stock writes.
@@ -18,6 +18,8 @@ async function prepare(page: Page, account = "manager") {
         message: {
           user: account,
           csrf_token: "recovery-browser-test",
+          role_label: "管理员",
+          capabilities: fullNativeCapabilities,
           ui_preferences: {
             theme: "jade",
             density: "balanced",

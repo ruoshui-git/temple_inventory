@@ -38,6 +38,7 @@ import SortControl from "../../components/ui/SortControl.vue";
 import DataTable from "../../components/ui/DataTable.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import BrowseRefreshNotice from "../../components/ui/BrowseRefreshNotice.vue";
+import ForbiddenState from "../../components/ui/ForbiddenState.vue";
 import {
 	orderedVisibleColumns,
 	type DataColumn,
@@ -80,6 +81,7 @@ const props = withDefaults(
 	}>(),
 	{ active: true },
 );
+const back = () => window.history.back();
 const emit = defineEmits<{
 	openExport: [query: import("../../lib/reportContract").ReportQuery];
 }>();
@@ -478,7 +480,7 @@ function acceptBrowseLocation(name: string) {
 				/>
 				<BrowseOverflowMenu>
 					<UiButton
-						v-if="isMobile"
+						v-if="isMobile && controller.selectionAvailable.value"
 						icon="select"
 						:aria-pressed="selecting"
 						@click="
@@ -489,13 +491,14 @@ function acceptBrowseLocation(name: string) {
 					<UiButton icon="export" @click="stockExport?.open()">导出</UiButton>
 				</BrowseOverflowMenu>
 				<UiButton
-					v-if="!isMobile"
+					v-if="!isMobile && controller.selectionAvailable.value"
 					icon="select"
 					:aria-pressed="selecting"
 					@click="selecting ? controller.exitSelection() : controller.enterSelection()"
 					>{{ selecting ? "取消选择" : "选择" }}</UiButton
 				>
 				<BrowseSplitButton
+					v-if="controller.actions.value.length > 0"
 					label="新建物品"
 					kind="Item"
 					icon="box"
@@ -652,10 +655,13 @@ function acceptBrowseLocation(name: string) {
 						</template>
 					</div>
 					<div v-else-if="status === 'error'" class="empty-panel">
-						<InventoryIcon name="warning" />
-						<h3>暂时无法读取库存</h3>
-						<p>筛选与选择已保留，请重试。</p>
-						<UiButton @click="load(false, true)">重试</UiButton>
+						<ForbiddenState v-if="data.forbidden" @back="back" />
+						<template v-else>
+							<InventoryIcon name="warning" />
+							<h3>暂时无法读取库存</h3>
+							<p>筛选与选择已保留，请重试。</p>
+							<UiButton @click="load(false, true)">重试</UiButton>
+						</template>
 					</div>
 					<div
 						v-else-if="

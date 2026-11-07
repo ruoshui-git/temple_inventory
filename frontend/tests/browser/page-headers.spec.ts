@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
-import { nativeUiSession } from "./fixtures/nativeUi";
+import { fullNativeCapabilities, nativeUiSession } from "./fixtures/nativeUi";
 const selectionShots = "/tmp/codex-runs/browse-mobile-shots";
 mkdirSync(selectionShots, { recursive: true });
 
@@ -142,6 +142,8 @@ async function setup(page: Page, scale = 100, density = "balanced") {
         message: {
           user: "manager",
           csrf_token: "native-ui-test",
+          role_label: "管理员",
+          capabilities: fullNativeCapabilities,
           ui_preferences: { theme: "jade", density, textScale: scale },
         },
       },

@@ -10,6 +10,9 @@ import InventoryIcon from "./InventoryIcon.vue";
 const props = defineProps<{
 	controller: ReturnType<typeof useAttachments>;
 	disabled?: boolean;
+	canAdd?: boolean;
+	canRemove?: boolean;
+	canPrimary?: boolean;
 	mode?: "edit" | "display";
 	imagesOnly?: boolean;
 	imageRole?: "main" | "attachments" | "all";
@@ -31,11 +34,11 @@ function choose(event: Event) {
 	if (props.imageRole === "main") {
 		cropQueue.value.push(...images);
 		cropTotal.value += images.length;
-	} else if (values.length) props.controller.add(values);
+	} else if (values.length && props.canAdd === true) props.controller.add(values);
 	input.value = "";
 }
 function finishCrop(values: File[] = []) {
-	if (!props.disabled && props.mode !== "display")
+	if (!props.disabled && props.canAdd === true && props.mode !== "display")
 		props.controller.add(values, !!props.imagesOnly);
 	cropQueue.value.shift();
 	cropIndex.value++;
@@ -91,7 +94,7 @@ const selectedSize = computed(() => {
 			</div>
 			<div class="main-image-actions">
 				<UiButton
-					v-if="mode !== 'display' && !disabled"
+					v-if="mode !== 'display' && !disabled && canAdd === true"
 					type="button"
 					icon="image"
 					@click="openPicker"
@@ -105,7 +108,7 @@ const selectedSize = computed(() => {
 					>查看</UiButton
 				>
 				<UiButton
-					v-if="visibleFiles[0] && mode !== 'display' && !disabled"
+					v-if="visibleFiles[0] && mode !== 'display' && !disabled && canRemove === true"
 					type="button"
 					icon="disposal"
 					variant="danger"
@@ -131,7 +134,7 @@ const selectedSize = computed(() => {
 			>
 				{{ visibleFiles[0].error }}
 				<UiButton
-					v-if="!disabled && mode !== 'display'"
+					v-if="!disabled && canAdd === true && mode !== 'display'"
 					size="compact"
 					@click="controller.upload(visibleFiles[0]!, true)"
 					>重试上传</UiButton
@@ -146,7 +149,7 @@ const selectedSize = computed(() => {
 			/>
 		</div>
 		<div
-			v-if="mode !== 'display' && !disabled && imageRole !== 'main'"
+			v-if="mode !== 'display' && !disabled && canAdd === true && imageRole !== 'main'"
 			class="shared-file-picker"
 		>
 			<UiButton
@@ -183,12 +186,14 @@ const selectedSize = computed(() => {
 			><template v-if="file.state === 'error'"
 				><span role="alert">{{ file.error }}</span
 				><UiButton
-					v-if="!disabled && mode !== 'display'"
+					v-if="!disabled && canAdd === true && mode !== 'display'"
 					@click="controller.upload(file, true)"
 					>重试上传</UiButton
 				></template
 			><label
-				v-if="file.state === 'reselect' && !disabled && mode !== 'display'"
+				v-if="
+					file.state === 'reselect' && !disabled && canAdd === true && mode !== 'display'
+				"
 				class="shared-file-picker shared-file-picker-label"
 				>重新选择文件<input
 					class="shared-file-picker-input"
@@ -203,7 +208,8 @@ const selectedSize = computed(() => {
 					!file.primary &&
 					imageRole !== 'main' &&
 					mode !== 'display' &&
-					!disabled
+					!disabled &&
+					canPrimary === true
 				"
 				@click="controller.primary(file)"
 				:disabled="
@@ -213,7 +219,7 @@ const selectedSize = computed(() => {
 				loading-label="正在设为主图…"
 				>设为主图</UiButton
 			><UiButton
-				v-if="mode !== 'display' && !disabled"
+				v-if="mode !== 'display' && !disabled && canRemove === true"
 				:disabled="
 					file.state === 'uploading' ||
 					(controller.actionBusy.value && controller.pendingAction(file) !== 'remove')

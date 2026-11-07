@@ -130,6 +130,24 @@ for (const width of [375, 1440]) {
       await route.fulfill({ json: { message } });
     });
     await nativeUiSession(page);
+    // The shared fixture also supplies a generic load_document route. Re-register
+    // the record response afterward so this contract test keeps its linked activity.
+    await page.route(
+      "**/api/method/temple_inventory.native_api.load_document",
+      (route) => route.fulfill({ json: { message: doc } }),
+    );
+    await page.route(
+      "**/api/method/temple_inventory.activities.activity_label",
+      (route) =>
+        denied
+          ? route.fulfill({
+              status: 403,
+              json: { exc: "denied", exc_type: "PermissionError" },
+            })
+          : route.fulfill({
+              json: { message: { name: "ACT-OPAQUE", title, archived: true } },
+            }),
+    );
     await page.goto("/inventory/counts/OPENING-1");
     await expect(page.locator(".form-page")).toContainText(title);
     await expect(page.locator(".form-page")).not.toContainText("ACT-OPAQUE");

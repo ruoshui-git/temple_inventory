@@ -1,4 +1,4 @@
-import { sampleWarehouses } from "./fixtures/nativeUi";
+import { fullNativeCapabilities, sampleWarehouses } from "./fixtures/nativeUi";
 import { expect, test, type Request } from "@playwright/test";
 
 // Production routing/transport exercise with controlled native responses.
@@ -14,12 +14,15 @@ test("save, reload and amendment keep the current native identity in the URL", a
     amendments = 0;
   const loadedNames: string[] = [];
   let editorClockCalls = 0;
-  const permissions = {
-    write: true,
+  const actions = {
+    edit: true,
     submit: true,
-    delete: true,
     cancel: true,
     amend: true,
+    delete: true,
+    duplicate: true,
+    attach: true,
+    remove_attachment: true,
   };
   await page.route("**/api/method/**", async (route) => {
     const method = new URL(route.request().url()).pathname.split("/").at(-1)!;
@@ -29,6 +32,8 @@ test("save, reload and amendment keep the current native identity in the URL", a
       message = {
         user: "manager",
         csrf_token: "editor-route",
+        role_label: "管理员",
+        capabilities: fullNativeCapabilities,
         ui_preferences: { theme: "jade", density: "balanced", textScale: 100 },
       };
     else if (method === "temple_inventory.configuration.status")
@@ -53,7 +58,7 @@ test("save, reload and amendment keep the current native identity in the URL", a
         uoms: [{ name: "Nos", must_be_whole_number: true }],
         activity_types: [],
         capabilities: {
-          "Stock Entry": { read: true, create: true, ...permissions },
+          "Stock Entry": { read: true, create: true },
         },
         operations: { Receive: true, Issue: true },
       };
@@ -145,7 +150,7 @@ test("save, reload and amendment keep the current native identity in the URL", a
         kind: "Receive",
         purpose: "Material Receipt",
         editable: true,
-        permissions,
+        actions,
         items: args.data.items.map((row, index) => ({
           ...row,
           name: `ROW-${index}`,
@@ -159,12 +164,14 @@ test("save, reload and amendment keep the current native identity in the URL", a
       message = document;
     } else if (method === "temple_inventory.native_api.save_document") {
       document = { ...document, ...args.data, version: "2026-10-16 12:00:02" };
+      document.actions = actions;
       message = document;
     } else if (method === "temple_inventory.native_api.submit_document") {
       document = {
         ...document,
         docstatus: 1,
         editable: false,
+        actions,
         version: "2026-10-16 12:00:03",
       };
       message = document;
@@ -173,6 +180,7 @@ test("save, reload and amendment keep the current native identity in the URL", a
         ...document,
         docstatus: 2,
         editable: false,
+        actions,
         version: "2026-10-16 12:00:04",
       };
       message = document;
@@ -184,6 +192,7 @@ test("save, reload and amendment keep the current native identity in the URL", a
         amended_from: "STE-NEW",
         docstatus: 0,
         editable: true,
+        actions,
         version: "2026-10-16 12:00:05",
       };
       message = document;

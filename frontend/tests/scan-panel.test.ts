@@ -40,9 +40,11 @@ describe("inline operation scan panel", () => {
     );
     const host = defineComponent({
       setup() {
+        const reference = createReferenceData();
+        reference.capabilities.item.create = true;
         provideInventoryServices(
           { call, report: vi.fn(), upload: vi.fn() },
-          createReferenceData(),
+          reference,
         );
         return () =>
           h("div", [
@@ -92,6 +94,7 @@ describe("inline operation scan panel", () => {
     });
     const accepted = vi.fn(async () => {});
     const reference = createReferenceData();
+    reference.capabilities.item.create = true;
     const host = defineComponent({
       setup() {
         provideInventoryServices(

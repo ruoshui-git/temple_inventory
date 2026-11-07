@@ -10,6 +10,8 @@ import { formatSiteDateTime, formatSiteTime, relativeTime } from "../../lib/nati
 import { sortByUnit } from "../../lib/units";
 import type { DraftRecordEntry } from "./nativeRecordColumns";
 import type { NativeRecord } from "./useNativeRecords";
+import { useReferenceData } from "../../services/contracts";
+import { canOnDoctype } from "../../lib/capabilities";
 
 // One cell of a 盘点记录 or 草稿 record, shared by the table and the 列表 rows. Actions
 // leave through events so the page owns navigation, deletion and recovery.
@@ -32,6 +34,16 @@ const emit = defineEmits<{
 const id = computed(() => String(props.column.id));
 const native = computed(() => props.row as unknown as NativeRecord);
 const entry = computed(() => props.row.entry as DraftRecordEntry | undefined);
+const reference = useReferenceData();
+const serverDoctype = computed(
+	() => entry.value?.server?.doctype || String(props.row.doctype || ""),
+);
+const canDeleteNative = computed(() =>
+	canOnDoctype(reference.capabilities, serverDoctype.value, "delete"),
+);
+const canEditNative = computed(() =>
+	canOnDoctype(reference.capabilities, serverDoctype.value, "write"),
+);
 const aggregate = (key: "gains" | "losses" | "quantities") => {
 	const values =
 		(
@@ -121,8 +133,12 @@ function draftDate(value: unknown) {
 	>
 	<span v-else-if="id === 'summary'" :title="String(row.summary || '')">{{ row.summary }}</span>
 	<div v-else-if="id === 'actions' && entry" class="browse-row-actions">
-		<UiButton v-if="entry.server" variant="secondary" size="compact" @click="emit('open', row)"
-			>继续编辑</UiButton
+		<UiButton
+			v-if="entry.server"
+			variant="secondary"
+			size="compact"
+			@click="emit('open', row)"
+			>{{ canEditNative ? "继续编辑" : "查看" }}</UiButton
 		>
 		<UiButton
 			v-else-if="entry.local && localSupported?.(entry.local)"
@@ -132,7 +148,7 @@ function draftDate(value: unknown) {
 			>继续编辑</UiButton
 		>
 		<UiButton
-			v-if="entry.server?.docstatus === 0"
+			v-if="entry.server?.docstatus === 0 && canDeleteNative"
 			variant="danger"
 			size="compact"
 			@click="emit('remove', row)"

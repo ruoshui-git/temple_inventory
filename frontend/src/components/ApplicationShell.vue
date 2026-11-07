@@ -14,11 +14,19 @@ import {
 	inventoryNavigation,
 	destinationForRoute,
 	inventorySectionForRoute,
+	filterNavigation,
 } from "../lib/appNavigation";
 const route = useRoute(),
 	router = useRouter(),
 	reference = useReferenceData();
 const { isMobile } = useResponsiveLayout();
+const visiblePrimary = computed(() => filterNavigation(primaryNavigation, reference.capabilities));
+const visibleMobilePrimary = computed(() =>
+	filterNavigation(mobilePrimaryNavigation, reference.capabilities),
+);
+const visibleInventory = computed(() =>
+	filterNavigation(inventoryNavigation, reference.capabilities),
+);
 const active = computed(() => destinationForRoute(String(route.meta.owner || "")));
 const inventoryExpanded = ref(false);
 const breadcrumbLabel = ref<string>();
@@ -50,9 +58,9 @@ async function navigate(target: Parameters<typeof router.push>[0]) {
 
 <template>
 	<AppFrame
-		:primary="primaryNavigation"
-		:mobile-primary="mobilePrimaryNavigation"
-		:inventory="inventoryNavigation"
+		:primary="visiblePrimary"
+		:mobile-primary="visibleMobilePrimary"
+		:inventory="visibleInventory"
 		:active="active"
 		:inventory-section="inventorySection"
 		v-model:inventory-expanded="inventoryExpanded"
@@ -70,7 +78,7 @@ async function navigate(target: Parameters<typeof router.push>[0]) {
 			aria-label="库存子页面"
 		>
 			<RouterLink
-				v-for="item in inventoryNavigation"
+				v-for="item in visibleInventory"
 				:key="item.key"
 				:to="item.route"
 				:aria-current="inventorySection === item.key ? 'page' : undefined"

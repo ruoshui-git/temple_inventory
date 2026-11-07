@@ -394,7 +394,7 @@ const initialExistingLoad = computed(
 	() => loading.value && c.existingDocument.value && !state.server,
 );
 const hasEditorMenuItems = computed(() =>
-	Boolean((state.identity && state.server) || (!loading.value && c.savedExportQuery.value)),
+	Boolean(c.existingDocument.value || (!loading.value && c.savedExportQuery.value)),
 );
 const itemCount = computed(() => new Set(draft.value.items.map((line) => line.code)).size);
 function stockUnit(line: (typeof draft.value.items)[number]) {
@@ -630,7 +630,7 @@ async function lifecycle() {
 						align="end"
 					>
 						<a
-							v-if="state.identity && state.server"
+							v-if="state.server"
 							class="phone-erpnext-link"
 							:href="`/app/${state.server.doctype === 'Stock Entry' ? 'stock-entry' : 'stock-reconciliation'}/${encodeURIComponent(state.server.name)}`"
 							target="_blank"
@@ -638,20 +638,22 @@ async function lifecycle() {
 							>在 ERPNext 查看</a
 						>
 						<UiButton
-							v-if="state.identity && state.server"
 							icon="print"
-							:disabled="printDirty"
+							:disabled="!state.server || printDirty"
 							:loading="recordPrint.loading.value"
 							:title="printDirty ? '请先保存后再打印' : undefined"
-							@click="recordPrint.print(state.server.doctype, state.server.name)"
+							@click="
+								state.server &&
+								recordPrint.print(state.server.doctype, state.server.name)
+							"
 							>打印</UiButton
 						>
 						<UiButton
-							v-if="state.identity && state.server"
 							icon="download"
-							:disabled="printDirty"
+							:disabled="!state.server || printDirty"
 							:title="printDirty ? '请先保存后再下载' : undefined"
 							@click="
+								state.server &&
 								recordPrint.downloadPdf(
 									state.server.doctype,
 									state.server.name,
@@ -666,7 +668,11 @@ async function lifecycle() {
 							title="货物流动单据"
 							:active="active"
 						/><UiButton
-							v-if="state.identity && state.server?.docstatus === 0"
+							v-if="
+								state.identity &&
+								state.server?.docstatus === 0 &&
+								state.server.actions?.delete === true
+							"
 							icon="disposal"
 							:disabled="!writable || busy"
 							@click="action = 'delete'"
@@ -748,12 +754,20 @@ async function lifecycle() {
 				target="_blank"
 				rel="noopener"
 				>在 ERPNext 查看</a
-			><UiButton v-if="state.server.docstatus === 1" @click="action = 'cancel'"
+			><UiButton
+				v-if="state.server.docstatus === 1 && state.server.actions?.cancel === true"
+				@click="action = 'cancel'"
 				>取消记录</UiButton
-			><UiButton v-if="state.server.docstatus === 2" @click="action = 'amend'"
+			><UiButton
+				v-if="state.server.docstatus === 2 && state.server.actions?.amend === true"
+				@click="action = 'amend'"
 				>创建修订草稿</UiButton
 			><UiButton
-				v-if="state.server.doctype === 'Stock Entry' && state.server.docstatus !== 0"
+				v-if="
+					state.server.doctype === 'Stock Entry' &&
+					state.server.docstatus !== 0 &&
+					state.server.actions?.duplicate === true
+				"
 				@click="action = 'duplicate'"
 				>复制为新草稿</UiButton
 			>
@@ -1131,6 +1145,12 @@ async function lifecycle() {
 							:controller="files"
 							:disabled="(!writable && state.server?.docstatus !== 1) || busy"
 							:mode="editing || state.server?.docstatus === 1 ? 'edit' : 'display'"
+							:can-add="
+								state.server?.actions?.attach === true ||
+								(!state.server &&
+									c.reference.capabilities?.stock_entry?.create === true)
+							"
+							:can-remove="state.server?.actions?.remove_attachment === true"
 						/>
 					</div>
 					<fieldset v-if="editing" class="people-fields" :disabled="!writable || busy">

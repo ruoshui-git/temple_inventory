@@ -5,6 +5,7 @@ import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import NativeWarehousesPage from "../src/features/warehouses/NativeWarehousesPage.vue";
 import {
   createReferenceData,
+  emptyCapabilities,
   provideInventoryServices,
   type LocationNode,
 } from "../src/services/contracts";
@@ -183,8 +184,12 @@ function setup(
     site: "site",
     user: "manager",
     physicalLeaves: ["ROOM-DIRECT", "SHELF"],
-    capabilities: { "Stock Reconciliation": { create: true } },
+    capabilities: emptyCapabilities(),
   });
+  reference.capabilities.stock_reconciliation.create = true;
+  reference.capabilities.warehouse.create = true;
+  reference.capabilities.warehouse.write = true;
+  reference.capabilities.warehouse.delete = true;
   const wrapper = mount(
     defineComponent({
       setup() {

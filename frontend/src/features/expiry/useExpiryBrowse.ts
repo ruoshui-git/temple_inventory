@@ -19,7 +19,7 @@ import {
   clearReportSecondaryFilters,
 } from "../../lib/reportFilters";
 import type { BrowseRowsPage } from "../movements/useOperationBrowse";
-import { isUnavailableError } from "../../lib/serviceFailure";
+import { isForbiddenError, isUnavailableError } from "../../lib/serviceFailure";
 import { useBrowseState } from "../../lib/browseMemory";
 import type { StockItem } from "../../lib/stockPresentation";
 import {
@@ -79,6 +79,7 @@ export function useExpiryBrowse(
     facets: {} as Record<string, number>,
     loading: false,
     error: "",
+    forbidden: false,
     stale: false,
     initialized: false,
   });
@@ -213,12 +214,14 @@ export function useExpiryBrowse(
         facets: value.facets,
         stale: false,
         initialized: true,
+        forbidden: false,
       });
       if (!more)
         for (const [key, page] of Object.entries(value.analysis))
           analyses[key] = { ...page, loading: false, error: "" };
     } catch (reason) {
       if (active(current)) {
+        result.forbidden = isForbiddenError(reason);
         if (isUnavailableError(reason)) clearUnavailable();
         result.error =
           reason instanceof Error ? reason.message : "读取效期批次失败";

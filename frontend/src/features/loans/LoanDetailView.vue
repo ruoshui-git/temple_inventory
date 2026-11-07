@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import PageHeader from "../../components/ui/PageHeader.vue";
+import ForbiddenState from "../../components/ui/ForbiddenState.vue";
 import BackButton from "../../components/ui/BackButton.vue";
 import { formatSiteDateTime } from "../../lib/nativeTime";
 import { computed } from "vue";
@@ -83,7 +84,8 @@ function serialRemainder(serials: string[]) {
 					:active="active" /></template
 		></PageHeader>
 		<SkeletonBlock v-if="initialLoad" variant="detail" :count="3" :rows="5" />
-		<p v-if="error" class="notice-bar danger" role="alert">
+		<ForbiddenState v-if="c.forbidden.value" @back="emit('back')" />
+		<p v-else-if="error" class="notice-bar danger" role="alert">
 			{{ error }} <UiButton @click="c.load">重新读取</UiButton>
 		</p>
 		<article

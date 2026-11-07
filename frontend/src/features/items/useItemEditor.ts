@@ -134,7 +134,9 @@ export function useItemEditor(
   if (typeof window !== "undefined")
     window.addEventListener("beforeunload", beforeUnload);
   const canWrite = computed(() =>
-    existing.value ? true : props.code ? false : true,
+    existing.value
+      ? Boolean(existing.value.can_edit)
+      : !props.code && Boolean(reference.capabilities?.item?.create),
   );
   const files = useAttachments({
     account,

@@ -5,10 +5,16 @@ export function isUnavailableError(reason: unknown) {
   return (
     [401, 403, 404].includes(Number(value.status)) ||
     [
-      "PermissionError",
+      "forbidden",
       "AuthenticationError",
       "CSRFTokenError",
       "DoesNotExistError",
     ].includes(value.kind || "")
   );
+}
+
+export function isForbiddenError(reason: unknown) {
+  if (!reason || typeof reason !== "object") return false;
+  const value = reason as { kind?: string; status?: number };
+  return value.kind === "forbidden" || value.status === 403;
 }

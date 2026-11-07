@@ -58,6 +58,10 @@ export function useApplication(
         state.gate = "loading";
         state.version++;
       }
+      if (authenticated.capabilities)
+        reference.capabilities = authenticated.capabilities;
+      if (authenticated.role_label)
+        reference.role_label = authenticated.role_label;
       const status = await services.call<InitializationStatus>(
         "configuration.status",
       );
@@ -154,6 +158,9 @@ export function useApplication(
   function windowFocused() {
     if (Date.now() - lastCheck > 60_000) void check();
   }
+  function permissionFailed() {
+    void check();
+  }
   onMounted(() => {
     void check();
     void registerPwa();
@@ -167,6 +174,7 @@ export function useApplication(
         : new BroadcastChannel("temple-inventory-configuration");
     referenceChannel?.addEventListener("message", configurationChanged);
     window.addEventListener("focus", windowFocused);
+    window.addEventListener("inventory-permission-error", permissionFailed);
   });
   onBeforeUnmount(() => {
     disposed = true;
@@ -178,6 +186,7 @@ export function useApplication(
     referenceChannel?.removeEventListener("message", configurationChanged);
     referenceChannel?.close();
     window.removeEventListener("focus", windowFocused);
+    window.removeEventListener("inventory-permission-error", permissionFailed);
   });
   return {
     state,

@@ -1,5 +1,6 @@
 import { reactive } from "vue";
 import { confirm as confirmDialog } from "../../services/confirm";
+import { isForbiddenError } from "../../lib/serviceFailure";
 import {
   recoveryValues,
   type BrowserRecoveryStore,
@@ -11,6 +12,19 @@ export interface NativeDocument extends NativeIdentity {
   version: string;
   docstatus: 0 | 1 | 2;
   items: Record<string, unknown>[];
+  actions?: Partial<
+    Record<
+      | "edit"
+      | "submit"
+      | "cancel"
+      | "amend"
+      | "delete"
+      | "duplicate"
+      | "attach"
+      | "remove_attachment",
+      boolean
+    >
+  >;
   [field: string]: unknown;
 }
 export interface MatchingCountResult {
@@ -148,7 +162,7 @@ export function createNativeEditor(options: {
         ? "conflict"
         : kind === "DoesNotExistError"
           ? "deleted"
-          : kind === "PermissionError"
+          : isForbiddenError(error)
             ? "forbidden"
             : "error";
     state.error =

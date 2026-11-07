@@ -48,7 +48,14 @@ function setup(
         primary,
         parentChanged,
       });
-      return () => h(Attachments, { controller: c, ...props });
+      return () =>
+        h(Attachments, {
+          controller: c,
+          canAdd: true,
+          canRemove: true,
+          canPrimary: true,
+          ...props,
+        });
     },
   });
   const wrapper = mount(

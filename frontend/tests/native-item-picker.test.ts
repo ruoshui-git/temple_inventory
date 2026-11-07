@@ -476,7 +476,6 @@ it("continues the pending row selection once after confirming discard of a dirty
     user: "volunteer",
     site: "unit-site",
     units: [{ name: "Nos", whole: true }],
-    capabilities: { Item: { create: true } },
     warehouses: [
       {
         name: "ROOM-A",
@@ -486,6 +485,7 @@ it("continues the pending row selection once after confirming discard of a dirty
       },
     ],
   });
+  reference.capabilities.item.create = true;
   const item = {
     item_code: "ITEM-A",
     item_name: "Existing item",
@@ -572,7 +572,6 @@ it("keeps a newly created item pinned in a fixed compact preview when filters hi
     user: "volunteer",
     site: "unit-site",
     units: [{ name: "Nos", whole: true }],
-    capabilities: { Item: { create: true } },
     warehouses: [
       {
         name: "ROOM-A",
@@ -582,6 +581,7 @@ it("keeps a newly created item pinned in a fixed compact preview when filters hi
       },
     ],
   });
+  reference.capabilities.item.create = true;
   const call = vi.fn<InventoryServices["call"]>(async (endpoint) => {
     if (endpoint === "catalog.picker_rows")
       return { results: [], matched_count: 0, next_start: null } as never;

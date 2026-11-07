@@ -20,6 +20,7 @@ import { reportFilterChips } from "../../lib/reportFilters";
 import type { CatalogItem } from "../../lib/catalogPresentation";
 import { presentCatalogItem } from "../../lib/catalogPresentation";
 import { isUnavailableError } from "../../lib/serviceFailure";
+import { isForbiddenError } from "../../lib/serviceFailure";
 import { useBrowseState } from "../../lib/browseMemory";
 import { sortableColumnsForView } from "../../lib/reportContract";
 import { useReportGroups } from "../../composables/useReportGroups";
@@ -162,6 +163,7 @@ export function useOperationBrowse(
     snapshot: "",
     loading: false,
     error: "",
+    forbidden: false,
     refreshFailed: false,
     stale: false,
     initialized: false,
@@ -308,6 +310,7 @@ export function useOperationBrowse(
     retryMore = more;
     result.loading = true;
     result.error = "";
+    result.forbidden = false;
     result.refreshFailed = false;
     if (!more) result.stale = result.initialized;
     const sent = JSON.parse(JSON.stringify(query.value));
@@ -375,6 +378,7 @@ export function useOperationBrowse(
     } catch (reason) {
       if (request.signal.aborted) return;
       if (active(current)) {
+        result.forbidden = isForbiddenError(reason);
         if (isUnavailableError(reason)) clearUnavailable();
         result.error =
           reason instanceof Error ? reason.message : "读取失败，原结果仍保留";

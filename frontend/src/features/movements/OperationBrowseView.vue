@@ -33,6 +33,7 @@ import ItemGroupLines from "./ItemGroupLines.vue";
 import CardFields from "../../components/ui/CardFields.vue";
 import ColumnSettings from "../../components/ui/ColumnSettings.vue";
 import BrowseEmpty from "../../components/ui/BrowseEmpty.vue";
+import ForbiddenState from "../../components/ui/ForbiddenState.vue";
 import RowFieldsSheet from "../../components/ui/RowFieldsSheet.vue";
 import OperationItemCell from "./OperationItemCell.vue";
 import OperationRecordCell from "./OperationRecordCell.vue";
@@ -97,6 +98,7 @@ const emit = defineEmits<{
 	newOperation: [kind: string];
 }>();
 const c = props.controller;
+const back = () => window.history.back();
 const browseView = c.browseView;
 const {
 	query,
@@ -111,6 +113,11 @@ const {
 	analysis,
 	details,
 } = c;
+const selectionAvailable = computed(
+	() =>
+		Boolean(reference.capabilities?.stock_entry?.create) &&
+		reference.operations.Return === true,
+);
 const { isMobile } = useResponsiveLayout();
 const wideScreen = ref(window.innerWidth >= 1440);
 function updateWideScreen() {
@@ -1261,7 +1268,11 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 					/>
 					<BrowseOverflowMenu>
 						<UiButton
-							v-if="isMobile && family === 'loans'"
+							v-if="
+								isMobile &&
+								family === 'loans' &&
+								(c.selecting.value || selectionAvailable)
+							"
 							icon="select"
 							:aria-pressed="c.selecting.value"
 							@click="c.selecting.value ? c.exitSelection() : c.enterSelection()"
@@ -1278,7 +1289,11 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						</RouterLink>
 					</BrowseOverflowMenu>
 					<UiButton
-						v-if="!isMobile && family === 'loans'"
+						v-if="
+							!isMobile &&
+							family === 'loans' &&
+							(c.selecting.value || selectionAvailable)
+						"
 						icon="select"
 						:aria-pressed="c.selecting.value"
 						@click="c.selecting.value ? c.exitSelection() : c.enterSelection()"
@@ -1318,14 +1333,12 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						</label>
 						<span role="status">已选择 {{ c.selected.value.length }} 项</span>
 						<UiButton
-							:disabled="
-								!reference.operations.Return || !canReturnSelected || result.stale
+							v-if="
+								reference.capabilities?.stock_entry.create === true &&
+								reference.operations.Return
 							"
-							:title="
-								!reference.operations.Return
-									? '当前账户不可执行归还'
-									: selectedReturnReason
-							"
+							:disabled="!canReturnSelected || result.stale"
+							:title="selectedReturnReason"
 							@click="beginSelectedReturn"
 							>登记归还</UiButton
 						>
@@ -1465,8 +1478,9 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 				:count="5"
 			/>
 			<BrowseRefreshNotice :show="result.refreshFailed" :retry="() => c.load()" />
+			<ForbiddenState v-if="result.forbidden" @back="back" />
 			<p
-				v-if="!records && result.error && !result.refreshFailed"
+				v-else-if="!records && result.error && !result.refreshFailed"
 				class="notice-bar danger"
 				role="alert"
 			>

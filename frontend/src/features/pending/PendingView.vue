@@ -25,6 +25,7 @@ import QuickExport from "../../components/QuickExport.vue";
 import FilterRailEdge from "../../components/ui/FilterRailEdge.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import BrowseRefreshNotice from "../../components/ui/BrowseRefreshNotice.vue";
+import ForbiddenState from "../../components/ui/ForbiddenState.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import { kindIcons } from "../../lib/kindIcons";
 import { reportExportColumns } from "../../lib/reportExportColumns";
@@ -52,6 +53,7 @@ const emit = defineEmits<{
 	operation: [kind: "Repair" | "Disposal", allocations: InitialAllocation[]];
 	openExport: [query: ReportQuery];
 }>();
+const back = () => window.history.back();
 const c = props.controller,
 	{
 		query,
@@ -66,6 +68,11 @@ const c = props.controller,
 		view,
 		viewOptions,
 	} = c;
+const selectionAvailable = computed(
+	() =>
+		Boolean(c.reference.capabilities?.stock_entry?.create) &&
+		["Repair", "Disposal"].some((kind) => c.reference.operations[kind] === true),
+);
 const table = c.report.mainTable,
 	analysisTable = c.analysis.mainTable;
 const reportColumns = computed<DataColumn[]>(() =>
@@ -211,7 +218,7 @@ watch([() => props.active, isMobile], () => {
 				/>
 				<BrowseOverflowMenu>
 					<UiButton
-						v-if="isMobile"
+						v-if="isMobile && (c.selecting.value || selectionAvailable)"
 						icon="select"
 						:aria-pressed="c.selecting.value"
 						@click="c.selecting.value ? c.exitSelection() : c.enterSelection()"
@@ -222,7 +229,7 @@ watch([() => props.active, isMobile], () => {
 					>
 				</BrowseOverflowMenu>
 				<UiButton
-					v-if="!isMobile"
+					v-if="!isMobile && (c.selecting.value || selectionAvailable)"
 					icon="select"
 					:aria-pressed="c.selecting.value"
 					@click="c.selecting.value ? c.exitSelection() : c.enterSelection()"
@@ -328,7 +335,8 @@ watch([() => props.active, isMobile], () => {
 			:show="c.report.result.refreshFailed"
 			:retry="() => c.report.refresh(true)"
 		/>
-		<p v-if="c.report.result.error && !c.report.result.refreshFailed" role="alert">
+		<ForbiddenState v-if="c.report.result.forbidden" @back="back" />
+		<p v-else-if="c.report.result.error && !c.report.result.refreshFailed" role="alert">
 			{{ c.report.result.error }} <UiButton @click="c.report.refresh(true)">重试</UiButton>
 		</p>
 

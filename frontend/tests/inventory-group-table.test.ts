@@ -388,6 +388,7 @@ describe("inventory grouped table", () => {
       return undefined;
     });
     const reference = createReferenceData();
+    reference.capabilities.stock_entry.create = true;
     reference.user = "manager";
     reference.site = "test";
     reference.operations.Return = true;

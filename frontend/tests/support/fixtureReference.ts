@@ -3,6 +3,7 @@ import { provideItemArtwork } from "../../src/services/itemArtwork";
 import { reactive } from "vue";
 import {
   createReferenceData,
+  emptyCapabilities,
   provideInventoryServices,
 } from "../../src/services/contracts";
 import { activityTypes, activities } from "./activityData";
@@ -51,30 +52,34 @@ export const galleryReference = reactive({
       "Reconcile",
     ].map((kind) => [kind, true]),
   ),
-  capabilities: Object.fromEntries(
-    [
-      "Item",
-      "UOM",
-      "Item Group",
-      "Warehouse",
-      "Batch",
-      "Stock Entry",
-      "Stock Reconciliation",
-      "Inventory Activity",
-      "File",
-    ].map((doctype) => [
-      doctype,
-      {
-        read: true,
-        create: true,
-        write: true,
-        delete: true,
-        submit: true,
-        cancel: true,
-        amend: true,
-      },
-    ]),
-  ),
+  capabilities: Object.assign(emptyCapabilities(), {
+    stock_entry: {
+      read: true,
+      create: true,
+      write: true,
+      submit: true,
+      cancel: true,
+      amend: true,
+      delete: true,
+    },
+    stock_reconciliation: {
+      read: true,
+      create: true,
+      write: true,
+      submit: true,
+      cancel: true,
+      amend: true,
+      delete: true,
+    },
+    item: { create: true, write: true, delete: true },
+    batch: { create: true, write: true },
+    activity: { create: true, write: true, delete: true },
+    activity_type: { create: true, write: true, delete: true },
+    item_group: { create: true, write: true, delete: true },
+    uom: { create: true, write: true, delete: true },
+    warehouse: { create: true, write: true, delete: true },
+    settings: { write: true },
+  }),
   get units() {
     return reviewSession.units;
   },

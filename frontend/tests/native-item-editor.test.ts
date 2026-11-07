@@ -4,6 +4,7 @@ import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h } from "vue";
 import {
   createReferenceData,
+  emptyCapabilities,
   provideInventoryServices,
 } from "../src/services/contracts";
 import { useItemEditor } from "../src/features/items/useItemEditor";
@@ -44,8 +45,10 @@ function setup(
     site: "unit-site",
     user: "volunteer",
     units,
-    capabilities: { Item: { create: true } },
+    capabilities: emptyCapabilities(),
   });
+  reference.capabilities.item.create = true;
+  reference.capabilities.item.write = true;
   const saved = vi.fn(),
     child = defineComponent({
       setup() {
@@ -104,6 +107,26 @@ function fill(c: ReturnType<typeof useItemEditor>) {
   });
 }
 describe("native Item editing and pending uploads", () => {
+  it("keeps an existing Item read-only until it has loaded, whatever the create permission", async () => {
+    let finishLoading!: () => void;
+    const loaded = new Promise<void>((resolve) => {
+      finishLoading = resolve;
+    });
+    const fallback = service();
+    const call = vi.fn(
+      async (method: string, args: Record<string, unknown>) => {
+        if (method === "catalog.operation_items") await loaded;
+        return fallback(method, args);
+      },
+    );
+    const { c } = setup(call, { code: item.item_code });
+    await flushPromises();
+    expect(c.canWrite.value).toBe(false);
+    finishLoading();
+    await flushPromises();
+    expect(c.canWrite.value).toBe(true);
+  });
+
   it("includes serial tracking fields in saved data and recovery drafts", async () => {
     const call = service();
     const { c } = setup(call);

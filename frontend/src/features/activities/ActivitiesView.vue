@@ -2,6 +2,7 @@
 import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import PageHeader from "../../components/ui/PageHeader.vue";
 import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
+import ForbiddenState from "../../components/ui/ForbiddenState.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import BrowseChip from "../../components/ui/BrowseChip.vue";
 import { formatSiteDateTime } from "../../lib/nativeTime";
@@ -54,8 +55,12 @@ import { activityColumns as activityColumnDefinitions } from "./activityColumns"
 import { exportFields } from "../../lib/exportColumns";
 import { sortByUnit, unitLabel } from "../../lib/units";
 import { formatQuantity, formatQuantityWithUnit } from "../../lib/formatQuantity";
+import { useCapabilities } from "../../composables/useCapabilities";
 const exportMenu = ref<{ open(): void }>();
 const { isMobile } = useResponsiveLayout();
+const { can } = useCapabilities();
+const mayCreateActivity = computed(() => can("activity.create"));
+const mayCreateMovement = computed(() => can("stock_entry.create"));
 const activityEditor = ref<InstanceType<typeof ActivityEditor>>();
 const filterSheetOpen = ref(false);
 const expandedActivityKinds = ref(new Set<string>());
@@ -76,6 +81,7 @@ const props = withDefaults(
 	{ active: true },
 );
 const emit = defineEmits<{ openExport: [query: ReportQuery] }>();
+const back = () => window.history.back();
 const confirm = useConfirm().confirm;
 const {
 	reference,
@@ -89,6 +95,7 @@ const {
 	projection,
 	loading,
 	error,
+	forbidden,
 	busy,
 	deleteOpen,
 	loadDetail,
@@ -297,6 +304,7 @@ function openDetailsRow() {
 					<UiButton icon="export" @click="exportMenu?.open()">导出</UiButton>
 				</BrowseOverflowMenu>
 				<BrowseSplitButton
+					v-if="mayCreateActivity"
 					label="新建活动"
 					kind="Activity"
 					icon="calendar"
@@ -482,6 +490,7 @@ function openDetailsRow() {
 				"
 				:text="activityEmptyText"
 			/>
+			<ForbiddenState v-if="props.mode === 'list' && forbidden" @back="back" />
 			<RowFieldsSheet
 				v-if="detailsRow && rowsLayout"
 				:title="String(detailsRow.title || '')"
@@ -603,7 +612,9 @@ function openDetailsRow() {
 		<template v-else-if="current">
 			<div class="form-actions">
 				<UiButton v-if="canWrite" :disabled="busy" @click="edit">编辑</UiButton>
-				<UiButton v-if="current.status === 'active'" @click="movementActionsOpen = true"
+				<UiButton
+					v-if="current.status === 'active' && mayCreateMovement"
+					@click="movementActionsOpen = true"
 					>新建流动</UiButton
 				>
 				<Overlay
@@ -633,11 +644,13 @@ function openDetailsRow() {
 						>
 					</div>
 				</Overlay>
-				<UiButton @click="moreActionsOpen = true">更多操作</UiButton>
+				<UiButton v-if="canWrite || canDelete" @click="moreActionsOpen = true"
+					>更多操作</UiButton
+				>
 				<Overlay v-if="moreActionsOpen" title="更多操作" @close="moreActionsOpen = false">
 					<div class="form-actions">
 						<UiButton
-							:disabled="!canWrite"
+							v-if="canWrite"
 							:loading="busy"
 							loading-label="正在更新活动…"
 							@click="archive"
@@ -645,6 +658,7 @@ function openDetailsRow() {
 								current.status === "archived" ? "恢复活动" : "归档活动"
 							}}</UiButton
 						><UiButton
+							v-if="canDelete"
 							variant="danger"
 							:disabled="!canDelete"
 							@click="
@@ -657,7 +671,8 @@ function openDetailsRow() {
 					<p>删除需要没有任何关联记录；有关联记录时请归档。</p>
 				</Overlay>
 			</div>
-			<p v-if="error" role="alert">{{ error }}</p>
+			<ForbiddenState v-if="forbidden" @back="back" />
+			<p v-else-if="error" role="alert">{{ error }}</p>
 			<section class="surface form-section">
 				<h2>活动概览</h2>
 				<dl class="info-grid">
