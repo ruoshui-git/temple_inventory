@@ -1,0 +1,149 @@
+{
+  "doctype": "DocType",
+  "name": "Inventory Import",
+  "module": "Temple Inventory",
+  "autoname": "hash",
+  "track_changes": 1,
+  "field_order": [
+    "import_type",
+    "status",
+    "attempt",
+    "source_file",
+    "file_sha256",
+    "new_count",
+    "update_count",
+    "unchanged_count",
+    "rejected_count",
+    "preview_json",
+    "plan_hash",
+    "skip_rejected",
+    "result_json",
+    "error",
+    "created_documents"
+  ],
+  "fields": [
+    {
+      "fieldname": "import_type",
+      "fieldtype": "Select",
+      "label": "导入类型",
+      "options": "Item\nOpening Stock",
+      "reqd": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "label": "状态",
+      "options": "Previewed\nQueued\nRunning\nCompleted\nFailed\nConflict",
+      "default": "Previewed",
+      "read_only": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "attempt",
+      "fieldtype": "Int",
+      "label": "执行次数",
+      "default": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "source_file",
+      "fieldtype": "Link",
+      "label": "源文件",
+      "options": "File",
+      "reqd": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "file_sha256",
+      "fieldtype": "Data",
+      "label": "文件校验值",
+      "reqd": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "new_count",
+      "fieldtype": "Int",
+      "label": "新建行数",
+      "read_only": 1
+    },
+    {
+      "fieldname": "update_count",
+      "fieldtype": "Int",
+      "label": "更新行数",
+      "read_only": 1
+    },
+    {
+      "fieldname": "unchanged_count",
+      "fieldtype": "Int",
+      "label": "无变化行数",
+      "read_only": 1
+    },
+    {
+      "fieldname": "rejected_count",
+      "fieldtype": "Int",
+      "label": "拒绝行数",
+      "read_only": 1
+    },
+    {
+      "fieldname": "preview_json",
+      "fieldtype": "Long Text",
+      "label": "预览",
+      "read_only": 1
+    },
+    {
+      "fieldname": "plan_hash",
+      "fieldtype": "Data",
+      "label": "计划校验值",
+      "read_only": 1
+    },
+    {
+      "fieldname": "skip_rejected",
+      "fieldtype": "Check",
+      "label": "跳过拒绝行",
+      "default": 0,
+      "read_only": 1
+    },
+    {
+      "fieldname": "result_json",
+      "fieldtype": "Long Text",
+      "label": "结果",
+      "read_only": 1
+    },
+    {
+      "fieldname": "error",
+      "fieldtype": "Small Text",
+      "label": "错误",
+      "read_only": 1
+    },
+    {
+      "fieldname": "created_documents",
+      "fieldtype": "Long Text",
+      "label": "创建的物品",
+      "read_only": 1
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "if_owner": 0
+    },
+    {
+      "role": "Inventory Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "if_owner": 0
+    },
+    {
+      "role": "Inventory Administrator",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "if_owner": 0
+    }
+  ]
+}

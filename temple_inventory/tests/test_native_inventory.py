@@ -19,6 +19,7 @@ from temple_inventory.tests.test_catalog_pickers import CatalogPickersTests
 from temple_inventory.tests.test_catalog_units import CatalogUnitsTests
 from temple_inventory.tests.test_configuration import ConfigurationTests
 from temple_inventory.tests.test_environment import EnvironmentTests
+from temple_inventory.tests.test_imports import ItemImportTests
 from temple_inventory.tests.test_item_images import ItemImageTests
 from temple_inventory.tests.test_native_documents import NativeDocumentTests
 from temple_inventory.tests.test_native_reports_as_of import NativeReportsAsOfTests
@@ -92,6 +93,7 @@ def run(test_name=None):
 		PrintingTests,
 		ActivityTypeTests,
 		PermissionTests,
+		ItemImportTests,
 	):
 		# Feature suites inherit the shared savepoint setup and helpers. Run their
 		# own scenarios once; the base document cases already run above.

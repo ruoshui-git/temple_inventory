@@ -237,6 +237,7 @@ def capabilities():
 		"uom": ("UOM", ("create", "write", "delete")),
 		"warehouse": ("Warehouse", ("create", "write", "delete")),
 		"settings": ("Temple Inventory Settings", ("write",)),
+		"imports": ("Inventory Import", ("create",)),
 	}
 	return {
 		key: {ptype: bool(frappe.has_permission(doctype, ptype)) for ptype in ptypes}

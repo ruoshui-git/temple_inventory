@@ -920,22 +920,21 @@ def _barcodes(item, values):
 	item.set("barcodes", result)
 
 
-@frappe.whitelist(methods=["POST"])
-def save_item(data, item_code=None, version=None):
-	require_app()
-	data = frappe.parse_json(data)
-	if not isinstance(data, dict):
-		frappe.throw("物品内容无效")
+def validate_immutable_item_fields(item, data):
+	"""Share the editor's immutable identity checks with import preview and writes."""
+	for field in IMMUTABLE_FIELDS:
+		if field not in data:
+			continue
+		current = item.name if field == "item_code" else item.get(field)
+		if str(data.get(field)) != str(current):
+			frappe.throw("现有物品的编号与库存单位不能在此更改")
+
+
+def apply_item_fields(item, data, *, item_code=None):
+	"""Apply the editor's Item fields and shared immutability/tracking validation."""
+	tracking_changed = False
 	if item_code:
-		item = load_locked("Item", item_code, version)
-		for field in IMMUTABLE_FIELDS:
-			changed = (
-				bool(cint(data.get(field))) != bool(item.get(field))
-				if field.startswith("has_")
-				else str(data.get(field)) != str(item.get(field))
-			)
-			if field in data and changed:
-				frappe.throw("现有物品的编号与库存单位不能在此更改")
+		validate_immutable_item_fields(item, data)
 		tracking_changed = any(
 			field in data and bool(cint(data[field])) != bool(item.get(field))
 			for field in ("has_batch_no", "has_expiry_date", "has_serial_no")
@@ -953,12 +952,9 @@ def save_item(data, item_code=None, version=None):
 				and not frappe.db.get_single_value("Stock Settings", "enable_serial_and_batch_no_for_item")
 			):
 				frappe.throw("请先在库存设置中启用序列号功能")
-			if "has_batch_no" in data:
-				item.has_batch_no = cint(data["has_batch_no"])
-			if "has_expiry_date" in data:
-				item.has_expiry_date = cint(data["has_expiry_date"])
-			if "has_serial_no" in data:
-				item.has_serial_no = cint(data["has_serial_no"])
+			for field in ("has_batch_no", "has_expiry_date", "has_serial_no"):
+				if field in data:
+					item.set(field, cint(data[field]))
 			if item.has_expiry_date:
 				item.has_batch_no = 1
 			if not item.has_batch_no and frappe.db.exists("Batch", {"item": item.name}):
@@ -969,18 +965,9 @@ def save_item(data, item_code=None, version=None):
 		):
 			frappe.throw("此物品存在未填写到期日期的批次，不能启用效期追踪；请先补全批次日期或新建物品")
 	else:
-		item = frappe.new_doc("Item")
 		item.check_permission("create")
-		item.item_code = str(data.get("item_code") or "").strip() or allocate_item_code()
-		item.stock_uom = data.get("stock_uom")
-		item.has_batch_no = cint(data.get("has_batch_no"))
-		item.has_expiry_date = cint(data.get("has_expiry_date"))
-		item.has_serial_no = cint(data.get("has_serial_no"))
-		item.is_stock_item = 1
 		if not item.stock_uom:
 			frappe.throw("请选择计量单位")
-		if frappe.db.exists("Item", item.item_code):
-			frappe.throw("此物品编号已存在，请保留输入并使用新建议编号", frappe.DuplicateEntryError)
 		frappe.get_doc("UOM", item.stock_uom).check_permission("read")
 		if item.has_expiry_date:
 			item.has_batch_no = 1
@@ -1000,11 +987,6 @@ def save_item(data, item_code=None, version=None):
 	if not item.item_group:
 		item.item_group = item_group_root()
 	frappe.get_doc("Item Group", item.item_group).check_permission("read")
-	if item_code and tracking_changed:
-		item.has_batch_no = cint(item.has_batch_no)
-		item.has_expiry_date = cint(item.has_expiry_date)
-		if "has_serial_no" in data:
-			item.has_serial_no = cint(item.has_serial_no)
 	if item.has_serial_no and item.has_batch_no:
 		frappe.throw("序列号与批次追踪不能同时启用")
 	if item.has_serial_no:
@@ -1020,6 +1002,28 @@ def save_item(data, item_code=None, version=None):
 		item.serial_no_series = str(data.get("serial_no_series") or "").strip()
 	if "barcodes" in data:
 		_barcodes(item, data["barcodes"])
+	return item
+
+
+@frappe.whitelist(methods=["POST"])
+def save_item(data, item_code=None, version=None):
+	require_app()
+	data = frappe.parse_json(data)
+	if not isinstance(data, dict):
+		frappe.throw("物品内容无效")
+	if item_code:
+		item = load_locked("Item", item_code, version)
+	else:
+		item = frappe.new_doc("Item")
+		item.item_code = str(data.get("item_code") or "").strip() or allocate_item_code()
+		item.stock_uom = data.get("stock_uom")
+		item.has_batch_no = cint(data.get("has_batch_no"))
+		item.has_expiry_date = cint(data.get("has_expiry_date"))
+		item.has_serial_no = cint(data.get("has_serial_no"))
+		item.is_stock_item = 1
+		if frappe.db.exists("Item", item.item_code):
+			frappe.throw("此物品编号已存在，请保留输入并使用新建议编号", frappe.DuplicateEntryError)
+	apply_item_fields(item, data, item_code=item_code)
 	item.save()
 	return item_metadata(item, include_lifecycle=True)
 

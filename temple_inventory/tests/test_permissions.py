@@ -318,6 +318,7 @@ class PermissionTests(NativeDocumentTests):
 			configuration,
 			conversions,
 			counts,
+			imports,
 			native_api,
 			native_files,
 			opening,
@@ -374,6 +375,14 @@ class PermissionTests(NativeDocumentTests):
 		viewer = self._user(VIEWER)
 		request_id = f"ti-permission-{self.token}-request"
 		calls = {
+			"imports.item_template": lambda: imports.item_template(),
+			"imports.upload": lambda: imports.upload(),
+			"imports.preview": lambda: imports.preview("nope"),
+			"imports.commit": lambda: imports.commit("nope", "bad"),
+			"imports.status": lambda: imports.status("nope"),
+			"imports.report": lambda: imports.report("nope"),
+			"imports.retry": lambda: imports.retry("nope"),
+			"imports.item_catalog": lambda: imports.item_catalog(),
 			"opening.ensure_batch": lambda: opening.ensure_batch(self.item, f"Viewer batch {self.token}"),
 			"opening.generate_serials": lambda: opening.generate_serials(self.item, 1),
 			"activities.delete_activity": lambda: activities.delete_activity(
@@ -464,6 +473,27 @@ class PermissionTests(NativeDocumentTests):
 					continue
 				with self.subTest(endpoint=endpoint), self.assertRaises(frappe.PermissionError):
 					calls[endpoint]()
+		finally:
+			frappe.set_user("Administrator")
+
+	def test_operator_is_refused_by_every_item_import_endpoint(self):
+		from temple_inventory import imports
+
+		operator = self._user(OPERATOR, "import-operator")
+		frappe.set_user(operator)
+		try:
+			for endpoint, call in (
+				("template", lambda: imports.item_template()),
+				("upload", lambda: imports.upload()),
+				("preview", lambda: imports.preview("missing")),
+				("commit", lambda: imports.commit("missing", "x")),
+				("status", lambda: imports.status("missing")),
+				("report", lambda: imports.report("missing")),
+				("retry", lambda: imports.retry("missing")),
+				("catalog", lambda: imports.item_catalog()),
+			):
+				with self.subTest(endpoint=endpoint), self.assertRaises(frappe.PermissionError):
+					call()
 		finally:
 			frappe.set_user("Administrator")
 
@@ -718,6 +748,14 @@ def _is_whitelist(node):
 def _endpoint_policies():
 	"""Explicit API policy inventory; additions require review."""
 	return {
+		"imports.commit": "WRITE",
+		"imports.item_catalog": "WRITE",
+		"imports.item_template": "WRITE",
+		"imports.preview": "WRITE",
+		"imports.report": "WRITE",
+		"imports.retry": "WRITE",
+		"imports.status": "WRITE",
+		"imports.upload": "WRITE",
 		"activities.activity_label": "READ",
 		"activities.delete_activity": "WRITE",
 		"activities.delete_activity_type": "WRITE",
