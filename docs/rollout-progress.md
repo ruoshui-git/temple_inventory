@@ -7,7 +7,7 @@ Tracks the four-phase rollout. Status words are used strictly: Implemented (code
 | 1 Permissions | ✅ | ✅ | ✅ `a89f326` | ✅ run 42363216839 | ✅ 15/15 real-login smoke on Sample |
 | 2 Opening Stock | ✅ | ✅ | ✅ `0cdd812` | ✅ run 42388149090 | ✅ 14/14 real-login smoke on Sample |
 | 3 Item import | ✅ | ✅ | ✅ `dcbf956` | ✅ run 42399028934 | ✅ 16/16 real-login smoke on Sample |
-| 4 Opening Stock import | ✅ | ✅ locally | | | |
+| 4 Opening Stock import | ✅ | ✅ | ✅ `6a0a1c3` | ✅ run 42419201852 | ✅ 16/16 smoke and a full browser import on Sample |
 
 ## Decisions confirmed by the owner (2026-11-06)
 
@@ -102,4 +102,13 @@ Tracks the four-phase rollout. Status words are used strictly: Implemented (code
 
 **Visual review.** Real-data start, preview, confirm, result and resulting document at 1440, and preview at 390 (`notes/evidence/2026-11-07-opening-import/`, gitignored).
 
+**Deployment.** Commit `6a0a1c3`, Sample run 42419201852, image `sha256:085a2b9725d7c0c3ab21f8bb5951706790e3be5bcfa6f31699daaa5d3876291e`, full reinstall and reseed. The first CI attempt failed one browser test, `sticky-table.spec.ts` "phone: clicking a stuck category collapses it", which predates this rollout and covers code Phase 4 does not touch; rerunning the failed job passed with no change. On sample.kufang.online: the committed smoke passed 16 of 16, and a Manager imported Opening Stock through the browser wizard, producing one native document with three lines across two locations at the declared 00:00:01. That flow is now `frontend/tests/browser/native-server/opening-import.spec.ts`.
+
 **Limits.** Writes to the import's locations wait while it submits.
+
+## Known flaky tests
+
+Both passed on a plain rerun and cover code this rollout did not change.
+
+- Backend, `test_printing.test_chrome_list_density_landscape_and_300_rows`: a 30-second Chromium launch timeout in the PDF screenshot helper on the CI runner.
+- Browser, `sticky-table.spec.ts` "phone: clicking a stuck category collapses it and leaves its row at the sticky line": the collapse did not register within 5 seconds on the CI runner.
