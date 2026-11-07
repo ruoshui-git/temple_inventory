@@ -6,11 +6,18 @@ import { mount } from "@vue/test-utils";
 const { request } = vi.hoisted(() => ({ request: vi.fn() }));
 vi.mock("../src/lib/api", () => ({ request }));
 vi.mock("../src/services/contracts", () => ({
-  useReferenceData: () => ({ capabilities: { imports: { create: true } } }),
+  useReferenceData: () => ({
+    capabilities: {
+      imports: { create: true },
+      stock_reconciliation: { create: true },
+    },
+  }),
 }));
 import {
   itemImportColumns,
   actionLabels,
+  openingImportColumns,
+  openingActionLabels,
 } from "../src/features/imports/itemConfig";
 import { useImportWizard } from "../src/features/imports/useImportWizard";
 import { routeRegistry, routeTarget } from "../src/lib/routeRegistry";
@@ -59,6 +66,47 @@ describe("Item import feature definition and gating", () => {
         imports: { create: false },
       } as never),
     ).toEqual([]);
+  });
+  it("gates Opening Stock import on both capabilities and pins its columns", () => {
+    const entry = routeRegistry.find(
+      (route) => route.name === "imports-opening",
+    );
+    expect(entry).toMatchObject({
+      path: "/imports/opening",
+      requires: ["imports.create", "stock_reconciliation.create"],
+    });
+    expect(openingImportColumns.map((column) => column.label)).toEqual([
+      "物品名称",
+      "物品编号",
+      "位置",
+      "数量",
+      "估值单价",
+      "估值金额",
+      "批次",
+      "序列号",
+    ]);
+    expect(openingActionLabels).toEqual({
+      NEW: "新增",
+      UNCHANGED: "无变化",
+      REJECTED: "无法导入",
+    });
+    expect(
+      routeAllowed(["imports.create", "stock_reconciliation.create"], {
+        imports: { create: true },
+        stock_reconciliation: { create: false },
+      } as never),
+    ).toBe(false);
+    expect(
+      routeAllowed(["imports.create", "stock_reconciliation.create"], {
+        imports: { create: true },
+        stock_reconciliation: { create: true },
+      } as never),
+    ).toBe(true);
+    expect(
+      moreNavigation
+        .flatMap((group) => group.items)
+        .find((item) => item.key === "opening-import")?.requires,
+    ).toEqual(["imports.create", "stock_reconciliation.create"]);
   });
   it("uploads with multipart and keeps the preview read-only until explicit commit", async () => {
     const preview = {

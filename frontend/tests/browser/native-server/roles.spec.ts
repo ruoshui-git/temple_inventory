@@ -1,5 +1,7 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { resolve } from "node:path";
 
 // Real logins for the four role presets against a live site: no response is mocked.
 // Also the Sample smoke: NATIVE_BASE_URL=https://sample.kufang.online.
@@ -577,6 +579,76 @@ test("manager imports a generated Item workbook over HTTP; Operator is refused",
   const result = await manager.ok("imports.status", { name: preview.name });
   expect(["NEW", "UNCHANGED"]).toContain(result.rows[0].final_action);
   expect(result.rows[0].item_code).toMatch(/^ITM-/);
+
+  const locationTree = await manager.ok("warehouses.tree");
+  const location = locationTree.rows.find(
+    (row: any) =>
+      row.storable && !row.is_group && !row.disabled && !row.protected,
+  );
+  expect(location, "manager needs an authorized physical leaf").toBeTruthy();
+  const workbookScript = [
+    "import io, sys, xlsxwriter",
+    "out = io.BytesIO()",
+    "book = xlsxwriter.Workbook(out, {'in_memory': True})",
+    "sheet = book.add_worksheet('期初库存')",
+    "headers = ['物品编号*', '位置*', '数量*', '估值单价', '批次编号', '生产日期', '到期日期', '序列号']",
+    "[sheet.write_string(0, i, value) for i, value in enumerate(headers)]",
+    "[sheet.write_string(1, i, value) for i, value in enumerate([sys.argv[1], sys.argv[2], '1', '4', '', '', '', ''])]",
+    "book.close()",
+    "sys.stdout.buffer.write(out.getvalue())",
+  ].join("\n");
+  const openingBytes = execFileSync(
+    resolve(process.cwd(), "../../../env/bin/python"),
+    ["-c", workbookScript, result.rows[0].item_code, location.label],
+  );
+  const openingForm = new FormData();
+  openingForm.set("import_type", "Opening Stock");
+  openingForm.set("posting_date", new Date().toISOString().slice(0, 10));
+  openingForm.set("posting_time", "00:00:01");
+  openingForm.set(
+    "file",
+    new File([openingBytes], "opening.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }),
+  );
+  const openingUpload = await manager.page.request.post(
+    "/api/method/temple_inventory.imports.upload",
+    {
+      multipart: openingForm,
+      headers: {
+        "X-Frappe-CSRF-Token": manager.csrf,
+        "X-Inventory-Account": manager.user,
+      },
+    },
+  );
+  expect(openingUpload.ok(), await openingUpload.text()).toBe(true);
+  const openingPreview = (await openingUpload.json()).message;
+  expect(["NEW", "UNCHANGED"]).toContain(openingPreview.rows[0].action);
+  const openingQueued = await manager.ok("imports.commit", {
+    name: openingPreview.name,
+    plan_hash: openingPreview.plan_hash,
+    skip_rejected: 0,
+  });
+  expect(openingQueued.status).toBe("Queued");
+  await expect
+    .poll(
+      async () =>
+        (await manager.ok("imports.status", { name: openingPreview.name }))
+          .status,
+      { timeout: 120000, intervals: [1500] },
+    )
+    .toBe("Completed");
+  const openingResult = await manager.ok("imports.status", {
+    name: openingPreview.name,
+  });
+  expect(openingResult.created_documents).toHaveLength(1);
+  expect(["NEW", "UNCHANGED"]).toContain(openingResult.rows[0].final_action);
+  const stock = await manager.ok("warehouses.stock_summary", {
+    warehouse: location.name,
+  });
+  expect(stock.rows.some((row: any) => Number(row.stock_qty) > 0)).toBe(true);
+  await operator.denied("imports.opening_template");
+  await operator.denied("imports.opening_catalog");
   await operator.denied("imports.item_catalog");
   await operator.close();
   await manager.close();
@@ -588,6 +660,8 @@ test("viewer and operator see ForbiddenState at the Item import URL", async ({
   for (const key of ["viewer", "operator"] as const) {
     const session = await login(browser, key);
     await open(session.page, "/imports/items");
+    await expect(session.page.getByTestId("forbidden-state")).toBeVisible();
+    await open(session.page, "/imports/opening");
     await expect(session.page.getByTestId("forbidden-state")).toBeVisible();
     await session.close();
   }

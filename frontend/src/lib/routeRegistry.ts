@@ -46,6 +46,7 @@ type AppRouteName =
   | "drafts"
   | "reports"
   | "imports"
+  | "imports-opening"
   | "notifications"
   | "notification-settings"
   | "settings"
@@ -82,7 +83,7 @@ interface AppRouteDefinition {
   capabilities: readonly (
     "browse" | "create" | "edit" | "detail" | "recovery" | "auth"
   )[];
-  requires?: CapabilityKey;
+  requires?: CapabilityKey | readonly CapabilityKey[];
   breadcrumbs: readonly BreadcrumbDefinition[];
 }
 
@@ -124,6 +125,7 @@ const pages = {
   ActivityTypes: () => import("../pages/ActivityTypes.vue"),
   Reports: () => import("../pages/Reports.vue"),
   Imports: () => import("../pages/Imports.vue"),
+  OpeningImports: () => import("../pages/OpeningImports.vue"),
   Settings: () => import("../pages/Settings.vue"),
   Setup: () => import("../pages/Setup.vue"),
   More: () => import("../pages/More.vue"),
@@ -173,7 +175,8 @@ const route = (
       "activity-edit": "activity.write",
       setup: "settings.write",
       imports: "imports.create",
-    } as Record<string, CapabilityKey>
+      "imports-opening": ["imports.create", "stock_reconciliation.create"],
+    } as Record<string, CapabilityKey | readonly CapabilityKey[]>
   )[name],
 });
 
@@ -453,6 +456,14 @@ export const routeRegistry: readonly AppRouteDefinition[] = [
     [root, { label: "物品导入" }],
   ),
   route(
+    "imports-opening",
+    "/imports/opening",
+    "OpeningImports",
+    "more",
+    ["browse", "create"],
+    [root, { label: "期初库存导入" }],
+  ),
+  route(
     "notifications",
     "/notifications",
     "Notifications",
@@ -515,7 +526,8 @@ export const routeRecords: RouteRecordRaw[] = routeRegistry.map((entry) => ({
     stateIdentity: entry.stateIdentity,
     reservedParams: entry.reservedParams,
     taskEditor: entry.taskEditor,
-    requires: entry.requires,
+    requires: entry.requires as
+      CapabilityKey | readonly CapabilityKey[] | undefined,
   },
 }));
 

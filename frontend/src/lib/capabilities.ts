@@ -33,8 +33,13 @@ export function canOnDoctype(
 }
 
 export function routeAllowed(
-  requires: CapabilityKey | undefined,
+  requires: CapabilityKey | readonly CapabilityKey[] | undefined,
   capabilities: CapabilitySet | null | undefined,
 ) {
-  return !requires || can(capabilities, requires);
+  return (
+    !requires ||
+    (Array.isArray(requires)
+      ? requires.every((key) => can(capabilities, key))
+      : can(capabilities, requires as CapabilityKey))
+  );
 }

@@ -1,40 +1,105 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { useRoute } from "vue-router";
 import { useImportWizard, type ImportRow } from "./useImportWizard";
-import { itemImportColumns, actionLabels } from "./itemConfig";
+import {
+	itemImportColumns,
+	openingImportColumns,
+	actionLabels,
+	openingActionLabels,
+} from "./itemConfig";
 import DataTable from "../../components/ui/DataTable.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import type { DataColumn, DataTableEntry } from "../../lib/dataTable";
-const c = useImportWizard(),
+import { formatQuantity, formatQuantityWithUnit } from "../../lib/formatQuantity";
+import { postingTime } from "../../lib/nativeTime";
+const route = useRoute(),
+	isOpening = computed(() => route.name === "imports-opening"),
+	c = useImportWizard(isOpening.value ? "Opening Stock" : "Item"),
 	confirmOpen = ref(false),
 	fileInput = ref<HTMLInputElement>(),
 	mobile = matchMedia("(max-width: 767px)");
 const isPhone = ref(mobile.matches);
 mobile.addEventListener("change", () => (isPhone.value = mobile.matches));
-const columns: DataColumn[] = [
-	{ id: "row", label: "源行", kind: "number" as const },
-	{ id: "action", label: "处理结果", kind: "status" as const },
-	{ id: "name", label: "物品名称", kind: "primary" as const },
-	{ id: "code", label: "物品编号", kind: "code" as const },
-	{ id: "issues", label: "错误与提醒", kind: "text" as const },
-	{ id: "detail", label: "前后对比", kind: "text" as const },
-];
+const columns = computed<DataColumn[]>(() =>
+	isOpening.value
+		? [
+				{ id: "row", label: "源行", kind: "number" },
+				{ id: "action", label: "处理结果", kind: "status" },
+				...openingImportColumns.map((column) => ({
+					id: column.key,
+					label: column.label,
+					kind:
+						column.key === "qty" ||
+						column.key === "valuation_rate" ||
+						column.key === "line_value"
+							? ("number" as const)
+							: ("text" as const),
+				})),
+				{ id: "issues", label: "错误与提醒", kind: "text" },
+			]
+		: [
+				{ id: "row", label: "源行", kind: "number" as const },
+				{ id: "action", label: "处理结果", kind: "status" as const },
+				{ id: "name", label: "物品名称", kind: "primary" as const },
+				{ id: "code", label: "物品编号", kind: "code" as const },
+				{ id: "issues", label: "错误与提醒", kind: "text" as const },
+				{ id: "detail", label: "前后对比", kind: "text" as const },
+			],
+);
 const rowCode = (row: ImportRow) =>
 	row.item_code ||
 	row.target ||
 	String(row.values.item_code || "") ||
 	(row.action === "REJECTED" ? "—" : "新编号待分配");
 const hasChanges = (row: ImportRow) => row.action === "UPDATE";
+// A row whose Item is unknown has no unit; show the number alone.
+const qtyText = (row: ImportRow) => {
+	const value = row as unknown as { qty?: number; stock_uom?: string };
+	return value.stock_uom
+		? formatQuantityWithUnit(Number(value.qty || 0), value.stock_uom)
+		: formatQuantity(Number(value.qty || 0));
+};
+const openingMeta = (row: ImportRow) => {
+	const value = row as unknown as {
+		location_label?: string;
+		line_value?: number;
+		batch_no?: string;
+		serials?: string[];
+	};
+	const serials = value.serials || [];
+	return [
+		value.location_label,
+		qtyText(row),
+		value.line_value ? `估值 ${value.line_value}` : "",
+		value.batch_no ? `批次 ${value.batch_no}` : "",
+		serials.length
+			? `序列号 ${serials.slice(0, 3).join("、")}${serials.length > 3 ? ` +${serials.length - 3}` : ""}`
+			: "",
+	]
+		.filter(Boolean)
+		.join(" · ");
+};
 const tableRows = computed<DataTableEntry[]>(() =>
 	c.visibleRows.value.map((row: ImportRow) => ({
 		kind: "record" as const,
 		id: String(row.row),
 		value: {
 			...row,
-			name: row.values.item_name || row.target || "",
+			name: (row as any).item_name || row.values.item_name || row.target || "",
 			code: rowCode(row),
 			issues: [...row.errors, ...row.warnings].join("；"),
+			qty: qtyText(row),
+			valuation_rate: (row as any).valuation_rate ?? "",
+			line_value: (row as any).line_value ?? "",
+			location_label: (row as any).location_label ?? "",
+			batch_no: (row as any).batch_no || "—",
+			serials:
+				((row as any).serials || []).slice(0, 3).join("、") +
+				(((row as any).serials || []).length > 3
+					? ` +${(row as any).serials.length - 3}`
+					: ""),
 			detail: !hasChanges(row)
 				? ""
 				: c.expanded.value.includes(Number(row.row))
@@ -49,11 +114,17 @@ const actionIcons: Record<string, string> = {
 	UNCHANGED: "select",
 	REJECTED: "warning",
 };
+const actionKeys = computed(() =>
+	isOpening.value
+		? ["NEW", "UNCHANGED", "REJECTED"]
+		: ["NEW", "UPDATE", "UNCHANGED", "REJECTED"],
+);
+const visibleActionLabels = computed(() => (isOpening.value ? openingActionLabels : actionLabels));
 const statusClass = (action: string) =>
 	({ NEW: "is-success", UPDATE: "is-warning", UNCHANGED: "is-neutral", REJECTED: "is-danger" })[
 		action
 	] || "is-neutral";
-const labelFor = (action: unknown) => actionLabels[String(action)] || "无法导入";
+const labelFor = (action: unknown) => visibleActionLabels.value[String(action)] || "无法导入";
 const rowFor = (row: Record<string, unknown>) => row as unknown as ImportRow;
 const compare = (row: ImportRow) =>
 	itemImportColumns
@@ -71,6 +142,11 @@ function toggle(row: number) {
 const downloadReport = (kind = "all") =>
 	c.download(`report?name=${encodeURIComponent(c.preview.value?.name || "")}&kind=${kind}`);
 const resultCounts = computed(() => c.preview.value?.counts || {});
+const canUpload = computed(
+	() =>
+		Boolean(c.file.value) &&
+		(!isOpening.value || Boolean(c.postingDate.value && c.postingTime.value)),
+);
 const generatedCodes = computed(() =>
 	(c.preview.value?.rows || [])
 		.filter((row) => row.action === "NEW" && row.item_code)
@@ -82,14 +158,24 @@ const downloadRejected = () => downloadReport("rejected");
 	<main class="import-wizard">
 		<header class="import-heading">
 			<div>
-				<h1>物品导入</h1>
-				<p>下载模板，核对物品目录，预览变更后再提交。</p>
+				<h1>{{ isOpening ? "期初库存导入" : "物品导入" }}</h1>
+				<p>
+					{{
+						isOpening
+							? "一次导入创建一张期初库存单据；预览不会写入库存。"
+							: "下载模板，核对物品目录，预览变更后再提交。"
+					}}
+				</p>
 			</div>
 			<div class="import-downloads">
-				<UiButton variant="secondary" @click="c.download('item_template')"
+				<UiButton
+					variant="secondary"
+					@click="c.download(isOpening ? 'opening_template' : 'item_template')"
 					>下载模板</UiButton
-				><UiButton variant="secondary" @click="c.download('item_catalog')"
-					>下载物品目录</UiButton
+				><UiButton
+					variant="secondary"
+					@click="c.download(isOpening ? 'opening_catalog' : 'item_catalog')"
+					>{{ isOpening ? "下载物品目录（获取物品编号）" : "下载物品目录" }}</UiButton
 				>
 			</div>
 		</header>
@@ -99,13 +185,21 @@ const downloadRejected = () => downloadReport("rejected");
 			<li :class="{ active: ['running', 'result'].includes(c.step.value) }">3 确认与结果</li>
 		</ol>
 		<section v-if="c.step.value === 'start'" class="import-upload surface">
-			<p class="import-upload-hint">填写好的物品模板（.xlsx，最多 5 MB、5,000 行）</p>
+			<p class="import-upload-hint">
+				填写好的{{ isOpening ? "期初库存" : "物品" }}模板（.xlsx，最多 5 MB、5,000 行）
+			</p>
+			<div v-if="isOpening" class="opening-posting-fields">
+				<label>期初日期<input v-model="c.postingDate.value" type="date" required /></label>
+				<label
+					>时间<input v-model="c.postingTime.value" type="time" step="1" required
+				/></label>
+			</div>
 			<input
 				ref="fileInput"
 				id="item-import-file"
 				class="import-file-input"
 				type="file"
-				aria-label="选择物品模板"
+				:aria-label="`选择${isOpening ? '期初库存' : '物品'}模板`"
 				accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 				@change="c.file.value = ($event.target as HTMLInputElement).files?.[0]"
 			/>
@@ -116,9 +210,14 @@ const downloadRejected = () => downloadReport("rejected");
 			</div>
 			<p v-if="c.error.value" role="alert">{{ c.error.value }}</p>
 			<div class="import-actions">
+				<span v-if="!canUpload" class="import-upload-hint">{{
+					isOpening && !(c.postingDate.value && c.postingTime.value)
+						? "请先填写期初日期和时间"
+						: "请先选择文件"
+				}}</span>
 				<UiButton
 					variant="primary"
-					:disabled="!c.file.value"
+					:disabled="!canUpload"
 					:loading="c.busy.value"
 					@click="c.upload"
 					>上传并预览</UiButton
@@ -148,11 +247,33 @@ const downloadRejected = () => downloadReport("rejected");
 					}}
 				</h2>
 				<p v-if="c.preview.value.error" role="alert">{{ c.preview.value.error }}</p>
-				<p>
+				<template v-if="isOpening">
+					<p>
+						期初日期 {{ c.preview.value.posting_date }} ·
+						{{ postingTime(String(c.preview.value.posting_time || "")) }} · 差额科目
+						{{ c.preview.value.difference_account || "未设置" }}
+					</p>
+					<p>
+						按单位数量：<span
+							v-for="(quantity, unit) in c.preview.value.totals_by_unit"
+							:key="unit"
+							>{{ formatQuantity(quantity) }} {{ unit }} </span
+						>· 总估值 {{ c.preview.value.total_value }}
+					</p>
+					<p v-if="c.preview.value.created_documents?.length">
+						期初库存单据：<RouterLink
+							v-for="name in c.preview.value.created_documents"
+							:key="name"
+							:to="{ name: 'count-detail', params: { name } }"
+							>{{ name }}</RouterLink
+						>
+					</p>
+				</template>
+				<p v-else>
 					新建 {{ resultCounts.new || 0 }} · 更新 {{ resultCounts.update || 0 }} · 无变化
 					{{ resultCounts.unchanged || 0 }} · 无法导入 {{ resultCounts.rejected || 0 }}
 				</p>
-				<p v-if="generatedCodes.length" class="generated-codes">
+				<p v-if="!isOpening && generatedCodes.length" class="generated-codes">
 					生成的物品编号：{{ generatedCodes.join("、") }}
 				</p>
 				<UiButton
@@ -179,9 +300,38 @@ const downloadRejected = () => downloadReport("rejected");
 				>
 			</section>
 			<template v-if="c.step.value !== 'running'">
+				<div
+					v-if="isOpening && c.step.value !== 'result'"
+					class="surface opening-preview-context"
+				>
+					<p>
+						期初日期 {{ c.preview.value.posting_date }} ·
+						{{ postingTime(String(c.preview.value.posting_time || "")) }} · 差额科目
+						{{ c.preview.value.difference_account || "未设置" }}
+					</p>
+					<p>
+						预计数量：<span
+							v-for="(quantity, unit) in c.preview.value.totals_by_unit"
+							:key="unit"
+							>{{ formatQuantity(quantity) }} {{ unit }} </span
+						>· 总估值 {{ c.preview.value.total_value }}
+					</p>
+					<p>导入期间这些位置的其他操作会等待，大批量导入请在空闲时进行。</p>
+					<p>
+						位置：{{
+							[
+								...new Set(
+									c.preview.value.rows
+										.map((row: any) => row.location_label)
+										.filter(Boolean),
+								),
+							].join("、") || "—"
+						}}
+					</p>
+				</div>
 				<section class="import-summary" aria-label="预览数量">
 					<button
-						v-for="action in ['NEW', 'UPDATE', 'UNCHANGED', 'REJECTED']"
+						v-for="action in actionKeys"
 						:key="action"
 						type="button"
 						class="import-tile surface"
@@ -191,7 +341,7 @@ const downloadRejected = () => downloadReport("rejected");
 						<InventoryIcon :name="actionIcons[action] || 'info'" /><strong>{{
 							c.preview.value.counts[action.toLowerCase()] || 0
 						}}</strong
-						><span>{{ actionLabels[action] }}</span>
+						><span>{{ visibleActionLabels[action] }}</span>
 					</button>
 				</section>
 				<div class="import-tools">
@@ -202,12 +352,8 @@ const downloadRejected = () => downloadReport("rejected");
 						aria-label="搜索预览"
 					/><select v-model="c.filter.value" aria-label="按处理结果筛选">
 						<option value="all">全部结果</option>
-						<option
-							v-for="action in ['NEW', 'UPDATE', 'UNCHANGED', 'REJECTED']"
-							:key="action"
-							:value="action"
-						>
-							{{ actionLabels[action] }}
+						<option v-for="action in actionKeys" :key="action" :value="action">
+							{{ visibleActionLabels[action] }}
 						</option>
 					</select>
 				</div>
@@ -219,13 +365,17 @@ const downloadRejected = () => downloadReport("rejected");
 					>
 						<div>
 							<strong>{{
-								row.values.item_name || row.target || "未填写名称"
+								(row as any).item_name ||
+								row.values.item_name ||
+								row.target ||
+								"未填写名称"
 							}}</strong
 							><span class="browse-badge" :class="statusClass(String(row.action))">{{
 								labelFor(row.action)
 							}}</span>
 						</div>
 						<small>第 {{ row.row }} 行 · {{ rowCode(row) }}</small>
+						<p v-if="isOpening">{{ openingMeta(row) }}</p>
 						<p v-if="row.errors.length" class="is-danger">
 							{{ row.errors.join("；") }}
 						</p>
@@ -250,7 +400,7 @@ const downloadRejected = () => downloadReport("rejected");
 				</div>
 				<DataTable
 					v-else
-					ariaLabel="物品导入预览"
+					:ariaLabel="`${isOpening ? '期初库存' : '物品'}导入预览`"
 					:columns="columns"
 					:rows="tableRows"
 					empty-text="没有符合条件的行"
@@ -302,12 +452,34 @@ const downloadRejected = () => downloadReport("rejected");
 				</div>
 			</template>
 		</section>
-		<Overlay v-if="confirmOpen" title="确认导入物品" @close="confirmOpen = false"
+		<Overlay
+			v-if="confirmOpen"
+			:title="isOpening ? '确认导入期初库存' : '确认导入物品'"
+			@close="confirmOpen = false"
 			><p>
-				将新建 {{ c.preview?.value?.counts.new || 0 }} 行、更新
-				{{ c.preview?.value?.counts.update || 0 }} 行、保持无变化
-				{{ c.preview?.value?.counts.unchanged || 0 }} 行。
+				<template v-if="isOpening"
+					>将导入 {{ c.preview?.value?.counts.new || 0 }} 行，涉及位置
+					{{
+						[
+							...new Set(
+								c.preview?.value?.rows
+									.map((row: any) => row.location_label)
+									.filter(Boolean) || [],
+							),
+						].join("、")
+					}}；期初日期 {{ c.preview?.value?.posting_date }}
+					{{ postingTime(String(c.preview?.value?.posting_time || "")) }}；差额科目
+					{{
+						c.preview?.value?.difference_account
+					}}。确认后将写入库存和会计记录。</template
+				>
+				<template v-else
+					>将新建 {{ c.preview?.value?.counts.new || 0 }} 行、更新
+					{{ c.preview?.value?.counts.update || 0 }} 行、保持无变化
+					{{ c.preview?.value?.counts.unchanged || 0 }} 行。</template
+				>
 			</p>
+			<p v-if="isOpening">导入期间这些位置的其他操作会等待，大批量导入请在空闲时进行。</p>
 			<label v-if="c.rejected.value" class="skip-rejected"
 				><input v-model="c.skipRejected.value" type="checkbox" />跳过
 				{{ c.rejected.value }} 行无法导入的行</label
@@ -382,6 +554,14 @@ h1 {
 }
 .import-result {
 	justify-items: start;
+}
+.opening-preview-context {
+	display: grid;
+	gap: 4px;
+	padding: 16px 20px;
+}
+.opening-preview-context p {
+	margin: 0;
 }
 .import-upload-hint {
 	margin: 0;

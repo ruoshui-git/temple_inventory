@@ -14,7 +14,7 @@ export interface NavigationItem {
   label: string;
   route: AppRouteTarget;
   icon: string;
-  requires?: CapabilityKey;
+  requires?: CapabilityKey | readonly CapabilityKey[];
   description?: string;
 }
 export interface NavigationGroup {
@@ -28,7 +28,8 @@ export function filterNavigation<T extends object>(
 ) {
   return items.filter((item) =>
     routeAllowed(
-      (item as T & { requires?: CapabilityKey }).requires,
+      (item as T & { requires?: CapabilityKey | readonly CapabilityKey[] })
+        .requires,
       capabilities,
     ),
   );
@@ -93,6 +94,14 @@ export const moreNavigation: NavigationGroup[] = [
         icon: "document",
         requires: "imports.create",
         description: "通过模板批量新建或更新物品",
+      },
+      {
+        key: "opening-import",
+        label: "期初库存导入",
+        route: routeTarget("imports-opening"),
+        icon: "document",
+        requires: ["imports.create", "stock_reconciliation.create"],
+        description: "从工作簿一次导入期初库存",
       },
       {
         key: "activities",

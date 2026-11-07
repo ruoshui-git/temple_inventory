@@ -1,6 +1,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { request } from "../../lib/api";
 import { useReferenceData } from "../../services/contracts";
+import { postingTime as sitePostingTime } from "../../lib/nativeTime";
 
 export interface ImportRow {
   row: number;
@@ -21,8 +22,14 @@ export interface ImportPreview {
   plan_hash: string;
   error: string;
   progress?: { percent?: number; heartbeat?: string };
+  posting_date?: string;
+  posting_time?: string;
+  difference_account?: string;
+  created_documents?: string[];
+  totals_by_unit?: Record<string, number>;
+  total_value?: number;
 }
-export function useImportWizard() {
+export function useImportWizard(importType: "Item" | "Opening Stock" = "Item") {
   const reference = useReferenceData();
   const file = ref<File>(),
     preview = ref<ImportPreview>(),
@@ -32,6 +39,11 @@ export function useImportWizard() {
     query = ref(""),
     filter = ref("all"),
     skipRejected = ref(false),
+    // Declared stock time defaults to the site's current time, like the 期初库存 editor.
+    postingDate = ref(reference.siteDate || ""),
+    postingTime = ref(
+      sitePostingTime(String(reference.siteTime || "").split(" ")[1]),
+    ),
     expanded = ref<number[]>([]),
     jobId = ref("");
   const rejected = computed(() => preview.value?.counts.rejected || 0);
@@ -52,7 +64,11 @@ export function useImportWizard() {
     try {
       const form = new FormData();
       form.set("file", file.value);
-      form.set("import_type", "Item");
+      form.set("import_type", importType);
+      if (importType === "Opening Stock") {
+        form.set("posting_date", postingDate.value);
+        form.set("posting_time", postingTime.value);
+      }
       preview.value = await request(
         "temple_inventory.imports.upload",
         {},
@@ -185,6 +201,8 @@ export function useImportWizard() {
     query,
     filter,
     skipRejected,
+    postingDate,
+    postingTime,
     rejected,
     expanded,
     visibleRows,
