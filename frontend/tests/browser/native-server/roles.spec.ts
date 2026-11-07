@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 // Real logins for the four role presets against a live site: no response is mocked.
 // Also the Sample smoke: NATIVE_BASE_URL=https://sample.kufang.online.
@@ -37,6 +37,7 @@ const grants: Record<string, Key[]> = {
   "warehouse.create": ["admin"],
   "warehouse.write": ["admin"],
   "settings.write": ["admin"],
+  "imports.create": ["manager", "admin"],
 };
 
 interface Session {
@@ -221,6 +222,20 @@ test("direct API calls are refused per role", async ({ browser }) => {
     label: "manager denied",
     kind: "Shelf",
   });
+  for (const endpoint of [
+    "item_template",
+    "upload",
+    "preview",
+    "commit",
+    "status",
+    "report",
+    "item_catalog",
+    "retry",
+  ])
+    await operator.denied(
+      `imports.${endpoint}`,
+      endpoint === "upload" ? {} : { name: "missing", plan_hash: "missing" },
+    );
   await viewer.close();
   await operator.close();
   await manager.close();
@@ -515,6 +530,69 @@ test("manager creates and submits Opening Stock over HTTP; operator create is re
   await manager.close();
 });
 
+test("manager imports a generated Item workbook over HTTP; Operator is refused", async ({
+  browser,
+}) => {
+  const operator = await login(browser, "operator");
+  const manager = await login(browser, "manager");
+  const form = new FormData();
+  form.set("import_type", "Item");
+  form.set(
+    "file",
+    new File(
+      [readFileSync(new URL("./fixtures/item-import.xlsx", import.meta.url))],
+      "items.xlsx",
+      {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      },
+    ),
+  );
+  const upload = await manager.page.request.post(
+    "/api/method/temple_inventory.imports.upload",
+    {
+      multipart: form,
+      headers: {
+        "X-Frappe-CSRF-Token": manager.csrf,
+        "X-Inventory-Account": manager.user,
+      },
+    },
+  );
+  expect(upload.ok(), await upload.text()).toBe(true);
+  const preview = (await upload.json()).message;
+  expect(["NEW", "UNCHANGED"]).toContain(preview.rows[0].action);
+  if (preview.rows[0].action === "NEW") expect(preview.rows[0].target).toBe("");
+  const queued = await manager.ok("imports.commit", {
+    name: preview.name,
+    plan_hash: preview.plan_hash,
+    skip_rejected: 0,
+  });
+  expect(queued.status).toBe("Queued");
+  await expect
+    .poll(
+      async () =>
+        (await manager.ok("imports.status", { name: preview.name })).status,
+      { timeout: 120000, intervals: [1500] },
+    )
+    .toBe("Completed");
+  const result = await manager.ok("imports.status", { name: preview.name });
+  expect(["NEW", "UNCHANGED"]).toContain(result.rows[0].final_action);
+  expect(result.rows[0].item_code).toMatch(/^ITM-/);
+  await operator.denied("imports.item_catalog");
+  await operator.close();
+  await manager.close();
+});
+
+test("viewer and operator see ForbiddenState at the Item import URL", async ({
+  browser,
+}) => {
+  for (const key of ["viewer", "operator"] as const) {
+    const session = await login(browser, key);
+    await open(session.page, "/imports/items");
+    await expect(session.page.getByTestId("forbidden-state")).toBeVisible();
+    await session.close();
+  }
+});
+
 const reviewed = [
   ["home", ""],
   ["stock", "/stock"],
@@ -531,6 +609,7 @@ const reviewed = [
   ["activities", "/activities"],
   ["activity-types", "/activities/types"],
   ["reports", "/reports"],
+  ["item-import", "/imports/items"],
   ["more", "/more"],
   ["new-receive", "/movements/new/Receive"],
   ["new-count", "/counts/new"],

@@ -45,6 +45,7 @@ type AppRouteName =
   | "activity-edit"
   | "drafts"
   | "reports"
+  | "imports"
   | "notifications"
   | "notification-settings"
   | "settings"
@@ -122,6 +123,7 @@ const pages = {
   Activities: () => import("../pages/Activities.vue"),
   ActivityTypes: () => import("../pages/ActivityTypes.vue"),
   Reports: () => import("../pages/Reports.vue"),
+  Imports: () => import("../pages/Imports.vue"),
   Settings: () => import("../pages/Settings.vue"),
   Setup: () => import("../pages/Setup.vue"),
   More: () => import("../pages/More.vue"),
@@ -170,6 +172,7 @@ const route = (
       "activity-new": "activity.create",
       "activity-edit": "activity.write",
       setup: "settings.write",
+      imports: "imports.create",
     } as Record<string, CapabilityKey>
   )[name],
 });
@@ -440,6 +443,14 @@ export const routeRegistry: readonly AppRouteDefinition[] = [
     "reports",
     ["browse"],
     [root, { label: "报表", to: { name: "reports" } }],
+  ),
+  route(
+    "imports",
+    "/imports/items",
+    "Imports",
+    "more",
+    ["browse", "create"],
+    [root, { label: "物品导入" }],
   ),
   route(
     "notifications",

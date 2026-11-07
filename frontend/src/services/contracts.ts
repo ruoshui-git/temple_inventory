@@ -174,6 +174,7 @@ export interface CapabilitySet {
   uom: Record<"create" | "write" | "delete", boolean>;
   warehouse: Record<"create" | "write" | "delete", boolean>;
   settings: { write: boolean };
+  imports: { create: boolean };
 }
 export function emptyCapabilities(): CapabilitySet {
   const all = (keys: string[]) =>
@@ -213,6 +214,7 @@ export function emptyCapabilities(): CapabilitySet {
     uom: all(["create", "write", "delete"]) as CapabilitySet["uom"],
     warehouse: all(["create", "write", "delete"]) as CapabilitySet["warehouse"],
     settings: { write: false },
+    imports: { create: false },
   };
 }
 export interface ReferenceOption {

@@ -87,6 +87,14 @@ export const moreNavigation: NavigationGroup[] = [
         description: "查看库存、流动与借用报表",
       },
       {
+        key: "item-import",
+        label: "物品导入",
+        route: routeTarget("imports"),
+        icon: "document",
+        requires: "imports.create",
+        description: "通过模板批量新建或更新物品",
+      },
+      {
         key: "activities",
         label: "活动",
         route: routeTarget("activities"),

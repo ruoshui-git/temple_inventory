@@ -46,6 +46,7 @@ export const fullNativeCapabilities: CapabilitySet = {
   uom: { create: true, write: true, delete: true },
   warehouse: { create: true, write: true, delete: true },
   settings: { write: true },
+  imports: { create: true },
 };
 
 function place(
@@ -199,6 +200,7 @@ export async function nativeUiSession(
       ["uom", ["create", "write", "delete"]],
       ["warehouse", ["create", "write", "delete"]],
       ["settings", ["write"]],
+      ["imports", ["create"]],
     ].map(([domain, keys]) => [
       domain,
       Object.fromEntries((keys as string[]).map((key) => [key, true])),
@@ -245,6 +247,7 @@ export async function nativeUiSession(
       "uom.create",
       "uom.write",
       "uom.delete",
+      "imports.create",
     ],
   };
   if (role !== "Administrator") {
