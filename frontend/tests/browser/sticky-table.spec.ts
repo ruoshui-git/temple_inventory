@@ -386,6 +386,10 @@ for (const viewport of viewports) {
     await openNestedStock(page, phone, { categoryIndexes: [0, 2, 3] });
     await scrollTableBandIntoView(page);
     await expect.poll(async () => (await stuckState(page)).rows.length).toBe(2);
+    // Nested groups keep loading after two rows stick; on a slow runner a click during
+    // those re-renders was lost. Click once the group pages have settled.
+    await page.waitForLoadState("networkidle");
+    await expect.poll(async () => (await stuckState(page)).rows.length).toBe(2);
     const label = (await stuckState(page)).rows[0]!.label;
     const id = `category:${label}`;
     await page.locator("tr.is-stuck").first().click();

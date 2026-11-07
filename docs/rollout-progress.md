@@ -111,4 +111,4 @@ Tracks the four-phase rollout. Status words are used strictly: Implemented (code
 Both passed on a plain rerun and cover code this rollout did not change.
 
 - Backend, `test_printing.test_chrome_list_density_landscape_and_300_rows`: a 30-second Chromium launch timeout in the PDF screenshot helper on the CI runner.
-- Browser, `sticky-table.spec.ts` "phone: clicking a stuck category collapses it and leaves its row at the sticky line": the collapse did not register within 5 seconds on the CI runner.
+- Browser, `sticky-table.spec.ts` "phone: clicking a stuck category collapses it and leaves its row at the sticky line": it failed twice on CI. The CI trace showed the click landing while nested group pages were still loading and re-rendering the table, so the test now waits for those requests to settle before clicking. Its assertions are unchanged.
