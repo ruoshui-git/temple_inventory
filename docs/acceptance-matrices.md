@@ -150,6 +150,7 @@ Submitted stock records follow ERPNext: drafts can be edited or deleted; submitt
 | 借出记录 | ✅ | ✅ | ✅ draft | ✅ draft | ✅ 取消 / 修订 | |
 | 归还记录 | ✅ | ✅ | ✅ draft | ✅ draft | ✅ 取消 / 修订 | Starts from the outstanding loan, or in bulk from 库存/借用 选择. 2026-10-31: one 归还 may settle loans of several 借用方 and 活动 (per-loan context; header shows 多个借用方 when they differ) |
 | 库房盘点记录 | ✅ | ✅ | ✅ draft | ✅ draft | ✅ 取消 / 修订 | Matching counts create no record |
+| 🆕 物品导入 | ✅ | ✅ | ✅ | — | — | 2026-11-07. Preview writes nothing; all-or-nothing commit; 负责人 and 管理员 only |
 | 🆕 期初库存 | ✅ | ✅ | ✅ draft | ✅ draft | ✅ 取消 / 修订 | 2026-11-07. Native Opening Stock reconciliation; one Item × location once; batches and serials; Temporary difference account |
 | 活动 | ✅ | ✅ | ✅ | ✅ | ✅ 归档 | Delete only if unreferenced |
 | 🆕 批次 | via 入库 | ✅ | ✅ | — | — | Fix 过期日期 / 生产日期 |
@@ -170,6 +171,7 @@ Demo accounts and their permissions are listed in [README.md](../README.md#demo-
 | 取消 / 修订 / 删除草稿 | — | — | ✅ | ✅ |
 | 盘点调整、期初库存 | 只读 | 只读 | ✅ | ✅ |
 | 类别、单位、活动类型 | 只读 | 只读 | ✅ | ✅ |
+| 导入 | — | — | ✅ | ✅ |
 | 仓库配置、系统设置 | 只读 | 只读 | 只读 | ✅ |
 | 附件：添加；从草稿和物品移除 | — | ✅ | ✅ | ✅ |
 | 附件：从已确认记录移除 | — | — | ✅ | ✅ |
@@ -188,7 +190,7 @@ Demo accounts and their permissions are listed in [README.md](../README.md#demo-
 | 项目 | 做法 |
 |---|---|
 | 用户账号 | Create in ERPNext Desk and assign one Role Profile (物资只读 / 物资录入员 / 物资负责人 / 物资管理员); see the role matrix above |
-| 初始数据 / 批量导入 | Prepared in Excel with images named by 物品编号; loaded by a script after launch. The export ZIP layout (`images/<物品编号>.*`) is the intended input layout |
+| 初始数据 / 批量导入 | 物品 through 物品导入 ([docs/imports.zh-CN.md](imports.zh-CN.md)). Images are not part of the import; they are added on the Item page. The export ZIP layout (`images/<物品编号>.*`) remains the layout for scripted image loads |
 | 活动类型 | Managed in the app at 活动 → 管理活动类型: create, rename, reorder, disable; delete only when unused |
 
 ## Open items

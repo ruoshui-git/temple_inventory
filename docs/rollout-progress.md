@@ -5,8 +5,8 @@ Tracks the four-phase rollout. Status words are used strictly: Implemented (code
 | Phase | Implemented | Tested | Committed | Deployed | Verified |
 |---|---|---|---|---|---|
 | 1 Permissions | ✅ | ✅ | ✅ `a89f326` | ✅ run 42363216839 | ✅ 15/15 real-login smoke on Sample |
-| 2 Opening Stock | ✅ | ✅ locally | | | |
-| 3 Item import | | | | | |
+| 2 Opening Stock | ✅ | ✅ | ✅ `0cdd812` | ✅ run 42388149090 | ✅ 14/14 real-login smoke on Sample |
+| 3 Item import | ✅ | ✅ locally | | | |
 | 4 Opening Stock import | | | | | |
 
 ## Decisions confirmed by the owner (2026-11-06)
@@ -58,4 +58,26 @@ Tracks the four-phase rollout. Status words are used strictly: Implemented (code
 
 **Visual review.** Real-data draft, submitted and read views at 1440, 1024 and 390 (`notes/evidence/2026-11-07-opening/`, gitignored).
 
+**Deployment.** Commit `0cdd812`, Sample run 42388149090, image `sha256:8804f1d87da7da10d7d99cb37a229c0a659122d4375780131d2e3afa5679b368`, full reinstall and reseed. The first CI attempt failed on one test, a 30-second Chromium launch timeout in the PDF screenshot helper; rerunning the failed job passed with no code change. Smoke against sample.kufang.online with the committed spec: 14 of 14, including a Manager creating and submitting Opening Stock over HTTP and the Operator refused.
+
 **Risks.** Item × location eligibility ignores dates by design, so stock received through 入库 before a location's opening must be corrected with 盘点调整.
+
+## Phase 3 — Item import
+
+**Scope.** `Inventory Import` DocType as audit record and permission gate, `Item.ti_import_ref`, template, upload, dry run, commit job, result report, catalog download, and a wizard at `/imports/items`.
+
+**Decisions.**
+
+- Frappe Data Import is not used: it has no dry run or before/after preview and commits per row.
+- Permission comes from the `Inventory Import` DocType, which is how Operators, who can edit Items, stay out of imports.
+- All Items commit in one transaction. To keep other writers moving, codes are allocated in a short earlier commit and the global read-generation bump waits until just before the final commit.
+- Barcodes are additive, so an import never removes one.
+- The job runs as the person who confirmed it, and rechecks each Item's version at write time.
+
+**Found by code and visual review, not by the suites.** Item updates replacing all barcodes; a passing test that stubbed `commit` and so hid the global lock being held for the whole job; `status` writing on GET; rows that passed the plan and only failed at commit; 确认导入 still offered after completion.
+
+**Tests.** Local, on the final code: backend 468 tests, 0 failures, 1 skipped; Vitest 1,164; browser 157 passed, 1 skipped; live acceptance 39; Ruff, Prettier and type-check clean. A real browser import ran end to end: upload, preview, skip rejected rows, submit, result.
+
+**Visual review.** Real-data start, preview, before/after, confirm and result at 1440 and preview at 390 (`notes/evidence/2026-11-07-imports/`, gitignored).
+
+**Limits.** 5 MB, 5,000 rows. Images are not imported. The concurrency proof is ordering-based: no test runs a second connection during a job.

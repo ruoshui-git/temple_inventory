@@ -76,6 +76,11 @@ This document owns user-visible behavior, interaction and language. [DESIGN_SYST
 - Loans have one 借用状态 filter for 明细 and 单据: 未结清 (default, the 借出清单), 已结清, 全部; a non-default value shows a chip. 明细 lists matching loan lines (全部 adds their return, damage and loss lines); 单据 lists matching loan documents (全部 adds their 归还/损坏/遗失 documents). It is URL state and drives the export; 明细 quantities are signed (loan +, return −) under 借还数量 and labels are neutral (日期, 编号, 来源位置). Status changes restart open histories; closed histories load lazily. Only original submitted Loan documents show settlement status; other operations show native status. 结算记录 and 原借出 link the two both ways and export under the same labels; headers are neutral (编号, 日期).
 - One 归还 may settle loans from several 借用方 and 活动. Each line keeps its original loan's 借用方 and 活动; the server derives the header (the shared value, else blank) and ignores client values on settlements. The Return editor has no 借用方 field or 活动 picker: it lists each loan as 原借出 · 借用方 · 活动, and the header shows 多个借用方 / 多个活动 when they differ. Reports, the 借用方 filter and activity counts attribute settlement lines through their original loan; a mixed Return counts once per activity it touches.
 
+## Imports
+
+- 物品导入 (`/imports/items`, 更多 → 工作工具, 负责人 and 管理员) runs 下载模板 / 下载物品目录 → upload → preview → 确认导入 → result. The preview writes nothing and shows each row as 新建, 更新, 无变化 or 无法导入, with summary tiles that filter, search, and before/after for updates. Commit rechecks everything against live data; if anything changed it stops at 数据已变化，请重新预览 with nothing written. Rows that cannot be imported block the import until 跳过 N 行无法导入的行 is ticked. All Items in one import are written together or not at all. The result shows generated 物品编号 and offers a report; the catalog download has the same columns, so it doubles as a code list and an update file.
+- 物品编号 means update. Otherwise 导入参考号, or a fingerprint of name, category, unit and description when it is blank, identifies a row, so a retried file creates no duplicates. A matching name alone is only a warning. A blank cell keeps the existing value. Barcodes are only added, never removed; one cell may hold several, separated by ；. Unknown categories and units are rejected, never created. 记录效期 turns on batch tracking, as in the Item editor. 库存单位 and locked tracking follow the same rules as the editor.
+
 ## Dashboard, reports and export
 
 - Dashboard distribution sorts stocked groups by Item count and initially shows eight. Empty physical locations are a separate expandable list. Category distribution labels uncategorized stock 无分类 and omits an empty category summary. Expiry preview is limited to five batches and retains the selected expired/dated-not-expired window. Movement tiles and recent records link to detail; quantity disclosure does not steal the link. Stock-effect wording is title/screen-reader text only.
@@ -108,6 +113,7 @@ This document owns user-visible behavior, interaction and language. [DESIGN_SYST
 
 ## Changelog
 
+- 2026-11-07: 物品导入 and 物品目录 download for 负责人 and 管理员, with a preview that writes nothing.
 - 2026-11-07: 期初库存 editor for 负责人 and 管理员, with eligibility per Item and location.
 - 2026-11-07: tapping 完成 on the phone filter sheet no longer falls through to the 更多 tab underneath.
 - 2026-11-06: four native roles (只读、录入员、负责人、管理员) replace System Manager-only access; every page shows only what the account can do, with read-only views and 无权限 for direct URLs.

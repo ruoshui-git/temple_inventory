@@ -111,14 +111,15 @@ What each role can do:
 | Remove attachments from submitted records | — | — | ✅ | ✅ |
 | Create, edit and submit 盘点调整 and 期初库存 | read only | read only | ✅ | ✅ |
 | Cancel and amend records; delete drafts | — | — | ✅ | ✅ |
+| Import Items | — | — | ✅ | ✅ |
 | Manage 类别, 单位 and 活动类型 | read only | read only | ✅ | ✅ |
 | Delete Items and Activities | — | — | — | ✅ |
 | Configure Warehouses and settings | read only | read only | read only | ✅ |
 | Manage users and roles in ERPNext Desk | — | — | — | ✅ |
 
-An 录入员 cannot delete an autosaved draft; only unsaved input can be discarded. Later
-rollout phases add imports for 负责人 and 管理员. See
-[docs/rollout-progress.md](docs/rollout-progress.md).
+An 录入员 cannot delete an autosaved draft; only unsaved input can be discarded. See
+[docs/imports.zh-CN.md](docs/imports.zh-CN.md) for imports and
+[docs/rollout-progress.md](docs/rollout-progress.md) for rollout status.
 
 To give a real user a role, open the User in ERPNext Desk and set one Role Profile:
 物资只读, 物资录入员, 物资负责人 or 物资管理员. Company, warehouse root and User Permission
