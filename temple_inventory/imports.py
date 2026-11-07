@@ -68,6 +68,16 @@ def _require_write():
 		frappe.throw("无权修改导入请求", frappe.PermissionError)
 
 
+def _require_opening_create():
+	_require_manager()
+	frappe.has_permission("Stock Reconciliation", "create", throw=True)
+
+
+def _require_import_doc(doc):
+	if doc.import_type == "Opening Stock":
+		_require_opening_create()
+
+
 def _save(doc):
 	token = service_write.set(True)
 	try:
@@ -82,8 +92,19 @@ def _get(name, lock=False):
 	return doc
 
 
+def _opening_request_document(name):
+	key = hashlib.sha256(name.encode()).hexdigest()
+	return frappe.db.get_value("Stock Reconciliation", {"ti_request_key": key}, "name")
+
+
 def _safe_text(value):
 	return "" if value is None else str(value).strip()
+
+
+def _serial_values(value):
+	if isinstance(value, (list, tuple)):
+		return [str(entry).strip() for entry in value if str(entry).strip()]
+	return [entry.strip() for entry in re.split(r"[,，;；\n\r]+", str(value or "")) if entry.strip()]
 
 
 def _workbook(raw, filename):
@@ -121,6 +142,579 @@ def _workbook(raw, filename):
 		if len(rows) > MAX_ROWS:
 			frappe.throw("最多导入 5,000 行物品")
 	return rows
+
+
+OPENING_HEADERS = ["物品编号*", "位置*", "数量*", "估值单价", "批次编号", "生产日期", "到期日期", "序列号"]
+
+
+def _opening_workbook(raw, filename):
+	if not filename.lower().endswith(".xlsx") or filename.lower().endswith(".xlsm"):
+		frappe.throw("请上传 .xlsx 文件")
+	if len(raw) > MAX_FILE:
+		frappe.throw("文件不能超过 5 MB")
+	try:
+		wb = openpyxl.load_workbook(io.BytesIO(raw), read_only=True, data_only=False)
+	except Exception:
+		frappe.throw("无法读取工作簿，请检查文件格式")
+	if "期初库存" not in wb.sheetnames:
+		frappe.throw("工作簿缺少“期初库存”工作表")
+	ws = wb["期初库存"]
+	headers = [_safe_text(cell.value) for cell in next(ws.iter_rows(min_row=1, max_row=1), [])]
+	if headers != OPENING_HEADERS:
+		frappe.throw("“期初库存”工作表的列标题不正确，请使用最新模板")
+	keys = (
+		"item_code",
+		"location",
+		"qty",
+		"valuation_rate",
+		"batch_no",
+		"manufacturing_date",
+		"expiry_date",
+		"serial_no",
+	)
+	rows = []
+	for index, cells in enumerate(ws.iter_rows(min_row=2, values_only=True), 2):
+		values = [cells[i] if i < len(cells) else None for i in range(len(OPENING_HEADERS))]
+		if not any(_safe_text(value) for value in values):
+			continue
+		rows.append({"row": index, **dict(zip(keys, values, strict=True))})
+		if len(rows) > MAX_ROWS:
+			frappe.throw("最多导入 5,000 行期初库存")
+	return rows
+
+
+def _opening_context_date(posting_date, posting_time):
+	from frappe.utils import get_datetime, getdate, now_datetime
+
+	if not posting_date or not posting_time:
+		frappe.throw("请填写期初日期和时间")
+	try:
+		day = getdate(posting_date)
+		datetime_value = get_datetime(f"{day} {posting_time}")
+	except Exception:
+		frappe.throw("请填写有效的期初日期和时间")
+	if datetime_value > now_datetime():
+		frappe.throw("期初日期和时间不能晚于当前时间")
+	settings = frappe.get_single("Temple Inventory Settings")
+	from erpnext.accounts.utils import get_fiscal_year
+
+	try:
+		get_fiscal_year(day, company=settings.company)
+	except Exception:
+		frappe.clear_last_message()
+		frappe.throw("期初日期不属于有效财年")
+	return str(day), str(posting_time)
+
+
+def _opening_locations():
+	from temple_inventory.native_stock import warehouse_scopes
+
+	_settings, visible, physical, _leased, _damaged = warehouse_scopes()
+	rows = _opening_present_locations(visible)
+	allowed = [row for row in rows if row.get("name") in physical]
+	return allowed
+
+
+def _opening_present_locations(visible):
+	from temple_inventory.native_topology import present_locations
+
+	# User Permissions may return an authorized leaf without its group ancestors.
+	# Include only its missing ancestors for canonical path construction; the final
+	# location set is still intersected with warehouse_scopes() physical leaves.
+	topology = dict(visible)
+	for row in tuple(visible.values()):
+		parent_name = row.get("parent_warehouse")
+		while parent_name and parent_name not in topology:
+			parent = frappe.db.get_value(
+				"Warehouse",
+				parent_name,
+				[
+					"name",
+					"warehouse_name",
+					"parent_warehouse",
+					"warehouse_type",
+					"ti_label",
+					"ti_short_label",
+					"ti_direct_storage",
+					"company",
+					"is_group",
+					"disabled",
+					"lft",
+					"rgt",
+				],
+				as_dict=True,
+			)
+			if not parent:
+				break
+			topology[parent.name] = parent
+			parent_name = parent.parent_warehouse
+	return present_locations(topology)
+
+
+def _opening_template_rows():
+	locations = _opening_locations()
+	return [[row.get("label", ""), row.get("path", "")] for row in locations]
+
+
+@frappe.whitelist()
+def opening_template():
+	_require_opening_create()
+	locations = _opening_locations()
+	instructions = [
+		[
+			"物品编号*",
+			"必填",
+			"填写已存在的库存物品编号；未知编号会被拒绝，不会创建物品。物品目录下载提供可用编号。",
+		],
+		["位置*", "必填", "从位置清单选择；可填写清单中的标准位置、路径或原生仓库名。"],
+		["数量*", "必填", "必须大于零；序列号物品每个库存单位填写一个序列号。"],
+		["估值单价", "选填", "留空时使用现有库存估值、采购价或物品估值；都没有时按零估值。"],
+		["批次编号", "按物品要求", "批次物品填写；新批次会在提交时创建。"],
+		["生产日期 / 到期日期", "按物品要求", "批次生产日期不能晚于入账日期，到期日期不能早于生产日期。"],
+		["序列号", "按物品要求", "每行一个序列号，可用换行或逗号分隔；数量必须与序列号个数一致。"],
+		["导入方式", "说明", "一次导入只创建一张期初库存单据；请在上传步骤填写期初日期和时间。"],
+	]
+	location_rows = [[row.get("label", ""), row.get("path", "")] for row in locations]
+	_xlsx_response(
+		"template",
+		[
+			("期初库存", OPENING_HEADERS, []),
+			("填写说明", ["列名", "要求", "说明"], instructions),
+			(
+				"示例",
+				OPENING_HEADERS,
+				[
+					[
+						"示例物品编号",
+						locations[0].get("label", "") if locations else "",
+						"1",
+						"",
+						"",
+						"",
+						"",
+						"",
+					]
+				],
+			),
+			("位置清单", ["位置", "路径"], location_rows),
+		],
+		"期初库存导入模板.xlsx",
+	)
+
+
+@frappe.whitelist()
+def opening_catalog():
+	_require_opening_create()
+	rows = frappe.get_list(
+		"Item", filters={"is_stock_item": 1, "disabled": 0}, fields=["name", "item_name"], limit_page_length=0
+	)
+	_xlsx_response(
+		"catalog",
+		[("物品目录", ["物品编号", "物品名称"], [[row.name, row.item_name] for row in rows])],
+		"物品目录.xlsx",
+	)
+
+
+def _opening_plan(rows, posting_date, posting_time, *, exclude_name=""):
+	from decimal import Decimal, InvalidOperation
+
+	from temple_inventory.native_stock import warehouse_scopes
+	from temple_inventory.opening import opening_pair_blockers, set_difference_account
+
+	settings, visible, physical, leased, damaged = warehouse_scopes()
+	locations = _opening_present_locations(visible)
+	topology = {row["name"]: frappe._dict(row) for row in locations}
+	physical_locations = [row for row in locations if row.get("name") in physical]
+	disabled_branches = set()
+	for name in visible:
+		current = visible[name]
+		seen = set()
+		while current and current.name not in seen:
+			if current.disabled:
+				disabled_branches.add(name)
+				break
+			seen.add(current.name)
+			current = topology.get(current.parent_warehouse)
+	aliases = {}
+	for location in locations:
+		for label in (
+			location.get("label"),
+			location.get("path"),
+			location.get("name"),
+			location.get("native_name"),
+		):
+			if label:
+				aliases.setdefault(_normalize(label), []).append(location)
+	# Area and Room aliases route to their hidden direct storage leaf when one exists.
+	for location in locations:
+		if location.get("kind") in ("room", "shelf") and location.get("is_group"):
+			direct = next(
+				(candidate for candidate in physical_locations if candidate.get("owner") == location["name"]),
+				None,
+			)
+			if direct:
+				for label in (
+					location.get("label"),
+					location.get("path"),
+					location.get("name"),
+					location.get("native_name"),
+				):
+					if label:
+						key = _normalize(label)
+						aliases[key] = [
+							candidate
+							for candidate in aliases.get(key, [])
+							if candidate.get("name") != location["name"]
+						]
+						aliases.setdefault(key, []).append(direct)
+	items = frappe.get_all(
+		"Item",
+		fields=[
+			"name",
+			"item_name",
+			"disabled",
+			"is_stock_item",
+			"stock_uom",
+			"valuation_rate",
+			"has_batch_no",
+			"has_serial_no",
+			"has_expiry_date",
+		],
+		filters={"name": ["in", sorted({str(row.get("item_code") or "").strip() for row in rows}) or [""]]},
+		limit_page_length=0,
+	)
+	item_by_code = {item.name: item for item in items}
+	uoms = frappe.get_all(
+		"UOM",
+		filters={"name": ["in", sorted({item.stock_uom for item in items}) or [""]]},
+		fields=["name", "must_be_whole_number"],
+		limit_page_length=0,
+	)
+	whole_number_uoms = {uom.name: bool(uom.must_be_whole_number) for uom in uoms}
+	batch_names = sorted({str(row.get("batch_no") or "").strip() for row in rows if row.get("batch_no")})
+	batches = frappe.get_all(
+		"Batch",
+		filters={"name": ["in", batch_names or [""]]},
+		fields=["name", "item", "disabled", "manufacturing_date", "expiry_date"],
+		limit_page_length=0,
+	)
+	batch_by_name = {batch.name: batch for batch in batches}
+	all_serials = sorted({serial for row in rows for serial in _serial_values(row.get("serial_no"))})
+	serial_docs = frappe.get_all(
+		"Serial No",
+		filters={"name": ["in", all_serials or [""]]},
+		fields=["name", "item_code", "warehouse", "status"],
+		limit_page_length=0,
+	)
+	serial_by_name = {serial.name: serial for serial in serial_docs}
+	resolved_by_row = {}
+	for row in rows:
+		matches = aliases.get(_normalize(row.get("location")), [])
+		unique = {item["name"]: item for item in matches}
+		resolved_by_row[row["row"]] = list(unique.values())
+	pairs = []
+	for row in rows:
+		item = str(row.get("item_code") or "").strip()
+		matches = resolved_by_row[row["row"]]
+		if item and item in item_by_code and len(matches) == 1:
+			pairs.append((item, matches[0]["name"]))
+	blockers = opening_pair_blockers(pairs, exclude_name=exclude_name, include_drafts=True)
+	stock_rates = {}
+	if pairs:
+		for balance in frappe.db.sql(
+			"""select item_code, warehouse, valuation_rate from (
+			select item_code, warehouse, valuation_rate,
+			row_number() over (partition by item_code, warehouse order by posting_datetime desc, creation desc, name desc) as rn
+			from `tabStock Ledger Entry` where is_cancelled = 0 and docstatus = 1
+			and posting_datetime <= %(posting)s and (item_code, warehouse) in %(pairs)s
+			) latest where rn = 1""",
+			{"posting": f"{posting_date} {posting_time}", "pairs": tuple(pairs)},
+			as_dict=True,
+		):
+			stock_rates[(balance.item_code, balance.warehouse)] = balance.valuation_rate or 0
+	currency = frappe.get_cached_value("Company", settings.company, "default_currency")
+	item_prices = frappe.get_all(
+		"Item Price",
+		filters={"item_code": ["in", sorted(item_by_code) or [""]], "buying": 1, "currency": currency},
+		fields=["item_code", "price_list_rate"],
+		order_by="modified desc",
+		limit_page_length=0,
+	)
+	price_by_item = {}
+	for price in item_prices:
+		price_by_item.setdefault(price.item_code, price.price_list_rate or 0)
+	opening_parent_rows = frappe.db.sql(
+		"""select distinct ri.parent from `tabStock Reconciliation Item` ri
+		inner join `tabStock Reconciliation` sr on sr.name = ri.parent
+		where sr.docstatus = 1 and sr.purpose = 'Opening Stock' and (ri.item_code, ri.warehouse) in %(pairs)s""",
+		{"pairs": tuple(pairs) or (("", ""),)},
+		as_dict=True,
+	)
+	opening_names = sorted({row.parent for row in opening_parent_rows})
+	existing_openings = frappe.get_all(
+		"Stock Reconciliation Item",
+		filters={
+			"parent": ["in", opening_names or [""]],
+			"item_code": ["in", sorted({pair[0] for pair in pairs}) or [""]],
+		},
+		fields=["parent", "item_code", "warehouse", "qty", "valuation_rate", "batch_no", "serial_no"],
+		limit_page_length=0,
+	)
+	opening_by_pair = {}
+	for candidate in existing_openings:
+		opening_by_pair.setdefault((candidate.item_code, candidate.warehouse), []).append(candidate)
+	settings_company = settings.company
+	try:
+		probe = frappe.new_doc("Stock Reconciliation")
+		probe.company = settings_company
+		probe.purpose = "Opening Stock"
+		set_difference_account(probe)
+		temporary_account_error = ""
+	except frappe.ValidationError as exc:
+		frappe.clear_last_message()
+		temporary_account_error = str(exc)
+	perpetual_error = ""
+	warehouse_accounts = {}
+	try:
+		import erpnext
+
+		if erpnext.is_perpetual_inventory_enabled(settings_company):
+			from erpnext.stock import get_warehouse_account_map
+
+			warehouse_accounts = get_warehouse_account_map(settings_company)
+			if not frappe.get_cached_value("Company", settings_company, "cost_center"):
+				perpetual_error = "启用永续盘存时，公司必须设置默认成本中心"
+			elif (
+				probe.expense_account
+				and frappe.db.get_value("Account", probe.expense_account, "report_type") == "Profit and Loss"
+			):
+				perpetual_error = "期初库存差额科目必须是资产或负债科目"
+	except Exception as exc:
+		frappe.clear_last_message()
+		perpetual_error = f"永续盘存配置不完整：{exc}"
+	try:
+		from erpnext.accounts.doctype.accounting_period.accounting_period import (
+			validate_accounting_period_on_doc_save,
+		)
+
+		period_probe = frappe.new_doc("Stock Reconciliation")
+		period_probe.company = settings_company
+		period_probe.posting_date = posting_date
+		validate_accounting_period_on_doc_save(period_probe)
+		period_error = ""
+	except frappe.ValidationError as exc:
+		frappe.clear_last_message()
+		period_error = str(exc)
+	planned = []
+	seen_pair_batch = {}
+	seen_serials = {}
+	for row in rows:
+		line = dict(row)
+		errors, warnings = [], []
+		code = str(row.get("item_code") or "").strip()
+		item = item_by_code.get(code)
+		location_matches = resolved_by_row[row["row"]]
+		location = location_matches[0] if len(location_matches) == 1 else None
+		if not code:
+			errors.append("请填写物品编号")
+		elif not item:
+			errors.append("找不到此物品编号；物品不会由期初库存导入创建")
+		elif item.disabled:
+			errors.append("物品已停用")
+		elif not item.is_stock_item:
+			errors.append("此物品不是库存物品")
+		if not location:
+			errors.append("位置不存在或名称不唯一")
+		elif location.get("is_group"):
+			errors.append("不能选择分组位置，请选择实体末级位置")
+		elif location.get("disabled") or location.get("name") in disabled_branches:
+			errors.append("位置或其上级已停用")
+		elif location.get("name") in leased:
+			errors.append("借出位置不能录入期初库存")
+		elif location.get("name") in damaged:
+			errors.append("损坏位置不能录入期初库存")
+		elif location.get("name") not in physical:
+			errors.append("位置不是此账户有权限的实体末级位置")
+		elif not location.get("storable"):
+			errors.append("位置必须是启用的实体末级位置")
+		qty_text = _safe_text(row.get("qty"))
+		try:
+			qty = Decimal(qty_text)
+			if not qty.is_finite() or qty <= 0:
+				raise InvalidOperation
+		except (InvalidOperation, ValueError):
+			qty = Decimal(0)
+			errors.append("期初库存数量必须大于零")
+		rate_text = _safe_text(row.get("valuation_rate"))
+		try:
+			rate = (
+				Decimal(rate_text)
+				if rate_text
+				else Decimal(
+					str(stock_rates.get((item.name, location["name"]), 0) if item and location else 0)
+				)
+			)
+			if not rate_text and not rate:
+				rate = Decimal(str(price_by_item.get(item.name, 0) if item else 0))
+			if not rate_text and not rate:
+				rate = Decimal(str((item.valuation_rate or 0) if item else 0))
+			if not rate.is_finite() or rate < 0:
+				raise InvalidOperation
+		except (InvalidOperation, ValueError):
+			rate = Decimal(0)
+			errors.append("估值单价不能为负数或非数字")
+		batch_no = _safe_text(row.get("batch_no"))
+		serials = _serial_values(row.get("serial_no"))
+		if item:
+			if item.has_batch_no and item.has_serial_no:
+				errors.append("物品不能同时按批次和序列号追踪")
+			if item.has_batch_no and not batch_no:
+				errors.append("追踪批次的物品必须填写批次编号")
+			if not item.has_batch_no and batch_no:
+				errors.append("此物品未启用批次管理")
+			if item.has_serial_no and not serials:
+				errors.append("追踪序列号的物品必须填写序列号")
+			if not item.has_serial_no and serials:
+				errors.append("此物品未启用序列号管理")
+			if item.has_serial_no and (qty % 1 or len(serials) != qty):
+				errors.append("序列号数量必须与整数库存数量一致")
+			if not item.has_serial_no and not whole_number_uoms.get(item.stock_uom) and qty % 1:
+				errors.append("此物品的库存单位只能使用整数数量")
+			if item.has_expiry_date and batch_no and not _safe_text(row.get("expiry_date")):
+				errors.append("物品记录效期，批次必须填写到期日期")
+		batch = batch_by_name.get(batch_no)
+		manufacturing_date = _safe_text(row.get("manufacturing_date"))
+		expiry_date = _safe_text(row.get("expiry_date"))
+		if manufacturing_date and expiry_date and manufacturing_date[:10] > expiry_date[:10]:
+			errors.append("到期日期不能早于生产日期")
+		if manufacturing_date and manufacturing_date[:10] > str(posting_date)[:10]:
+			errors.append("生产日期不能晚于入账日期")
+		if batch and item and batch.item != item.name:
+			errors.append(f"批次 {batch_no} 属于其它物品")
+		if batch and batch.disabled:
+			errors.append(f"批次 {batch_no} 已停用")
+		if batch:
+			for field, key in (("manufacturing_date", "manufacturing_date"), ("expiry_date", "expiry_date")):
+				requested = _safe_text(row.get(key))
+				if requested and str(batch.get(field) or "") != requested[:10]:
+					errors.append(f"批次 {batch_no} 的日期与输入不一致")
+		if item and location:
+			key = (item.name, location["name"], batch_no)
+			if key in seen_pair_batch:
+				errors.append(f"与第 {seen_pair_batch[key]} 行重复物品、位置和批次")
+			else:
+				seen_pair_batch[key] = row["row"]
+		for serial in serials:
+			if serial in seen_serials:
+				errors.append(f"序列号 {serial} 在第 {seen_serials[serial]} 行重复")
+			else:
+				seen_serials[serial] = row["row"]
+			serial_doc = serial_by_name.get(serial)
+			if serial_doc and (serial_doc.warehouse or (item and serial_doc.item_code != item.name)):
+				errors.append(f"序列号 {serial} 已在库存或属于其它物品")
+		if temporary_account_error:
+			errors.append(temporary_account_error)
+		if period_error:
+			errors.append(period_error)
+		if perpetual_error:
+			errors.append(perpetual_error)
+		if item and location and warehouse_accounts and not warehouse_accounts.get(location["name"]):
+			errors.append("永续盘存配置不完整：此位置未配置库存科目")
+		if not rate_text and not rate:
+			warnings.append("估值单价留空；若无现有估值，将按零估值记录")
+		if batch_no and not batch:
+			warnings.append("提交时创建批次")
+			if not frappe.has_permission("Batch", "create"):
+				errors.append("当前账户无权创建批次")
+		blocker = blockers.get((item.name, location["name"])) if item and location else None
+		unchanged = False
+		old_rows = opening_by_pair.get((item.name, location["name"]), []) if item and location else []
+		identical = False
+		old = next(
+			(
+				candidate
+				for candidate in old_rows
+				if Decimal(str(candidate.qty or 0)) == qty
+				and Decimal(str(candidate.valuation_rate or 0)) == rate
+				and (candidate.batch_no or "") == batch_no
+				and set(_serial_values(candidate.serial_no)) == set(serials)
+			),
+			None,
+		)
+		identical = old is not None
+		line_existing_document = old.parent if identical else ""
+		if blocker and identical and not errors:
+			unchanged = True
+		elif blocker and blocker.block_type == "draft":
+			errors.append(f"该物品和位置已被草稿期初库存占用（{blocker.blocker}）")
+		elif blocker:
+			errors.append(f"该物品和位置已有库存流水或期初库存（{blocker.blocker}）")
+		line.update(
+			item_name=item.item_name if item else "",
+			resolved_item=code if item else "",
+			location_label=location.get("label", "") if location else "",
+			warehouse=location.get("name", "") if location else "",
+			qty=float(qty),
+			valuation_rate=float(rate),
+			line_value=float(qty * rate),
+			batch_no=batch_no,
+			serials=serials,
+		)
+		planned.append(
+			{
+				"row": row["row"],
+				"action": "REJECTED" if errors else "UNCHANGED" if unchanged else "NEW",
+				"item_code": code,
+				"item_name": item.item_name if item else "",
+				"stock_uom": item.stock_uom if item else "",
+				"location_label": location.get("label", "") if location else "",
+				"warehouse": location.get("name", "") if location else "",
+				"existing_document": line_existing_document,
+				"qty": float(qty),
+				"valuation_rate": float(rate),
+				"line_value": float(qty * rate),
+				"batch_no": batch_no,
+				"serials": serials,
+				"errors": errors,
+				"warnings": warnings,
+				"values": {
+					"item_code": code,
+					"location": _safe_text(row.get("location")),
+					"qty": str(qty),
+					"valuation_rate": str(rate),
+					"batch_no": batch_no,
+					"manufacturing_date": _safe_text(row.get("manufacturing_date")),
+					"expiry_date": _safe_text(row.get("expiry_date")),
+					"serial_no": "\n".join(serials),
+				},
+			}
+		)
+	# Match an already submitted opening exactly; otherwise blockers above remain rejections.
+	payload = [
+		{
+			key: row.get(key)
+			for key in (
+				"row",
+				"action",
+				"item_code",
+				"item_name",
+				"stock_uom",
+				"warehouse",
+				"location_label",
+				"qty",
+				"valuation_rate",
+				"line_value",
+				"batch_no",
+				"serials",
+				"errors",
+				"values",
+			)
+		}
+		for row in planned
+	]
+	return planned, hashlib.sha256(
+		json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+	).hexdigest()
 
 
 def _normalize(value):
@@ -421,7 +1015,7 @@ def _set_counts(doc, rows):
 
 def _response(doc):
 	rows = json.loads(doc.result_json or doc.preview_json or "[]")
-	return {
+	result = {
 		"name": doc.name,
 		"status": doc.status,
 		"counts": _summary(rows),
@@ -429,11 +1023,41 @@ def _response(doc):
 		"plan_hash": doc.plan_hash,
 		"error": doc.error or "",
 	}
+	if doc.import_type == "Opening Stock":
+		result.update(
+			posting_date=str(doc.posting_date or ""),
+			posting_time=str(doc.posting_time or ""),
+			created_documents=json.loads(doc.created_documents or "[]"),
+		)
+		from erpnext.stock.doctype.stock_reconciliation.stock_reconciliation import get_difference_account
+
+		result["difference_account"] = (
+			get_difference_account("Opening Stock", frappe.get_single("Temple Inventory Settings").company)
+			or ""
+		)
+		result["totals_by_unit"] = {}
+		for row in rows:
+			if row.get("final_action", row.get("action")) != "NEW":
+				continue
+			unit = row.get("stock_uom") or row.get("unit") or ""
+			if unit:
+				from temple_inventory.uom_labels import uom_label
+
+				unit = uom_label(unit)
+			if unit:
+				result["totals_by_unit"][unit] = result["totals_by_unit"].get(unit, 0) + (row.get("qty") or 0)
+		result["total_value"] = sum(
+			row.get("line_value") or 0 for row in rows if row.get("final_action", row.get("action")) == "NEW"
+		)
+	return result
 
 
 def _xlsx_response(name, sheets, filename):
 	output = io.BytesIO()
 	workbook = xlsxwriter.Workbook(output, {"in_memory": True})
+	locations = next((entry[2] for entry in sheets if entry[0] == "位置清单"), [])
+	if locations:
+		workbook.define_name("AuthorizedLocations", f"='位置清单'!$A$2:$A${len(locations) + 1}")
 	for sheet_name, headers, rows in sheets:
 		worksheet = workbook.add_worksheet(sheet_name)
 		if sheet_name == "物品导入":
@@ -445,6 +1069,11 @@ def _xlsx_response(name, sheets, filename):
 		for row_idx, row in enumerate(rows, 1):
 			for col, value in enumerate(row):
 				worksheet.write_string(row_idx, col, "" if value is None else str(value))
+		if sheet_name == "期初库存":
+			if locations:
+				worksheet.data_validation(
+					1, 1, MAX_ROWS, 1, {"validate": "list", "source": "=AuthorizedLocations"}
+				)
 	workbook.close()
 	frappe.response.filename = filename
 	frappe.response.filecontent = output.getvalue()
@@ -504,14 +1133,24 @@ def upload(import_type="Item"):
 	frappe.has_permission(DOCTYPE, "create", throw=True)
 	if import_type not in IMPORT_TYPES:
 		frappe.throw("暂不支持此导入类型")
+	if import_type == "Opening Stock":
+		_require_opening_create()
 	uploaded = frappe.request.files.get("file") if getattr(frappe, "request", None) else None
 	if not uploaded:
 		frappe.throw("请选择 .xlsx 文件")
+	posting_date = posting_time = ""
+	if import_type == "Opening Stock":
+		posting_date, posting_time = _opening_context_date(
+			frappe.form_dict.get("posting_date"), frappe.form_dict.get("posting_time")
+		)
 	raw = uploaded.stream.read(MAX_FILE + 1)
 	if len(raw) > MAX_FILE:
 		frappe.throw("文件不能超过 5 MB")
 	rows = IMPORT_TYPES[import_type]["parse"](raw, uploaded.filename or "")
-	planned, plan_hash = IMPORT_TYPES[import_type]["plan"](rows)
+	if import_type == "Opening Stock":
+		planned, plan_hash = IMPORT_TYPES[import_type]["plan"](rows, posting_date, posting_time)
+	else:
+		planned, plan_hash = IMPORT_TYPES[import_type]["plan"](rows)
 	file_doc = frappe.get_doc(
 		{"doctype": "File", "file_name": uploaded.filename, "content": raw, "is_private": 1}
 	).insert()
@@ -522,6 +1161,8 @@ def upload(import_type="Item"):
 			"status": "Previewed",
 			"source_file": file_doc.name,
 			"file_sha256": hashlib.sha256(raw).hexdigest(),
+			"posting_date": posting_date or None,
+			"posting_time": posting_time or None,
 			"preview_json": json.dumps(planned, ensure_ascii=False),
 			"plan_hash": plan_hash,
 		}
@@ -538,13 +1179,22 @@ def upload(import_type="Item"):
 def preview(name):
 	_require_write()
 	doc = _get(name, lock=True)
+	_require_import_doc(doc)
 	if doc.status not in ("Previewed", "Conflict", "Failed"):
 		return _response(doc)
 	was_conflict = doc.status == "Conflict"
 	rows = IMPORT_TYPES[doc.import_type]["parse"](
 		_read_source(doc), frappe.get_value("File", doc.source_file, "file_name")
 	)
-	planned, digest = IMPORT_TYPES[doc.import_type]["plan"](rows)
+	if doc.import_type == "Opening Stock":
+		planned, digest = IMPORT_TYPES[doc.import_type]["plan"](
+			rows,
+			doc.posting_date,
+			doc.posting_time,
+			exclude_name=_opening_request_document(doc.name) or "",
+		)
+	else:
+		planned, digest = IMPORT_TYPES[doc.import_type]["plan"](rows)
 	doc.preview_json, doc.plan_hash = json.dumps(planned, ensure_ascii=False), digest
 	_set_counts(doc, planned)
 	doc.status, doc.error = "Previewed", ""
@@ -558,6 +1208,7 @@ def preview(name):
 def commit(name, plan_hash, skip_rejected=0):
 	_require_write()
 	doc = _get(name, lock=True)
+	_require_import_doc(doc)
 	if doc.status != "Previewed":
 		return _response(doc)
 	if str(plan_hash) != doc.plan_hash:
@@ -623,6 +1274,7 @@ def status(name):
 	"""Polled over GET, so it reports an interrupted job without writing; retry records it."""
 	_require_manager()
 	doc = _get(name)
+	_require_import_doc(doc)
 	result = _response(doc)
 	result["progress"] = _progress(doc)
 	if _interrupted(doc):
@@ -635,12 +1287,21 @@ def status(name):
 def retry(name):
 	_require_write()
 	doc = _get(name, lock=True)
+	_require_import_doc(doc)
 	if doc.status not in ("Failed", "Conflict") and not _interrupted(doc):
 		return _response(doc)
 	rows = IMPORT_TYPES[doc.import_type]["parse"](
 		_read_source(doc), frappe.get_value("File", doc.source_file, "file_name")
 	)
-	planned, digest = IMPORT_TYPES[doc.import_type]["plan"](rows)
+	if doc.import_type == "Opening Stock":
+		planned, digest = IMPORT_TYPES[doc.import_type]["plan"](
+			rows,
+			doc.posting_date,
+			doc.posting_time,
+			exclude_name=_opening_request_document(doc.name) or "",
+		)
+	else:
+		planned, digest = IMPORT_TYPES[doc.import_type]["plan"](rows)
 	doc.preview_json, doc.plan_hash = json.dumps(planned, ensure_ascii=False), digest
 	_set_counts(doc, planned)
 	doc.status, doc.error, doc.attempt = "Previewed", "", cint(doc.attempt or 1) + 1
@@ -653,32 +1314,57 @@ def retry(name):
 def report(name, kind="all"):
 	_require_manager()
 	doc = _get(name)
+	_require_import_doc(doc)
 	if kind not in ("all", "rejected"):
 		frappe.throw("请选择有效的报告范围")
 	rows = json.loads(doc.result_json or doc.preview_json or "[]")
 	if kind == "rejected":
 		rows = [row for row in rows if row.get("action") == "REJECTED" or row.get("error")]
-	headers = ["源行", "最终操作", "物品编号", "物品名称", "错误"]
+	definition = IMPORT_TYPES[doc.import_type]
+	headers = definition["report_columns"]
+	fields = definition["report_fields"]
+	values = []
+	for row in rows:
+		values.append([_report_value(row, field) for field in fields])
+	if doc.import_type == "Opening Stock":
+		created = json.loads(doc.created_documents or "[]")
+		result = _response(doc)
+		return _xlsx_response(
+			doc.name,
+			[
+				(definition["report_sheet"], headers, values),
+				(
+					definition["summary_sheet"],
+					definition["summary_columns"],
+					[
+						["单据", "；".join(created)],
+						["状态", doc.status],
+						["按单位数量", json.dumps(result.get("totals_by_unit", {}), ensure_ascii=False)],
+						["总估值", result.get("total_value", 0)],
+					],
+				),
+			],
+			f"期初库存导入结果-{doc.name}.xlsx",
+		)
 	_xlsx_response(
 		doc.name,
-		[
-			(
-				"导入结果",
-				headers,
-				[
-					[
-						row.get("row", ""),
-						row.get("final_action", row.get("action", "")),
-						row.get("item_code", row.get("target", "")),
-						row.get("values", {}).get("item_name", ""),
-						row.get("error", "; ".join(row.get("errors", []))),
-					]
-					for row in rows
-				],
-			)
-		],
+		[(definition["report_sheet"], headers, values)],
 		f"物品导入结果-{doc.name}.xlsx",
 	)
+
+
+def _report_value(row, field):
+	if field == "final_action":
+		return row.get("final_action", row.get("action", ""))
+	if field == "error":
+		return row.get("error", "; ".join(row.get("errors", [])))
+	if field == "item_name":
+		return row.get("item_name") or row.get("values", {}).get("item_name", "")
+	if field == "target":
+		return row.get("item_code", row.get("target", ""))
+	if field == "serials":
+		return "\n".join(row.get("serials", []))
+	return row.get(field, "")
 
 
 @frappe.whitelist()
@@ -754,7 +1440,9 @@ def run_import(import_name, owner):
 		_save(doc)
 		frappe.db.commit()
 		raw = _read_source(doc)
-		rows = _workbook(raw, frappe.get_value("File", doc.source_file, "file_name"))
+		rows = IMPORT_TYPES[doc.import_type]["parse"](
+			raw, frappe.get_value("File", doc.source_file, "file_name")
+		)
 		planned, digest = IMPORT_TYPES[doc.import_type]["plan"](rows)
 		if digest != doc.plan_hash:
 			doc.status, doc.error = "Conflict", "数据已变化，请重新预览"
@@ -858,6 +1546,176 @@ def run_import(import_name, owner):
 		read_cache.invalidate_now()
 
 
+def run_opening_import(import_name, owner):
+	"""Create one draft in a committed transaction, then submit it in the worker."""
+	from temple_inventory.opening import set_difference_account
+
+	previous_user = frappe.session.user
+	frappe.set_user(owner)
+	frappe.local.inventory_cache_revision_touched = True
+	doc = None
+	try:
+		doc = frappe.get_doc(DOCTYPE, import_name, for_update=True)
+		if doc.status not in ("Queued", "Running", "Failed"):
+			return
+		require_app()
+		frappe.has_permission(DOCTYPE, "create", throw=True)
+		frappe.has_permission(DOCTYPE, "write", throw=True)
+		frappe.has_permission("Stock Reconciliation", "create", throw=True)
+		frappe.has_permission("Stock Reconciliation", "submit", throw=True)
+		request_key = hashlib.sha256(doc.name.encode()).hexdigest()
+		existing_name = frappe.db.get_value(
+			"Stock Reconciliation", {"ti_request_key": request_key}, "name", for_update=True
+		)
+		if existing_name:
+			native = frappe.get_doc("Stock Reconciliation", existing_name, for_update=True)
+			if native.docstatus == 1:
+				doc.status, doc.error = "Completed", ""
+				doc.created_documents = json.dumps([native.name])
+				doc.result_json = doc.preview_json
+				_save(doc)
+				frappe.db.commit()
+				return
+		raw = _read_source(doc)
+		rows = IMPORT_TYPES[doc.import_type]["parse"](
+			raw, frappe.get_value("File", doc.source_file, "file_name")
+		)
+		provisional, _digest = IMPORT_TYPES[doc.import_type]["plan"](
+			rows, doc.posting_date, doc.posting_time, exclude_name=existing_name or ""
+		)
+		warehouses = sorted({row["warehouse"] for row in provisional if row.get("warehouse")})
+		if warehouses:
+			frappe.db.sql(
+				"select name from `tabWarehouse` where name in %(names)s order by name for update",
+				{"names": tuple(warehouses)},
+			)
+		planned, digest = IMPORT_TYPES[doc.import_type]["plan"](
+			rows, doc.posting_date, doc.posting_time, exclude_name=existing_name or ""
+		)
+		if digest != doc.plan_hash:
+			doc.status, doc.error = "Conflict", "数据已变化，请重新预览"
+			_save(doc)
+			frappe.db.commit()
+			return
+		if any(row["action"] == "REJECTED" for row in planned) and not doc.skip_rejected:
+			frappe.throw("请先处理无法导入的行，或明确选择跳过")
+		if not any(row["action"] == "NEW" for row in planned):
+			results = [
+				{**row, "final_action": row["action"], "error": "; ".join(row.get("errors", []))}
+				for row in planned
+			]
+			doc.status, doc.error = "Completed", ""
+			doc.result_json = json.dumps(results, ensure_ascii=False)
+			doc.created_documents = json.dumps(
+				sorted({row.get("existing_document") for row in planned if row.get("existing_document")})
+			)
+			_save(doc)
+			frappe.db.commit()
+			return
+		doc.status = "Running"
+		_save(doc)
+		frappe.cache.set_value(
+			f"ti-import-progress:{doc.name}",
+			{"percent": 10, "heartbeat": frappe.utils.now_datetime().isoformat()},
+			expires_in_sec=3600,
+		)
+		if not existing_name:
+			from temple_inventory.catalog import create_batch
+
+			for row in planned:
+				if row["action"] == "REJECTED" or not row.get("batch_no"):
+					continue
+				values = row["values"]
+				if not frappe.db.exists("Batch", row["batch_no"]):
+					create_batch(
+						row["item_code"],
+						row["batch_no"],
+						values.get("manufacturing_date"),
+						values.get("expiry_date"),
+					)
+			valid_rows = [row for row in planned if row["action"] == "NEW"]
+			native = frappe.new_doc("Stock Reconciliation")
+			native.company = frappe.get_single("Temple Inventory Settings").company
+			native.purpose = "Opening Stock"
+			native.posting_date = doc.posting_date
+			native.posting_time = doc.posting_time
+			native.set_posting_time = 1
+			native.ti_time_mode = "Historical"
+			native.ti_request_key = request_key
+			native.ti_request_user = owner
+			set_difference_account(native)
+			for row in valid_rows:
+				values = row["values"]
+				native.append(
+					"items",
+					{
+						"item_code": row["item_code"],
+						"warehouse": row["warehouse"],
+						"qty": row["qty"],
+						"valuation_rate": row["valuation_rate"],
+						"batch_no": row.get("batch_no"),
+						"serial_no": values.get("serial_no"),
+						"use_serial_batch_fields": 1,
+					},
+				)
+			native.insert()
+			frappe.db.commit()
+			frappe.local.inventory_cache_revision_touched = True
+		if native.docstatus == 0:
+			if warehouses:
+				frappe.db.sql(
+					"select name from `tabWarehouse` where name in %(names)s order by name for update",
+					{"names": tuple(warehouses)},
+				)
+			frappe.cache.set_value(
+				f"ti-import-progress:{doc.name}",
+				{"percent": 90, "heartbeat": frappe.utils.now_datetime().isoformat()},
+				expires_in_sec=3600,
+			)
+			# The background worker already owns this job; doc.submit() would enqueue large documents again.
+			native._submit()
+		assert native.ti_time_mode == "Historical" and native.set_posting_time
+		results = []
+		for row in planned:
+			final = "REJECTED" if row.get("action") == "REJECTED" else row.get("action", "NEW")
+			results.append({**row, "final_action": final, "error": "; ".join(row.get("errors", []))})
+		doc.status, doc.error = "Completed", ""
+		doc.result_json = json.dumps(results, ensure_ascii=False)
+		doc.created_documents = json.dumps([native.name], ensure_ascii=False)
+		_save(doc)
+		frappe.cache.set_value(
+			f"ti-import-progress:{doc.name}",
+			{"percent": 100, "heartbeat": frappe.utils.now_datetime().isoformat()},
+			expires_in_sec=3600,
+		)
+		frappe.local.inventory_cache_revision_touched = True
+		read_cache._bump_durable_revision()
+		frappe.db.commit()
+	except Exception as exc:
+		frappe.db.rollback()
+		doc = frappe.get_doc(DOCTYPE, import_name)
+		draft_name = frappe.db.get_value(
+			"Stock Reconciliation",
+			{"ti_request_key": hashlib.sha256(doc.name.encode()).hexdigest(), "docstatus": 0},
+			"name",
+		)
+		message = (
+			f"提交失败；期初库存草稿 {draft_name} 已保留，可打开原生单据修正或删除：{exc}"
+			if draft_name
+			else f"导入失败，未创建期初库存草稿：{exc}"
+		)
+		doc.status, doc.error = (
+			"Failed",
+			message[:2000],
+		)
+		_save(doc)
+		frappe.db.commit()
+	finally:
+		frappe.set_user(previous_user)
+		frappe.local.inventory_cache_revision_touched = False
+		read_cache.invalidate_now()
+
+
 # Phase 4 adds its own definition here and reuses the source, status and report machinery.
 ITEM_IMPORT_TYPE = {
 	"name": "Item",
@@ -865,6 +1723,44 @@ ITEM_IMPORT_TYPE = {
 	"parse": _workbook,
 	"plan": _plan,
 	"commit": "temple_inventory.imports.run_import",
-	"report_columns": ["源行", "最终操作", "物品编号", "错误"],
+	"report_sheet": "导入结果",
+	"report_columns": ["源行", "最终操作", "物品编号", "物品名称", "错误"],
+	"report_fields": ["row", "final_action", "target", "item_name", "error"],
 }
-IMPORT_TYPES = {"Item": ITEM_IMPORT_TYPE}
+OPENING_IMPORT_TYPE = {
+	"name": "Opening Stock",
+	"columns": OPENING_HEADERS,
+	"parse": _opening_workbook,
+	"plan": _opening_plan,
+	"commit": "temple_inventory.imports.run_opening_import",
+	"report_sheet": "导入结果",
+	"summary_sheet": "汇总",
+	"summary_columns": ["项目", "结果"],
+	"report_columns": [
+		"源行",
+		"物品编号",
+		"物品名称",
+		"位置",
+		"数量",
+		"估值单价",
+		"估值金额",
+		"批次编号",
+		"序列号",
+		"最终操作",
+		"错误",
+	],
+	"report_fields": [
+		"row",
+		"item_code",
+		"item_name",
+		"location_label",
+		"qty",
+		"valuation_rate",
+		"line_value",
+		"batch_no",
+		"serials",
+		"final_action",
+		"error",
+	],
+}
+IMPORT_TYPES = {"Item": ITEM_IMPORT_TYPE, "Opening Stock": OPENING_IMPORT_TYPE}

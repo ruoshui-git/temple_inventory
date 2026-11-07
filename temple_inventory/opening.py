@@ -108,6 +108,37 @@ def _location_labels(warehouses):
 	return {row["name"]: row["label"] for row in present_locations(rows) if row.get("name") in warehouses}
 
 
+def opening_pair_blockers(pairs, *, exclude_name="", include_drafts=False):
+	"""Return existing ledger/opening blockers for many Item-Warehouse pairs in one query."""
+	pairs = sorted({(item, warehouse) for item, warehouse in pairs if item and warehouse})
+	if not pairs:
+		return {}
+	sql = """select item_code, warehouse, block_type, blocker from (
+		select item_code, warehouse, 'ledger' as block_type, voucher_no as blocker
+		from `tabStock Ledger Entry`
+		where is_cancelled = 0 and (item_code, warehouse) in %(pairs)s
+		union all
+		select ri.item_code, ri.warehouse, 'opening' as block_type, ri.parent as blocker
+		from `tabStock Reconciliation Item` ri
+		inner join `tabStock Reconciliation` sr on sr.name = ri.parent
+		where sr.docstatus = 1 and sr.purpose = 'Opening Stock' and sr.name != %(name)s
+		and (ri.item_code, ri.warehouse) in %(pairs)s"""
+	if include_drafts:
+		sql += """
+		union all
+		select ri.item_code, ri.warehouse, 'draft' as block_type, ri.parent as blocker
+		from `tabStock Reconciliation Item` ri
+		inner join `tabStock Reconciliation` sr on sr.name = ri.parent
+		where sr.docstatus = 0 and sr.purpose = 'Opening Stock' and sr.name != %(name)s
+		and (ri.item_code, ri.warehouse) in %(pairs)s"""
+	sql += ") candidates order by item_code, warehouse, case block_type when 'ledger' then 1 when 'opening' then 2 else 3 end"
+	rows = frappe.db.sql(sql, {"pairs": tuple(pairs), "name": exclude_name or ""}, as_dict=True)
+	result = {}
+	for row in rows:
+		result.setdefault((row.item_code, row.warehouse), row)
+	return result
+
+
 def validate_opening(doc):
 	"""Apply opening-only scope and eligibility checks for both Desk and API saves."""
 	check_company(doc)
@@ -242,31 +273,14 @@ def validate_opening(doc):
 		location = labels.get(requested_warehouse, requested_warehouse) if requested_warehouse else "未知位置"
 		frappe.throw(f"序列号 {serial} 属于物品 {owner}，位置 {location}，不能用于此期初库存。")
 
-	pairs = sorted({(row.item_code, row.warehouse) for row in doc.items})
+	pairs = {(row.item_code, row.warehouse) for row in doc.items}
 	if not pairs:
 		return
-	# One set-based lookup covers all active ledger time, submitted openings, and (on submit only) drafts.
-	sql = """select item_code, warehouse, block_type, blocker from (
-		select item_code, warehouse, 'ledger' as block_type, voucher_no as blocker
-		from `tabStock Ledger Entry`
-		where is_cancelled = 0 and (item_code, warehouse) in %(pairs)s
-		union all
-		select ri.item_code, ri.warehouse, 'opening' as block_type, ri.parent as blocker
-		from `tabStock Reconciliation Item` ri
-		inner join `tabStock Reconciliation` sr on sr.name = ri.parent
-		where sr.docstatus = 1 and sr.purpose = 'Opening Stock' and sr.name != %(name)s
-		and (ri.item_code, ri.warehouse) in %(pairs)s"""
-	if doc.flags.in_submit or cint(doc.docstatus) == 1:
-		sql += """
-		union all
-		select ri.item_code, ri.warehouse, 'draft' as block_type, ri.parent as blocker
-		from `tabStock Reconciliation Item` ri
-		inner join `tabStock Reconciliation` sr on sr.name = ri.parent
-		where sr.docstatus = 0 and sr.purpose = 'Opening Stock' and sr.name != %(name)s
-		and (ri.item_code, ri.warehouse) in %(pairs)s"""
-	sql += ") candidates group by item_code, warehouse"
-	blocked_rows = frappe.db.sql(sql, {"pairs": tuple(pairs), "name": doc.name or ""}, as_dict=True)
-	blocked = {(row.item_code, row.warehouse): row for row in blocked_rows}
+	blocked = opening_pair_blockers(
+		pairs,
+		exclude_name=doc.name or "",
+		include_drafts=bool(doc.flags.in_submit or cint(doc.docstatus) == 1),
+	)
 	if blocked:
 		key, blocker = next(iter(blocked.items()))
 		item = metadata.get(key[0])

@@ -10,6 +10,8 @@
     "attempt",
     "source_file",
     "file_sha256",
+    "posting_date",
+    "posting_time",
     "new_count",
     "update_count",
     "unchanged_count",
@@ -59,6 +61,18 @@
       "fieldtype": "Data",
       "label": "文件校验值",
       "reqd": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "posting_date",
+      "fieldtype": "Date",
+      "label": "期初日期",
+      "read_only": 1
+    },
+    {
+      "fieldname": "posting_time",
+      "fieldtype": "Time",
+      "label": "期初时间",
       "read_only": 1
     },
     {

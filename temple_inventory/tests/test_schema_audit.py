@@ -68,6 +68,8 @@ class SchemaAuditTests(unittest.TestCase):
 				"attempt",
 				"source_file",
 				"file_sha256",
+				"posting_date",
+				"posting_time",
 				"new_count",
 				"update_count",
 				"unchanged_count",

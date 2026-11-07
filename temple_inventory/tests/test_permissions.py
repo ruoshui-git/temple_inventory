@@ -376,6 +376,8 @@ class PermissionTests(NativeDocumentTests):
 		request_id = f"ti-permission-{self.token}-request"
 		calls = {
 			"imports.item_template": lambda: imports.item_template(),
+			"imports.opening_template": lambda: imports.opening_template(),
+			"imports.opening_catalog": lambda: imports.opening_catalog(),
 			"imports.upload": lambda: imports.upload(),
 			"imports.preview": lambda: imports.preview("nope"),
 			"imports.commit": lambda: imports.commit("nope", "bad"),
@@ -751,6 +753,8 @@ def _endpoint_policies():
 		"imports.commit": "WRITE",
 		"imports.item_catalog": "WRITE",
 		"imports.item_template": "WRITE",
+		"imports.opening_catalog": "WRITE",
+		"imports.opening_template": "WRITE",
 		"imports.preview": "WRITE",
 		"imports.report": "WRITE",
 		"imports.retry": "WRITE",
