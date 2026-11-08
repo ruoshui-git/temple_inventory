@@ -603,7 +603,9 @@ test("manager imports a generated Item workbook over HTTP; Operator is refused",
   );
   const openingForm = new FormData();
   openingForm.set("import_type", "Opening Stock");
-  openingForm.set("posting_date", new Date().toISOString().slice(0, 10));
+  // The site's date, not the runner's UTC date: in the site's evening, UTC is already tomorrow.
+  const siteDate = (await manager.ok("browse.bootstrap")).site_date;
+  openingForm.set("posting_date", siteDate);
   openingForm.set("posting_time", "00:00:01");
   openingForm.set(
     "file",
