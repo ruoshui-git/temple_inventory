@@ -312,6 +312,6 @@ function openDocument(row: Record<string, unknown>) {
 .batch-detail-meta {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
-	gap: var(--p-space-4);
+	gap: var(--p-gap);
 }
 </style>

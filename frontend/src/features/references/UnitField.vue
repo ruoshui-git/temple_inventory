@@ -134,7 +134,7 @@ async function selectExisting() {
 .supporting-field-control {
 	display: flex;
 	align-items: end;
-	gap: 8px;
+	gap: var(--p-control-gap);
 }
 .supporting-field-control :deep(.form-field) {
 	flex: 1;
@@ -148,7 +148,7 @@ async function selectExisting() {
 .dialog-actions {
 	display: flex;
 	justify-content: flex-end;
-	gap: 8px;
-	margin-top: 16px;
+	gap: var(--p-control-gap);
+	margin-top: var(--p-gap);
 }
 </style>

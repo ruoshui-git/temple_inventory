@@ -77,7 +77,7 @@ describe("account UI preferences", () => {
   it("serializes rapid changes and confirms only the latest save", async () => {
     const first = deferred<{
       theme: "jade";
-      density: "compact" | "balanced" | "spacious";
+      density: "xcompact" | "compact" | "balanced" | "spacious";
       textScale: 100;
     }>();
     const save = vi
@@ -102,7 +102,7 @@ describe("account UI preferences", () => {
   it("ignores a stale account response and skips queued saves after account switch", async () => {
     const pending = deferred<{
       theme: "jade";
-      density: "compact" | "balanced" | "spacious";
+      density: "xcompact" | "compact" | "balanced" | "spacious";
       textScale: 100;
     }>();
     const save = vi.fn().mockReturnValue(pending.promise);

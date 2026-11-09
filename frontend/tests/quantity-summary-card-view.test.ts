@@ -195,11 +195,11 @@ describe("native quantity summaries and inventory cards", () => {
     const wrapper = await inventory([item()]);
     expect(wrapper.findAll(".stock-list-row")).toHaveLength(1);
     expect(wrapper.get(".stock-list-name").text()).toBe("大米");
-    // Phones keep category out of the default row meta; the code stays.
-    expect(wrapper.get(".stock-list-meta").text()).toBe("ITEM-A");
+    // Phones keep category out of the default row summary; the code stays on its field line.
+    expect(wrapper.get(".card-field-inline-prefix").text()).toBe("ITEM-A");
     expect(wrapper.get(".stock-list-quantity").text()).toContain("8 kg");
     expect(wrapper.find(".stock-list-row .card-fields-inline").exists()).toBe(
-      false,
+      true,
     );
     expect(
       wrapper.get('.stock-list-image [role="img"]').attributes("aria-label"),

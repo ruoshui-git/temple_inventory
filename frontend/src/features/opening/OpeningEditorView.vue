@@ -549,15 +549,15 @@ async function lifecycle(kind: "cancel" | "amend") {
 <style scoped>
 .opening-editor {
 	display: grid;
-	gap: var(--p-space-4);
-	padding-bottom: 5rem;
+	gap: var(--p-gap);
+	padding-bottom: calc(var(--app-action-bar-height) + var(--p-editor-bottom-pad));
 	min-width: 0;
 	overflow-x: clip;
 }
 .opening-header {
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr));
-	gap: var(--p-space-3);
+	gap: var(--p-control-gap);
 }
 .opening-notes {
 	grid-column: 1/-1;
@@ -569,7 +569,7 @@ async function lifecycle(kind: "cancel" | "amend") {
 	min-width: 0;
 	display: grid;
 	align-content: start;
-	gap: var(--p-space-1);
+	gap: var(--p-field-gap);
 }
 .opening-readonly-field small {
 	color: var(--p-muted);
@@ -583,11 +583,11 @@ async function lifecycle(kind: "cancel" | "amend") {
 .opening-summary {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-	gap: var(--p-space-2);
+	gap: var(--p-control-gap);
 }
 .opening-summary .metric {
 	min-width: 0;
-	padding: var(--p-space-3);
+	padding: var(--p-card-inner-pad);
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-control);
 	background: var(--p-surface);
@@ -607,7 +607,7 @@ async function lifecycle(kind: "cancel" | "amend") {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: var(--p-space-3);
+	gap: var(--p-control-gap);
 }
 .opening-table {
 	width: 100%;
@@ -617,7 +617,7 @@ async function lifecycle(kind: "cancel" | "amend") {
 }
 .opening-table th,
 .opening-table td {
-	padding: var(--p-space-2);
+	padding: var(--p-table-cell-y) var(--p-table-cell-x);
 	border-bottom: 1px solid var(--p-border);
 	text-align: start;
 	vertical-align: top;
@@ -635,7 +635,7 @@ async function lifecycle(kind: "cancel" | "amend") {
 .opening-item-identity {
 	display: flex;
 	align-items: center;
-	gap: var(--p-space-2);
+	gap: var(--p-control-gap);
 	min-width: 0;
 }
 .opening-item-identity > span {
@@ -647,7 +647,7 @@ async function lifecycle(kind: "cancel" | "amend") {
 }
 .opening-batch-fields {
 	display: grid;
-	gap: var(--p-space-2);
+	gap: var(--p-control-gap);
 	min-width: 0;
 }
 .opening-feedback td {
@@ -657,7 +657,7 @@ async function lifecycle(kind: "cancel" | "amend") {
 	min-width: 0;
 	max-width: 100%;
 	overflow: hidden;
-	padding: var(--p-card-pad);
+	padding: var(--p-card-inner-pad);
 }
 .opening-readonly :deep(.data-table-frame),
 .opening-readonly :deep(.data-table-scroll) {
@@ -678,7 +678,7 @@ async function lifecycle(kind: "cancel" | "amend") {
 }
 .opening-status,
 .opening-queued {
-	padding: var(--p-space-3);
+	padding: var(--p-card-inner-pad);
 	background: var(--p-soft);
 }
 @media (max-width: 700px) {

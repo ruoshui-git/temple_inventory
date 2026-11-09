@@ -478,8 +478,19 @@ function parentLabel(name?: string) {
 	height: 32px;
 }
 .browse-tree-row .browse-grow {
-	padding: var(--p-space-2);
+	padding: var(--p-field-gap) var(--p-control-gap);
 	border-radius: var(--p-radius-control);
+}
+.browse-tree-row {
+	min-height: var(--p-cell-control);
+	gap: var(--p-control-gap);
+	padding-block: var(--p-table-cell-y);
+	padding-inline-end: var(--p-table-cell-x);
+	padding-inline-start: calc(var(--p-table-cell-x) + min(var(--tree-depth, 0), 4) * 10px);
+}
+.browse-tree-row .browse-tree-type {
+	width: var(--p-table-thumbnail);
+	height: var(--p-table-thumbnail);
 }
 .browse-tree-row.is-selected .browse-grow {
 	background: var(--p-soft);
@@ -491,13 +502,17 @@ function parentLabel(name?: string) {
 	}
 	.browse-tree-row {
 		display: grid;
-		grid-template-columns: 32px 32px minmax(0, 1fr);
-		gap: var(--p-space-2);
+		grid-template-columns: 44px var(--p-table-thumbnail) minmax(0, 1fr);
+		gap: var(--p-field-gap);
+		padding-block: var(--p-control-pad-y);
 		padding-left: calc(min(var(--tree-depth, 0), 4) * 8px);
 	}
 	.browse-tree-row > button {
-		min-height: 40px;
+		min-height: 44px;
 		min-width: 0;
+	}
+	.browse-tree-row .browse-grow {
+		padding: var(--p-field-gap) var(--p-control-gap);
 	}
 	.warehouse-detail-actions {
 		width: 100%;

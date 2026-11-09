@@ -95,7 +95,7 @@ function effectLabel(quantity: Quantity) {
 .quantity-summary-values {
 	display: flex;
 	flex-wrap: wrap;
-	column-gap: var(--p-space-3);
+	column-gap: var(--p-control-gap);
 	row-gap: 0;
 }
 .quantity-summary-values strong {

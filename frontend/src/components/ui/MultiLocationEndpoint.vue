@@ -49,7 +49,7 @@ const locations = computed(() => [...new Set(props.locations.filter(Boolean))]);
 .multi-location-more {
 	display: inline-flex;
 	align-items: center;
-	gap: 4px;
+	gap: var(--p-field-gap);
 }
 
 .multi-location-more {
@@ -59,7 +59,7 @@ const locations = computed(() => [...new Set(props.locations.filter(Boolean))]);
 
 .multi-location-list {
 	display: grid;
-	gap: 6px;
+	gap: var(--p-control-gap);
 	margin: 0;
 	padding: 0;
 	list-style: none;

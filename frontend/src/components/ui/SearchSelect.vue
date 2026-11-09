@@ -417,7 +417,7 @@ defineExpose({
 	max-width: min(360px, calc(100vw - 16px));
 	max-height: var(--popup-max-height, calc(100dvh - 16px));
 	overflow: auto;
-	padding: 8px;
+	padding: var(--p-control-pad-y) var(--p-control-gap);
 	background: var(--p-surface);
 	border: 1px solid var(--p-border);
 	border-radius: 10px;
@@ -440,11 +440,11 @@ ul {
 }
 li,
 .virtual-option {
-	min-height: 44px;
+	min-height: max(44px, var(--p-control));
 	display: flex;
 	flex-direction: column;
 	justify-content: center;
-	padding: 10px;
+	padding: var(--p-control-pad-y) var(--p-control-gap);
 	cursor: pointer;
 	border-radius: 6px;
 }

@@ -46,7 +46,7 @@ export const themes = [
   },
 ] as const;
 export type ThemeId = (typeof themes)[number]["id"];
-export type Density = "compact" | "balanced" | "spacious";
+export type Density = "xcompact" | "compact" | "balanced" | "spacious";
 export const textScales = [100, 125, 150, 175, 200] as const;
 export type TextScale = (typeof textScales)[number];
 

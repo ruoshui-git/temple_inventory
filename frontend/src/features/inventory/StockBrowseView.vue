@@ -922,12 +922,6 @@ function acceptBrowseLocation(name: string) {
 												>已停用</span
 											>
 											<span
-												v-if="rowMeta(item)"
-												class="stock-list-meta"
-												data-clamp
-												>{{ rowMeta(item) }}</span
-											>
-											<span
 												v-if="expiryStatus(item)"
 												class="badge"
 												:class="
@@ -961,6 +955,7 @@ function acceptBrowseLocation(name: string) {
 									</button>
 									<CardFields
 										variant="row"
+										:leading="rowMeta(item)"
 										:fields="rowPartition.fields"
 										:overflow="rowPartition.overflow"
 										:row="asStockRow(item)"

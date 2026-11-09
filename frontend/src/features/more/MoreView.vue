@@ -105,10 +105,10 @@ const displayGroups = computed(() =>
 <style scoped>
 @media (max-width: 1023px) {
 	.more-section {
-		margin-block: 12px;
+		margin-block: var(--p-gap);
 	}
 	.more-section h2 {
-		margin-block: 0 6px;
+		margin-block: 0 var(--p-field-gap);
 	}
 	.more-grid {
 		display: grid;
@@ -120,14 +120,14 @@ const displayGroups = computed(() =>
 		overflow: hidden;
 	}
 	.more-card {
-		min-height: 64px !important;
-		grid-template-columns: 36px minmax(0, 1fr) 16px;
+		min-height: max(44px, calc(var(--p-control) + 2 * var(--p-control-pad-y))) !important;
+		grid-template-columns: var(--p-list-thumbnail) minmax(0, 1fr) 16px;
 		grid-template-rows: auto auto;
 		align-content: center !important;
 		align-items: center;
-		column-gap: 10px;
-		row-gap: 1px;
-		padding: 8px 12px !important;
+		column-gap: var(--p-control-gap);
+		row-gap: var(--p-field-gap);
+		padding: var(--p-control-pad-y) var(--p-control-gap) !important;
 		border: 0 !important;
 		border-radius: 0 !important;
 		box-shadow: none !important;
@@ -139,8 +139,8 @@ const displayGroups = computed(() =>
 	.more-card > span {
 		grid-column: 1;
 		grid-row: 1 / span 2;
-		width: 36px !important;
-		height: 36px !important;
+		width: var(--p-list-thumbnail) !important;
+		height: var(--p-list-thumbnail) !important;
 	}
 	.more-card > strong,
 	.more-card > small {

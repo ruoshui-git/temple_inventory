@@ -27,14 +27,14 @@ input[list]::-webkit-calendar-picker-indicator {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: var(--p-space-3);
+	gap: var(--p-control-gap);
 }
 .form-page .section-title-row,
 .form-page .form-actions {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: var(--p-space-3);
+	gap: var(--p-control-gap);
 }
 .form-page .form-page-heading h1 {
 	margin: var(--p-space-2) 0;
@@ -73,6 +73,9 @@ input[list]::-webkit-calendar-picker-indicator {
 	align-items: start;
 	gap: var(--p-gap);
 }
+.form-page > .form-page-heading {
+	margin-block-end: 0;
+}
 .form-page .form-main {
 	display: grid;
 	gap: var(--p-gap);
@@ -95,7 +98,7 @@ input[list]::-webkit-calendar-picker-indicator {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 	align-items: start;
-	gap: var(--p-space-4);
+	gap: var(--p-control-gap);
 }
 .form-page .full-field {
 	grid-column: 1 / -1;
@@ -115,16 +118,17 @@ input[list]::-webkit-calendar-picker-indicator {
 		padding: var(--p-card-inner-pad);
 	}
 	.form-page .form-review {
-		padding-block-end: var(--p-editor-bottom-pad);
+		padding-block-end: var(--p-card-inner-pad);
+		padding-inline-start: calc(var(--p-card-inner-pad) + 2 * var(--p-field-gap));
 	}
 	.form-page .form-section {
-		padding-block-end: var(--p-space-3);
+		padding-block-end: var(--p-field-gap);
 	}
 	.form-page .form-main > .info-grid.form-section {
-		padding-block-end: calc(var(--p-space-3) + 4px);
+		padding-block-end: var(--p-field-gap);
 	}
 	.form-page .form-date-section {
-		padding-block-end: calc(var(--p-space-3) + 4px);
+		padding-block-end: var(--p-field-gap);
 	}
 }
 .form-page .form-review > p {
@@ -145,10 +149,10 @@ input[list]::-webkit-calendar-picker-indicator {
 		position: fixed;
 		top: auto;
 		z-index: var(--p-z-menu);
-		left: 12px;
-		right: 12px;
+		left: var(--p-gap);
+		right: var(--p-gap);
 		bottom: calc(68px + env(safe-area-inset-bottom));
-		padding: var(--p-space-2) var(--p-space-3);
+		padding: var(--p-control-pad-y) var(--p-control-gap);
 		box-shadow: var(--p-shadow);
 	}
 
@@ -166,7 +170,7 @@ input[list]::-webkit-calendar-picker-indicator {
 		display: none;
 	}
 	.form-page .form-review .form-actions {
-		margin-top: var(--p-space-2);
+		margin-top: var(--p-field-gap);
 	}
 }
 @media (max-width: 620px) {
@@ -179,7 +183,7 @@ input[list]::-webkit-calendar-picker-indicator {
 		grid-template-columns: minmax(0, 1fr);
 	}
 	.form-page .form-main {
-		padding: var(--p-space-4);
+		padding: var(--p-pad);
 	}
 }
 
@@ -188,7 +192,7 @@ input[list]::-webkit-calendar-picker-indicator {
 	display: flex;
 	align-items: baseline;
 	gap: var(--p-space-3);
-	padding: var(--p-space-4);
+	padding: var(--p-card-inner-pad);
 	border-radius: var(--p-radius-control);
 	background: var(--p-soft);
 }
@@ -494,15 +498,15 @@ input[list]::-webkit-calendar-picker-indicator {
 .operation-compact-row {
 	display: grid;
 	grid-template-columns: var(--operation-grid-template);
-	column-gap: var(--p-space-2);
+	column-gap: var(--p-control-gap);
 	min-width: 0;
 }
 .operation-column-headings {
 	align-items: end;
-	padding: 4px var(--p-space-2);
+	padding: var(--p-control-pad-y) var(--p-table-cell-x);
 	color: var(--p-muted);
 	font-size: var(--p-small);
-	line-height: 1.2;
+	line-height: var(--p-table-line);
 }
 .operation-column-headings > * {
 	white-space: nowrap;
@@ -516,8 +520,8 @@ input[list]::-webkit-calendar-picker-indicator {
 }
 .operation-compact-row {
 	align-items: center;
-	min-height: 52px;
-	padding: 4px var(--p-space-2);
+	min-height: var(--p-control);
+	padding: var(--p-table-cell-y) var(--p-table-cell-x);
 	border-bottom: 1px solid var(--p-border-soft);
 	transition:
 		background-color 180ms ease,
@@ -527,13 +531,13 @@ input[list]::-webkit-calendar-picker-indicator {
 .operation-row-item {
 	display: flex;
 	align-items: center;
-	gap: var(--p-space-2);
+	gap: var(--p-control-gap);
 	min-width: 0;
 }
 .operation-row-thumbnail {
-	flex: 0 0 32px;
-	width: 32px;
-	height: 32px;
+	flex: 0 0 var(--p-table-thumbnail);
+	width: var(--p-table-thumbnail);
+	height: var(--p-table-thumbnail);
 }
 .operation-compact-identity {
 	display: grid;
@@ -556,6 +560,19 @@ input[list]::-webkit-calendar-picker-indicator {
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	overflow: hidden;
+}
+@media (min-width: 1024px) and (pointer: fine) {
+	:root[data-ti-density="xcompact"] .operation-compact-row {
+		padding-block: var(--p-control-pad-y);
+	}
+	:root:is([data-ti-density="xcompact"], [data-ti-density="compact"])
+		.operation-compact-identity {
+		max-height: var(--p-control);
+	}
+	:root:is([data-ti-density="xcompact"], [data-ti-density="compact"])
+		.operation-compact-identity strong {
+		-webkit-line-clamp: 1;
+	}
 }
 .operation-row-batch,
 .operation-row-controls {
@@ -580,8 +597,8 @@ input[list]::-webkit-calendar-picker-indicator {
 	min-width: 0;
 }
 .operation-row-cell input {
-	min-height: 36px;
-	padding: 4px 8px;
+	min-height: var(--p-control);
+	padding: var(--p-control-pad-y) var(--p-table-cell-x);
 	font-size: 0.82rem;
 }
 .operation-row-cell input[type="date"] {
@@ -591,8 +608,8 @@ input[list]::-webkit-calendar-picker-indicator {
 	max-width: 100%;
 }
 .operation-row-cell .search-select .search-select-input input {
-	min-height: 36px;
-	padding: 4px 28px 4px 8px;
+	min-height: var(--p-control);
+	padding: var(--p-control-pad-y) 28px var(--p-control-pad-y) var(--p-table-cell-x);
 	font-size: 0.82rem;
 }
 .operation-phone-field-label {
@@ -608,6 +625,30 @@ input[list]::-webkit-calendar-picker-indicator {
 .operation-row-quantity {
 	width: 88px;
 }
+@media (min-width: 1024px) and (pointer: fine) {
+	.operation-row-quantity {
+		display: grid;
+		grid-template-columns: minmax(0, 88px) auto;
+		align-items: center;
+		column-gap: var(--p-control-gap);
+		width: 100%;
+	}
+	.operation-row-quantity > input,
+	.operation-row-quantity > .operation-cell-value {
+		grid-column: 1;
+		grid-row: 1;
+	}
+	.operation-row-quantity > .operation-row-existing {
+		grid-column: 2;
+		grid-row: 1;
+		white-space: nowrap;
+		font-size: var(--p-small);
+	}
+	.operation-row-quantity > .utility-error {
+		grid-column: 1 / -1;
+		grid-row: 2;
+	}
+}
 .operation-row-unit {
 	width: 96px;
 }
@@ -621,6 +662,9 @@ input[list]::-webkit-calendar-picker-indicator {
 }
 .operation-row-menu {
 	justify-self: end;
+}
+.operation-compact-row :is(button, .ui-button) {
+	min-height: var(--p-cell-control);
 }
 .operation-row-menu-panel {
 	display: grid;
@@ -688,10 +732,10 @@ input[list]::-webkit-calendar-picker-indicator {
 	.operation-compact-row {
 		grid-template-columns: 36px minmax(0, 1fr) 40px;
 		align-items: start;
-		gap: var(--p-space-1) var(--p-space-2);
+		gap: var(--p-field-gap) var(--p-control-gap);
 		min-height: 0;
-		margin-block: var(--p-space-2);
-		padding: var(--p-space-2);
+		margin-block: var(--p-gap);
+		padding: var(--p-pad);
 		border: 1px solid var(--p-border-soft);
 		border-radius: var(--p-radius-control);
 	}
@@ -709,18 +753,26 @@ input[list]::-webkit-calendar-picker-indicator {
 		display: grid;
 		grid-column: 1 / -1;
 		grid-row: 2;
-		grid-template-columns:
-			minmax(58px, 0.55fr)
-			minmax(132px, 1.2fr)
-			minmax(132px, 1.2fr);
-		gap: 2px;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: var(--p-field-gap);
+	}
+	.operation-row-batch-id {
+		grid-column: 1 / -1;
+	}
+	.operation-row-expiry {
+		grid-column: 1;
+	}
+	.operation-row-manufacturing {
+		grid-column: 2;
 	}
 	.operation-row-menu {
 		grid-column: 3;
 		grid-row: 1;
 	}
 	.operation-row-cell {
-		gap: 2px;
+		gap: var(--p-field-gap);
+		align-content: start;
+		align-items: start;
 	}
 	.operation-phone-field-label {
 		display: block;
@@ -732,23 +784,24 @@ input[list]::-webkit-calendar-picker-indicator {
 		display: none;
 	}
 	.operation-row-controls {
-		display: flex;
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
 		grid-column: 1 / -1;
 		grid-row: 2;
-		flex-wrap: wrap;
-		align-items: end;
-		gap: var(--p-space-1);
+		align-items: start;
+		gap: var(--p-field-gap);
 	}
 	.operation-compact-row.is-batch-tracked .operation-row-controls {
 		grid-row: 3;
 	}
 	.operation-row-quantity {
-		flex: 0 0 84px;
-		width: 84px;
+		grid-template-columns: minmax(0, 1fr);
+		width: auto;
+		min-width: 0;
 	}
 	.operation-row-unit {
-		flex: 0 0 84px;
-		width: 84px;
+		width: auto;
+		min-width: 0;
 	}
 	.operation-row-stock-total,
 	.operation-row-stock-total-empty {
@@ -777,7 +830,10 @@ input[list]::-webkit-calendar-picker-indicator {
 	}
 	.operation-row-cell input,
 	.operation-row-cell .search-select .search-select-input input {
-		min-height: 38px;
+		min-height: 44px;
+	}
+	.operation-compact-row :is(button, .ui-button) {
+		min-height: 44px;
 	}
 	.operation-add-section-picker {
 		align-items: stretch;
@@ -826,7 +882,7 @@ input[list]::-webkit-calendar-picker-indicator {
 }
 .workspace-expanded .operation-section {
 	align-content: start;
-	min-height: 65dvh;
+	min-height: 0;
 }
 .workspace-expanded .form-actions {
 	position: sticky;
@@ -914,7 +970,9 @@ input[list]::-webkit-calendar-picker-indicator {
 		display: grid;
 	}
 	.form-page {
-		padding-bottom: calc(var(--app-action-bar-height) + var(--app-nav-height, 80px) + 24px);
+		padding-bottom: calc(
+			var(--app-action-bar-height) + var(--app-nav-height, 80px) + var(--p-gap)
+		);
 	}
 	.form-page .form-page-heading {
 		align-items: flex-start;
@@ -1277,9 +1335,13 @@ input[list]::-webkit-calendar-picker-indicator {
 		position: sticky;
 	}
 	.form-page .form-main {
-		padding-block-end: calc(
-			88px + var(--app-nav-height, 80px) + env(safe-area-inset-bottom) + var(--p-space-3)
-		);
+		padding-block-end: var(--p-editor-bottom-pad);
+	}
+	.workspace-expanded {
+		padding-block-end: var(--p-editor-bottom-pad);
+	}
+	.workspace-review-collapsed .form-review {
+		padding-inline: var(--p-field-gap);
 	}
 	.form-review-edge-rail {
 		position: absolute;
@@ -1346,7 +1408,7 @@ input[list]::-webkit-calendar-picker-indicator {
 		min-width: 28px;
 		min-height: 112px;
 		position: relative;
-		padding: 0;
+		padding: var(--p-field-gap);
 		overflow: hidden;
 	}
 	.workspace-review-collapsed .form-review > :not(.form-review-edge-rail) {

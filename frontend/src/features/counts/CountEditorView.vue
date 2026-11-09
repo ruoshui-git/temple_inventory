@@ -1043,15 +1043,15 @@ async function back() {
 <style scoped>
 .count-readonly {
 	min-width: 0;
-	padding: var(--p-card-pad);
+	padding: var(--p-card-inner-pad);
 }
 .count-readonly-unchanged {
-	margin: 12px 0 0;
+	margin: var(--p-control-gap) 0 0;
 }
 .count-readonly-difference {
 	display: grid;
 	justify-items: start;
-	gap: 4px;
+	gap: var(--p-field-gap);
 }
 .count-readonly-item small {
 	display: block;
@@ -1069,14 +1069,14 @@ async function back() {
 	font-weight: 700;
 }
 .count-form-main {
-	gap: 12px !important;
+	gap: var(--p-gap) !important;
 	padding: 0 !important;
 	border: 0;
 	box-shadow: none;
 	background: transparent;
 }
 .count-form-main > .form-section {
-	padding: 8px 10px;
+	padding: var(--p-card-inner-pad);
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-control);
 	background: var(--p-surface);
@@ -1094,10 +1094,11 @@ async function back() {
 }
 .count-native-table th,
 .count-native-table td {
-	padding: 5px 8px;
+	padding: var(--p-table-cell-y) var(--p-table-cell-x);
 	border-bottom: 1px solid var(--p-border);
 	text-align: left;
 	vertical-align: middle;
+	line-height: var(--p-table-line);
 }
 .count-native-table th {
 	position: sticky;
@@ -1116,7 +1117,7 @@ async function back() {
 .count-native-table .count-item-content {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: var(--p-control-gap);
 }
 .count-native-table .count-item-content strong,
 .count-native-table .count-item-content small {
@@ -1144,11 +1145,11 @@ async function back() {
 }
 .native-count-card-list {
 	display: grid;
-	gap: 8px;
+	gap: var(--p-gap);
 }
 .native-count-card {
 	min-width: 0;
-	padding: 10px;
+	padding: var(--p-card-inner-pad);
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-card);
 	background: var(--p-surface);
@@ -1157,12 +1158,12 @@ async function back() {
 	display: flex;
 	min-width: 0;
 	align-items: center;
-	gap: 10px;
+	gap: var(--p-control-gap);
 }
 .native-count-card-identity {
 	display: grid;
 	min-width: 0;
-	gap: 2px;
+	gap: var(--p-field-gap);
 }
 .native-count-card-identity strong,
 .native-count-card-identity small {
@@ -1182,9 +1183,9 @@ async function back() {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) minmax(116px, 0.9fr);
 	align-items: center;
-	gap: 10px;
-	margin-top: 8px;
-	padding-top: 8px;
+	gap: var(--p-control-gap);
+	margin-top: var(--p-field-gap);
+	padding-top: var(--p-field-gap);
 	border-top: 1px solid var(--p-border);
 }
 .native-count-card-counts > div,
@@ -1213,7 +1214,7 @@ async function back() {
 @media (max-width: 1023px) {
 	.count-native-table th,
 	.count-native-table td {
-		padding: 5px 8px;
+		padding: var(--p-table-cell-y) var(--p-table-cell-x);
 	}
 	.count-native-table .count-actual-input {
 		width: 112px;

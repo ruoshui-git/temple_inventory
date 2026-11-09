@@ -173,11 +173,11 @@ function permissionGranted() {
 
 <style scoped>
 .notification-kinds {
-	margin-block: 16px 0;
-	padding-top: 20px;
+	margin-block: var(--p-gap) 0;
+	padding-top: var(--p-card-inner-pad);
 }
 .notification-kinds legend {
-	padding-inline: 6px;
+	padding-inline: var(--p-field-gap);
 }
 @media (pointer: coarse) {
 	.notification-kinds label {

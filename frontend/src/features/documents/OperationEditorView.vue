@@ -690,13 +690,7 @@ async function lifecycle() {
 			:announce="false"
 		/>
 		<div
-			v-if="
-				!isMobile ||
-				state.identity ||
-				state.status !== 'pristine' ||
-				loading ||
-				state.server
-			"
+			v-if="state.identity || state.status !== 'pristine' || loading || state.server"
 			class="form-status"
 		>
 			<span v-if="state.identity && !initialExistingLoad" class="form-record-tag"
@@ -1422,7 +1416,7 @@ async function lifecycle() {
 
 <style scoped>
 .return-loan-context-list {
-	margin: 0 0 var(--p-space-3);
+	margin: 0 0 var(--p-gap);
 	padding-inline-start: 1.25em;
 	color: var(--p-muted);
 	font-size: var(--p-small);
@@ -1436,14 +1430,14 @@ async function lifecycle() {
 }
 
 :deep(.review-summary) {
-	min-height: 48px;
-	padding: var(--p-space-2) var(--p-space-3);
+	min-height: var(--p-control);
+	padding: var(--p-control-pad-y) var(--p-control-gap);
 	font-size: var(--p-body);
 }
 
 .review-location-totals {
 	display: grid;
-	gap: var(--p-space-2);
+	gap: var(--p-control-gap);
 	margin: 0;
 	padding: 0;
 	list-style: none;
@@ -1451,9 +1445,9 @@ async function lifecycle() {
 
 .review-location-totals li {
 	display: grid;
-	gap: 2px;
+	gap: var(--p-field-gap);
 	min-width: 0;
-	padding-block: var(--p-space-2);
+	padding-block: var(--p-table-cell-y);
 	border-bottom: 1px solid var(--p-border);
 }
 
@@ -1463,8 +1457,8 @@ async function lifecycle() {
 }
 
 .review-line-checks {
-	margin-block-start: var(--p-space-3);
-	padding-block-start: var(--p-space-2);
+	margin-block-start: var(--p-gap);
+	padding-block-start: var(--p-field-gap);
 	border-top: 1px solid var(--p-border);
 }
 
@@ -1472,7 +1466,7 @@ async function lifecycle() {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: var(--p-space-2);
+	gap: var(--p-control-gap);
 }
 
 .review-line-checks > p {
@@ -1481,10 +1475,10 @@ async function lifecycle() {
 
 @media (max-width: 1023px) {
 	.document-actions {
-		left: calc(var(--operation-visual-left, 0px) + 12px);
+		left: calc(var(--operation-visual-left, 0px) + var(--p-gap));
 		right: auto;
-		width: calc(var(--operation-visual-width, 100vw) - 24px);
-		max-width: calc(var(--operation-visual-width, 100vw) - 24px);
+		width: calc(var(--operation-visual-width, 100vw) - var(--p-gap) - var(--p-gap));
+		max-width: calc(var(--operation-visual-width, 100vw) - var(--p-gap) - var(--p-gap));
 		top: calc(
 			var(--operation-visual-top, 0px) + var(--operation-visual-height, 100dvh) - 66px
 		);

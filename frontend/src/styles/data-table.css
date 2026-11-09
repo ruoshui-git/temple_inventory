@@ -269,9 +269,9 @@
 	}
 	.data-table-scroll th,
 	.data-table-scroll td {
-		padding-block: 6px;
-		padding-inline: 12px;
-		line-height: 1.35;
+		padding-block: var(--p-table-cell-y);
+		padding-inline: var(--p-table-cell-x);
+		line-height: var(--p-table-line);
 	}
 	.data-table-scroll th.data-table-settings-heading {
 		position: sticky;
@@ -303,13 +303,59 @@
 		min-width: 100%;
 	}
 	.data-table-scroll tbody tr:not(.data-table-group-detail-row) {
-		height: 48px;
+		min-height: 44px;
+		height: auto;
 	}
 	.data-table-scroll :is(th, td).report-sticky-actions-column {
 		width: max-content;
 		min-width: max-content;
 		max-width: none;
 		padding-inline: 6px;
+	}
+}
+
+@media (max-width: 600px) {
+	.data-table-scroll.is-sticky-header {
+		--data-table-sticky-top: calc(
+			var(--browse-sticky-bottom, var(--app-desktop-nav-height, 0px)) +
+				var(--p-page-gutter) + 4px
+		);
+	}
+	.data-table-scroll tbody tr.data-table-group-row > td {
+		padding-block: 2px !important;
+	}
+	.data-table-scroll tbody tr.data-table-group-row .data-table-group-identity,
+	.data-table-scroll tbody tr.data-table-group-row .data-table-group-toggle {
+		flex-wrap: nowrap;
+		white-space: nowrap;
+	}
+	.data-table-scroll tbody tr.data-table-group-row .data-table-group-toggle {
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.data-table-scroll tbody tr.data-table-group-row .data-table-group-name {
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		-webkit-line-clamp: unset;
+	}
+	.data-table-scroll tbody tr.data-table-group-row .group-totals {
+		flex-wrap: nowrap;
+		white-space: nowrap;
+		overflow: hidden;
+	}
+	.data-table-scroll tbody tr.data-table-group-row .group-totals-value {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.data-table-scroll tbody tr.data-table-group-row.is-stuck.is-stuck-deeper > td {
+		top: calc(
+			var(--data-table-sticky-top, var(--browse-sticky-bottom, 0px)) +
+				var(--data-table-head-height, 0px) +
+				max(var(--stuck-offset, 0px), max(49px, calc(var(--p-cell-control) + 5px))) - 1px
+		);
 	}
 }
 .data-table-overflow-hint:focus-visible {
@@ -348,12 +394,6 @@
 .data-table-scroll tbody td {
 	vertical-align: middle;
 }
-@media (min-width: 1440px) {
-	.data-table-scroll:has(table.browse-table) {
-		--p-table-cell-x: 10px;
-	}
-}
-
 .data-table-scroll th {
 	position: sticky;
 	top: 0;
@@ -446,9 +486,6 @@
 }
 .data-table-scroll :is(th, td).data-column-thumb {
 	min-width: 56px;
-}
-.data-table-scroll td.data-column-thumb {
-	--p-table-thumbnail: 24px;
 }
 .data-table-scroll td.data-column-code > :first-child {
 	display: inline-block;
@@ -563,6 +600,7 @@
 	white-space: nowrap;
 }
 .data-table-scroll td .stock-detail-chips {
+	margin-top: 0;
 	flex-wrap: nowrap;
 	width: max-content;
 	max-width: 220px;
@@ -1118,21 +1156,6 @@
 	}
 }
 
-:root[data-ti-density="compact"] {
-	--p-table-cell-y: 5px;
-	--p-table-cell-x: 8px;
-}
-
-:root[data-ti-density="balanced"] {
-	--p-table-cell-y: 8px;
-	--p-table-cell-x: 12px;
-}
-
-:root[data-ti-density="spacious"] {
-	--p-table-cell-y: 18px;
-	--p-table-cell-x: 16px;
-}
-
 @media (max-width: 1023px) {
 	.data-table-scroll th.align-end {
 		min-width: 5.5em;
@@ -1162,13 +1185,77 @@
 }
 
 @media (min-width: 1024px) and (pointer: fine) {
-	:root[data-ti-density="balanced"] {
-		--p-table-cell-y: 5px;
-		--p-table-thumbnail: 24px;
+	.data-table-scroll tbody tr[data-browse-row]:not(.data-table-group-row) {
+		height: calc(
+			max(var(--p-cell-control), var(--p-table-thumbnail)) + var(--p-table-cell-y) +
+				var(--p-table-cell-y) + 1px
+		);
 	}
 	.data-table-scroll th,
 	.data-table-scroll td {
-		line-height: 1.35;
+		line-height: var(--p-table-line);
+	}
+	.data-table-scroll tbody td {
+		min-width: 0;
+	}
+	.data-table-scroll tbody td > * {
+		max-width: 100%;
+		min-width: 0;
+	}
+	.data-table-scroll tbody td :is(button, a, [role="button"], .data-table-group-toggle) {
+		display: inline-flex;
+		align-items: center;
+		min-height: var(--p-cell-control) !important;
+		line-height: var(--p-table-line);
+	}
+	.data-table-scroll tbody td :is(button, a, [role="button"]):not(.data-table-group-toggle) {
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.data-table-scroll
+		tbody
+		td
+		:is(button, .record-ref-chip, .location-endpoint, .browse-badge, .detail-popover-trigger) {
+		max-width: 100%;
+		padding-block: 0;
+		padding-inline: 4px;
+	}
+	.data-table-scroll
+		tbody
+		td
+		:is(.browse-badge, .location-endpoint, .record-ref-chip, .detail-popover-trigger) {
+		min-height: var(--p-cell-control);
+		line-height: var(--p-table-line);
+	}
+	.data-table-scroll tbody td :is(.browse-row-actions, .data-table-group-identity) {
+		min-height: var(--p-cell-control);
+		align-items: center;
+	}
+	.data-table-scroll tbody td .data-table-row-checkbox {
+		min-height: var(--p-cell-control);
+	}
+	.data-table-scroll tbody td .data-table-row-checkbox input[type="checkbox"] {
+		width: 16px;
+		height: 16px;
+		min-height: 16px;
+	}
+	.data-table-scroll tbody td .item-image-button {
+		width: var(--p-table-thumbnail) !important;
+		height: var(--p-table-thumbnail) !important;
+		min-width: var(--p-table-thumbnail) !important;
+		min-height: var(--p-table-thumbnail) !important;
+		padding: 0 !important;
+	}
+	.data-table-scroll tbody td .item-image-button > .async-image {
+		width: 100% !important;
+		height: 100% !important;
+	}
+	.data-table-scroll tbody td .data-table-group-toggle {
+		padding-inline: 2px;
+	}
+	.data-table-scroll tbody td .operation-unit-more {
+		min-height: var(--p-cell-control);
 	}
 	.data-table-scroll td > .async-image,
 	.data-table-scroll td .item-image-button,
@@ -1177,6 +1264,42 @@
 		height: var(--p-table-thumbnail) !important;
 		max-width: var(--p-table-thumbnail);
 		max-height: var(--p-table-thumbnail);
+	}
+	.data-table-scroll td .table-item-image {
+		width: var(--p-table-thumbnail) !important;
+		height: var(--p-table-thumbnail) !important;
+		max-width: var(--p-table-thumbnail);
+		max-height: var(--p-table-thumbnail);
+		overflow: hidden;
+	}
+	.data-table-scroll td .table-item-image > :is(.item-image, .item-image-button, .async-image) {
+		width: 100% !important;
+		height: 100% !important;
+		max-width: 100%;
+		max-height: 100%;
+	}
+}
+
+@media (max-width: 1023px) {
+	.data-table-scroll td :is(button, a, [role="button"], .data-table-group-toggle) {
+		display: inline-flex;
+		align-items: center;
+		min-height: max(44px, var(--p-control)) !important;
+	}
+	.data-table-scroll td .data-table-row-checkbox {
+		min-height: 44px;
+	}
+	.data-table-scroll td .item-image-button {
+		display: grid;
+		width: 44px !important;
+		height: 44px !important;
+		min-width: 44px !important;
+		min-height: 44px !important;
+		padding: 0 !important;
+	}
+	.data-table-scroll td .item-image-button > .async-image {
+		width: var(--p-table-thumbnail) !important;
+		height: var(--p-table-thumbnail) !important;
 	}
 }
 .data-table-scroll.is-refreshing {
@@ -1234,8 +1357,9 @@
 	height: auto;
 }
 .damaged-page .data-table-scroll tbody td {
-	padding-block: 8px;
+	padding-block: var(--p-table-cell-y);
 }
+
 .warehouse-stock-table .warehouse-code,
 .warehouse-stock-table .warehouse-nowrap {
 	white-space: nowrap;
@@ -1406,12 +1530,15 @@
 }
 
 /* Group rows are one line tall: 40px with a mouse, at least 44px for touch. */
-@media (pointer: fine) {
+@media (min-width: 1024px) and (pointer: fine) {
 	.data-table-scroll tbody tr.data-table-group-row {
-		height: 40px;
+		height: calc(
+			max(var(--p-cell-control), var(--p-table-thumbnail)) + var(--p-table-cell-y) +
+				var(--p-table-cell-y) + 1px
+		);
 	}
 	.data-table-scroll tbody tr.data-table-group-row .data-table-group-toggle {
-		min-height: 30px;
+		min-height: var(--p-cell-control);
 	}
 }
 @media (pointer: coarse) {

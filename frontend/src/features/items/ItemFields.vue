@@ -216,7 +216,7 @@ onDeactivated(() => {
 .item-code-control {
 	display: flex;
 	align-items: center;
-	gap: 4px;
+	gap: var(--p-field-gap);
 }
 .item-code-control input {
 	min-width: 0;

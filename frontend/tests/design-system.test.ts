@@ -201,14 +201,69 @@ describe("shared production design system", () => {
     );
   });
 
-  it("changes density rhythm independently from text scaling and preserves the mobile touch floor", () => {
+  it("keeps the four-stop density scale monotonic and preserves the mobile touch floor", () => {
+    const stops = ["xcompact", "compact", "balanced", "spacious"] as const;
+    const desktopMediaValue = (selector: string, token: string) => {
+      let value = "";
+      foundation.walkAtRules("media", (media) => {
+        if (
+          !/min-width:\s*1024px/.test(media.params) ||
+          !/pointer:\s*fine/.test(media.params)
+        )
+          return;
+        media.walkRules(selector, (rule) =>
+          rule.walkDecls(token, (declaration) => (value = declaration.value)),
+        );
+      });
+      return value;
+    };
+    const densityValues = (token: string) =>
+      stops.map((stop) => {
+        const selector =
+          stop === "balanced" ? ":root" : `:root[data-ti-density="${stop}"]`;
+        return (
+          desktopMediaValue(selector, token) ||
+          declarations(selector).get(token)!
+        );
+      });
+    const monotonic = (values: string[]) => {
+      const numbers = values.map((value) => Number.parseFloat(value));
+      expect(
+        numbers.every(
+          (value, index) => index === 0 || value > numbers[index - 1],
+        ),
+      ).toBe(true);
+    };
+    for (const token of [
+      "--p-control",
+      "--p-cell-control",
+      "--p-table-thumbnail",
+      "--p-table-cell-y",
+      "--p-table-cell-x",
+      "--p-page-gutter",
+      "--p-pad",
+      "--p-gap",
+      "--p-list-thumbnail",
+    ])
+      monotonic(densityValues(token).map((value) => value.replace(/px$/, "")));
+    expect(densityValues("--p-control")).toEqual([
+      "28px",
+      "32px",
+      "36px",
+      "44px",
+    ]);
+    for (const token of [
+      "--p-cell-control",
+      "--p-table-line",
+      "--p-list-thumbnail",
+    ])
+      for (const stop of stops)
+        expect(
+          stop === "balanced"
+            ? tokens.get(token)
+            : declarations(`:root[data-ti-density="${stop}"]`).get(token),
+        ).toBeTruthy();
     expect(tokens.get("--p-control")).toBe("36px");
-    expect(
-      declarations(':root[data-ti-density="compact"]').get("--p-control"),
-    ).toBe("32px");
-    expect(
-      declarations(':root[data-ti-density="spacious"]').get("--p-control"),
-    ).toBe("44px");
     const mobileControls: string[] = [],
       mobileInputs: string[] = [];
     foundation.walkAtRules("media", (media) => {
@@ -226,17 +281,22 @@ describe("shared production design system", () => {
     ).toBe(true);
     expect(mobileInputs).toContain("max(16px, var(--p-body))");
     expect(tokens.get("--p-body")).toContain("--p-text-scale");
-    expect(tokens.get("--p-table-thumbnail")).toBe("48px");
+    expect(tokens.get("--p-table-thumbnail")).toBe("32px");
+    expect(
+      declarations(':root[data-ti-density="xcompact"]').get(
+        "--p-table-thumbnail",
+      ),
+    ).toBe("20px");
     expect(
       declarations(':root[data-ti-density="compact"]').get(
         "--p-table-thumbnail",
       ),
-    ).toBe("32px");
+    ).toBe("24px");
     expect(
       declarations(':root[data-ti-density="spacious"]').get(
         "--p-table-thumbnail",
       ),
-    ).toBe("64px");
+    ).toBe("48px");
     foundation.walkRules((rule) => {
       if (!rule.selector?.includes("data-ti-density")) return;
       for (const property of [

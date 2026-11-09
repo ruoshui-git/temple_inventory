@@ -908,7 +908,7 @@ function itemImage(row: CountRow) {
 <style scoped>
 .count-workspace {
 	display: grid;
-	gap: 8px;
+	gap: var(--p-gap);
 	min-width: 0;
 }
 .count-filter-bar,
@@ -916,7 +916,7 @@ function itemImage(row: CountRow) {
 .count-pagination {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: var(--p-control-gap);
 }
 .count-filter-bar {
 	flex-wrap: wrap;
@@ -937,7 +937,7 @@ function itemImage(row: CountRow) {
 .count-item-content {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: var(--p-control-gap);
 }
 .count-item-thumbnail {
 	width: var(--p-table-thumbnail);
@@ -959,7 +959,7 @@ function itemImage(row: CountRow) {
 .count-actual-cell {
 	display: grid;
 	justify-items: start;
-	gap: 3px;
+	gap: var(--p-field-gap);
 }
 .count-table .count-actual-input {
 	box-sizing: border-box;
@@ -1017,14 +1017,14 @@ function itemImage(row: CountRow) {
 }
 .count-card-list {
 	display: grid;
-	gap: 8px;
+	gap: var(--p-gap);
 }
 .count-card-list.is-refreshing {
 	opacity: 0.72;
 }
 .count-card {
 	min-width: 0;
-	padding: 10px;
+	padding: var(--p-card-inner-pad);
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-card);
 	background: var(--p-surface);
@@ -1033,7 +1033,7 @@ function itemImage(row: CountRow) {
 	display: flex;
 	min-width: 0;
 	align-items: center;
-	gap: 10px;
+	gap: var(--p-control-gap);
 }
 .count-card-image {
 	width: 52px;
@@ -1044,7 +1044,7 @@ function itemImage(row: CountRow) {
 .count-card-identity {
 	display: grid;
 	min-width: 0;
-	gap: 2px;
+	gap: var(--p-field-gap);
 }
 .count-card-identity strong,
 .count-card-identity small {
@@ -1064,9 +1064,9 @@ function itemImage(row: CountRow) {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) minmax(116px, 0.9fr);
 	align-items: center;
-	gap: 10px;
-	margin-top: 8px;
-	padding-top: 8px;
+	gap: var(--p-control-gap);
+	margin-top: var(--p-field-gap);
+	padding-top: var(--p-field-gap);
 	border-top: 1px solid var(--p-border);
 }
 .count-card-counts.is-serial {
@@ -1075,7 +1075,7 @@ function itemImage(row: CountRow) {
 .count-card-book,
 .count-card-entry {
 	display: grid;
-	gap: 3px;
+	gap: var(--p-field-gap);
 }
 .count-card-entry:has(.serial-count) {
 	min-width: 0;
@@ -1100,8 +1100,8 @@ function itemImage(row: CountRow) {
 .count-card-actions {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 4px;
-	margin-top: 6px;
+	gap: var(--p-field-gap);
+	margin-top: var(--p-field-gap);
 }
 .count-card-actions :deep(button) {
 	min-height: 36px;
@@ -1125,9 +1125,9 @@ function itemImage(row: CountRow) {
 }
 .serial-count-detail-row {
 	display: grid;
-	gap: 8px;
+	gap: var(--p-control-gap);
 	min-width: 0;
-	padding: 8px 12px;
+	padding: var(--p-table-cell-y) var(--p-table-cell-x);
 }
 :deep(.count-table tr[data-row-id^="count-serial-detail:"] .data-table-group-toggle) {
 	display: none;

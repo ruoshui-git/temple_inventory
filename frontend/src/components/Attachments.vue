@@ -295,8 +295,8 @@ article {
 	display: flex;
 	align-items: center;
 	flex-wrap: wrap;
-	gap: 8px;
-	padding: 8px 0;
+	gap: var(--p-field-gap);
+	padding: var(--p-control-pad-y) 0;
 }
 .attachment-image {
 	display: block;
@@ -313,12 +313,12 @@ article {
 }
 .attachment-file-card {
 	display: grid;
-	gap: 12px;
-	padding: 24px;
+	gap: var(--p-control-gap);
+	padding: var(--p-pad);
 }
 .attachment-file-actions {
 	display: flex;
-	gap: 16px;
+	gap: var(--p-gap);
 }
 @media (max-width: 1023px) {
 	.attachment-frame {
@@ -329,13 +329,13 @@ article {
 	display: flex;
 	align-items: end;
 	flex-wrap: wrap;
-	gap: 12px;
+	gap: var(--p-control-gap);
 }
 .main-image-actions {
 	display: flex;
 	align-items: center;
 	flex-wrap: wrap;
-	gap: 8px;
+	gap: var(--p-field-gap);
 }
 .main-image-status {
 	flex: 1 0 100%;

@@ -46,8 +46,8 @@ function print() {
 .record-print-actions {
 	display: flex;
 	justify-content: flex-end;
-	gap: 8px;
-	margin-bottom: 8px;
+	gap: var(--p-control-gap);
+	margin-bottom: var(--p-field-gap);
 }
 iframe {
 	width: 100%;

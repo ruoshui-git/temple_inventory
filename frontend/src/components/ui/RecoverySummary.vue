@@ -371,13 +371,13 @@ async function copy() {
 <style scoped>
 .recovery-summary {
 	display: grid;
-	gap: 12px;
+	gap: var(--p-control-gap);
 	min-width: 0;
 }
 .recovery-summary-actions {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 8px;
+	gap: var(--p-field-gap);
 	align-items: center;
 }
 .recovery-copy-fallback {

@@ -1972,7 +1972,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						v-if="itemTableMounted"
 						data-browse-scroll="operation-items"
 						ariaLabel="物品流动汇总"
-						table-class="browse-table"
+						table-class="browse-table operation-items-table"
 						:columns="itemColumns"
 						:rows="itemTableRows"
 						:suppressed-columns="groupImpliedColumns(query.groupBy)"
@@ -2315,7 +2315,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						"
 						data-browse-scroll="operations"
 						:ariaLabel="family === 'movements' ? '货物流动记录' : '借用记录'"
-						table-class="browse-table"
+						table-class="browse-table operation-records-table"
 						:columns="operationColumns"
 						:group-summary-columns="
 							() =>

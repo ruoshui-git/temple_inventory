@@ -386,14 +386,14 @@ onBeforeUnmount(() => {
 .cropper-host {
 	max-width: 100%;
 	max-height: 65vh;
-	margin: var(--p-space-3) auto;
+	margin: var(--p-gap) auto;
 	background: var(--p-soft);
 }
 
 .form-grid {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 8px;
+	gap: var(--p-control-gap);
 }
 
 .cropper-host :deep(cropper-canvas) {

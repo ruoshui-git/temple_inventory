@@ -525,7 +525,7 @@ const productExportColumns = computed(() => {
 .item-detail-top {
 	display: grid;
 	grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
-	gap: var(--p-space-6);
+	gap: var(--p-gap);
 	align-items: start;
 }
 .item-detail-facts {
@@ -538,16 +538,16 @@ const productExportColumns = computed(() => {
 	overflow: visible;
 }
 .item-facts-grid {
-	margin-top: var(--p-space-3);
+	margin-top: var(--p-field-gap);
 }
 .item-facts-grid dd {
 	overflow-wrap: anywhere;
 }
 .item-facts-grid dd :deep(.item-conversions) {
-	margin-top: 4px;
+	margin-top: var(--p-field-gap);
 }
 .item-detail-card > :deep(.browse-tabs) {
-	margin-top: var(--p-space-4);
+	margin-top: var(--p-gap);
 }
 .item-disabled-badge {
 	display: inline-flex;
@@ -560,18 +560,18 @@ const productExportColumns = computed(() => {
 @media (max-width: 1023px) {
 	.item-detail-top {
 		grid-template-columns: minmax(0, 1fr);
-		gap: var(--p-space-3);
+		gap: var(--p-control-gap);
 	}
 	.browse-detail-card {
-		margin-top: 8px;
+		margin-top: var(--p-field-gap);
 	}
 	.detail-stat-grid :deep(.quantity-summary) {
 		grid-template-columns: repeat(3, minmax(0, 1fr));
-		gap: 6px;
+		gap: var(--p-field-gap);
 	}
 	.detail-stat-grid :deep(.quantity-summary > *) {
 		min-width: 0;
-		padding: 8px 6px;
+		padding: var(--p-control-pad-y) var(--p-field-gap);
 	}
 }
 </style>

@@ -569,6 +569,10 @@
 	content: "·";
 	margin-inline: var(--p-space-1);
 }
+.card-field-inline-prefix::after {
+	content: "·";
+	margin-inline: var(--p-space-1);
+}
 .card-field-label {
 	margin-inline-end: 0.3em;
 	opacity: 0.85;
@@ -623,9 +627,90 @@
 
 /* Links inside a 列表 row's field line flow with its text; the row itself is the touch target. */
 .card-fields-inline :is(.browse-row-link, .browse-link) {
-	display: inline;
+	display: inline-flex;
+	position: relative;
+	z-index: 2;
 	min-height: 0;
+	width: auto;
 	padding: 0;
+}
+.browse-card-item--row .card-fields-inline {
+	pointer-events: none;
+}
+.browse-card-item--row .card-fields-inline :is(.browse-row-link, .browse-link) {
+	pointer-events: auto;
+}
+@media (max-width: 1023px) {
+	.browse-card-item--row .card-fields-inline .browse-row-link::after {
+		content: "";
+		position: absolute;
+		inset: 50% auto auto 50%;
+		width: var(--p-touch-target);
+		height: var(--p-touch-target);
+		transform: translate(-50%, -50%);
+	}
+}
+
+@media (min-width: 1024px) and (pointer: fine) {
+	:root:is([data-ti-density="xcompact"], [data-ti-density="compact"]) .draft-entry {
+		grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
+		min-height: calc(
+			var(--p-cell-control) + var(--p-table-cell-y) + var(--p-table-cell-y) +
+				var(--p-table-cell-y) + 1px
+		);
+		align-items: center;
+		padding-block: 0;
+	}
+	:root:is([data-ti-density="xcompact"], [data-ti-density="compact"]) .draft-entry-heading {
+		flex-wrap: nowrap;
+		gap: var(--p-field-gap);
+	}
+	:root:is([data-ti-density="xcompact"], [data-ti-density="compact"]) .draft-title-link {
+		flex: 1 1 auto;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	:root:is([data-ti-density="xcompact"], [data-ti-density="compact"]) .draft-type-tag {
+		min-height: var(--p-cell-control);
+		padding-block: 0;
+		white-space: nowrap;
+	}
+	:root:is([data-ti-density="xcompact"], [data-ti-density="compact"]) .draft-entry-meta {
+		display: flex;
+		min-width: 0;
+		align-items: center;
+		gap: var(--p-field-gap);
+	}
+	:root:is([data-ti-density="xcompact"], [data-ti-density="compact"]) .draft-entry-meta > span {
+		flex: 0 1 auto;
+	}
+	:root:is([data-ti-density="xcompact"], [data-ti-density="compact"]) .draft-entry-meta time {
+		flex: 0 0 auto;
+		white-space: nowrap;
+	}
+	:root:is([data-ti-density="xcompact"], [data-ti-density="compact"])
+		.draft-entry-meta
+		time::before {
+		content: "·";
+		margin-inline-end: var(--p-field-gap);
+	}
+	:root:is([data-ti-density="xcompact"], [data-ti-density="compact"])
+		.draft-entry
+		> .browse-row-actions {
+		grid-column: 3;
+		grid-row: 1;
+		gap: 4px;
+	}
+	:root:is([data-ti-density="xcompact"], [data-ti-density="compact"])
+		.draft-entry
+		> .browse-row-actions
+		.ui-button {
+		min-height: var(--p-cell-control);
+		height: var(--p-cell-control);
+		padding-block: 0;
+	}
 }
 
 /* A 列表 that is not already inside a padded results card gets the same surface and inset. */
@@ -636,6 +721,327 @@
 /* Badges in a 列表 row's identity keep their own width. */
 .stock-list-identity > :is(.badge, .browse-badge) {
 	justify-self: start;
+}
+
+/* Shared card geometry consumes foundation density tokens. */
+.browse-card-grid {
+	gap: var(--p-card-gap);
+}
+.browse-card-item--card > .browse-card-media,
+.item-card-image {
+	height: var(--p-card-image-size);
+	aspect-ratio: auto;
+}
+.stock-card-groups {
+	gap: var(--p-card-gap);
+}
+.browse-card-item--row {
+	gap: var(--p-control-gap);
+	padding: var(--p-table-cell-y) var(--p-table-cell-x);
+}
+.browse-card-item--card > .operation-item-card-content,
+.item-card-content {
+	padding: var(--p-card-pad);
+}
+.item-card-content .eyebrow {
+	margin-block-end: var(--p-field-gap);
+}
+.item-card .stock-number {
+	margin-block-start: var(--p-control-gap);
+}
+.item-card-details {
+	gap: var(--p-field-gap);
+}
+.card-fields {
+	gap: var(--p-field-gap) var(--p-control-gap);
+}
+
+@media (max-width: 1023px) {
+	.operation-record-list {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	:root {
+		--browse-item-row-height: 106px;
+		--browse-document-row-height: 83px;
+		--browse-item-row-pad: 8px;
+		--browse-document-badge-height: 24px;
+	}
+	:root[data-ti-density="xcompact"] {
+		--browse-item-row-height: 56px;
+		--browse-document-row-height: 52px;
+		--browse-item-row-pad: 6px;
+		--browse-document-badge-height: 18px;
+	}
+	:root[data-ti-density="compact"] {
+		--browse-item-row-height: 72px;
+		--browse-document-row-height: 64px;
+		--browse-item-row-pad: 8px;
+		--browse-document-badge-height: 20px;
+	}
+	:root[data-ti-density="spacious"] {
+		--browse-item-row-height: 120px;
+		--browse-document-row-height: 96px;
+		--browse-item-row-pad: 10px;
+		--browse-document-badge-height: 28px;
+	}
+	.browse-card-grid:has(> .item-card) {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: var(--p-card-gap);
+	}
+	.browse-card-item--row:not(.stock-list-row) {
+		min-height: var(--browse-document-row-height);
+		padding-block: var(--p-table-cell-y);
+	}
+	.browse-card-item--row:not(.stock-list-row) .browse-badge {
+		min-height: var(--browse-document-badge-height);
+		padding-block: 0;
+	}
+	:root[data-ti-density="xcompact"] .browse-card-item--row:not(.stock-list-row) {
+		padding-block: 0;
+		overflow-x: clip;
+	}
+	.stock-list-row {
+		position: relative;
+		grid-template-columns: var(--p-list-thumbnail) minmax(0, 1fr) 44px;
+		min-height: var(--browse-item-row-height);
+		gap: var(--p-field-gap) var(--p-control-gap);
+		padding: var(--browse-item-row-pad) var(--p-field-gap);
+	}
+	.stock-list-row:not(:has(> .stock-list-checkbox)) {
+		grid-template-columns: var(--p-list-thumbnail) minmax(0, 1fr);
+	}
+	.stock-list-image,
+	.stock-list-image > .item-image-button,
+	.stock-list-image > .item-image,
+	.stock-list-image > .async-image {
+		width: var(--p-list-thumbnail);
+		height: var(--p-list-thumbnail);
+		min-width: var(--p-list-thumbnail);
+	}
+	.stock-list-open {
+		min-height: 44px;
+		align-self: start;
+		gap: var(--p-field-gap) var(--p-control-gap);
+	}
+	.stock-list-row > .card-fields-inline .card-fields-inline-text {
+		-webkit-line-clamp: 1;
+		white-space: nowrap;
+	}
+	:root:is([data-ti-density="balanced"], [data-ti-density="spacious"]) .stock-list-row {
+		row-gap: 0;
+		padding-block: 8px;
+	}
+	.stock-list-name {
+		-webkit-line-clamp: 2;
+	}
+	.stock-list-meta {
+		line-height: var(--p-table-line);
+	}
+	.stock-list-skeleton .skeleton-block__list-row {
+		min-height: var(--browse-item-row-height);
+		padding: var(--browse-item-row-pad) var(--p-field-gap);
+	}
+	.stock-list-skeleton .skeleton-block__avatar {
+		width: var(--p-list-thumbnail);
+		height: var(--p-list-thumbnail);
+	}
+	.item-card-content {
+		padding: var(--p-card-pad);
+	}
+	.item-card .item-name {
+		-webkit-line-clamp: 2;
+		min-height: 2.7em;
+	}
+	.item-card .stock-number {
+		margin-block-start: var(--p-field-gap);
+	}
+}
+
+@media (max-width: 1023px) {
+	:root[data-ti-density="xcompact"] .stock-list-name,
+	:root[data-ti-density="compact"] .stock-list-name {
+		display: block;
+		-webkit-line-clamp: unset;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+	}
+	:root[data-ti-density="xcompact"]
+		.browse-card-item--row:not(.stock-list-row)
+		.card-fields-inline-text,
+	:root[data-ti-density="compact"]
+		.browse-card-item--row:not(.stock-list-row)
+		.card-fields-inline-text {
+		-webkit-line-clamp: 1;
+		white-space: nowrap;
+	}
+	:root[data-ti-density="xcompact"] .stock-list-identity,
+	:root[data-ti-density="compact"] .stock-list-identity {
+		display: contents;
+	}
+	:root[data-ti-density="xcompact"] .stock-list-open,
+	:root[data-ti-density="compact"] .stock-list-open {
+		grid-template-columns: minmax(0, 1fr) auto auto;
+		grid-template-rows: 1fr;
+		align-items: start;
+	}
+	:root[data-ti-density="xcompact"] .stock-list-name,
+	:root[data-ti-density="compact"] .stock-list-name {
+		grid-column: 1;
+		grid-row: 1;
+	}
+	:root[data-ti-density="xcompact"] .stock-list-identity > :is(.badge, .browse-badge),
+	:root[data-ti-density="compact"] .stock-list-identity > :is(.badge, .browse-badge) {
+		grid-column: 2;
+		grid-row: 1;
+		align-self: center;
+		min-height: 20px;
+		padding-block: 0;
+	}
+	:root[data-ti-density="xcompact"] .stock-list-quantity,
+	:root[data-ti-density="compact"] .stock-list-quantity {
+		grid-column: 3;
+		grid-row: 1;
+	}
+	:root[data-ti-density="xcompact"] .stock-list-row > .card-fields-inline,
+	:root[data-ti-density="compact"] .stock-list-row > .card-fields-inline {
+		position: absolute;
+		z-index: 1;
+		grid-column: 1 / -1;
+		right: var(--p-field-gap);
+		bottom: var(--browse-item-row-pad);
+		left: calc(var(--p-list-thumbnail) + var(--p-control-gap));
+		display: flex;
+		align-items: flex-end;
+		gap: var(--p-field-gap) 6px;
+		min-width: 0;
+		max-height: 1.5em;
+		pointer-events: none;
+	}
+	:root[data-ti-density="xcompact"]
+		.stock-list-row:has(> .stock-list-checkbox)
+		> .card-fields-inline,
+	:root[data-ti-density="compact"]
+		.stock-list-row:has(> .stock-list-checkbox)
+		> .card-fields-inline {
+		right: calc(44px + var(--p-control-gap) + var(--p-field-gap));
+	}
+	:root[data-ti-density="xcompact"] .stock-list-row.is-text-only > .card-fields-inline,
+	:root[data-ti-density="compact"] .stock-list-row.is-text-only > .card-fields-inline {
+		left: 0;
+	}
+	:root[data-ti-density="xcompact"]
+		.stock-list-row
+		> .card-fields-inline
+		.card-fields-inline-text,
+	:root[data-ti-density="compact"]
+		.stock-list-row
+		> .card-fields-inline
+		.card-fields-inline-text {
+		display: block;
+		-webkit-line-clamp: 1;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+		pointer-events: none;
+	}
+	:root[data-ti-density="xcompact"] .stock-list-row > .card-fields-inline .card-fields-more,
+	:root[data-ti-density="compact"] .stock-list-row > .card-fields-inline .card-fields-more {
+		pointer-events: auto;
+	}
+}
+
+@media (max-width: 1023px) {
+	.native-record-row-list > .browse-card-item--row {
+		grid-template-columns: minmax(0, 1fr);
+		min-width: 0;
+	}
+	.native-record-row-list > .browse-card-item--row > .native-record-row-content {
+		grid-column: 1;
+		min-width: 0;
+	}
+	:root[data-ti-density="xcompact"] .native-record-row-list .card-fields-inline,
+	:root[data-ti-density="compact"] .native-record-row-list .card-fields-inline {
+		max-width: 100%;
+		min-width: 0;
+		overflow: hidden;
+	}
+	:root[data-ti-density="xcompact"] .native-record-row-list .card-fields-inline-text,
+	:root[data-ti-density="compact"] .native-record-row-list .card-fields-inline-text {
+		display: flex;
+		align-items: center;
+		max-width: 100%;
+		min-width: 0;
+		overflow: hidden;
+		white-space: nowrap;
+	}
+	.browse-card-item--row .card-fields-inline {
+		gap: 6px;
+	}
+	.browse-card-item--row .card-fields-inline-text {
+		min-width: 0;
+		text-overflow: ellipsis;
+	}
+	:root:is([data-ti-density="xcompact"], [data-ti-density="compact"])
+		.browse-card-item--row:not(.stock-list-row)
+		.card-fields-inline-text {
+		display: flex;
+		align-items: center;
+		gap: var(--p-field-gap);
+		width: 0;
+		flex: 1 1 0;
+		flex-wrap: nowrap;
+		white-space: nowrap;
+	}
+	:root:is([data-ti-density="xcompact"], [data-ti-density="compact"])
+		.browse-card-item--row:not(.stock-list-row)
+		.card-fields-inline-text
+		.card-field-inline {
+		display: flex;
+		flex: 0 1 auto;
+		align-items: baseline;
+		min-width: min-content;
+		max-width: 100%;
+		flex: 0 0 auto;
+		white-space: nowrap;
+	}
+	:root:is([data-ti-density="xcompact"], [data-ti-density="compact"])
+		.browse-card-item--row:not(.stock-list-row)
+		.card-fields-inline-text
+		.card-field-inline.is-ellipsized {
+		flex: 1 1 auto;
+		min-width: min-content;
+	}
+	:root:is([data-ti-density="xcompact"], [data-ti-density="compact"])
+		.browse-card-item--row:not(.stock-list-row)
+		.card-fields-inline-text
+		.card-field-inline-value {
+		display: block;
+		flex: 1 1 auto;
+		min-width: 2ch;
+		max-width: 100%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	:root:is([data-ti-density="xcompact"], [data-ti-density="compact"])
+		.browse-card-item--row:not(.stock-list-row)
+		.card-fields-inline-text
+		.card-field-inline.is-wide {
+		flex-basis: auto;
+	}
+	:root[data-ti-density="xcompact"]
+		.operation-record-list
+		.browse-card-item--row:not(.stock-list-row)
+		.card-fields-inline-text,
+	:root[data-ti-density="compact"]
+		.operation-record-list
+		.browse-card-item--row:not(.stock-list-row)
+		.card-fields-inline-text {
+		display: flex;
+		align-items: center;
+		width: 0;
+		flex: 1 1 0;
+		overflow: hidden;
+	}
 }
 
 /* 查看全部字段: every field of one browse row, labels beside full values. */

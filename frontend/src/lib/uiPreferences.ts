@@ -31,7 +31,9 @@ function isDisplayPreferences(value: unknown): value is DisplayPreferences {
   const periods = candidate.default_periods;
   return (
     themes.some((entry) => entry.id === candidate.theme) &&
-    ["compact", "balanced", "spacious"].includes(candidate.density) &&
+    ["xcompact", "compact", "balanced", "spacious"].includes(
+      candidate.density,
+    ) &&
     textScales.includes(candidate.textScale) &&
     (!periods ||
       (typeof periods === "object" &&

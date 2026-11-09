@@ -167,7 +167,7 @@ async function addFound() {
 <style scoped>
 .serial-count {
 	display: grid;
-	gap: 6px;
+	gap: var(--p-field-gap);
 	width: 100%;
 	min-width: 0;
 	box-sizing: border-box;
@@ -178,14 +178,14 @@ async function addFound() {
 .serial-count-summary {
 	display: flex;
 	align-items: center;
-	gap: 6px;
+	gap: var(--p-field-gap);
 	flex-wrap: wrap;
 }
 .serial-count-toolbar {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) auto;
 	align-items: start;
-	gap: 8px;
+	gap: var(--p-control-gap);
 }
 .serial-count-actions {
 	justify-content: flex-end;
@@ -193,10 +193,10 @@ async function addFound() {
 .serial-count-actions button,
 .serial-count-add button,
 .serial-count-more {
-	min-height: 36px;
+	min-height: var(--p-cell-control);
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-control);
-	padding: 3px 8px;
+	padding: var(--p-control-pad-y) var(--p-field-gap);
 	color: var(--p-accent-strong);
 	background: var(--p-surface);
 }
@@ -204,26 +204,26 @@ async function addFound() {
 	display: flex;
 	flex-wrap: wrap;
 	width: 100%;
-	gap: 4px;
+	gap: var(--p-field-gap);
 	max-width: 100%;
 }
 .serial-count-groups,
 .serial-count-group {
 	display: grid;
 	min-width: 0;
-	gap: 4px;
+	gap: var(--p-field-gap);
 }
 .serial-count-group > strong {
 	color: var(--p-muted);
 	font-size: 0.78rem;
 }
 .serial-count-chip {
-	min-height: 30px;
+	min-height: var(--p-cell-control);
 	max-width: 100%;
 	box-sizing: border-box;
 	border: 1px solid var(--p-border);
 	border-radius: 999px;
-	padding: 3px 9px;
+	padding: var(--p-control-pad-y) var(--p-field-gap);
 	color: var(--p-ink);
 	background: var(--p-surface);
 	font: inherit;
@@ -246,9 +246,9 @@ async function addFound() {
 	box-sizing: border-box;
 	width: 100%;
 	min-width: 110px;
-	min-height: 40px;
+	min-height: var(--p-control);
 	flex: 1;
-	padding: 5px 8px;
+	padding: var(--p-control-pad-y) var(--p-control-gap);
 }
 .serial-count-error {
 	margin: 0;

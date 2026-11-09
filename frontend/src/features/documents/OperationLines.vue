@@ -482,7 +482,13 @@ function sectionGridTemplate(section: OperationLocationSection) {
 	if (sectionHasBatch(section))
 		columns.push("minmax(132px, 1fr)", "minmax(132px, 0.95fr)", "minmax(132px, 0.95fr)");
 	if (sectionHasSerial(section)) columns.push("minmax(220px, 1.5fr)");
-	columns.push("88px", "96px", "88px");
+	columns.push(
+		props.draft.kind === "Receive"
+			? "88px"
+			: "minmax(calc(88px + 3.5rem + var(--p-control-gap)), 1.25fr)",
+		"96px",
+		"88px",
+	);
 	if (props.draft.kind === "Transfer") columns.push("minmax(128px, 1fr)");
 	if (["Damage", "Loss"].includes(props.draft.kind)) columns.push("minmax(120px, 0.95fr)");
 	if (sectionHasOutcome(section)) columns.push("minmax(128px, 1fr)");
@@ -2271,22 +2277,22 @@ function receiveBatchChanged(line: AllocationLine) {
 	container-type: inline-size;
 	min-width: 0;
 	display: grid;
-	gap: var(--p-space-3);
+	gap: var(--p-gap);
 }
 
 .line-toolbar {
 	position: sticky;
-	top: calc(var(--app-desktop-nav-height, 64px) + 8px);
+	top: calc(var(--app-desktop-nav-height, 64px) + var(--p-gap));
 	z-index: var(--p-z-sticky-content, 10);
 	display: grid;
 	grid-template-columns: auto minmax(180px, 1fr) auto auto auto;
 	align-items: center;
-	gap: var(--p-space-2);
+	gap: var(--p-control-gap);
 	background: var(--p-surface);
 	border: 1px solid var(--p-border-soft);
 	border-radius: var(--p-radius-card);
 	box-shadow: 0 3px 12px rgb(20 30 25 / 8%);
-	padding: var(--p-space-2);
+	padding: var(--p-card-inner-pad);
 }
 .line-toolbar.has-transfer-destination {
 	grid-template-columns: minmax(200px, 240px) auto minmax(180px, 1fr) auto auto auto;
@@ -2315,7 +2321,7 @@ function receiveBatchChanged(line: AllocationLine) {
 	white-space: nowrap;
 }
 .line-search input {
-	min-height: 36px;
+	min-height: var(--p-control);
 	min-width: 0;
 	width: 100%;
 }
@@ -2337,7 +2343,7 @@ function receiveBatchChanged(line: AllocationLine) {
 
 .operation-lines-empty {
 	min-height: 0;
-	padding: var(--p-space-3) 0;
+	padding: var(--p-pad) 0;
 	align-items: start;
 	justify-items: start;
 	text-align: start;
@@ -2381,7 +2387,7 @@ function receiveBatchChanged(line: AllocationLine) {
 
 .operation-line-skeletons {
 	display: grid;
-	gap: var(--p-space-3);
+	gap: var(--p-gap);
 }
 
 .operation-compact-row--recent {

@@ -205,9 +205,9 @@ function originalUrl(index: number) {
 }
 .item-gallery-thumbs {
 	display: flex;
-	gap: 8px;
+	gap: var(--p-field-gap);
 	overflow-x: auto;
-	padding: 8px 2px 2px;
+	padding: var(--p-control-pad-y) var(--p-field-gap);
 }
 .item-gallery-thumbs button {
 	flex: 0 0 52px;
@@ -225,7 +225,7 @@ function originalUrl(index: number) {
 .item-gallery-lightbox {
 	display: flex;
 	align-items: center;
-	gap: 12px;
+	gap: var(--p-control-gap);
 	height: min(70vh, 680px);
 }
 .item-gallery-lightbox > :deep(.async-image) {

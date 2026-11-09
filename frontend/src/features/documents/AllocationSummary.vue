@@ -604,7 +604,7 @@ function itemFor(row: Record<string, unknown>) {
 }
 .allocation-phone-list {
 	display: grid;
-	gap: var(--p-space-3);
+	gap: var(--p-gap);
 }
 .allocation-phone-group {
 	min-width: 0;
@@ -615,8 +615,8 @@ function itemFor(row: Record<string, unknown>) {
 	min-height: 48px;
 	align-items: center;
 	justify-content: space-between;
-	gap: var(--p-space-2);
-	padding: var(--p-space-2) 0;
+	gap: var(--p-control-gap);
+	padding: var(--p-control-pad-y) 0;
 	border: 0;
 	border-bottom: 1px solid var(--p-border);
 	background: transparent;
@@ -626,7 +626,7 @@ function itemFor(row: Record<string, unknown>) {
 .allocation-phone-group-heading {
 	display: grid;
 	min-width: 0;
-	gap: 2px;
+	gap: var(--p-field-gap);
 }
 .allocation-phone-group-heading > strong,
 .allocation-phone-group-heading > span {
@@ -649,8 +649,8 @@ function itemFor(row: Record<string, unknown>) {
 	grid-template-columns: 48px minmax(0, 1fr);
 	min-width: 0;
 	align-items: center;
-	gap: var(--p-space-2);
-	padding: var(--p-space-2) 0;
+	gap: var(--p-control-gap);
+	padding: var(--p-control-pad-y) 0;
 	border-bottom: 1px solid var(--p-border);
 }
 .allocation-phone-copy {
@@ -661,7 +661,7 @@ function itemFor(row: Record<string, unknown>) {
 	min-width: 0;
 	align-items: flex-start;
 	justify-content: space-between;
-	gap: var(--p-space-2);
+	gap: var(--p-control-gap);
 }
 .allocation-phone-primary .allocation-item-link,
 .allocation-phone-primary .allocation-item-name {

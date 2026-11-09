@@ -38,8 +38,11 @@ This document owns tokens, geometry and shared visual contracts. [UI_UX_DECISION
 
 ### Density and desktop browse
 
-- Compact/balanced/spacious controls are 32/36/44px; gaps 8/12/16px; table cell padding 5×8, 8×12, 18×16px (block×inline); thumbnail slots 32/48/64px. Text size and line height scale independently. Mobile targets remain 44px at every density.
-- Fine-pointer desktop browse rows target 40–44px at balanced density with 32px artwork. Desktop page/card/editor spacing uses density tokens. Card preferred widths are 160/200/280px and gaps 8/16/24px.
+- Density has four stops, 超紧凑 `xcompact` / 紧凑 `compact` / 均衡 `balanced` (default) / 宽松 `spacious`, and each step changes rows, chrome and gutters on desktop and phone. Every density value is a `--p-*` token defined per stop in `foundation.css`/`data-table.css`; other files only consume them. Text size and line height scale independently.
+- Fine-pointer desktop: controls 28/32/36/44px; table body rows ≈28/33/43/73px with cell padding 3×6, 4×8, 5×10, 12×16px (block×inline), thumbnails 20/24/32/48px and in-cell buttons, links, chips and badges sized by `--p-cell-control` 20/24/32/36px (the global button minimum never inflates a cell); page gutter 12/18/24/32px; filter-rail checkbox rows 24/28/32/36px. Desktop page/card/editor spacing uses density tokens. Card preferred widths are 140/160/200/280px.
+- Phones keep ≥44px controls, tabs, FAB and bottom nav at every stop (48px at 宽松); density compresses everything else. Item 列表 rows ≈57/72/106/120px with `--p-list-thumbnail` 40/48/64/80px; at 超紧凑/紧凑 the name and quantity share line 1 and metadata (aligned with the name, ellipsized ≥6px before 更多) fills line 2. Document 列表 rows ≈52/64/83/96px show whole `label value` pairs, ellipsize only the last visible pair and keep +N 项 on that line. Phone gutter 10/12/16/20px.
+- At 超紧凑/紧凑 desktop, 草稿 rows put the summary and relative time on one line (≈30/37px) and 仓库 tree rows show the type label inline after the name (≈27/33px); 均衡/宽松 keep two lines. Tree indentation stays 10px per level at every stop.
+- Split buttons: the container owns the height and both segments stretch to the taller one at every density, text scale and pointer.
 - Browse header keeps title, tabs, search/chips, scan, filter count and actions visible; it wraps at narrow desktop widths. It sticks under measured app bar; hairline/shadow appears only while stuck. Table headings stick in their own scrollport. Summary count/quantity and controls share a compact line; full analysis expands below.
 - Open hierarchy rail owns its collapse control; collapsed browse filter edge is 28px wide with a divider, chevron, vertical label and active dot. It sits outside the result card. ItemPicker reserves a 40px collapsed grid track for that edge. The operation review panel is a separate 28px column with a 12px visual control; do not conflate the two.
 - Desktop hierarchy indentation is 10px per level capped at 40px; fine-pointer rows 28–32px. Keep name tracks readable and allow actions to wrap below identity. DataTable uses subtle horizontal separators, no full vertical grid lines.
@@ -72,6 +75,7 @@ Before visual browser inspection, run the browser under `scripts/ui-visual-prefl
 
 ## Changelog
 
+- 2026-11-09: four-stop density scale with 超紧凑; `--p-cell-control`, `--p-table-line`, `--p-list-thumbnail`; split-button segments share one height.
 - 2026-11-04: sticky table layers, `--browse-sticky-bottom`, 40px group rows with a fine pointer.
 - 2026-11-02: ItemCard, BrowseLoadMore, TaskTray and overlay layers; 6 mm print margins.
 - 2026-11-01: column preferences accept forced-visible columns (序列号 under 按序列号管理); compact serial chip lists with +N on loans, review and cards; grouped stock card sections.

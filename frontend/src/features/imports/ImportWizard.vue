@@ -508,7 +508,7 @@ export default { components: { InventoryIcon } };
 <style scoped>
 .import-wizard {
 	display: grid;
-	gap: 16px;
+	gap: var(--p-gap);
 }
 .import-heading,
 .import-downloads,
@@ -519,7 +519,7 @@ export default { components: { InventoryIcon } };
 .import-card > div {
 	display: flex;
 	align-items: center;
-	gap: 12px;
+	gap: var(--p-control-gap);
 }
 .import-heading {
 	justify-content: space-between;
@@ -538,7 +538,7 @@ h1 {
 	color: var(--p-muted);
 }
 .import-steps li {
-	padding: 8px 12px;
+	padding: var(--p-control-pad-y) var(--p-control-gap);
 	border-bottom: 2px solid var(--p-border);
 }
 .import-steps .active {
@@ -549,16 +549,16 @@ h1 {
 .import-running,
 .import-result {
 	display: grid;
-	gap: 12px;
-	padding: 20px;
+	gap: var(--p-control-gap);
+	padding: var(--p-pad);
 }
 .import-result {
 	justify-items: start;
 }
 .opening-preview-context {
 	display: grid;
-	gap: 4px;
-	padding: 16px 20px;
+	gap: var(--p-field-gap);
+	padding: var(--p-card-inner-pad);
 }
 .opening-preview-context p {
 	margin: 0;
@@ -577,7 +577,7 @@ h1 {
 .import-file-row {
 	display: flex;
 	align-items: center;
-	gap: 12px;
+	gap: var(--p-control-gap);
 	min-width: 0;
 }
 .import-file-row span {
@@ -592,8 +592,8 @@ h1 {
 	display: grid;
 	grid-template-columns: 28px 1fr;
 	align-items: center;
-	gap: 4px 12px;
-	padding: 12px;
+	gap: var(--p-field-gap) var(--p-control-gap);
+	padding: var(--p-card-inner-pad);
 	text-align: left;
 	border: 1px solid var(--p-border);
 	color: var(--p-ink);
@@ -613,7 +613,7 @@ h1 {
 }
 .import-tools {
 	flex-wrap: wrap;
-	margin-top: 4px;
+	margin-top: var(--p-field-gap);
 }
 .import-tools input {
 	flex: 1 1 240px;
@@ -626,21 +626,21 @@ h1 {
 }
 .import-preview {
 	display: grid;
-	gap: 12px;
+	gap: var(--p-control-gap);
 }
 .import-actions {
 	justify-content: flex-end;
 	flex-wrap: wrap;
-	margin-top: 16px;
+	margin-top: var(--p-gap);
 }
 .import-cards {
 	display: grid;
-	gap: 8px;
+	gap: var(--p-field-gap);
 }
 .import-card {
-	padding: 12px;
+	padding: var(--p-card-inner-pad);
 	display: grid;
-	gap: 6px;
+	gap: var(--p-field-gap);
 }
 .import-card > div {
 	justify-content: space-between;
@@ -666,7 +666,7 @@ h1 {
 }
 .skip-rejected {
 	display: flex;
-	gap: 8px;
+	gap: var(--p-control-gap);
 	min-height: 44px;
 	align-items: center;
 }
@@ -685,7 +685,7 @@ h1 {
 	}
 	.import-steps {
 		font-size: 0.84rem;
-		gap: 4px;
+		gap: var(--p-field-gap);
 	}
 	.import-actions > * {
 		flex: 1;

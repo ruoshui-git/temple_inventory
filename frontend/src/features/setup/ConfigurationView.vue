@@ -226,7 +226,7 @@ watch([field, warehouse], () => c.clearPreview());
 .configuration-pointers {
 	display: grid;
 	grid-template-columns: minmax(120px, 1fr) minmax(0, 2fr);
-	gap: 12px;
+	gap: var(--p-control-gap);
 }
 .configuration-pointers dd {
 	margin: 0;
@@ -236,8 +236,8 @@ watch([field, warehouse], () => c.clearPreview());
 	display: block;
 }
 .configuration-impact {
-	margin-block: 20px;
-	padding-block: 16px;
+	margin-block: var(--p-gap);
+	padding-block: var(--p-card-inner-pad);
 	border-block: 1px solid var(--p-border);
 }
 @media (pointer: coarse) {
@@ -248,10 +248,10 @@ watch([field, warehouse], () => c.clearPreview());
 @media (max-width: 600px) {
 	.configuration-pointers {
 		grid-template-columns: 1fr;
-		gap: 6px;
+		gap: var(--p-field-gap);
 	}
 	.configuration-pointers dd {
-		margin-bottom: 12px;
+		margin-bottom: var(--p-control-gap);
 	}
 }
 </style>

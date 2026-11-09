@@ -1136,7 +1136,7 @@ function openDetailsRow() {
 }
 .drafts-browser {
 	display: grid;
-	gap: var(--p-space-3);
+	gap: var(--p-gap);
 }
 .drafts-explainer,
 .drafts-difference,
@@ -1165,8 +1165,8 @@ function openDetailsRow() {
 	display: grid;
 	grid-template-columns: minmax(0, 1.4fr) minmax(9rem, 1fr) auto auto;
 	align-items: center;
-	gap: var(--p-space-2) var(--p-space-3);
-	padding: var(--p-space-3) 0;
+	gap: var(--p-field-gap) var(--p-control-gap);
+	padding-block: var(--p-table-cell-y);
 	border-top: 1px solid var(--p-border);
 }
 .draft-entry > * {
@@ -1220,8 +1220,8 @@ function openDetailsRow() {
 .draft-type-tag {
 	display: inline-flex;
 	align-items: center;
-	gap: 5px;
-	padding: 3px 8px;
+	gap: var(--p-field-gap);
+	padding: var(--p-control-pad-y) var(--p-control-gap);
 	border-radius: 999px;
 	background: var(--p-soft);
 	font-size: var(--p-small);

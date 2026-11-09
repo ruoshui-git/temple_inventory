@@ -875,6 +875,12 @@ class NativeDocumentTests(unittest.TestCase):
 		)
 		self.assertEqual(preferences.display_preferences()["textScale"], 175)
 		self.assertEqual(preferences.display_preferences()["default_periods"]["dashboard"], "today")
+		self.assertEqual(
+			preferences.save_display_preferences("jade", "xcompact", 100, preferences.DEFAULT_PERIODS)[
+				"density"
+			],
+			"xcompact",
+		)
 		for values in [
 			("pink", "compact", 100, preferences.DEFAULT_PERIODS),
 			("jade", "huge", 100, preferences.DEFAULT_PERIODS),

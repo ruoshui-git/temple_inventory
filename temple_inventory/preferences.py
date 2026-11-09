@@ -11,7 +11,7 @@ from temple_inventory.periods import PERIOD_KEYS as PERIOD_PRESETS
 
 DISPLAY_KEY = "temple_inventory_display_v2"
 THEMES = {"jade", "blue", "bronze"}
-DENSITIES = {"compact", "balanced", "spacious"}
+DENSITIES = {"xcompact", "compact", "balanced", "spacious"}
 TEXT_SCALES = {100, 125, 150, 175, 200}
 PERIOD_KEYS = PERIOD_PRESETS - {"custom"}
 DEFAULT_PERIODS = {

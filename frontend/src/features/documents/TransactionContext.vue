@@ -170,7 +170,7 @@ async function search(search: string, start: number, signal: AbortSignal) {
 
 <style scoped>
 .return-loan-context-list {
-	margin: 0 0 var(--p-space-3);
+	margin: 0 0 var(--p-gap);
 	padding-inline-start: 1.25em;
 	color: var(--p-muted);
 	font-size: var(--p-small);

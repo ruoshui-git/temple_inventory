@@ -1084,8 +1084,8 @@ async function selectExisting(code: string, warehouse: string) {
 	white-space: nowrap;
 }
 .picker-data-table :deep(.picker-image-column) {
-	width: 56px;
-	min-width: 56px;
+	width: var(--p-table-thumbnail);
+	min-width: var(--p-table-thumbnail);
 }
 .picker-data-table :deep(.picker-name-column) {
 	width: auto;
@@ -1103,13 +1103,13 @@ async function selectExisting(code: string, warehouse: string) {
 }
 .picker-data-table :deep(td:first-child img),
 .picker-data-table :deep(td:first-child .item-image) {
-	width: 36px;
-	height: 36px;
+	width: var(--p-table-thumbnail);
+	height: var(--p-table-thumbnail);
 }
 .picker-image-cell {
 	display: grid;
-	width: 36px;
-	height: 36px;
+	width: var(--p-table-thumbnail);
+	height: var(--p-table-thumbnail);
 	flex: none;
 	place-items: center;
 }
@@ -1128,10 +1128,10 @@ async function selectExisting(code: string, warehouse: string) {
 	align-content: start;
 }
 .picker-phone-row {
-	grid-template-columns: 56px minmax(0, 1fr) auto 44px;
-	min-height: 72px;
-	gap: 8px;
-	padding: 8px 4px;
+	grid-template-columns: var(--p-list-thumbnail) minmax(0, 1fr) auto 44px;
+	min-height: max(44px, calc(var(--p-list-thumbnail) + 2 * var(--p-control-pad-y)));
+	gap: var(--p-control-gap);
+	padding: var(--p-control-pad-y) var(--p-field-gap);
 }
 .picker-phone-row[aria-disabled="true"] {
 	opacity: 0.72;
@@ -1140,9 +1140,9 @@ async function selectExisting(code: string, warehouse: string) {
 .picker-phone-image :deep(.item-image-button),
 .picker-phone-image :deep(.item-image),
 .picker-phone-image :deep(.async-image) {
-	width: 56px;
-	height: 56px;
-	min-width: 56px;
+	width: var(--p-list-thumbnail);
+	height: var(--p-list-thumbnail);
+	min-width: var(--p-list-thumbnail);
 }
 .picker-phone-identity {
 	align-self: center;

@@ -22,6 +22,7 @@ const c = props.controller,
 		saveState,
 	} = c;
 const densities = [
+	{ value: "xcompact", label: "超紧凑" },
 	{ value: "compact", label: "紧凑" },
 	{ value: "balanced", label: "均衡" },
 	{ value: "spacious", label: "宽松" },

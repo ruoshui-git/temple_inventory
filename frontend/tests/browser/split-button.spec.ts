@@ -73,7 +73,7 @@ for (const viewport of [
     );
     await expect(trigger).toBeVisible();
 
-    for (const density of ["compact", "balanced", "spacious"]) {
+    for (const density of ["xcompact", "compact", "balanced", "spacious"]) {
       for (const scale of [100, 125, 150, 200]) {
         await page.evaluate(
           ({ density, scale }) => {
@@ -124,7 +124,7 @@ for (const viewport of [
         ".browse-split-button > .popup-menu-host > .popup-menu-trigger",
       );
       if ((await pageTrigger.count()) === 0) continue;
-      for (const density of ["compact", "balanced", "spacious"]) {
+      for (const density of ["xcompact", "compact", "balanced", "spacious"]) {
         for (const scale of [100, 125, 150, 200]) {
           await page.evaluate(
             ({ density, scale }) => {

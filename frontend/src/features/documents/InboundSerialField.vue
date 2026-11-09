@@ -80,19 +80,19 @@ const emit = defineEmits<{
 <style scoped>
 .inbound-serial-field {
 	display: grid;
-	gap: var(--p-space-2);
+	gap: var(--p-control-gap);
 	min-width: 0;
 }
 .inbound-serial-chips {
 	display: flex;
 	flex-wrap: wrap;
-	gap: var(--p-space-1);
+	gap: var(--p-field-gap);
 }
 .inbound-serial-chip,
 .inbound-serial-auto {
 	display: inline-flex;
 	align-items: center;
-	gap: 4px;
+	gap: var(--p-field-gap);
 	min-height: 44px;
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-control);

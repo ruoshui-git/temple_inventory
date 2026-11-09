@@ -87,6 +87,23 @@ describe("shared account display settings", () => {
       { ...defaults, theme: "blue", density: "compact", textScale: 175 },
     );
   });
+  it("selects, saves, caches, and renders xcompact density", async () => {
+    const { wrapper, call } = setup();
+    await flushPromises();
+    await wrapper.find('input[value="xcompact"]').setValue(true);
+    await flushPromises();
+    expect(density.value).toBe("xcompact");
+    expect(document.documentElement.dataset.tiDensity).toBe("xcompact");
+    expect(call).toHaveBeenLastCalledWith(
+      "preferences.save_display_preferences",
+      { ...defaults, density: "xcompact" },
+    );
+    expect(
+      JSON.parse(
+        localStorage.getItem("temple-inventory:ui-preferences:v2:alice")!,
+      ).values.density,
+    ).toBe("xcompact");
+  });
   it("autosaves each area's default period with the preset's Chinese label", async () => {
     const { wrapper, call } = setup();
     await flushPromises();

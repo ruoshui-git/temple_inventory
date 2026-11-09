@@ -56,11 +56,11 @@ function quantities(values: [string, number][], signed = false) {
 .count-summary-strip {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-	gap: 8px;
+	gap: var(--p-control-gap);
 }
 .metric {
 	min-width: 0;
-	padding: 12px;
+	padding: var(--p-card-inner-pad);
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-control);
 	background: var(--p-surface);
@@ -84,7 +84,7 @@ function quantities(values: [string, number][], signed = false) {
 }
 @media (max-width: 1023px) {
 	.count-summary-strip {
-		gap: 8px 12px;
+		gap: var(--p-field-gap) var(--p-control-gap);
 	}
 }
 </style>

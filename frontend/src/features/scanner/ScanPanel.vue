@@ -437,7 +437,7 @@ defineExpose({
 .scan-image-actions {
 	display: flex;
 	align-items: center;
-	gap: var(--p-space-2);
+	gap: var(--p-control-gap);
 }
 .scan-panel-actions > *,
 .scan-image-actions > :deep(.ui-button) {

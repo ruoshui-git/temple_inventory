@@ -1,12 +1,37 @@
 /* Shared utility and reporting surfaces. */
+.ui-overlay {
+	padding: var(--p-gap);
+}
+.dialog-content {
+	padding: var(--p-pad);
+}
+.dialog-footer {
+	gap: var(--p-control-gap);
+	padding: var(--p-card-inner-pad) var(--p-pad);
+}
+.dialog-content > .field {
+	margin-top: var(--p-field-gap);
+}
 .utility-page {
 	display: grid;
 	gap: var(--p-gap);
 }
+@media (max-width: 1023px) {
+	.ui-overlay:not(:has(.ui-dialog--small)) {
+		padding: var(--p-gap);
+	}
+	.ui-dialog .dialog-content {
+		padding: var(--p-pad);
+	}
+	.ui-dialog .dialog-footer {
+		gap: var(--p-control-gap);
+		padding: var(--p-control-pad-y) var(--p-pad);
+	}
+}
 
 .utility-page .more-card > span {
-	width: 40px;
-	height: 40px;
+	width: var(--p-table-thumbnail);
+	height: var(--p-table-thumbnail);
 	display: grid;
 	place-items: center;
 	border-radius: var(--p-radius-control);
@@ -70,11 +95,11 @@
 	gap: var(--p-card-gap);
 }
 .utility-page .more-card {
-	min-height: 150px;
+	min-height: calc(var(--p-control) + 2 * var(--p-card-inner-pad));
 	display: grid;
 	justify-items: start;
 	align-content: start;
-	gap: var(--p-card-gap);
+	gap: var(--p-control-gap);
 	padding: var(--p-card-pad);
 	color: var(--p-ink);
 	text-align: left;
@@ -100,12 +125,12 @@
 }
 @media (min-width: 1024px) and (pointer: fine) {
 	.utility-page .more-card {
-		min-height: 72px;
-		grid-template-columns: 40px minmax(0, 1fr);
+		min-height: calc(var(--p-control) + 2 * var(--p-card-inner-pad));
+		grid-template-columns: var(--p-table-thumbnail) minmax(0, 1fr);
 		grid-template-rows: auto auto;
 		align-content: center;
-		column-gap: 12px;
-		row-gap: 2px;
+		column-gap: var(--p-control-gap);
+		row-gap: var(--p-field-gap);
 		padding: var(--p-card-inner-pad, var(--p-card-pad));
 	}
 	.utility-page .more-card > span {
@@ -487,14 +512,14 @@
 .utility-page .density-choice {
 	display: flex;
 	flex-wrap: wrap;
-	gap: var(--p-space-3);
+	gap: var(--p-control-gap);
 }
 .utility-page .density-choice label {
 	min-height: var(--p-control);
 	display: inline-flex;
 	align-items: center;
-	gap: var(--p-space-2);
-	padding-inline: var(--p-space-3);
+	gap: var(--p-field-gap);
+	padding-inline: var(--p-control-gap);
 	border: 1px solid var(--p-control-border);
 	border-radius: var(--p-radius-control);
 	cursor: pointer;

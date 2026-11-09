@@ -172,7 +172,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", keydown));
 	display: flex;
 	flex-direction: column;
 	align-items: flex-end;
-	gap: var(--p-space-2, 8px);
+	gap: var(--p-control-gap);
 	max-width: calc(100vw - 32px);
 }
 @media (max-width: 1023px) {
@@ -184,10 +184,10 @@ onBeforeUnmount(() => document.removeEventListener("keydown", keydown));
 .task-tray-pill {
 	display: inline-flex;
 	align-items: center;
-	gap: var(--p-space-2, 8px);
+	gap: var(--p-control-gap);
 	min-height: var(--p-touch-target, 44px);
 	max-width: 100%;
-	padding-inline: var(--p-space-3, 12px);
+	padding-inline: var(--p-control-gap);
 	border: 1px solid var(--p-border);
 	border-radius: 999px;
 	background: var(--p-surface);
@@ -217,7 +217,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", keydown));
 	width: min(360px, calc(100vw - 32px));
 	max-height: 50vh;
 	overflow: auto;
-	padding: var(--p-space-3, 12px);
+	padding: var(--p-card-inner-pad);
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-card, 12px);
 	background: var(--p-surface);
@@ -229,7 +229,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", keydown));
 }
 .task-tray-list {
 	display: grid;
-	gap: var(--p-space-3, 12px);
+	gap: var(--p-control-gap);
 	margin: 0;
 	padding: 0;
 	list-style: none;
@@ -237,7 +237,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", keydown));
 .task-tray-item-head {
 	display: flex;
 	justify-content: space-between;
-	gap: var(--p-space-2, 8px);
+	gap: var(--p-field-gap);
 }
 .task-tray-time {
 	display: block;
@@ -275,7 +275,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", keydown));
 .task-tray-actions {
 	display: flex;
 	flex-wrap: wrap;
-	gap: var(--p-space-2, 8px);
+	gap: var(--p-field-gap);
 }
 @keyframes task-tray-slide {
 	from {

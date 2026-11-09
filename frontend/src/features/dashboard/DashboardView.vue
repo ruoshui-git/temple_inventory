@@ -941,15 +941,15 @@ function datasetChanged(dataset: ReportDataset) {
 	.dashboard-quick-actions {
 		display: grid;
 		grid-template-columns: repeat(4, minmax(0, 1fr));
-		gap: 8px;
+		gap: var(--p-gap);
 	}
 	.dashboard-quick-actions > :deep(.ui-button),
 	.dashboard-quick-actions > :deep(.popup-menu-trigger) {
 		min-width: 0;
-		min-height: 68px;
-		padding: 7px 2px;
+		min-height: calc(var(--p-control) + 2 * var(--p-control-pad-y));
+		padding: var(--p-control-pad-y) var(--p-control-gap);
 		flex-direction: column;
-		gap: 4px;
+		gap: var(--p-field-gap);
 		font-size: 0.78rem;
 	}
 	.dashboard-quick-actions > :deep(.ui-button svg) {
@@ -960,13 +960,13 @@ function datasetChanged(dataset: ReportDataset) {
 		display: flex;
 		align-items: center;
 		justify-content: flex-end;
-		gap: 8px;
+		gap: var(--p-control-gap);
 		margin-top: -4px;
 	}
 	.dashboard-secondary-actions :deep(.ui-button),
 	.dashboard-secondary-actions :deep(.popup-menu-trigger) {
 		min-height: 36px;
-		padding: 4px 8px;
+		padding: var(--p-control-pad-y) var(--p-control-gap);
 		border-color: transparent;
 		background: transparent;
 		box-shadow: none;
@@ -976,7 +976,7 @@ function datasetChanged(dataset: ReportDataset) {
 	.dashboard-inventory :deep(.browse-card-heading) {
 		justify-content: flex-start;
 		align-items: center;
-		gap: 8px;
+		gap: var(--p-control-gap);
 	}
 	.dashboard-inventory :deep(.browse-card-heading h2) {
 		margin: 0;

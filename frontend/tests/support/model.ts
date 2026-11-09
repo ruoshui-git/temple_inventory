@@ -49,7 +49,9 @@ function readPreferences(
         saved && themes.some((theme) => theme.id === value?.theme)
           ? value.theme
           : defaults.theme,
-      density: ["compact", "balanced", "spacious"].includes(value?.density)
+      density: ["xcompact", "compact", "balanced", "spacious"].includes(
+        value?.density,
+      )
         ? value.density
         : defaults.density,
       navigation: defaults.navigation,
