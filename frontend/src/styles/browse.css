@@ -2006,6 +2006,7 @@
 	display: inline-flex;
 	position: relative;
 	align-items: stretch;
+	min-height: var(--p-control);
 }
 .browse-split-button > .ui-button:not(:only-child) {
 	border-start-end-radius: 0;
@@ -2015,10 +2016,15 @@
 .browse-split-button > .popup-menu-host {
 	position: relative;
 	display: flex;
+	align-self: stretch;
 }
 .browse-split-button > .ui-button,
 .browse-split-button > .popup-menu-host > .popup-menu-trigger {
-	height: var(--p-control);
+	height: auto;
+	min-height: var(--p-control);
+}
+.browse-split-button > .popup-menu-host > .popup-menu-trigger {
+	align-self: stretch;
 }
 .popup-menu-trigger {
 	display: grid;
@@ -2049,6 +2055,15 @@
 }
 .browse-split-button .popup-menu-trigger {
 	border-radius: 0 var(--p-radius-control) var(--p-radius-control) 0;
+}
+@media (pointer: coarse) {
+	.browse-split-button {
+		min-height: max(var(--p-control), 44px);
+	}
+	.browse-split-button > .ui-button,
+	.browse-split-button > .popup-menu-host > .popup-menu-trigger {
+		min-height: max(var(--p-control), 44px);
+	}
 }
 .browse-split-button > .ui-button:active:not(:disabled),
 .browse-split-button > .popup-menu-host > .popup-menu-trigger:active:not(:disabled),

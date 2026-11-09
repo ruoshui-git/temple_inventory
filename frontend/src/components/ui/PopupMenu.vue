@@ -157,6 +157,9 @@ function activated(event: MouseEvent) {
 		min-width: 44px;
 		min-height: 44px;
 	}
+	.popup-menu-trigger:not(.popup-menu-trigger-labeled).popup-menu-trigger-split {
+		min-height: 100%;
+	}
 }
 @media (prefers-reduced-motion: reduce) {
 	.popup-menu-panel,
