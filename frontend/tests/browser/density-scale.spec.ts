@@ -535,19 +535,30 @@ for (const viewport of [
                   width.isBare || width.labelFullyVisible,
                   `${label} field label is readable`,
                 ).toBe(true);
+              // Whether +N appears depends on font metrics; when every field
+              // fits there is none, so the line itself must not be clipped.
               const more = fields.locator(".card-fields-more");
-              await expect(
-                more,
-                `${label} +N affordance on line 2`,
-              ).toBeVisible();
-              const [lineBox, moreBox] = await Promise.all([
-                fields.locator(".card-fields-inline-text").boundingBox(),
-                more.boundingBox(),
-              ]);
-              expect(lineBox).not.toBeNull();
-              expect(moreBox).not.toBeNull();
-              expect(moreBox!.y).toBeLessThan(lineBox!.y + lineBox!.height);
-              expect(moreBox!.y + moreBox!.height).toBeGreaterThan(lineBox!.y);
+              if (!(await more.count())) {
+                const clipped = await fields
+                  .locator(".card-fields-inline-text")
+                  .evaluate((line) => line.scrollWidth > line.clientWidth + 1);
+                expect(clipped, `${label} fields fit without +N`).toBe(false);
+              } else {
+                await expect(
+                  more,
+                  `${label} +N affordance on line 2`,
+                ).toBeVisible();
+                const [lineBox, moreBox] = await Promise.all([
+                  fields.locator(".card-fields-inline-text").boundingBox(),
+                  more.boundingBox(),
+                ]);
+                expect(lineBox).not.toBeNull();
+                expect(moreBox).not.toBeNull();
+                expect(moreBox!.y).toBeLessThan(lineBox!.y + lineBox!.height);
+                expect(moreBox!.y + moreBox!.height).toBeGreaterThan(
+                  lineBox!.y,
+                );
+              }
             }
           }
         }
