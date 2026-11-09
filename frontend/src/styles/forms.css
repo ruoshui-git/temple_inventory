@@ -962,7 +962,7 @@ input[list]::-webkit-calendar-picker-indicator {
 	}
 	.document-actions > .ui-button {
 		grid-row: 1;
-		min-height: 40px;
+		min-height: var(--p-control);
 		padding-inline: 8px;
 		white-space: nowrap;
 	}
