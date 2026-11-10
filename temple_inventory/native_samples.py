@@ -2383,11 +2383,24 @@ def _install(company, *, data="full", attach_images=True, attach_files=True, gen
 	from temple_inventory.sample_install import assert_development_site
 
 	assert_development_site()
-	if data not in ("real", "full"):
-		frappe.throw("样例数据模式必须是 real 或 full")
+	if data not in ("empty", "real", "full"):
+		frappe.throw("样例数据模式必须是 empty、real 或 full")
 	catalog_data = sample_catalog()
 	costumes = costume_catalog()
 	_fiscal_years(company)
+	if data == "empty":
+		from temple_inventory import configuration
+
+		settings = frappe.get_single("Temple Inventory Settings")
+		if not settings.root_warehouse:
+			configuration.initialize(company, configuration.status()["version"])
+		return {
+			"items": 0,
+			"images": 0,
+			"transactions": 0,
+			"rooms": {},
+			"empty_baseline": True,
+		}
 	rooms = _hierarchy(company, catalog_data, full=data == "full")
 	include_generated = data == "full"
 	_references(catalog_data, include_generated=include_generated)

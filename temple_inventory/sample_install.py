@@ -297,6 +297,31 @@ def verify_development_sample(*, require_images=True, data="full"):
 		!= settings.system_root_warehouse
 	):
 		raise AssertionError("损坏待处理 must be below 系统位置")
+	if data == "empty":
+		if frappe.db.count("Item"):
+			raise AssertionError("Empty baseline must not contain Items")
+		if frappe.db.count("Stock Ledger Entry") or frappe.db.sql(
+			"select name from `tabBin` where actual_qty != 0 limit 1"
+		):
+			raise AssertionError("Empty baseline must not contain stock")
+		warehouse_rows = frappe.get_all(
+			"Warehouse",
+			filters={"company": settings.company},
+			fields=["name", "warehouse_type", "is_group", "ti_label"],
+			limit_page_length=0,
+		)
+		if len(warehouse_rows) != 5 or any(
+			row.warehouse_type in ("Area", "Room", "Shelf") for row in warehouse_rows
+		):
+			raise AssertionError("Empty baseline must contain only configuration roots and pointers")
+		return {
+			"site": frappe.local.site,
+			"version": VERSION,
+			"items": 0,
+			"stock_ledger_entries": 0,
+			"warehouses": [dict(row) for row in warehouse_rows],
+			"empty_baseline_verified": True,
+		}
 	physical_rows = frappe.get_all(
 		"Warehouse",
 		filters={

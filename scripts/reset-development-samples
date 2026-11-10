@@ -10,7 +10,7 @@ This permanently erases development.localhost. Other site names are rejected.
 
 Options:
 	--site SITE                 Required exact site name.
-  --data real|full            Seed real costume data or full test volume (default: full).
+  --data empty|real|full      Install baseline only, real costume data, or full test volume (default: full).
   --company NAME              Default: Org
   --abbr ABBR                 Default: O
   --country COUNTRY           Default: United States
@@ -68,8 +68,8 @@ while (($#)); do
 	esac
 done
 
-if [[ "$data" != "real" && "$data" != "full" ]]; then
-	printf '%s\n' '--data must be real or full.' >&2
+if [[ "$data" != "empty" && "$data" != "real" && "$data" != "full" ]]; then
+	printf '%s\n' '--data must be empty, real or full.' >&2
 	exit 2
 fi
 

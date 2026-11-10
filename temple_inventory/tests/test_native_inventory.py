@@ -19,6 +19,10 @@ from temple_inventory.tests.test_catalog_pickers import CatalogPickersTests
 from temple_inventory.tests.test_catalog_units import CatalogUnitsTests
 from temple_inventory.tests.test_configuration import ConfigurationTests
 from temple_inventory.tests.test_environment import EnvironmentTests
+from temple_inventory.tests.test_furniture_seed import (
+	FurnitureSeedIntegrationTests,
+	FurnitureSeedUnitTests,
+)
 from temple_inventory.tests.test_imports import ItemImportTests
 from temple_inventory.tests.test_item_images import ItemImageTests
 from temple_inventory.tests.test_native_documents import NativeDocumentTests
@@ -89,6 +93,8 @@ def run(test_name=None):
 		NotificationTests,
 		UnitTests,
 		EnvironmentTests,
+		FurnitureSeedUnitTests,
+		FurnitureSeedIntegrationTests,
 		SchemaAuditTests,
 		SerialTrackingTests,
 		SerialReportTests,
