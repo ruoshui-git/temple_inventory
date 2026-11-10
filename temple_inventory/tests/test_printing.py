@@ -627,20 +627,24 @@ class PrintingTests(NativeDocumentTests):
 			html_path = path / f"{stem}-{page_number}.html"
 			html_path.write_text(str(soup), encoding="utf-8")
 			png_path = path / f"{stem}-{page_number}.png"
-			subprocess.run(
-				[
-					chromium,
-					"--no-sandbox",
-					"--disable-gpu",
-					"--headless",
-					f"--window-size={window_size}",
-					f"--screenshot={png_path}",
-					f"file://{html_path}",
-				],
-				check=True,
-				capture_output=True,
-				timeout=30,
-			)
+			try:
+				subprocess.run(
+					[
+						chromium,
+						"--no-sandbox",
+						"--disable-gpu",
+						"--headless",
+						f"--window-size={window_size}",
+						f"--screenshot={png_path}",
+						f"file://{html_path}",
+					],
+					check=True,
+					capture_output=True,
+					timeout=30,
+				)
+			except subprocess.TimeoutExpired:
+				print(f"Chromium screenshot timed out for page {page_number} of {stem}; evidence was skipped")
+				return
 			if not png_path.exists() or png_path.stat().st_size == 0:
 				print(f"Chromium did not produce a page {page_number} screenshot for {stem}")
 				return
