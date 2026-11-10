@@ -12,6 +12,7 @@ import { postingTime } from "../../lib/nativeTime";
 import type { RecoverySnapshot } from "../../lib/browserRecovery";
 import { confirm as confirmDialog } from "../../services/confirm";
 import { useLinkedActivity } from "../activities/useLinkedActivity";
+import { useAttachments } from "../attachments/useAttachments";
 
 type OpeningLine = {
   name?: string;
@@ -59,8 +60,7 @@ export function useOpeningEditor(props: {
     savePending = ref(0),
     pickerOpen = ref(false),
     reviewOpen = ref(false),
-    supportingDirty = ref(false),
-    attachmentBusy = ref(false);
+    supportingDirty = ref(false);
   const values = reactive<OpeningValues>({
     purpose: "Opening Stock",
     company: reference.company,
@@ -141,6 +141,20 @@ export function useOpeningEditor(props: {
     },
   });
   const state = editor.state;
+  const files = useAttachments({
+    account,
+    currentAccount: () => reference.user,
+    parent: () => state.identity,
+    writable: () => false,
+  });
+  watch(
+    () => state.identity?.name,
+    (name) => {
+      if (name) void files.fetch();
+      else files.clear();
+    },
+    { immediate: true },
+  );
   const activityLabel = useLinkedActivity(
     () => values.ti_activity,
     () => state.server,
@@ -600,7 +614,7 @@ export function useOpeningEditor(props: {
     savePending,
     reviewOpen,
     supportingDirty,
-    files: { busy: attachmentBusy },
+    files,
     dirty,
     writable,
     pickerOpen,

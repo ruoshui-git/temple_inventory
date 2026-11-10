@@ -16,6 +16,8 @@ import ItemImage from "../../components/ItemImage.vue";
 import InboundSerialField from "../documents/InboundSerialField.vue";
 import { useRouter } from "vue-router";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
+import DisclosureSection from "../../components/ui/DisclosureSection.vue";
+import Attachments from "../../components/Attachments.vue";
 import { confirm as confirmDialog } from "../../services/confirm";
 import { warehouseLabel, warehousePath, warehouseSearchText } from "../../lib/warehouseLabel";
 import type { NativeDocument } from "../documents/nativeEditor";
@@ -39,6 +41,7 @@ const {
 	supportingDirty,
 	activityLabel,
 	batchOptions,
+	files,
 } = controller;
 const context = computed(() => ({
 	kind: "Reconcile",
@@ -287,6 +290,17 @@ async function lifecycle(kind: "cancel" | "amend") {
 		</div>
 		<section v-if="state.server && !writable" class="count-readonly surface opening-readonly">
 			<TransactionContext :draft="context" :activity-label="activityLabel" mode="display" />
+			<section v-if="state.server.ti_notes" class="opening-record-notes">
+				<h2>盘点备注</h2>
+				<p class="content-long-text">{{ state.server.ti_notes }}</p>
+			</section>
+			<DisclosureSection
+				v-if="files.files.length"
+				title="活动、人员与附件"
+				summary="关联背景与记录人员"
+			>
+				<Attachments :controller="files" mode="display" :disabled="true" />
+			</DisclosureSection>
 			<div class="count-summary-strip opening-summary" role="status">
 				<article class="metric">
 					<small>物品种数</small><strong>{{ openingMetrics.itemKinds }}</strong>

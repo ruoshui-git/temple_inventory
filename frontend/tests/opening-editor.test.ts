@@ -1,13 +1,21 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
+import {
+  flushPromises,
+  mount,
+  shallowMount,
+  type VueWrapper,
+} from "@vue/test-utils";
 import { defineComponent, h } from "vue";
+import { createMemoryHistory, createRouter } from "vue-router";
 import {
   createReferenceData,
   emptyCapabilities,
   provideInventoryServices,
 } from "../src/services/contracts";
 import { useOpeningEditor } from "../src/features/opening/useOpeningEditor";
+import OpeningEditorView from "../src/features/opening/OpeningEditorView.vue";
+import DisclosureSection from "../src/components/ui/DisclosureSection.vue";
 import { resolveConfirm, useConfirm } from "../src/services/confirm";
 
 const wrappers: VueWrapper[] = [];
@@ -339,6 +347,145 @@ describe("Opening Stock editor controller", () => {
         ([method]) => method === "native_api.create_document",
       ),
     ).toBe(false);
+  });
+
+  it("loads and retains submitted opening notes and native source attachments", async () => {
+    const reference = createReferenceData();
+    Object.assign(reference, {
+      site: "opening-source-test",
+      user: "Administrator",
+      company: "TEMPLE",
+      siteDate: "2026-11-09",
+      siteTime: "2026-11-09 21:00:00",
+      physicalLeaves: ["ROOM-A"],
+      capabilities: emptyCapabilities(),
+    });
+    reference.capabilities.stock_reconciliation.read = true;
+    const doc = {
+      doctype: "Stock Reconciliation",
+      name: "MAT-RECO-SOURCE",
+      version: "v1",
+      docstatus: 1 as const,
+      purpose: "Opening Stock",
+      editable: false,
+      posting_date: "2026-11-09",
+      posting_time: "21:00:00",
+      ti_notes: "阅览室 148 件；以上为最后观察数量。",
+      items: [],
+    };
+    const sourceFile = {
+      name: "FILE-SOURCE",
+      file_name: "家具盘点来源-A01.csv",
+      file_url: "/private/files/家具盘点来源-A01.csv",
+      file_size: 120,
+      is_private: 1,
+    };
+    const call = vi.fn(async (method: string) => {
+      if (method === "native_api.load_document") return doc;
+      if (method === "native_files.attachments") return [sourceFile];
+      throw new Error(`Unexpected service ${method}`);
+    });
+    let controller!: ReturnType<typeof useOpeningEditor>;
+    const child = defineComponent({
+      setup() {
+        controller = useOpeningEditor({ name: doc.name });
+        return () => h("div");
+      },
+    });
+    const host = defineComponent({
+      setup() {
+        provideInventoryServices(
+          { call, report: vi.fn(), upload: vi.fn() },
+          reference,
+        );
+        return () => h(child);
+      },
+    });
+    wrappers.push(mount(host));
+    await flushPromises();
+    expect(controller.state.server?.ti_notes).toContain("阅览室 148 件");
+    expect(
+      call.mock.calls.some(
+        ([method, args]) =>
+          method === "native_files.attachments" &&
+          (args as { name?: string }).name === doc.name,
+      ),
+    ).toBe(true);
+    expect(controller.files.files[0]?.name).toBe(sourceFile.file_name);
+  });
+
+  it("shows source attachments with the count disclosure wording only when files exist", async () => {
+    const reference = createReferenceData();
+    Object.assign(reference, {
+      site: "opening-attachment-visibility-test",
+      user: "Administrator",
+      company: "TEMPLE",
+      siteDate: "2026-11-09",
+      siteTime: "2026-11-09 21:00:00",
+      capabilities: emptyCapabilities(),
+    });
+    reference.capabilities.stock_reconciliation.read = true;
+    const doc = {
+      doctype: "Stock Reconciliation",
+      name: "MAT-RECO-ATTACHMENTS",
+      version: "v1",
+      docstatus: 1 as const,
+      purpose: "Opening Stock",
+      editable: false,
+      posting_date: "2026-11-09",
+      posting_time: "21:00:00",
+      items: [],
+    };
+    const sourceFile = {
+      name: "FILE-SOURCE",
+      file_name: "家具盘点来源-C-Hall.csv",
+      file_url: "/private/files/家具盘点来源-C-Hall.csv",
+      file_size: 120,
+      is_private: 1,
+    };
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: "/", component: defineComponent({ render: () => h("div") }) },
+      ],
+    });
+    await router.push("/");
+    await router.isReady();
+
+    async function render(files: (typeof sourceFile)[]) {
+      const call = vi.fn(async (method: string) => {
+        if (method === "native_api.load_document") return doc;
+        if (method === "native_files.attachments") return files;
+        throw new Error(`Unexpected service ${method}`);
+      });
+      const host = defineComponent({
+        setup() {
+          provideInventoryServices(
+            { call, report: vi.fn(), upload: vi.fn() },
+            reference,
+          );
+          return () => h(OpeningEditorView, { name: doc.name });
+        },
+      });
+      const wrapper = shallowMount(host, {
+        global: {
+          plugins: [router],
+          stubs: { OpeningEditorView: false },
+        },
+      });
+      wrappers.push(wrapper);
+      await flushPromises();
+      return wrapper;
+    }
+
+    const withFile = await render([sourceFile]);
+    const disclosure = withFile.findComponent(DisclosureSection);
+    expect(disclosure.exists()).toBe(true);
+    expect(disclosure.props("title")).toBe("活动、人员与附件");
+    expect(disclosure.props("summary")).toBe("关联背景与记录人员");
+
+    const withoutFiles = await render([]);
+    expect(withoutFiles.findComponent(DisclosureSection).exists()).toBe(false);
   });
 
   it("creates a typed batch only after blur or confirmation, never on keystrokes", async () => {
