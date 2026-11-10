@@ -220,7 +220,7 @@ app source (tests and built frontend aside) and framework versions match
 restores that snapshot instead of reseeding, so frontend-only pushes are quick. Like the development site, it
 is a public demo: Administrator and every `*@example.com` demo user log in with
 the password `admin` (also listed in `credentials.txt`). Production opts into the
-installer only during initial setup, uses `data="real"`, company `Org`, abbr
+installer only during initial setup, uses `data="empty"`, company `Org`, abbr
 `O`, United States/USD, sets System Settings time zone `America/New_York`,
 disables any `*@example.com` users and then removes the sample-tooling opt-in.
 Staging and production set Administrator to `ADMIN_PASSWORD` from their `.env`
@@ -232,6 +232,52 @@ Seeding sample data on a non-development site requires site config
 Staging restores the latest complete production backup, mutes email, sets its
 own host name and disables scheduler delivery before exposing the restored
 site. It does not create fresh sample data.
+
+## Empty reinstall and furniture seed (operator)
+
+`deploy.sh reinstall IMAGE --confirm-site SITE` is an operator-only destructive
+action for staging and production. It verifies the exact site and immutable
+image, keeps a pre-reinstall backup, reinstalls an empty site, then creates the
+empty furniture baseline and applies environment policy. It does not change
+`credentials.txt` or the Administrator password. Staging retains the volume
+backup and automatically restores it with the previous image after a failed
+reinstall. Production completes the full local and B2 backup first and never
+restores automatically; a failure leaves maintenance on and jobs stopped and
+prints the exact backup directory. After operator review, recover with
+`./deploy.sh restore /srv/kufang/production/backups/REPLACE_WITH_UTC_TIMESTAMP`.
+
+The furniture seed command refuses production in this version. Enabling it for
+production requires a future reviewed change after the user's approval. For a
+staging seed, as `kufang-deploy`, create `/srv/kufang/staging/seed/` with mode
+0700 and copy the package there. Then copy it into the backend container's
+sites directory (for example `sites/.furniture-seed/`) with `compose cp`. Run
+the command in this order, replacing the source and package paths:
+
+```sh
+cd /srv/kufang/staging
+install -d -m 700 seed
+cp /path/to/PACKAGE seed/PACKAGE
+docker compose --project-name kufang-staging -f compose.yaml cp \
+  seed/PACKAGE backend:/home/frappe/frappe-bench/sites/.furniture-seed/
+docker compose --project-name kufang-staging -f compose.yaml exec -T backend \
+  bench --site staging.kufang.online execute temple_inventory.furniture_seed.run \
+  --kwargs '{"package": "/home/frappe/frappe-bench/sites/.furniture-seed/PACKAGE", "apply": 0}'
+# Review the dry-run, apply, apply again (which must report unchanged), then dry-run.
+docker compose --project-name kufang-staging -f compose.yaml exec -T backend \
+  bench --site staging.kufang.online execute temple_inventory.furniture_seed.run \
+  --kwargs '{"package": "/home/frappe/frappe-bench/sites/.furniture-seed/PACKAGE", "apply": 1}'
+docker compose --project-name kufang-staging -f compose.yaml exec -T backend \
+  bench --site staging.kufang.online execute temple_inventory.furniture_seed.run \
+  --kwargs '{"package": "/home/frappe/frappe-bench/sites/.furniture-seed/PACKAGE", "apply": 1}'
+docker compose --project-name kufang-staging -f compose.yaml exec -T backend \
+  bench --site staging.kufang.online execute temple_inventory.furniture_seed.run \
+  --kwargs '{"package": "/home/frappe/frappe-bench/sites/.furniture-seed/PACKAGE", "apply": 0}'
+./deploy.sh deploy IMAGE
+```
+
+The final deploy writes a `deployed` history line required by the production
+promotion gate. A later `staging refresh` restores production data and replaces
+the seeded staging site. Production bootstrap now uses the empty baseline.
 
 ## Promotion
 

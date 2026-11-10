@@ -54,7 +54,7 @@ case $ENVIRONMENT in
 		trap 'site set-config temple_inventory_sample_site 0' EXIT
 		site set-config temple_inventory_sample_site 1
 		site execute temple_inventory.sample_install.prepare_development_sample_site \
-			--kwargs '{"data": "real", "company": "Org", "abbr": "O", "country": "United States", "currency": "USD"}'
+			--kwargs '{"data": "empty", "company": "Org", "abbr": "O", "country": "United States", "currency": "USD"}'
 		site execute frappe.db.set_single_value --args '["System Settings", "time_zone", "America/New_York"]'
 		# shellcheck disable=SC2016 # SQL identifiers are literal backticks.
 		site execute frappe.db.sql \

@@ -41,6 +41,7 @@ for environment in sample staging production; do
 			if [[ $marker == missing ]]; then rm -f "$dir/ENVIRONMENT"; else printf '%s\n' "$marker" >"$dir/ENVIRONMENT"; fi
 			refuse bash "$dir/deploy.sh" status
 			refuse bash "$dir/deploy.sh" deploy "$image"
+			refuse bash "$dir/deploy.sh" reinstall "$image" --confirm-site "$site"
 			refuse bash "$dir/deploy.sh" refresh
 			refuse bash "$dir/deploy.sh" stop
 			refuse bash "$dir/deploy.sh" restore /tmp/not-a-backup
@@ -51,6 +52,9 @@ for environment in sample staging production; do
 	printf '%s\n' "$environment" >"$dir/ENVIRONMENT"
 	printf 'SITE_NAME=%s\nDB_ROOT_PASSWORD=dummy\n' "$site" >"$dir/.env"
 	refuse bash "$dir/deploy.sh" deploy 'ghcr.io/ruoshui-git/temple_inventory:main'
+	refuse bash "$dir/deploy.sh" reinstall 'ghcr.io/ruoshui-git/temple_inventory:main' --confirm-site "$site"
+	refuse bash "$dir/deploy.sh" reinstall "$image"
+	refuse bash "$dir/deploy.sh" reinstall "$image" --confirm-site wrong.site
 	refuse bash "$dir/deploy.sh" status extra
 	refuse bash "$dir/bootstrap.sh" "$image" extra
 	refuse bash "$dir/backup.sh" extra
@@ -66,6 +70,7 @@ for environment in sample staging production; do
 done
 refuse env SSH_ORIGINAL_COMMAND='production deploy invalid' bash "$source_dir/dispatch.sh" --allow-env staging
 refuse env SSH_ORIGINAL_COMMAND='staging restore /tmp/backup' bash "$source_dir/dispatch.sh" --allow-env staging
+refuse env SSH_ORIGINAL_COMMAND="staging reinstall $image --confirm-site staging.kufang.online" bash "$source_dir/dispatch.sh" --allow-env staging
 refuse env SSH_ORIGINAL_COMMAND='sample status; id' bash "$source_dir/dispatch.sh" --allow-env staging
 refuse env SSH_ORIGINAL_COMMAND='../../tmp status' bash "$source_dir/dispatch.sh"
 printf 'PASS: %s offline guard checks; no Docker calls\n' "$checks"

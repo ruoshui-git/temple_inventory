@@ -10,7 +10,7 @@ export LIFECYCLE_ROOT=$test_root
 TEST_IMAGE=ghcr.io/ruoshui-git/temple_inventory@sha256:$(printf '%064d' 1)
 export TEST_IMAGE
 printf 'staging\n' >"$test_root/staging/ENVIRONMENT"
-printf 'SITE_NAME=staging.kufang.online\nDB_ROOT_PASSWORD=dummy\n' >"$test_root/staging/.env"
+printf 'SITE_NAME=staging.kufang.online\nDB_ROOT_PASSWORD=dummy\nADMIN_PASSWORD=fixture-admin\n' >"$test_root/staging/.env"
 printf '%s\n' "$TEST_IMAGE" >"$test_root/staging/state/current"
 printf 'IMAGE=%s\n' "$TEST_IMAGE" >"$test_root/staging/image.env"
 for file in database.sql.gz public-files.tgz private-files.tgz; do printf 'fixture\n' >"$test_root/fixture/$file"; done
@@ -51,6 +51,7 @@ export PATH=$test_root/bin:$PATH
 bash "$test_root/staging/deploy.sh" stop >/dev/null
 bash "$test_root/staging/deploy.sh" refresh >/dev/null
 bash "$test_root/staging/deploy.sh" deploy "$TEST_IMAGE" >/dev/null
+bash "$test_root/staging/deploy.sh" reinstall "$TEST_IMAGE" --confirm-site staging.kufang.online >/dev/null
 python3 - "$test_root" <<'PY'
 import pathlib
 import sys
@@ -66,6 +67,16 @@ assert first("DELETE FROM `__Auth`") < first("up -d scheduler queue-short queue-
 image = (root / "staging/state/current").read_text().strip()
 history = (root / "staging/state/history").read_text().splitlines()
 assert any(line.endswith(" deployed " + image) for line in history)
+assert any(line.endswith(" reinstalled " + image) for line in history)
+assert first(" backup --with-files --compress --backup-path /home/frappe/frappe-bench/sites/.deploy-backups/") < first(" reinstall --yes"), commands
+assert first(" reinstall --yes") < first("purge-jobs") < first('"data": "empty"'), commands
+reinstall_index = first(" reinstall --yes")
+empty_index = next(i for i, line in enumerate(commands) if '"data": "empty"' in line)
+timezone_index = next(i for i, line in enumerate(commands) if '"System Settings", "time_zone"' in line)
+maintenance_off = next(i for i, line in enumerate(commands) if i > reinstall_index and "set-maintenance-mode off" in line)
+assert reinstall_index < empty_index < timezone_index < maintenance_off, commands
+assert any("--admin-password fixture-admin" in line for line in commands)
+assert not any("credentials.txt" in line for line in commands)
 PY
 # Frappe's execute command prints nothing for a bare zero. The production
 # verification must use a truthy outer SQL result and accept its zero count.
