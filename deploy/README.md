@@ -236,7 +236,8 @@ site. It does not create fresh sample data.
 ## Empty reinstall and furniture seed (operator)
 
 `deploy.sh reinstall IMAGE --confirm-site SITE` is an operator-only destructive
-action for staging and production. It verifies the exact site and immutable
+action for staging and production. Stack scripts on hosts are installed by hand,
+so install the current `deploy/stack` files into `/srv/kufang/<env>` first. It verifies the exact site and immutable
 image, keeps a pre-reinstall backup, reinstalls an empty site, then creates the
 empty furniture baseline and applies environment policy. It does not change
 `credentials.txt` or the Administrator password. Staging retains the volume
@@ -257,19 +258,24 @@ the command in this order, replacing the source and package paths:
 cd /srv/kufang/staging
 install -d -m 700 seed
 cp /path/to/PACKAGE seed/PACKAGE
-docker compose --project-name kufang-staging -f compose.yaml cp \
-  seed/PACKAGE backend:/home/frappe/frappe-bench/sites/.furniture-seed/
-docker compose --project-name kufang-staging -f compose.yaml exec -T backend \
+dc() { docker compose --project-name kufang-staging --project-directory "$PWD" \
+  -f compose.yaml --env-file .env --env-file image.env "$@"; }
+dc exec -T backend mkdir -p /home/frappe/frappe-bench/sites/.furniture-seed
+dc cp seed/PACKAGE backend:/home/frappe/frappe-bench/sites/.furniture-seed/
+# compose cp keeps the host owner and mode; the bench user must be able to read it.
+dc exec -T -u root backend bash -c 'd=/home/frappe/frappe-bench/sites/.furniture-seed;
+  chown -R "$(id -u frappe):$(id -g frappe)" "$d" && chmod 700 "$d" && chmod 600 "$d"/*'
+dc exec -T backend \
   bench --site staging.kufang.online execute temple_inventory.furniture_seed.run \
   --kwargs '{"package": "/home/frappe/frappe-bench/sites/.furniture-seed/PACKAGE", "apply": 0}'
 # Review the dry-run, apply, apply again (which must report unchanged), then dry-run.
-docker compose --project-name kufang-staging -f compose.yaml exec -T backend \
+dc exec -T backend \
   bench --site staging.kufang.online execute temple_inventory.furniture_seed.run \
   --kwargs '{"package": "/home/frappe/frappe-bench/sites/.furniture-seed/PACKAGE", "apply": 1}'
-docker compose --project-name kufang-staging -f compose.yaml exec -T backend \
+dc exec -T backend \
   bench --site staging.kufang.online execute temple_inventory.furniture_seed.run \
   --kwargs '{"package": "/home/frappe/frappe-bench/sites/.furniture-seed/PACKAGE", "apply": 1}'
-docker compose --project-name kufang-staging -f compose.yaml exec -T backend \
+dc exec -T backend \
   bench --site staging.kufang.online execute temple_inventory.furniture_seed.run \
   --kwargs '{"package": "/home/frappe/frappe-bench/sites/.furniture-seed/PACKAGE", "apply": 0}'
 ./deploy.sh deploy IMAGE
