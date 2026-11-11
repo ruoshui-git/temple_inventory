@@ -159,6 +159,10 @@ PY
 grep -q 'stack updated: common.sh' "$test_root/self-update-output"
 grep -q "stack drift: $test_root/drift/dispatch differs" "$test_root/self-update-output"
 grep -q "stack drift: $test_root/drift/edge/nonprod.yaml differs" "$test_root/self-update-output"
+if grep -q "stack drift: $test_root/drift/edge/production.yaml" "$test_root/self-update-output"; then
+	echo "FAIL: non-production host warned about production.yaml" >&2
+	exit 1
+fi
 [[ -f $test_root/lock-held-after-exec ]]
 grep -q 'stack-backup/.*/common.sh' < <(find "$test_root/sample/stack-backup" -type f)
 grep -q ' stack-updated ' "$test_root/sample/state/history"

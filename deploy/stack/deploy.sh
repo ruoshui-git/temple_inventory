@@ -172,6 +172,8 @@ stack_drift() {
 	if [[ -d $temp/edge ]]; then
 		while IFS= read -r -d '' source; do
 			path=$edge/${source##*/}
+			# production.yaml belongs only on the production host; non-production hosts never install it.
+			[[ ${source##*/} != production.yaml || $ENVIRONMENT == production ]] || continue
 			if [[ ! -f $path ]] || ! cmp -s "$source" "$path"; then log "stack drift: $path differs from image; install by hand (deploy/README.md#stack-scripts)"; fi
 		done < <(find "$temp/edge" -type f -name '*.yaml' -print0)
 	fi
