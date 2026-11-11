@@ -36,6 +36,7 @@ MOVEMENT_LABELS = {
 	"Repair": "修复归库",
 	"Disposal": "报废",
 }
+MAX_NATIVE_DECIMAL = Decimal("999999999999.999999999")
 
 _copied_conversions = ContextVar("inventory_copied_conversions", default=None)
 
@@ -58,11 +59,17 @@ def number(value, label, *, allow_zero=False):
 		frappe.throw(f"{label}必须是有效数字")
 	if not result.is_finite() or result < 0 or (result == 0 and not allow_zero):
 		frappe.throw(f"{label}必须是{'非负' if allow_zero else '正'}数")
+	if result > MAX_NATIVE_DECIMAL:
+		frappe.throw(f"{label}超出允许范围，最大值为 {MAX_NATIVE_DECIMAL}")
 	return result
 
 
 def validate_precision(value, precision, label):
-	if value != value.quantize(Decimal(1).scaleb(-precision)):
+	try:
+		quantized = value.quantize(Decimal(1).scaleb(-precision))
+	except InvalidOperation:
+		frappe.throw(f"{label}超出允许范围或小数位数")
+	if value != quantized:
 		frappe.throw(f"{label}超出允许的小数位数，请修改输入")
 
 
@@ -110,6 +117,7 @@ def validate_quantity(row, item, doc=None):
 	validate_precision(quantity, row.precision("qty"), "数量")
 	validate_precision(factor, row.precision("conversion_factor"), "换算系数")
 	stock_quantity = quantity * factor
+	stock_quantity = number(stock_quantity, "库存数量")
 	validate_precision(stock_quantity, row.precision("transfer_qty"), "库存数量")
 	if unit.must_be_whole_number and quantity != quantity.to_integral_value():
 		frappe.throw("所选计量单位要求整数数量")

@@ -6,7 +6,7 @@ import frappe
 from frappe.utils import cint, flt, get_datetime, getdate, now_datetime
 
 from temple_inventory.native_access import check_company, require_app
-from temple_inventory.native_stock import warehouse_scopes
+from temple_inventory.native_stock import number, validate_precision, warehouse_scopes
 
 
 def set_difference_account(doc):
@@ -180,15 +180,18 @@ def validate_opening(doc):
 		if row.item_code not in metadata:
 			continue
 		item = metadata[row.item_code]
+		quantity = number(row.qty, "期初库存数量")
+		validate_precision(quantity, row.precision("qty"), "期初库存数量")
+		valuation_rate = row.get("valuation_rate")
+		if valuation_rate not in (None, ""):
+			number(valuation_rate, "估值单价", allow_zero=True)
 		if cint(item.has_batch_no) and not row.batch_no:
 			frappe.throw(f"物品 {item.item_name}（{item.name}）必须指定已存在的批次。")
 		if cint(item.has_serial_no) and not row.serial_no and not row.serial_and_batch_bundle:
 			frappe.throw(f"物品 {item.item_name}（{item.name}）必须录入序列号。")
-		if float(row.qty or 0) <= 0:
+		if quantity <= 0:
 			frappe.throw(f"期初库存数量必须大于零：{item.item_name}（{item.name}）。")
-		if row.get("valuation_rate") not in (None, "") and float(row.valuation_rate) < 0:
-			frappe.throw(f"估值单价不能为负数：{item.item_name}（{item.name}）。")
-		if cint(item.has_serial_no) and float(row.qty or 0) % 1:
+		if cint(item.has_serial_no) and quantity % 1:
 			frappe.throw(f"序列号物品必须使用整数库存单位数量：{item.item_name}（{item.name}）。")
 		if cint(item.has_serial_no) and not cint(
 			frappe.get_cached_value("UOM", item.stock_uom, "must_be_whole_number")
@@ -198,7 +201,7 @@ def validate_opening(doc):
 			serials = [
 				value.strip() for value in row.serial_no.replace(",", "\n").splitlines() if value.strip()
 			]
-			if len(serials) != float(row.qty):
+			if len(serials) != quantity:
 				frappe.throw(f"序列号数量必须与库存数量一致：{item.item_name}（{item.name}）。")
 			for serial in serials:
 				if serial in serial_rows:
