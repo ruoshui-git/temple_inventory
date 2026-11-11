@@ -17,7 +17,7 @@ from frappe.utils import cint
 
 from temple_inventory import catalog, read_cache
 from temple_inventory.item_code import allocate_item_code
-from temple_inventory.native_access import require_app
+from temple_inventory.native_access import require_app, retry_native_request
 
 DOCTYPE = "Inventory Import"
 service_write = ContextVar("inventory_import_service_write", default=False)
@@ -316,9 +316,9 @@ def opening_catalog():
 
 
 def _opening_plan(rows, posting_date, posting_time, *, exclude_name=""):
-	from decimal import Decimal, InvalidOperation
+	from decimal import Decimal
 
-	from temple_inventory.native_stock import warehouse_scopes
+	from temple_inventory.native_stock import number, validate_precision, warehouse_scopes
 	from temple_inventory.opening import opening_pair_blockers, set_difference_account
 
 	settings, visible, physical, leased, damaged = warehouse_scopes()
@@ -391,6 +391,7 @@ def _opening_plan(rows, posting_date, posting_time, *, exclude_name=""):
 		limit_page_length=0,
 	)
 	whole_number_uoms = {uom.name: bool(uom.must_be_whole_number) for uom in uoms}
+	quantity_precision = frappe.get_precision("Stock Reconciliation Item", "qty")
 	batch_names = sorted({str(row.get("batch_no") or "").strip() for row in rows if row.get("batch_no")})
 	batches = frappe.get_all(
 		"Batch",
@@ -539,16 +540,18 @@ def _opening_plan(rows, posting_date, posting_time, *, exclude_name=""):
 			errors.append("位置必须是启用的实体末级位置")
 		qty_text = _safe_text(row.get("qty"))
 		try:
-			qty = Decimal(qty_text)
-			if not qty.is_finite() or qty <= 0:
-				raise InvalidOperation
-		except (InvalidOperation, ValueError):
+			qty = number(qty_text, "期初库存数量", allow_zero=True)
+			if qty <= 0:
+				errors.append("期初库存数量必须大于零")
+			else:
+				validate_precision(qty, quantity_precision, "期初库存数量")
+		except frappe.ValidationError as exc:
 			qty = Decimal(0)
-			errors.append("期初库存数量必须大于零")
+			errors.append(str(exc))
 		rate_text = _safe_text(row.get("valuation_rate"))
 		try:
 			rate = (
-				Decimal(rate_text)
+				number(rate_text, "估值单价", allow_zero=True)
 				if rate_text
 				else Decimal(
 					str(stock_rates.get((item.name, location["name"]), 0) if item and location else 0)
@@ -558,11 +561,10 @@ def _opening_plan(rows, posting_date, posting_time, *, exclude_name=""):
 				rate = Decimal(str(price_by_item.get(item.name, 0) if item else 0))
 			if not rate_text and not rate:
 				rate = Decimal(str((item.valuation_rate or 0) if item else 0))
-			if not rate.is_finite() or rate < 0:
-				raise InvalidOperation
-		except (InvalidOperation, ValueError):
+			rate = number(rate, "估值单价", allow_zero=True)
+		except frappe.ValidationError as exc:
 			rate = Decimal(0)
-			errors.append("估值单价不能为负数或非数字")
+			errors.append(str(exc))
 		batch_no = _safe_text(row.get("batch_no"))
 		serials = _serial_values(row.get("serial_no"))
 		if item:
@@ -1176,6 +1178,7 @@ def upload(import_type="Item"):
 
 
 @frappe.whitelist(methods=["POST"])
+@retry_native_request
 def preview(name):
 	_require_write()
 	doc = _get(name, lock=True)
@@ -1205,6 +1208,7 @@ def preview(name):
 
 
 @frappe.whitelist(methods=["POST"])
+@retry_native_request
 def commit(name, plan_hash, skip_rejected=0):
 	_require_write()
 	doc = _get(name, lock=True)
@@ -1248,24 +1252,38 @@ def _progress(doc):
 
 
 def _interrupted(doc):
-	"""A Running import whose worker died: no recent heartbeat and no job left."""
-	if doc.status != "Running":
+	"""A stale Queued or Running import whose background job no longer exists."""
+	if doc.status not in ("Queued", "Running"):
 		return False
 	from datetime import UTC, datetime
 
 	from frappe.utils.background_jobs import is_job_enqueued
 
-	progress = _progress(doc)
-	heartbeat = progress.get("heartbeat") if isinstance(progress, dict) else None
-	if heartbeat:
-		try:
-			beat = datetime.fromisoformat(heartbeat)
-		except ValueError:
-			beat = None
-		if beat:
-			beat = beat if beat.tzinfo else beat.replace(tzinfo=UTC)
-			if (datetime.now(UTC) - beat).total_seconds() <= 60:
+	if doc.status == "Queued":
+		from frappe.utils import now_datetime
+
+		modified = doc.modified
+		if isinstance(modified, str):
+			try:
+				modified = datetime.fromisoformat(modified)
+			except ValueError:
 				return False
+		if modified.tzinfo:
+			modified = modified.replace(tzinfo=None)
+		if (now_datetime() - modified).total_seconds() <= 60:
+			return False
+	else:
+		progress = _progress(doc)
+		heartbeat = progress.get("heartbeat") if isinstance(progress, dict) else None
+		if heartbeat:
+			try:
+				beat = datetime.fromisoformat(heartbeat)
+			except ValueError:
+				beat = None
+			if beat:
+				beat = beat if beat.tzinfo else beat.replace(tzinfo=UTC)
+				if (datetime.now(UTC) - beat).total_seconds() <= 60:
+					return False
 	return not is_job_enqueued(f"ti-import:{doc.name}:{doc.attempt or 1}")
 
 
@@ -1284,6 +1302,7 @@ def status(name):
 
 
 @frappe.whitelist(methods=["POST"])
+@retry_native_request
 def retry(name):
 	_require_write()
 	doc = _get(name, lock=True)
@@ -1569,6 +1588,11 @@ def run_opening_import(import_name, owner):
 		)
 		if existing_name:
 			native = frappe.get_doc("Stock Reconciliation", existing_name, for_update=True)
+			if native.docstatus == 2:
+				frappe.throw(
+					f"期初库存单据 {native.name} 已取消，请将文件作为新导入重新上传。",
+					frappe.ValidationError,
+				)
 			if native.docstatus == 1:
 				doc.status, doc.error = "Completed", ""
 				doc.created_documents = json.dumps([native.name])
@@ -1674,7 +1698,8 @@ def run_opening_import(import_name, owner):
 			)
 			# The background worker already owns this job; doc.submit() would enqueue large documents again.
 			native._submit()
-		assert native.ti_time_mode == "Historical" and native.set_posting_time
+		if native.ti_time_mode != "Historical" or not native.set_posting_time:
+			frappe.throw("期初库存单据必须使用历史入账时间。", frappe.ValidationError)
 		results = []
 		for row in planned:
 			final = "REJECTED" if row.get("action") == "REJECTED" else row.get("action", "NEW")
