@@ -155,9 +155,94 @@ reseed_sample() {
 	save_snapshot "$image" "$key"
 }
 
+stack_drift() {
+	local image=$1 source temp path
+	temp=$(mktemp -d)
+	local cid
+	cid=$(docker create "$image") || { rm -rf "$temp"; return 0; }
+	docker cp "$cid:/home/frappe/frappe-bench/apps/temple_inventory/deploy/stack/dispatch.sh" "$temp/dispatch.sh" 2>/dev/null || true
+	docker cp "$cid:/home/frappe/frappe-bench/apps/temple_inventory/deploy/edge/." "$temp/edge/" 2>/dev/null || true
+	docker cp "$cid:/home/frappe/frappe-bench/apps/temple_inventory/deploy/stack/systemd/." "$temp/systemd/" 2>/dev/null || true
+	docker rm "$cid" >/dev/null
+	local dispatch=${KUFANG_DISPATCH_PATH:-/srv/kufang/bin/dispatch}
+	if [[ -f $temp/dispatch.sh ]] && { [[ ! -f $dispatch ]] || ! cmp -s "$temp/dispatch.sh" "$dispatch"; }; then
+		log "stack drift: $dispatch differs from image; install by hand (deploy/README.md#stack-scripts)"
+	fi
+	local edge=${KUFANG_EDGE_PATH:-/srv/kufang/edge}
+	if [[ -d $temp/edge ]]; then
+		while IFS= read -r -d '' source; do
+			path=$edge/${source##*/}
+			if [[ ! -f $path ]] || ! cmp -s "$source" "$path"; then log "stack drift: $path differs from image; install by hand (deploy/README.md#stack-scripts)"; fi
+		done < <(find "$temp/edge" -type f -name '*.yaml' -print0)
+	fi
+	if [[ $ENVIRONMENT == production && -d $temp/systemd ]]; then
+		while IFS= read -r -d '' source; do
+			path=${KUFANG_SYSTEMD_PATH:-/etc/systemd/system}/$(basename "$source")
+			if [[ ! -f $path ]] || ! cmp -s "$source" "$path"; then log "stack drift: $path differs from image; install by hand (deploy/README.md#stack-scripts)"; fi
+		done < <(find "$temp/systemd" -type f -print0)
+	fi
+	rm -rf "$temp"
+}
+
+sync_stack() {
+	local image=$1 next=$root/.stack-next cid file changed=0 stamp backup_path source installed
+	rm -rf -- "$next"
+	mkdir -m 700 -- "$next"
+	cid=$(docker create "$image") || die "stack update refused: could not create image container"
+	if ! docker cp "$cid:/home/frappe/frappe-bench/apps/temple_inventory/deploy/stack/." "$next/" >/dev/null; then
+		docker rm "$cid" >/dev/null || true
+		rm -rf -- "$next"
+		die "stack update refused: could not extract scripts from image"
+	fi
+	if ! docker rm "$cid" >/dev/null; then
+		rm -rf -- "$next"
+		die "stack update refused: could not remove extraction container"
+	fi
+	for file in common.sh backup-common.sh deploy.sh backup.sh bootstrap.sh compose.yaml; do
+		source=$next/$file
+		[[ -s $source ]] || { rm -rf -- "$next"; die "stack update refused: missing or empty $file"; }
+		if [[ $file == *.sh ]]; then bash -n "$source" || { rm -rf -- "$next"; die "stack update refused: invalid shell syntax in $file"; }; fi
+	done
+	if [[ ! -s $next/compose.yaml ]]; then rm -rf -- "$next"; die "stack update refused: invalid compose.yaml"; fi
+	if command -v docker >/dev/null && ! IMAGE=$image docker compose -f "$next/compose.yaml" --env-file "$root/.env" --env-file "$root/image.env" config -q >/dev/null 2>&1; then
+		rm -rf -- "$next"
+		die "stack update refused: docker compose rejected compose.yaml"
+	fi
+	for file in common.sh backup-common.sh deploy.sh backup.sh bootstrap.sh compose.yaml; do
+		installed=$root/$file
+		if [[ ! -f $installed ]] || ! cmp -s "$next/$file" "$installed"; then changed=1; fi
+	done
+	if (( ! changed )); then rm -rf -- "$next"; log "stack: current"; stack_drift "$image"; return 0; fi
+	stamp=$(date -u +%Y%m%dT%H%M%SZ)
+	backup_path=$root/stack-backup/$stamp
+	mkdir -p -- "$backup_path"
+	for file in common.sh backup-common.sh deploy.sh backup.sh bootstrap.sh compose.yaml; do
+		installed=$root/$file
+		if [[ ! -f $installed ]] || ! cmp -s "$next/$file" "$installed"; then
+			if [[ -f $installed ]]; then cp -p -- "$installed" "$backup_path/$file"; fi
+			local mode=0644
+			[[ $file != *.sh ]] || mode=0755
+			cp "$next/$file" "$installed.tmp"
+			chmod "$mode" "$installed.tmp"
+			mv -f -- "$installed.tmp" "$installed"
+			log "stack updated: $file"
+		fi
+	done
+	rm -rf -- "$next"
+	find "$root/stack-backup" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort -r | tail -n +11 | while IFS= read -r dir; do rm -rf -- "$root/stack-backup/$dir"; done
+	printf '%s stack-updated %s\n' "$(date -u +%FT%TZ)" "$image" >>state/history
+	stack_drift "$image"
+	if [[ ${KUFANG_STACK_SYNCED:-} != "$image" ]]; then
+		export KUFANG_STACK_SYNCED=$image KUFANG_LOCK_FD=9
+		exec bash "$root/deploy.sh" "${args[@]}"
+	fi
+}
+
 deploy() {
 	local new=$1 current ts dir
 	[[ $new =~ $image_pattern ]] || die "image must match $image_pattern"
+	docker pull -q "$new" >/dev/null
+	sync_stack "$new"
 	current=$(current_image)
 	if [[ $new == "$current" ]]; then
 		healthy "$new" || die "health check failed"
@@ -167,8 +252,6 @@ deploy() {
 		log "already running $new"
 		return
 	fi
-	log "pull $new"
-	docker pull -q "$new" >/dev/null
 	docker image inspect --format 'revision {{index .Config.Labels "org.opencontainers.image.revision"}}' "$new"
 	ts=$(date -u +%Y%m%dT%H%M%SZ)
 	if [[ $ENVIRONMENT == production ]]; then

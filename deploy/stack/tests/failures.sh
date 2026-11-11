@@ -13,7 +13,27 @@ cat >"$test_root/bin/docker" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$*" >>"$FAILURE_ROOT/calls"
+case "$1" in
+	create) printf 'fixture-container\n'; exit 0 ;;
+	rm) exit 0 ;;
+	cp)
+		source=${2#*:}; destination=$3
+		case "$source" in
+			*/deploy/stack/.)
+				mkdir -p "$destination"
+				cp -a "$STACK_SOURCE/"*.sh "$STACK_SOURCE/compose.yaml" "$destination/"
+				[[ $FAIL_SCENARIO != stack_syntax ]] || printf 'if then syntax error\n' >>"$destination/deploy.sh"
+				;;
+			*/deploy/stack/dispatch.sh) mkdir -p "$(dirname "$destination")"; cp "$STACK_SOURCE/dispatch.sh" "$destination" ;;
+			*/deploy/stack/systemd/.) mkdir -p "$destination"; cp -a "$STACK_SOURCE/systemd/." "$destination/" ;;
+			*/deploy/edge/.) mkdir -p "$destination"; cp -a "$STACK_SOURCE/../edge/." "$destination/" ;;
+			*) exit 82 ;;
+		esac
+		exit 0
+		;;
+esac
 case " $* " in
+	*' config -q '*) [[ $FAIL_SCENARIO != compose_reject ]] || exit 84 ;;
 	*' migrate '*) [[ $FAIL_SCENARIO != migrate && $FAIL_SCENARIO != recovery ]] || exit 41 ;;
 	*' reinstall --yes '*) [[ $FAIL_SCENARIO != reinstall ]] || exit 41 ;;
 	*' backup --with-files --compress '*) [[ $FAIL_SCENARIO != backup_staging ]] || exit 43 ;;
@@ -52,6 +72,7 @@ cat >"$test_root/bin/sleep" <<'STUB'
 exit 0
 STUB
 chmod +x "$test_root/bin/"*
+export STACK_SOURCE=$source_dir
 export PATH=$test_root/bin:$PATH
 for FAIL_SCENARIO in backup migrate recreate health recovery; do
 	export FAIL_SCENARIO
@@ -164,4 +185,25 @@ fi
 if grep -q ' restore ' "$test_root/calls"; then echo "FAIL: unexpected call matching ' restore '" >&2; exit 1; fi
 grep -q 'No automatic restore' "$test_root/output"
 grep -q './deploy.sh restore ' "$test_root/output"
+# Extracted syntax or Compose failures leave every installed runtime file and history untouched.
+for FAIL_SCENARIO in stack_syntax compose_reject; do
+	export FAIL_SCENARIO
+	dir=$test_root/sample
+	rm -rf -- "$dir"
+	mkdir -p "$dir/state"
+	cp "$source_dir/"*.sh "$source_dir/compose.yaml" "$dir/"
+	printf 'sample\n' >"$dir/ENVIRONMENT"
+	printf 'SITE_NAME=sample.kufang.online\nDB_ROOT_PASSWORD=dummy\n' >"$dir/.env"
+	printf 'IMAGE=%s\n' "$OLD_IMAGE" >"$dir/image.env"
+	printf '%s\n' "$OLD_IMAGE" >"$dir/state/current"
+	before=$(sha256sum "$dir"/{common.sh,backup-common.sh,deploy.sh,backup.sh,bootstrap.sh,compose.yaml})
+	if bash "$dir/deploy.sh" deploy "$NEW_IMAGE" >"$test_root/output" 2>&1; then
+		echo "FAIL: deployment accepted $FAIL_SCENARIO" >&2
+		exit 1
+	fi
+	[[ $before == "$(sha256sum "$dir"/{common.sh,backup-common.sh,deploy.sh,backup.sh,bootstrap.sh,compose.yaml})" ]]
+	[[ ! -s $dir/state/history ]]
+	grep -q 'stack update refused' "$test_root/output"
+	[[ ! -e $dir/.stack-next ]]
+done
 printf 'PASS: production deploy/reinstall failure policy and staging automatic recovery\n'

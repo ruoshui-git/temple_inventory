@@ -6,8 +6,6 @@
 .ruff_cache
 notes
 dev
-deploy/edge
-deploy/sample
 frontend/test-results
 frontend/playwright-report
 frontend/storybook-static

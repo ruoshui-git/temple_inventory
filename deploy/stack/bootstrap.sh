@@ -14,7 +14,7 @@ site() { bench_with "$image" --site "$SITE_NAME" "$@"; }
 # Sample is a public demo whose logins match the development site; staging and
 # production take the operator's Administrator password from their .env.
 if [[ $ENVIRONMENT == sample ]]; then
-	admin_password=admin
+	admin_password="admin"
 else
 	admin_password=${ADMIN_PASSWORD:-}
 	[[ -n $admin_password ]] || die "ADMIN_PASSWORD is empty in .env"

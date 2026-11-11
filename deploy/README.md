@@ -233,11 +233,27 @@ Staging restores the latest complete production backup, mutes email, sets its
 own host name and disables scheduler delivery before exposing the restored
 site. It does not create fresh sample data.
 
+## Stack scripts on hosts
+
+The first install of each `/srv/kufang/<env>` stack remains a one-time manual
+install from `deploy/stack/`, including `compose.yaml`. After that, every
+`deploy IMAGE` extracts and validates those six environment files from the
+selected image, backs up changed copies under `stack-backup/`, and installs
+them atomically before continuing. Deploying an older digest restores the
+scripts from that image; operators can also copy files back from a timestamped
+`stack-backup/` directory. `status` prints the history, including `stack-updated` lines.
+
+The dispatcher, edge compose YAML, production systemd units, and all `.env`
+files remain host-managed and are never installed automatically. Deploys print a
+`stack drift` warning when dispatch, edge YAML, or production systemd files
+differ; review and install those changes by hand. Code merged to `main` can now
+change host scripts run by `kufang-deploy`; production deploys remain approval-gated
+and dispatch stays manual.
+
 ## Empty reinstall and furniture seed (operator)
 
 `deploy.sh reinstall IMAGE --confirm-site SITE` is an operator-only destructive
-action for staging and production. Stack scripts on hosts are installed by hand,
-so install the current `deploy/stack` files into `/srv/kufang/<env>` first. It verifies the exact site and immutable
+action for staging and production. It verifies the exact site and immutable
 image, keeps a pre-reinstall backup, reinstalls an empty site, then creates the
 empty furniture baseline and applies environment policy. It does not change
 `credentials.txt` or the Administrator password. Staging retains the volume
@@ -247,9 +263,13 @@ restores automatically; a failure leaves maintenance on and jobs stopped and
 prints the exact backup directory. After operator review, recover with
 `./deploy.sh restore /srv/kufang/production/backups/REPLACE_WITH_UTC_TIMESTAMP`.
 
-The furniture seed command refuses production in this version. Enabling it for
-production requires a future reviewed change after the user's approval. For a
-staging seed, as `kufang-deploy`, create `/srv/kufang/staging/seed/` with mode
+The furniture seed command refuses production unless the operator sets the
+site config key `temple_inventory_allow_furniture_seed` to 1 for the run
+(`bench --site kufang.org set-config -p temple_inventory_allow_furniture_seed 1`)
+and removes it afterwards (`bench --site kufang.org set-config -p
+temple_inventory_allow_furniture_seed 0`). The package (kept outside this
+repository) must contain `05_display_notes.json` with the user-facing Item notes
+and room notes. For a seed, as `kufang-deploy`, create `/srv/kufang/<env>/seed/` with mode
 0700 and copy the package there. Then copy it into the backend container's
 sites directory (for example `sites/.furniture-seed/`) with `compose cp`. Run
 the command in this order, replacing the source and package paths:

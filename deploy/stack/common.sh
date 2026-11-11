@@ -44,6 +44,16 @@ bench_with() {
 	IMAGE=$image compose run --rm --no-deps -T backend bench "$@"
 }
 lock() {
+	local lock_path fd_path
+	lock_path=$(readlink -f -- state/deploy.lock)
+	if [[ ${KUFANG_LOCK_FD:-} == 9 && -e /proc/self/fd/9 ]]; then
+		fd_path=$(readlink -f -- /proc/self/fd/9 2>/dev/null || true)
+		if [[ $fd_path == "$lock_path" ]]; then
+			unset KUFANG_LOCK_FD
+			return 0
+		fi
+	fi
+	unset KUFANG_LOCK_FD
 	exec 9>state/deploy.lock
 	flock -w 3600 9 || die "another operation holds the lock"
 }

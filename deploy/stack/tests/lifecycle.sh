@@ -4,7 +4,7 @@ set -Eeuo pipefail
 source_dir=$(dirname -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")")
 test_root=$(mktemp -d)
 trap 'rm -rf -- "$test_root"' EXIT
-mkdir -p "$test_root/bin" "$test_root/staging/state" "$test_root/fixture"
+mkdir -p "$test_root/bin" "$test_root/staging/state" "$test_root/fixture" "$test_root/images"
 cp "$source_dir/"*.sh "$test_root/staging/"
 export LIFECYCLE_ROOT=$test_root
 TEST_IMAGE=ghcr.io/ruoshui-git/temple_inventory@sha256:$(printf '%064d' 1)
@@ -21,10 +21,38 @@ cat >"$test_root/bin/docker" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$*" >>"$LIFECYCLE_ROOT/calls"
+if [[ $* == *' config -q' && -n ${KUFANG_STACK_SYNCED:-} && -n ${LOCK_PROBE:-} ]]; then
+	if flock -n "$LOCK_PROBE" true; then exit 83; fi
+	touch "$LIFECYCLE_ROOT/lock-held-after-exec"
+fi
+if [[ $* == *' config -q' ]]; then exit 0; fi
+case "$1" in
+	create) printf 'fixture-%s\n' "${2##*:}" ;;
+	rm) ;;
+	cp)
+		image_id=${2%%:*}; digest=${image_id#fixture-}; image_source=$STACK_SOURCE/../..
+		[[ ! -d $IMAGE_FIXTURE_ROOT/$digest ]] || image_source=$IMAGE_FIXTURE_ROOT/$digest
+		source=${2#*:}; destination=$3
+		case "$source" in
+			*/deploy/stack/.) mkdir -p "$destination"; cp -a "$image_source/deploy/stack/"*.sh "$image_source/deploy/stack/compose.yaml" "$destination/" ;;
+			*/deploy/stack/dispatch.sh) mkdir -p "$(dirname "$destination")"; cp "$image_source/deploy/stack/dispatch.sh" "$destination" ;;
+			*/deploy/stack/systemd/.) mkdir -p "$destination"; cp -a "$image_source/deploy/stack/systemd/." "$destination/" ;;
+			*/deploy/edge/.) mkdir -p "$destination"; cp -a "$image_source/deploy/edge/." "$destination/" ;;
+			*) exit 82 ;;
+		esac
+		;;
+esac
 if [[ ${!#} == stop ]]; then rm -f "$LIFECYCLE_ROOT/db-ready"; fi
 case " $* " in
 	*' up -d db redis-cache redis-queue '*) touch "$LIFECYCLE_ROOT/db-ready" ;;
 	*' set-maintenance-mode '*) [[ -e $LIFECYCLE_ROOT/db-ready ]] || exit 81 ;;
+	*' cp backend:'*)
+		destination=${!#}
+		case "$destination" in
+			*/site_config.json) printf '{"encryption_key":"fixture"}\n' >"$destination" ;;
+			*) printf 'fixture\n' >"$destination" ;;
+		esac
+		;;
 	*' inspect '*) printf '%s\n' "$TEST_IMAGE" ;;
 	*' ps -q backend '*) printf 'fixture-backend\n' ;;
 	*'SELECT COUNT(*) FROM '*) printf '[[0]]\n' ;;
@@ -38,7 +66,10 @@ set -euo pipefail
 case "$1 ${!#}" in
 	'lsf --dirs-only') printf '20261025T000000Z/\n' ;;
 	'lsf --files-only') printf 'SHA256SUMS\n' ;;
-	copy*) cp -a "$LIFECYCLE_ROOT/fixture/." "${!#}/" ;;
+	copy*)
+		if [[ ${2:-} == b2:* ]]; then cp -a "$LIFECYCLE_ROOT/fixture/." "${!#}/"; fi
+		;;
+	copyto*) ;;
 	*) exit 82 ;;
 esac
 STUB
@@ -47,6 +78,8 @@ cat >"$test_root/bin/curl" <<'STUB'
 printf '{"message":"pong"}\n'
 STUB
 chmod +x "$test_root/bin/"*
+export STACK_SOURCE=$source_dir
+export IMAGE_FIXTURE_ROOT=$test_root/images
 export PATH=$test_root/bin:$PATH
 bash "$test_root/staging/deploy.sh" stop >/dev/null
 bash "$test_root/staging/deploy.sh" refresh >/dev/null
@@ -99,7 +132,13 @@ printf 'SITE_NAME=sample.kufang.online\nDB_ROOT_PASSWORD=dummy\n' >"$test_root/s
 printf '%s\n' "$TEST_IMAGE" >"$test_root/sample/state/current"
 printf 'IMAGE=%s\n' "$TEST_IMAGE" >"$test_root/sample/image.env"
 : >"$test_root/calls"
-TEST_IMAGE=$NEW_IMAGE bash "$test_root/sample/deploy.sh" deploy "$NEW_IMAGE" >/dev/null
+printf '# host-only edit\n' >>"$test_root/sample/common.sh"
+mkdir -p "$test_root/drift/edge"
+printf 'host dispatch\n' >"$test_root/drift/dispatch"
+printf 'host compose\n' >"$test_root/drift/edge/nonprod.yaml"
+export KUFANG_DISPATCH_PATH=$test_root/drift/dispatch KUFANG_EDGE_PATH=$test_root/drift/edge
+export LOCK_PROBE=$test_root/sample/state/deploy.lock
+TEST_IMAGE=$NEW_IMAGE bash "$test_root/sample/deploy.sh" deploy "$NEW_IMAGE" >"$test_root/self-update-output"
 python3 - "$test_root" <<'PY'
 import pathlib
 import sys
@@ -117,6 +156,17 @@ assert "Administrator admin" in credentials and "demo@example.com admin" in cred
 assert first("set-password demo@example.com admin") < first("-e KEY=") < first("set-maintenance-mode off")
 PY
 [[ $(cat "$test_root/sample/state/current") == "$NEW_IMAGE" ]]
+grep -q 'stack updated: common.sh' "$test_root/self-update-output"
+grep -q "stack drift: $test_root/drift/dispatch differs" "$test_root/self-update-output"
+grep -q "stack drift: $test_root/drift/edge/nonprod.yaml differs" "$test_root/self-update-output"
+[[ -f $test_root/lock-held-after-exec ]]
+grep -q 'stack-backup/.*/common.sh' < <(find "$test_root/sample/stack-backup" -type f)
+grep -q ' stack-updated ' "$test_root/sample/state/history"
+[[ $(grep -c ' stack-updated ' "$test_root/sample/state/history") == 1 ]]
+: >"$test_root/calls"
+TEST_IMAGE=$NEW_IMAGE bash "$test_root/sample/deploy.sh" deploy "$NEW_IMAGE" >"$test_root/current-output"
+grep -q 'stack: current' "$test_root/current-output"
+[[ $(grep -c ' stack-updated ' "$test_root/sample/state/history") == 1 ]]
 # A snapshot seeded today from the same source restores instead of reseeding.
 NEWER_IMAGE=ghcr.io/ruoshui-git/temple_inventory@sha256:$(printf '%064d' 3)
 key=$(printf '%s\n' "$NEWER_IMAGE" | sha256sum | cut -c1-16)
@@ -135,4 +185,30 @@ assert first("find public/files private/files") < first(" restore /home/frappe/f
 assert first(".sample-snapshot/database.sql.gz") < first("clear-cache") < first("set-maintenance-mode off")
 PY
 [[ $(cat "$test_root/sample/state/current") == "$NEWER_IMAGE" ]]
-printf 'PASS: stopped staging refresh order, mail policy, backup ownership, same-digest promotion history, production bootstrap zero-count verification, sample reseed and same-day snapshot\n'
+OLDER_IMAGE=ghcr.io/ruoshui-git/temple_inventory@sha256:$(printf '%064d' 4)
+older_digest=${OLDER_IMAGE##*:}
+mkdir -p "$test_root/images/$older_digest/deploy/stack" "$test_root/images/$older_digest/deploy/edge"
+cp -a "$source_dir/." "$test_root/images/$older_digest/deploy/stack/"
+cp -a "$source_dir/../edge/." "$test_root/images/$older_digest/deploy/edge/"
+printf '# scripts from older image\n' >>"$test_root/images/$older_digest/deploy/stack/common.sh"
+for n in $(seq -w 1 11); do mkdir -p "$test_root/sample/stack-backup/20200101T0000${n}Z"; done
+: >"$test_root/calls"
+TEST_IMAGE=$OLDER_IMAGE bash "$test_root/sample/deploy.sh" deploy "$OLDER_IMAGE" >"$test_root/older-output"
+grep -q '# scripts from older image' "$test_root/sample/common.sh"
+[[ $(find "$test_root/sample/stack-backup" -mindepth 1 -maxdepth 1 -type d | wc -l) == 10 ]]
+[[ $(cat "$test_root/sample/state/current") == "$OLDER_IMAGE" ]]
+# Production drift is warning-only, including systemd units, and deploy completes.
+mkdir -p "$test_root/production/state" "$test_root/drift/systemd"
+cp "$source_dir/"*.sh "$test_root/production/"
+printf 'production\n' >"$test_root/production/ENVIRONMENT"
+printf 'SITE_NAME=kufang.org\nDB_ROOT_PASSWORD=dummy\nADMIN_PASSWORD=fixture-admin\n' >"$test_root/production/.env"
+printf 'IMAGE=%s\n' "$TEST_IMAGE" >"$test_root/production/image.env"
+printf '%s\n' "$TEST_IMAGE" >"$test_root/production/state/current"
+printf 'old unit\n' >"$test_root/drift/systemd/kufang-backup@.service"
+export KUFANG_SYSTEMD_PATH=$test_root/drift/systemd
+unset LOCK_PROBE
+PRODUCTION_NEXT=ghcr.io/ruoshui-git/temple_inventory@sha256:$(printf '%064d' 5)
+TEST_IMAGE=$PRODUCTION_NEXT bash "$test_root/production/deploy.sh" deploy "$PRODUCTION_NEXT" >"$test_root/production-output"
+grep -q "stack drift: $test_root/drift/systemd/kufang-backup@.service differs" "$test_root/production-output"
+[[ $(cat "$test_root/production/state/current") == "$PRODUCTION_NEXT" ]]
+printf 'PASS: stopped staging refresh order, mail policy, backup ownership, same-digest promotion history, production bootstrap zero-count verification, sample reseed, older-image rollback, backup pruning, stack drift, and same-day snapshot\n'
