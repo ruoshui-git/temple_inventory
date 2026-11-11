@@ -63,9 +63,12 @@ it("uses desktop density tokens for filter rows, tree toggles, and browse chrome
   );
 });
 
-it("applies per-density image, gutter, gap, and pad tokens to browse cards", () => {
+it("keeps browse card thumbnails square and card spacing density-based", () => {
   expect(cards).toMatch(
-    /\.browse-card-item--card > \.browse-card-media,[\s\S]*?\.item-card-image\s*\{[^}]*height:\s*var\(--p-card-image-size\)/,
+    /\.browse-card-item--card > \.browse-card-media\s*\{[^}]*height:\s*auto;[^}]*aspect-ratio:\s*1/,
+  );
+  expect(cards).toMatch(
+    /\.item-card-image\s*\{[^}]*height:\s*auto;[^}]*aspect-ratio:\s*1/,
   );
   expect(cards).toMatch(
     /\.browse-card-grid\s*\{[^}]*gap:\s*var\(--p-card-gap\)/,

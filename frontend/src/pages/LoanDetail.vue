@@ -5,8 +5,10 @@ import { documentDestination, exportDestination } from "../lib/nativeNavigation"
 import { operationDestination } from "../lib/nativeNavigation";
 import { routeTarget } from "../lib/routeRegistry";
 import type { SettlementAction } from "../features/loans/useLoanDetail";
+import { useBackNavigation } from "../composables/useBackNavigation";
 const route = useRoute(),
 	router = useRouter();
+const { goBack } = useBackNavigation();
 function settle(name: string, action: SettlementAction) {
 	void router.push(
 		operationDestination(action === "lost" ? "Loss" : "Return", {
@@ -21,7 +23,7 @@ function settle(name: string, action: SettlementAction) {
 <template>
 	<LoanDetailPage
 		:name="String(route.params.name)"
-		@back="router.back()"
+		@back="goBack(routeTarget('loans'))"
 		@item="router.push(routeTarget('item-detail', { code: $event }))"
 		@activity="router.push(routeTarget('activity-detail', { name: $event }))"
 		@open-document="(doctype, name) => router.push(documentDestination(doctype, name))"

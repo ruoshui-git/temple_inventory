@@ -10,6 +10,7 @@ import {
 import { routeTarget } from "../lib/routeRegistry";
 import { useRouteBreadcrumbLabel } from "../lib/routeBreadcrumbLabel";
 import { useConfirm } from "../services/confirm";
+import { useBackNavigation } from "../composables/useBackNavigation";
 const detail = ref<InstanceType<typeof ProductDetailPage>>();
 const { confirm } = useConfirm();
 useRouteBreadcrumbLabel(() => detail.value?.controller.item.value?.item_name);
@@ -21,13 +22,14 @@ onBeforeRouteLeave(leave);
 onBeforeRouteUpdate((to, from) => to.params.code === from.params.code || leave());
 const route = useRoute(),
 	router = useRouter();
+const { goBack } = useBackNavigation();
 </script>
 <template>
 	<ProductDetailPage
 		ref="detail"
 		:code="String(route.params.code)"
 		:tab="typeof route.query.tab === 'string' ? route.query.tab : undefined"
-		@back="router.back()"
+		@back="goBack(routeTarget('stock'))"
 		@edit="router.push(routeTarget('item-edit', { code: $event }))"
 		@tab="router.replace({ query: { ...route.query, tab: $event } })"
 		@browse="router.push(browseDestination($event))"

@@ -14,7 +14,6 @@ import BackButton from "../../components/ui/BackButton.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
 import ItemImage from "../../components/ItemImage.vue";
 import InboundSerialField from "../documents/InboundSerialField.vue";
-import { useRouter } from "vue-router";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import Attachments from "../../components/Attachments.vue";
@@ -28,7 +27,7 @@ const props = defineProps<{
 }>();
 const controller = useOpeningEditor(props);
 defineExpose({ controller });
-const router = useRouter();
+const emit = defineEmits<{ back: [] }>();
 const {
 	state,
 	values,
@@ -244,7 +243,7 @@ async function lifecycle(kind: "cancel" | "amend") {
 					>修订</UiButton
 				>
 			</template>
-			<template #back><BackButton @click="router.back()" /></template>
+			<template #back><BackButton @click="emit('back')" /></template>
 		</PageHeader>
 		<div v-if="state.server" class="form-status">
 			<span class="form-record-tag"

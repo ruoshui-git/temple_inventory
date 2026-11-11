@@ -727,10 +727,13 @@
 .browse-card-grid {
 	gap: var(--p-card-gap);
 }
-.browse-card-item--card > .browse-card-media,
+.browse-card-item--card > .browse-card-media {
+	height: auto;
+	aspect-ratio: 1;
+}
 .item-card-image {
-	height: var(--p-card-image-size);
-	aspect-ratio: auto;
+	height: auto;
+	aspect-ratio: 1;
 }
 .stock-card-groups {
 	gap: var(--p-card-gap);

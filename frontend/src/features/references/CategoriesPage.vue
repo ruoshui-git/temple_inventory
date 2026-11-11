@@ -11,10 +11,13 @@ import type { useCategoriesController } from "./useCategoriesController";
 import PopupMenu from "../../components/ui/PopupMenu.vue";
 import SearchField from "../../components/ui/SearchField.vue";
 import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
+import { useBackNavigation } from "../../composables/useBackNavigation";
+import { routeTarget } from "../../lib/routeRegistry";
 
 const props = defineProps<{ controller: ReturnType<typeof useCategoriesController> }>();
 const c = props.controller;
-const back = () => window.history.back();
+const { goBack } = useBackNavigation();
+const back = () => goBack(routeTarget("stock"));
 const {
 	categories,
 	canCreate,

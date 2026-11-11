@@ -7,6 +7,8 @@ import BrowseFilters from "../../components/filters/BrowseFilters.vue";
 import ItemStatusFilter from "../../components/filters/ItemStatusFilter.vue";
 import { useFilterRailPreference } from "../../composables/useFilterRailPreference";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
+import { useBackNavigation } from "../../composables/useBackNavigation";
+import { routeTarget } from "../../lib/routeRegistry";
 import { formatSiteDateTime } from "../../lib/nativeTime";
 import UiButton from "../../components/ui/UiButton.vue";
 import BrowseRefreshNotice from "../../components/ui/BrowseRefreshNotice.vue";
@@ -49,7 +51,8 @@ const props = withDefaults(
 	}>(),
 	{ active: true },
 );
-const back = () => window.history.back();
+const { goBack } = useBackNavigation();
+const back = () => goBack(routeTarget("more"));
 const emit = defineEmits<{
 	openDocument: [doctype: string, name: string];
 	newOperation: [kind: string];

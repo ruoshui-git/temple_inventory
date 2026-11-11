@@ -44,6 +44,8 @@ import { exportFields } from "../../lib/exportColumns";
 import { type DataColumn, type DataTableEntry, orderedVisibleColumns } from "../../lib/dataTable";
 import BrowseCard from "../../components/ui/BrowseCard.vue";
 import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
+import { useBackNavigation } from "../../composables/useBackNavigation";
+import { routeTarget } from "../../lib/routeRegistry";
 const exportMenu = ref<{ open(): void }>();
 const props = withDefaults(defineProps<{ controller: PendingController; active?: boolean }>(), {
 	active: true,
@@ -53,7 +55,8 @@ const emit = defineEmits<{
 	operation: [kind: "Repair" | "Disposal", allocations: InitialAllocation[]];
 	openExport: [query: ReportQuery];
 }>();
-const back = () => window.history.back();
+const { goBack } = useBackNavigation();
+const back = () => goBack(routeTarget("stock"));
 const c = props.controller,
 	{
 		query,

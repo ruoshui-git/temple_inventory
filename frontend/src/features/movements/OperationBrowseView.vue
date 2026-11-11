@@ -70,9 +70,10 @@ import type { HistoryRow } from "./useMovementHistory";
 import ItemImage from "../../components/ItemImage.vue";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 import { formatQuantity } from "../../lib/formatQuantity";
+import { useBackNavigation } from "../../composables/useBackNavigation";
+import { routeTarget } from "../../lib/routeRegistry";
 import { createRecoveryStore } from "../../lib/browserRecovery";
 import { RouterLink } from "vue-router";
-import { routeTarget } from "../../lib/routeRegistry";
 import { sortByUnit, unitLabel } from "../../lib/units";
 import UnitValues from "../../components/ui/UnitValues.vue";
 import GroupTotals, { type GroupTotalMetric } from "../../components/ui/GroupTotals.vue";
@@ -98,7 +99,8 @@ const emit = defineEmits<{
 	newOperation: [kind: string];
 }>();
 const c = props.controller;
-const back = () => window.history.back();
+const { goBack } = useBackNavigation();
+const back = () => goBack(routeTarget("home"));
 const browseView = c.browseView;
 const {
 	query,

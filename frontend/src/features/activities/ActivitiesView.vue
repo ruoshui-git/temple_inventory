@@ -56,6 +56,8 @@ import { exportFields } from "../../lib/exportColumns";
 import { sortByUnit, unitLabel } from "../../lib/units";
 import { formatQuantity, formatQuantityWithUnit } from "../../lib/formatQuantity";
 import { useCapabilities } from "../../composables/useCapabilities";
+import { useBackNavigation } from "../../composables/useBackNavigation";
+import { routeTarget } from "../../lib/routeRegistry";
 const exportMenu = ref<{ open(): void }>();
 const { isMobile } = useResponsiveLayout();
 const { can } = useCapabilities();
@@ -81,7 +83,8 @@ const props = withDefaults(
 	{ active: true },
 );
 const emit = defineEmits<{ openExport: [query: ReportQuery] }>();
-const back = () => window.history.back();
+const { goBack } = useBackNavigation();
+const back = () => goBack(routeTarget("home"));
 const confirm = useConfirm().confirm;
 const {
 	reference,

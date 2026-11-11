@@ -2,6 +2,8 @@
 import PageHeader from "../../components/ui/PageHeader.vue";
 import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
 import ForbiddenState from "../../components/ui/ForbiddenState.vue";
+import { useBackNavigation } from "../../composables/useBackNavigation";
+import { routeTarget } from "../../lib/routeRegistry";
 import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
 import BackButton from "../../components/ui/BackButton.vue";
 import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
@@ -36,7 +38,8 @@ const emit = defineEmits<{
 	newOperation: [kind: string, warehouse: string];
 }>();
 const c = props.controller;
-const back = () => window.history.back();
+const { goBack } = useBackNavigation();
+const back = () => goBack(routeTarget("home"));
 const { isMobile } = useResponsiveLayout();
 const {
 	tree,

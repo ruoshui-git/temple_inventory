@@ -6,8 +6,10 @@ import { useBatchDetailController } from "../features/batches/useBatchDetailCont
 import { loanDestination } from "../lib/nativeNavigation";
 import { routeTarget } from "../lib/routeRegistry";
 import { useConfirm } from "../services/confirm";
+import { useBackNavigation } from "../composables/useBackNavigation";
 const route = useRoute(),
 	router = useRouter();
+const { goBack } = useBackNavigation();
 const name = computed(() => String(route.params.name || ""));
 const controller = useBatchDetailController({ name });
 const back = computed(() => (typeof route.query.back === "string" ? route.query.back : ""));
@@ -26,7 +28,7 @@ onBeforeRouteUpdate(confirmDiscard);
 <template>
 	<BatchDetailView
 		:controller="controller"
-		@back="back ? router.push(back) : router.back()"
+		@back="back ? router.push(back) : goBack(routeTarget('expiry'))"
 		@open-item="
 			(code) =>
 				router.push({

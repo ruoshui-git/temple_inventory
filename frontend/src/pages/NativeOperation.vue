@@ -8,8 +8,10 @@ import { routeTarget } from "../lib/routeRegistry";
 import { operationLabels } from "../lib/presentationLabels";
 import type { OperationKind } from "../features/documents/operationModel";
 import { useNativeEditorRoute } from "../lib/nativeEditorRoute";
+import { useBackNavigation } from "../composables/useBackNavigation";
 const route = useRoute(),
 	router = useRouter();
+const { goBack } = useBackNavigation();
 const editor = ref<InstanceType<typeof OperationEditorPage>>();
 useNativeEditorRoute(() => editor.value?.controller);
 const kind = computed(() => String(route.params.kind || "Receive") as OperationKind);
@@ -48,11 +50,7 @@ const valid = computed(
 onBeforeRouteLeave(() => editor.value?.controller.requestLeave() ?? true);
 onBeforeRouteUpdate(() => editor.value?.controller.requestLeave() ?? true);
 function back() {
-	const state = window.history.state as { back?: unknown; tiOverlay?: unknown };
-	if (state.back) {
-		if (state.tiOverlay) window.history.go(-2);
-		else router.back();
-	} else void router.push(routeTarget("movements", {}, { view: "records" }));
+	goBack(routeTarget("movements", {}, { view: "records" }), { preserveOverlay: true });
 }
 </script>
 <template>

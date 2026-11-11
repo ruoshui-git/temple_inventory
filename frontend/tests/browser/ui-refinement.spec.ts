@@ -11,8 +11,10 @@ import {
 const font = requiredAuditCjkFont();
 const selectionShots = "/tmp/codex-runs/browse-cards-shots";
 const groupedCardShots = "/tmp/codex-runs/grouped-cards-shots";
+const backCardShots = "/tmp/codex-runs/frontend-back-cards-shots";
 mkdirSync(selectionShots, { recursive: true });
 mkdirSync(groupedCardShots, { recursive: true });
+mkdirSync(backCardShots, { recursive: true });
 async function setup(
   page: Page,
   scale = 100,
@@ -244,6 +246,31 @@ async function setup(
           },
         ],
       };
+    else if (method === "catalog.operation_items")
+      message = {
+        items: [
+          {
+            item_code: "ITEM-0",
+            item_name: "法会供灯与日常储备用品长名称0",
+            item_group: "供灯用品",
+            stock_uom: "个",
+            description: "",
+            version: "v1",
+            has_batch_no: false,
+            has_expiry_date: false,
+            can_edit: false,
+            barcodes: [],
+            uoms: [],
+            stock: [],
+          },
+        ],
+        errors: [],
+      };
+    else if (
+      method === "browse.movement_history" ||
+      method === "browse.loan_item_history"
+    )
+      message = { rows: [], matched_count: 0, next_start: null };
     else if (method === "native_api.editor_clock")
       message = { timestamp: "2026-10-17 10:00:00" };
     else if (method === "people.recorded_names")
@@ -918,6 +945,74 @@ test("loan phone item cards toggle selection across the whole card", async ({
   await expect(
     page.getByRole("region", { name: "借用批量操作" }),
   ).toContainText("已选择 1 项");
+});
+
+test("card thumbnails stay square at each density and viewport", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await setup(page);
+  await page.goto("/inventory/stock");
+  await page.getByRole("button", { name: "卡片视图", exact: true }).click();
+  await expect(page.locator(".stock-card")).toHaveCount(20);
+  const firstImage = page.locator(".item-card-image").first();
+  const expectSquare = async () => {
+    const box = await firstImage.boundingBox();
+    expect(box).toBeTruthy();
+    expect(Math.abs(box!.width - box!.height)).toBeLessThanOrEqual(1);
+  };
+  await expectSquare();
+  await page.screenshot({
+    path: `${backCardShots}/stock-default-desktop-1280.png`,
+  });
+  await page.evaluate(() => {
+    document.documentElement.dataset.tiDensity = "compact";
+  });
+  await expectSquare();
+  await page.screenshot({
+    path: `${backCardShots}/stock-compact-desktop-1280.png`,
+  });
+  await page.addStyleTag({
+    content:
+      ".item-card-image{height:96px!important;aspect-ratio:auto!important}",
+  });
+  await firstImage.screenshot({
+    path: `${backCardShots}/card-before-square.png`,
+  });
+  await page
+    .locator("style")
+    .last()
+    .evaluate((style) => style.remove());
+  await expectSquare();
+  await firstImage.screenshot({
+    path: `${backCardShots}/card-after-square.png`,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "卡片视图", exact: true }).click();
+  await page.evaluate(() => {
+    document.documentElement.dataset.tiDensity = "balanced";
+  });
+  await expectSquare();
+  await page.screenshot({
+    path: `${backCardShots}/stock-default-phone-390.png`,
+  });
+  await page.evaluate(() => {
+    document.documentElement.dataset.tiDensity = "compact";
+  });
+  await expectSquare();
+  await page.screenshot({
+    path: `${backCardShots}/stock-compact-phone-390.png`,
+  });
+});
+
+test("an item detail opened directly returns to stock", async ({ page }) => {
+  await setup(page);
+  await page.goto("/inventory/stock/items/ITEM-0");
+  await page.getByRole("button", { name: "返回", exact: true }).click();
+  await expect(page).toHaveURL(/\/inventory\/stock$/);
+  await expect(
+    page.getByRole("button", { name: "卡片视图", exact: true }),
+  ).toBeVisible();
 });
 
 test("expiry phone cards show loaded location and right-aligned quantity", async ({

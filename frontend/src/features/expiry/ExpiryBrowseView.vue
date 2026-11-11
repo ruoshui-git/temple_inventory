@@ -54,6 +54,8 @@ import ForbiddenState from "../../components/ui/ForbiddenState.vue";
 import ColumnSettings from "../../components/ui/ColumnSettings.vue";
 import { orderedVisibleColumns } from "../../lib/dataTable";
 import { partitionCardColumns, ROW_FIELD_LIMIT } from "../../lib/cardLayout";
+import { useBackNavigation } from "../../composables/useBackNavigation";
+import { routeTarget } from "../../lib/routeRegistry";
 const exportMenu = ref<{ open(): void }>();
 const props = withDefaults(defineProps<{ controller: ExpiryBrowse; active?: boolean }>(), {
 	active: true,
@@ -67,7 +69,8 @@ const emit = defineEmits<{
 		allocations?: { item_code: string; warehouse: string; batch_no: string; qty: number }[],
 	];
 }>();
-const back = () => window.history.back();
+const { goBack } = useBackNavigation();
+const back = () => goBack(routeTarget("stock"));
 const c = props.controller,
 	{
 		query,

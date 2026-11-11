@@ -54,6 +54,8 @@ import { unitLabel } from "../../lib/units";
 import UnitText from "../../components/ui/UnitText.vue";
 import DetailPopover from "../../components/ui/DetailPopover.vue";
 import { formatQuantity } from "../../lib/formatQuantity";
+import { useBackNavigation } from "../../composables/useBackNavigation";
+import { routeTarget } from "../../lib/routeRegistry";
 
 import type { StockItem } from "../../lib/stockPresentation";
 import {
@@ -81,7 +83,8 @@ const props = withDefaults(
 	}>(),
 	{ active: true },
 );
-const back = () => window.history.back();
+const { goBack } = useBackNavigation();
+const back = () => goBack(routeTarget("home"));
 const emit = defineEmits<{
 	openExport: [query: import("../../lib/reportContract").ReportQuery];
 }>();

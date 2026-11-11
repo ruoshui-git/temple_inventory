@@ -13,9 +13,11 @@ import DocumentLoadingState from "../components/ui/DocumentLoadingState.vue";
 import ForbiddenState from "../components/ui/ForbiddenState.vue";
 import { isForbiddenError } from "../lib/serviceFailure";
 import UiButton from "../components/ui/UiButton.vue";
+import { useBackNavigation } from "../composables/useBackNavigation";
 
 const route = useRoute(),
 	router = useRouter();
+const { goBack } = useBackNavigation();
 const editor = ref<InstanceType<typeof CountEditorPage>>();
 const openingEditor = ref<InstanceType<typeof OpeningEditorView>>();
 const services = useInventoryServices();
@@ -75,11 +77,7 @@ onBeforeRouteUpdate(
 		true,
 );
 function back() {
-	const state = window.history.state as { back?: unknown; tiOverlay?: unknown };
-	if (state.back) {
-		if (state.tiOverlay) window.history.go(-2);
-		else router.back();
-	} else void router.push(routeTarget("counts"));
+	goBack(routeTarget("counts"), { preserveOverlay: true });
 }
 function nextCount() {
 	void router.push(routeTarget("count-new", {}, { editor: crypto.randomUUID() }));
@@ -87,7 +85,7 @@ function nextCount() {
 </script>
 <template>
 	<DocumentLoadingState v-if="dispatching" label="盘点记录加载中…" :announce="false" />
-	<ForbiddenState v-else-if="dispatchForbidden" @back="router.push(routeTarget('counts'))" />
+	<ForbiddenState v-else-if="dispatchForbidden" @back="goBack(routeTarget('counts'))" />
 	<p v-else-if="dispatchError" class="notice-bar danger" role="alert">
 		{{ dispatchError }}
 		<UiButton @click="dispatchDocument">重新读取</UiButton>
@@ -99,6 +97,7 @@ function nextCount() {
 		:name="name"
 		:recovery-id="typeof route.query.recovery === 'string' ? route.query.recovery : undefined"
 		:initial-document="initialDocument"
+		@back="back"
 	/>
 	<CountEditorPage
 		v-else-if="opening === false"

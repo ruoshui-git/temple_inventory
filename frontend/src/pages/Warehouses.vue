@@ -12,9 +12,11 @@ import {
 } from "../lib/nativeNavigation";
 import { routeTarget } from "../lib/routeRegistry";
 import { useRouteBreadcrumbLabel } from "../lib/routeBreadcrumbLabel";
+import { useBackNavigation } from "../composables/useBackNavigation";
 const route = useRoute(),
 	router = useRouter(),
 	page = ref<InstanceType<typeof NativeWarehousesPage>>();
+const { goBack } = useBackNavigation();
 useRouteBreadcrumbLabel(
 	() =>
 		page.value?.controller.selected.value?.full_label ||
@@ -39,11 +41,7 @@ function selection(warehouse: string, search: string) {
 	void router.replace({ query: { ...route.query, warehouse, search: search || undefined } });
 }
 function back() {
-	const state = window.history.state as { back?: unknown; tiOverlay?: unknown };
-	if (state.back) {
-		if (state.tiOverlay) window.history.go(-2);
-		else router.back();
-	} else void router.push(routeTarget("warehouses"));
+	goBack(routeTarget("warehouses"), { preserveOverlay: true });
 }
 function count(warehouse: string) {
 	void router.push(countDestination({ warehouse, editor: crypto.randomUUID() }));

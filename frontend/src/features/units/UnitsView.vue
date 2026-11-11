@@ -16,10 +16,13 @@ import type { useUnitsController } from "./useUnitsController";
 import type { UnitRow } from "../../services/units";
 import { useCapabilities } from "../../composables/useCapabilities";
 import ForbiddenState from "../../components/ui/ForbiddenState.vue";
+import { useBackNavigation } from "../../composables/useBackNavigation";
+import { routeTarget } from "../../lib/routeRegistry";
 
 const props = defineProps<{ controller: ReturnType<typeof useUnitsController> }>();
 const c = props.controller;
-const back = () => window.history.back();
+const { goBack } = useBackNavigation();
+const back = () => goBack(routeTarget("stock"));
 const { isMobile } = useResponsiveLayout();
 const { can } = useCapabilities();
 const mayCreate = computed(() => can("uom.create"));

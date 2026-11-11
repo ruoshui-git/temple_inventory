@@ -64,6 +64,8 @@ import { summarizeItems } from "../../lib/itemSummary";
 import { relativeTime } from "../../lib/nativeTime";
 import RemoteSelect from "../../components/ui/RemoteSelect.vue";
 import { useFilterChoices } from "../references/useFilterChoices";
+import { useBackNavigation } from "../../composables/useBackNavigation";
+import { routeTarget } from "../../lib/routeRegistry";
 const exportMenu = ref<{ open(): void }>();
 const filterChoices = useFilterChoices();
 const props = withDefaults(
@@ -84,7 +86,8 @@ const emit = defineEmits<{
 	newOperation: [kind: string];
 }>();
 const c = props.controller;
-const back = () => window.history.back();
+const { goBack } = useBackNavigation();
+const back = () => goBack(routeTarget("home"));
 const createOptions = computed(() =>
 	(Object.keys(operationLabels) as (keyof typeof operationLabels)[])
 		.filter((kind) => kind !== "Receive" && c.reference.operations[kind])
