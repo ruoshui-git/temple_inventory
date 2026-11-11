@@ -164,6 +164,8 @@ def thumbnail(item, size, v):
 	)
 	response.headers["Cache-Control"] = "private,max-age=31536000,immutable"
 	response.headers["Vary"] = "Cookie"
+	response.headers["X-Content-Type-Options"] = "nosniff"
+	response.headers["Content-Security-Policy"] = "sandbox; default-src 'none'; style-src 'unsafe-inline'"
 	return response
 
 
@@ -193,4 +195,6 @@ def original(item, v):
 	)
 	response.headers["Cache-Control"] = "private,max-age=31536000,immutable"
 	response.headers["Vary"] = "Cookie"
+	response.headers["X-Content-Type-Options"] = "nosniff"
+	response.headers["Content-Security-Policy"] = "sandbox; default-src 'none'; style-src 'unsafe-inline'"
 	return response
