@@ -6,7 +6,7 @@ import frappe
 from frappe.utils import cint
 
 from temple_inventory.configuration import POINTERS
-from temple_inventory.native_access import check_version, require_app
+from temple_inventory.native_access import check_version, require_app, retry_native_request
 from temple_inventory.native_topology import (
 	_physical_tree,
 	_remove_allowed_warehouse,
@@ -315,6 +315,7 @@ def _insert_location(kind, label, parent, short_label=None):
 
 
 @frappe.whitelist(methods=["POST"])
+@retry_native_request
 def create_location(kind, label, parent, short_label=None):
 	return _insert_location(kind, label, parent, short_label)
 
@@ -330,6 +331,7 @@ def _lock_location(name, version, *, allow_system=False):
 
 
 @frappe.whitelist(methods=["POST"])
+@retry_native_request
 def rename_location(name, label, short_label=None, version=None):
 	_, _, doc = _lock_location(name, version)
 	label, short_label = str(label or "").strip(), str(short_label or "").strip()
@@ -341,6 +343,7 @@ def rename_location(name, label, short_label=None, version=None):
 
 
 @frappe.whitelist(methods=["POST"])
+@retry_native_request
 def move_location(name, parent, version):
 	settings, physical, doc = _lock_location(name, version)
 	if doc.ti_direct_storage or doc.name == settings.physical_root_warehouse:
@@ -364,6 +367,7 @@ def move_location(name, parent, version):
 
 
 @frappe.whitelist(methods=["POST"])
+@retry_native_request
 def subdivide_shelf(name, version):
 	settings, _, doc = _lock_location(name, version)
 	if doc.warehouse_type != "Shelf" or doc.is_group or doc.ti_direct_storage:
@@ -395,6 +399,7 @@ def subdivide_shelf(name, version):
 
 
 @frappe.whitelist(methods=["POST"])
+@retry_native_request
 def set_disabled(name, disabled, version):
 	if type(disabled) is not bool:
 		frappe.throw("请选择有效的启停状态")
@@ -415,6 +420,7 @@ def set_disabled(name, disabled, version):
 
 
 @frappe.whitelist(methods=["POST"])
+@retry_native_request
 def repair_direct_storage(name, version):
 	settings, _, doc = _lock_location(name, version)
 	if not doc.is_group or doc.warehouse_type not in ("Room", "Shelf"):
@@ -442,6 +448,7 @@ def repair_direct_storage(name, version):
 
 
 @frappe.whitelist(methods=["POST"])
+@retry_native_request
 def delete_location(name, version):
 	_, physical, doc = _lock_location(name, version)
 	children = frappe.get_all(
