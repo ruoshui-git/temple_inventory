@@ -17,7 +17,13 @@ from temple_inventory.native_balances import (
 	serial_balances_by_location,
 	stock_balance,
 )
-from temple_inventory.native_stock import MOVEMENT_PURPOSES, batch_quantities, loan_balances, warehouse_scopes
+from temple_inventory.native_stock import (
+	MOVEMENT_LABELS,
+	MOVEMENT_PURPOSES,
+	batch_quantities,
+	loan_balances,
+	warehouse_scopes,
+)
 from temple_inventory.report_query import as_of_moment, in_period, resolved_period
 from temple_inventory.uom_labels import uom_label
 
@@ -514,7 +520,7 @@ class ReportContext:
 			"item_code": item.name,
 			"item_name": item.item_name,
 			"category": "" if item.item_group == self.category_root else item.item_group,
-			"category_label": "无分类" if item.item_group == self.category_root else item.item_group,
+			"category_label": self.category_label(item.item_group),
 			"stock_uom": item.stock_uom,
 			"stock_uom_label": uom_label(item.stock_uom),
 			"image": image,
@@ -522,6 +528,14 @@ class ReportContext:
 			"expiry_tracked": bool(item.has_expiry_date),
 			"disabled": bool(item.disabled),
 		}
+
+	def category_label(self, item_group):
+		if not item_group or item_group == self.category_root:
+			return "无分类"
+		cache = self.__dict__.setdefault("_category_labels", {})
+		if item_group not in cache:
+			cache[item_group] = frappe.db.get_value("Item Group", item_group, "item_group_name") or item_group
+		return cache[item_group]
 
 	def label(self, warehouse):
 		return self.location_labels.get(warehouse, "")
@@ -580,12 +594,73 @@ class ReportContext:
 
 	def matches_search(self, values, *, related=False, item_code=None, serial_values=()):
 		term = self.query["relatedSearch" if related else "search"].strip().casefold()
-		if not term or term in " ".join(str(value or "") for value in values).casefold():
+		if not term or any(term in str(value or "").casefold() for value in values):
 			return True
 		if term in {str(value or "").casefold() for value in serial_values}:
 			return True
 		# A scanned or typed barcode finds its Item on every item-based page.
 		return bool(item_code) and item_code in self.barcode_matches(related)
+
+	def search_values_for_line(self, row):
+		"""Return user-facing searchable values for this report row's active view."""
+		query = self.query
+		item_values = [
+			row.get("item_code"),
+			row.get("item_name"),
+			row.get("category_label") or row.get("category"),
+		]
+		location_values = [
+			row.get("source_warehouse_label"),
+			row.get("source_warehouse_path"),
+			row.get("destination_warehouse_label"),
+			row.get("destination_warehouse_path"),
+			row.get("warehouse_label"),
+			row.get("warehouse_path"),
+		]
+		batch_values = [row.get("batch_no")]
+		kind_labels = {**MOVEMENT_LABELS, "Reconcile": "盘点调整", "Opening": "期初库存"}
+		status_labels = {0: "草稿", 1: "已提交", 2: "已取消", "0": "草稿", "1": "已提交", "2": "已取消"}
+		outcome_labels = {
+			"Returned": "完好归还",
+			"Damaged": "损坏归还",
+			"Lost": "遗失",
+			"outstanding": "未归还",
+		}
+		loan_status_labels = {"Draft": "草稿", "Cancelled": "已取消", "Open": "未结清", "Settled": "已结清"}
+		common = [
+			row.get("document"),
+			kind_labels.get(row.get("kind")),
+			status_labels.get(row.get("docstatus")),
+			row.get("activity_title"),
+			row.get("borrower"),
+			row.get("recorder"),
+			row.get("handler"),
+			row.get("reviewer"),
+			row.get("time"),
+			row.get("date"),
+		]
+		view = query.get("view")
+		if query.get("dataset") in ("movements", "loans") and view == "records":
+			return [*common, *location_values]
+		if query.get("dataset") == "counts":
+			if view == "records":
+				return [
+					*common,
+					{"Reviewed": "已核对", "Unreviewed": "未核对"}.get(row.get("review_state")),
+				]
+			return [*item_values, *location_values, *batch_values, *common, row.get("reason")]
+		if query.get("dataset") in ("movements", "loans"):
+			return [
+				*item_values,
+				*location_values,
+				*batch_values,
+				*common,
+				row.get("original_loan"),
+				outcome_labels.get(row.get("outcome")),
+				loan_status_labels.get(row.get("loan_status")),
+				row.get("stock_uom_label") or row.get("stock_uom"),
+			]
+		return [*item_values, *location_values, *batch_values, *common]
 
 	def barcode_matches(self, related=False):
 		"""Items with a barcode containing the search term, read once per request."""
@@ -660,7 +735,7 @@ class ReportContext:
 		):
 			return False
 		return not apply_search or self.matches_search(
-			(value for key, value in row.items() if key != "serial_nos"),
+			self.search_values_for_line(row),
 			item_code=row.get("item_code"),
 			serial_values=(row.get("serial_nos") or "").split("、"),
 		)
@@ -831,9 +906,9 @@ def stock_rows(context, *, item_codes=None):
 				[
 					code,
 					item.item_name,
-					item.description,
-					item.item_group,
-					warehouse,
+					context.item_fields(item).get("category_label"),
+					context.label(warehouse),
+					context.location_fields(warehouse).get("warehouse_path"),
 					batch_name,
 					expiry,
 				],
@@ -1455,7 +1530,10 @@ def settlement_rows(context):
 		if not original or row["original_loan"] != original["original_loan"]:
 			continue
 		if not in_period(row["date"], context.related_period) or not context.matches_search(
-			row.values(), related=True, item_code=row.get("item_code")
+			context.search_values_for_line(row),
+			related=True,
+			item_code=row.get("item_code"),
+			serial_values=(row.get("serial_nos") or "").split("、"),
 		):
 			continue
 		yield {
@@ -1730,7 +1808,13 @@ def historical_rows(context):
 			continue
 		item = context.item(value.item_code)
 		if not context.matches_search(
-			[item.name, item.item_name, item.item_group, item.description, value.warehouse],
+			[
+				item.name,
+				item.item_name,
+				context.item_fields(item).get("category_label"),
+				context.label(value.warehouse),
+				context.location_fields(value.warehouse).get("warehouse_path"),
+			],
 			item_code=item.name,
 		):
 			continue
@@ -1955,7 +2039,12 @@ def activity_relations(context, activity_name, *, lifetime=False):
 		row
 		for row in relations
 		if in_period(row["date"], context.related_period)
-		and context.matches_search(row.values(), related=True, item_code=row.get("item_code"))
+		and context.matches_search(
+			context.search_values_for_line(row),
+			related=True,
+			item_code=row.get("item_code"),
+			serial_values=(row.get("serial_nos") or "").split("、"),
+		)
 	)
 
 
@@ -1985,7 +2074,22 @@ def activity_rows(context, *, metadata=True):
 				activity.start_date and getdate(activity.start_date) > getdate(period_to)
 			):
 				continue
-		if not context.matches_search([activity.name, activity.title, activity.description, activity.notes]):
+		activity_status_label = {"Active": "进行中", "Archived": "已归档", "Completed": "已完成"}.get(
+			activity.status
+		)
+		activity_type_label = type_labels.get(activity.activity_type, "")
+		if not context.matches_search(
+			[
+				activity.title,
+				activity_type_label,
+				activity_status_label,
+				activity.start_date,
+				activity.end_date,
+				activity.modified,
+				activity.description,
+				activity.notes,
+			]
+		):
 			continue
 		has_relations = next(activity_relations(context, activity.name), None) is not None
 		related_scope = (

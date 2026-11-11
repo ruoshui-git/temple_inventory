@@ -46,6 +46,7 @@ from temple_inventory.tests.test_opening_import import OpeningStockImportTests
 from temple_inventory.tests.test_permissions import PermissionTests
 from temple_inventory.tests.test_printing import PrintingTests
 from temple_inventory.tests.test_schema_audit import SchemaAuditTests
+from temple_inventory.tests.test_search_scope import SearchScopeTests
 from temple_inventory.tests.test_serial_reports import SerialReportTests
 from temple_inventory.tests.test_serial_tracking import SerialTrackingTests
 from temple_inventory.tests.test_table_preferences import TablePreferenceTests
@@ -96,6 +97,7 @@ def run(test_name=None):
 		FurnitureSeedUnitTests,
 		FurnitureSeedIntegrationTests,
 		SchemaAuditTests,
+		SearchScopeTests,
 		SerialTrackingTests,
 		SerialReportTests,
 		PrintingTests,
