@@ -1,5 +1,7 @@
 """Regression coverage for empty baseline and the guarded furniture seed."""
 
+# ruff: noqa: RUF001 — Chinese source and presentation strings are intentional.
+
 import hashlib
 import io
 import unittest
@@ -59,7 +61,7 @@ def _synthetic_package():
 			)
 		row = {
 			"capture_entry_id": f"ENTRY-{candidate}-{room}",
-			"capture_collection_name": f"test {room}",
+			"capture_collection_name": "餐厅 / 舞台" if room == "C-Hall" else f"test {room}",
 			"sequence_label": "#0001",
 			"item_seed_key": seed,
 			"item_candidate_code": candidate,
@@ -93,6 +95,14 @@ def _synthetic_package():
 		"02_items": items,
 		"03_opening_stock": stock,
 		"04_source_entries": entries,
+		"05_display_notes": {
+			"items": {
+				"TEST-T01": "与 {C16} 搭配使用。",
+				"TEST-C15": "",
+				"TEST-C16": "可与其他座椅组合。",
+			},
+			"rooms": {"A01": "A01 room note", "A06": "A06 room note", "C-Hall": "Hall room note"},
+		},
 		"_photo": photos.__getitem__,
 		"_digest": "synthetic-digest",
 	}, photos
@@ -107,20 +117,21 @@ def _expectations():
 		"units": 6,
 		"room_totals": {"A01": 2, "A06": 3, "C-Hall": 1},
 		"category_totals": {"桌子": 3, "椅/凳": 3},
-		"stage_entries": 0,
-		"stage_units": 0,
+		"stage_entries": 1,
+		"stage_units": 1,
 		"specific_stock": {"T01": {"A01": 2, "C-Hall": 1}, "C15": {"A06": 2}, "C16": {"A06": 1}},
 		"t02_distribution": {},
 	}
 
 
 class FurnitureSeedUnitTests(unittest.TestCase):
-	def test_guard_refuses_production_kufang_org_and_other_sites(self):
+	def test_guard_requires_explicit_production_allow_key_and_refuses_other_sites(self):
 		previous_site = getattr(frappe.local, "site", "development.localhost")
 		try:
 			for site, environment in (
 				("development.localhost", "production"),
 				("kufang.org", "development"),
+				("other.localhost", "production"),
 				("other.localhost", "development"),
 			):
 				frappe.local.site = site
@@ -129,9 +140,26 @@ class FurnitureSeedUnitTests(unittest.TestCase):
 						"temple_inventory.environment.descriptor",
 						return_value={"environment": environment},
 					),
+					patch.object(frappe, "conf", {"temple_inventory_allow_furniture_seed": 1}),
 					self.assertRaises(frappe.ValidationError),
 				):
 					furniture_seed._guard()
+			for config in ({}, {"temple_inventory_allow_furniture_seed": 0}):
+				frappe.local.site = "kufang.org"
+				with (
+					patch(
+						"temple_inventory.environment.descriptor", return_value={"environment": "production"}
+					),
+					patch.object(frappe, "conf", config),
+					self.assertRaisesRegex(frappe.ValidationError, "temple_inventory_allow_furniture_seed"),
+				):
+					furniture_seed._guard()
+			frappe.local.site = "kufang.org"
+			with (
+				patch("temple_inventory.environment.descriptor", return_value={"environment": "production"}),
+				patch.object(frappe, "conf", {"temple_inventory_allow_furniture_seed": 1}),
+			):
+				self.assertIsNone(furniture_seed._guard())
 		finally:
 			frappe.local.site = previous_site
 
@@ -173,60 +201,75 @@ class FurnitureSeedUnitTests(unittest.TestCase):
 		bad = {**data, "02_items": duplicate}
 		with self.assertRaisesRegex(ValueError, "seed_key"):
 			furniture_seed._validate(bad, _expectations())
+		for section, mutate, message in (
+			("items", lambda notes: notes.pop("TEST-T01"), "seed_key"),
+			("items", lambda notes: notes.update({"EXTRA": ""}), "seed_key"),
+			("rooms", lambda notes: notes.pop("A01"), "room"),
+			("rooms", lambda notes: notes.update({"A14": "extra"}), "room"),
+		):
+			bad_notes = {**data["05_display_notes"], section: dict(data["05_display_notes"][section])}
+			mutate(bad_notes[section])
+			with self.subTest(section=section, error=message), self.assertRaisesRegex(ValueError, message):
+				furniture_seed._validate({**data, "05_display_notes": bad_notes}, _expectations())
+		bad_notes = {
+			**data["05_display_notes"],
+			"items": {**data["05_display_notes"]["items"], "TEST-T01": "{UNKNOWN}"},
+		}
+		with self.assertRaisesRegex(ValueError, "未知 candidate_code"):
+			furniture_seed._validate({**data, "05_display_notes": bad_notes}, _expectations())
 		self.assertTrue(photos)
 
-	def test_description_formats_c_hall_stage_splits_only_when_informative(self):
-		def line_for(main, stage):
-			entries = []
-			if main:
-				entries.append(
-					{
-						"warehouse_short_name": "C-Hall",
-						"raw_quantity": main,
-						"capture_collection_name": "餐厅",
-						"sequence_label": "#0001",
-						"raw_title": "主餐厅桌椅",
-					}
-				)
-			if stage:
-				entries.append(
-					{
-						"warehouse_short_name": "C-Hall",
-						"raw_quantity": stage,
-						"capture_collection_name": "餐厅 / 舞台",
-						"sequence_label": "#0002",
-						"raw_title": "舞台桌椅",
-					}
-				)
-			text = furniture_seed._description(
-				{
-					"candidate_code": "T99",
-					"stock_uom_label": "张",
-					"suggested_description": "含重复的参考尺寸与合并说明",
-					"dimensions_reference_inches": "48",
-					"merge_decision": "按相同规格合并",
-					"_stock": [{"warehouse_short_name": "C-Hall", "quantity": main + stage}],
-				},
-				entries,
-			)
-			self.assertNotIn("含重复的参考尺寸与合并说明", text)
-			self.assertEqual(text.count("参考尺寸（英寸）"), 1)  # noqa: RUF001
-			self.assertEqual(text.count("合并说明"), 1)
-			return next(
-				line
-				for line in text.splitlines()
-				if line.startswith("C-Hall：")  # noqa: RUF001
-			)
+	def test_description_is_stable_user_facing_text_and_resolves_forward_code(self):
+		item = {"dimensions_reference_inches": "48 × 24"}
+		codes = {"S04": "ITM-000042"}
+		self.assertEqual(furniture_seed._description(item, "", codes), "参考尺寸（英寸）：48 × 24")
+		self.assertEqual(
+			furniture_seed._description(item, "搭配 {S04} 使用。", codes),
+			"参考尺寸（英寸）：48 × 24\n\n搭配 ITM-000042 使用。",
+		)
+		self.assertEqual(furniture_seed._description({}, "", codes), "参考尺寸（英寸）：未提供")
 
-		self.assertEqual(line_for(18, 0), "C-Hall：18 张")  # noqa: RUF001
-		self.assertEqual(
-			line_for(0, 4),
-			"C-Hall：4 张（均在舞台；舞台为厅内存放位置）",  # noqa: RUF001
+	def test_existing_item_diff_checks_full_resolved_description(self):
+		source = {"item_name": "Chair", "stock_uom_label": "把"}
+		description = "参考尺寸（英寸）：未提供\n\n搭配 ITM-000042 使用。"
+		item = {
+			"item_name": "Chair(把)",
+			"item_group": "家具与大型用品",
+			"description": description,
+			"stock_uom": "Nos",
+			"is_stock_item": 1,
+		}
+		self.assertEqual(furniture_seed._item_state_diff(item, source, "家具与大型用品", description), {})
+		item["description"] = "参考尺寸（英寸）：未提供\n\n搭配 {S04} 使用。"
+		diff = furniture_seed._item_state_diff(item, source, "家具与大型用品", description)
+		self.assertEqual(diff["description"], {"expected": description, "actual": item["description"]})
+
+	def test_count_sheet_formats_stage_split_stage_only_and_stowed_rows(self):
+		data, _photos = _synthetic_package()
+		codes = {"TEST-T01": "ITM-000001", "TEST-C15": "ITM-000002", "TEST-C16": "ITM-000003"}
+		csv_text = furniture_seed._count_sheet(data, "C-Hall", [data["03_opening_stock"][1]], codes).decode(
+			"utf-8-sig"
 		)
-		self.assertEqual(
-			line_for(8, 12),
-			"C-Hall：20 张（主餐厅 8，舞台 12；舞台为厅内存放位置）",  # noqa: RUF001
+		self.assertEqual(csv_text.splitlines()[0], "物品编码,物品名称,数量,单位,摆放")
+		self.assertIn("ITM-000001,Synthetic T01(张),1,张,舞台 1", csv_text)
+		data["03_opening_stock"][1]["quantity"] = 5
+		data["04_source_entries"][1]["raw_quantity"] = 2
+		data["04_source_entries"].append(
+			{
+				**data["04_source_entries"][1],
+				"capture_entry_id": "MAIN",
+				"capture_collection_name": "餐厅",
+				"raw_quantity": 3,
+			}
 		)
+		split = furniture_seed._count_sheet(data, "C-Hall", [data["03_opening_stock"][1]], codes).decode(
+			"utf-8-sig"
+		)
+		self.assertIn("ITM-000001,Synthetic T01(张),5,张,主餐厅 3，舞台 2", split)
+		stowed = furniture_seed._count_sheet(data, "A01", [data["03_opening_stock"][0]], codes).decode(
+			"utf-8-sig"
+		)
+		self.assertIn("ITM-000001,Synthetic T01(张),2,张,2 张收在角落待用", stowed)
 
 	def test_apply_failure_explicitly_rolls_back_before_reraising(self):
 		data, _ = _synthetic_package()
@@ -275,11 +318,27 @@ class FurnitureSeedIntegrationTests(NativeDocumentTests):
 			doc = frappe.get_doc("Item", code)
 			self.assertEqual(doc.stock_uom, "Nos")
 			self.assertTrue(doc.item_name.endswith("(张)" if item["candidate_code"] == "T01" else "(组)"))
+			if item["seed_key"] == "TEST-T01":
+				expected_description = f"参考尺寸（英寸）：48\n\n与 {item_codes['TEST-C16']} 搭配使用。"
+			elif item["seed_key"] == "TEST-C16":
+				expected_description = "参考尺寸（英寸）：48\n\n可与其他座椅组合。"
+			else:
+				expected_description = "参考尺寸（英寸）：48"
+			self.assertEqual(doc.description, expected_description)
+			for forbidden in ("#0", "Capture", "T01", "C15", "C16", "A01", "A06", "C-Hall"):
+				self.assertNotIn(forbidden, doc.description)
 			self.assertEqual(doc.ti_import_ref, item["seed_key"])
 			self.assertTrue(doc.image)
 			self.assertTrue(
 				frappe.db.exists("File", {"attached_to_doctype": "Item", "attached_to_name": code})
 			)
+			file_names = frappe.get_all(
+				"File",
+				filters={"attached_to_doctype": "Item", "attached_to_name": code},
+				pluck="file_name",
+			)
+			wanted_name = f"{code}-参考图.jpg" if item["seed_key"] == "TEST-C16" else f"{code}-1.jpg"
+			self.assertIn(wanted_name, file_names)
 		for room, label, short in (
 			("A01", "阅览室", "A01"),
 			("A06", "放映室", "A06"),
@@ -298,7 +357,8 @@ class FurnitureSeedIntegrationTests(NativeDocumentTests):
 			)
 			reconciliation = frappe.get_doc("Stock Reconciliation", first["reconciliations"][room])
 			self.assertEqual(reconciliation.ti_time_mode, "Historical")
-			self.assertEqual(reconciliation.ti_notes and reconciliation.docstatus, 1)
+			self.assertEqual(reconciliation.ti_notes, package[0]["05_display_notes"]["rooms"][room])
+			self.assertEqual(reconciliation.docstatus, 1)
 			attachments = frappe.get_all(
 				"File",
 				filters={
@@ -307,7 +367,19 @@ class FurnitureSeedIntegrationTests(NativeDocumentTests):
 				},
 				pluck="file_name",
 			)
-			self.assertTrue(any(name.startswith(f"家具盘点来源-{room}") for name in attachments), attachments)
+			self.assertIn(f"盘点清单-{room}.csv", attachments)
+			attached_csv = frappe.get_doc(
+				"File",
+				{
+					"attached_to_doctype": "Stock Reconciliation",
+					"attached_to_name": reconciliation.name,
+					"file_name": f"盘点清单-{room}.csv",
+				},
+			)
+			csv_text = attached_csv.get_content(encodings=[]).decode("utf-8-sig")
+			self.assertEqual(csv_text.splitlines()[0], "物品编码,物品名称,数量,单位,摆放")
+			self.assertNotIn("capture_", csv_text)
+			self.assertNotIn("Capture", csv_text)
 		seeded_names = {
 			name
 			for row in first["warehouse_details"].values()

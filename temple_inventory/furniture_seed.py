@@ -1,4 +1,4 @@
-"""Guarded, repeatable staging seed for the reviewed 2026-11-09 furniture count."""
+"""Guarded, repeatable seed for the reviewed 2026-11-09 furniture count."""
 
 # ruff: noqa: RUF001 — Chinese source descriptions are intentional.
 
@@ -6,6 +6,7 @@ import csv
 import hashlib
 import io
 import json
+import re
 import zipfile
 from collections import defaultdict
 from pathlib import Path
@@ -14,7 +15,7 @@ import frappe
 from erpnext.stock.utils import get_stock_balance
 
 from temple_inventory import catalog, warehouses
-from temple_inventory.item_code import allocate_item_code
+from temple_inventory.item_code import allocate_item_code, suggest_item_code
 from temple_inventory.opening import set_difference_account
 
 SOURCE_FILES = (
@@ -23,6 +24,7 @@ SOURCE_FILES = (
 	"02_items.json",
 	"03_opening_stock.json",
 	"04_source_entries.json",
+	"05_display_notes.json",
 )
 ROOMS = {
 	"A01": ("阅览室", "A01"),
@@ -45,22 +47,7 @@ EXPECTED = {
 	"specific_stock": {"T01": {"C-Hall": 18, "A01": 25}, "C15": {"A06": 2}, "C16": {"A06": 1}},
 	"t02_distribution": {"59": 1, "61.5": 1, "63": 3, "64": 6},
 }
-CSV_FIELDS = (
-	"capture_collection_name",
-	"sequence_label",
-	"capture_entry_id",
-	"item_candidate_code",
-	"item_seed_key",
-	"raw_title",
-	"raw_quantity",
-	"raw_unit",
-	"raw_dimensions",
-	"raw_count_detail",
-	"raw_notes",
-	"area_hint",
-	"arrangement_note",
-	"photo_paths",
-)
+DISPLAY_NOTE_ROOMS = {"A01", "A06", "C-Hall"}
 
 
 def _guard():
@@ -70,7 +57,16 @@ def _guard():
 	environment = descriptor().get("environment")
 	site = frappe.local.site
 	if environment == "production" or site == "kufang.org":
-		frappe.throw("家具 seed 禁止在 production 或 kufang.org 站点运行")
+		if (
+			site == "kufang.org"
+			and environment == "production"
+			and frappe.conf.get("temple_inventory_allow_furniture_seed")
+		):
+			return
+		frappe.throw(
+			"家具 seed 禁止在 production 或 kufang.org 站点运行；"
+			"仅 kufang.org production 可通过配置 temple_inventory_allow_furniture_seed 临时允许"
+		)
 	if site == "development.localhost":
 		return
 	if site == "staging.kufang.online" and frappe.conf.get("temple_inventory_environment") == "staging":
@@ -113,58 +109,13 @@ def _load_package(package):
 	return data
 
 
-def _description(item, entries):
-	lines = []
-	lines.append(f"参考尺寸（英寸）：{item.get('dimensions_reference_inches') or '未提供'}")
-	lines.append(f"合并说明：{item.get('merge_decision') or '无'}")
-	lines.append("来源记录：")
-	for entry in entries:
-		lines.append(
-			f"{entry['capture_collection_name']} {entry['sequence_label']}："
-			f"{entry['raw_title']}；原始数量 {entry['raw_quantity']} {entry.get('raw_unit') or ''}".rstrip()
+def _description(item, note, codes):
+	text = f"参考尺寸（英寸）：{item.get('dimensions_reference_inches') or '未提供'}"
+	if note:
+		text += "\n\n" + re.sub(
+			r"\{([^{}]+)\}", lambda match: codes.get(match.group(1), match.group(0)), note
 		)
-	if item["candidate_code"] in ("C15", "C16"):
-		seats = 3 if item["candidate_code"] == "C15" else 2
-		lines.append(f"每组为物理连接的 {seats} 人座椅，库存按组计数。")
-	if item["candidate_code"] == "T02":
-		lines.append("尺寸分布：59″ 1 张、61.5″ 1 张、63″ 3 张、64″ 6 张；来源明细逐条保留。")
-	if item["candidate_code"] == "T05":
-		lines.append("照片仅作外观参考：照片为 C-Hall #0004 的 96 英寸自制桌，尺寸与本物品不同。")
-	lines.extend(("", "2026-11-09 盘点：位置与摆放"))
-	by_room = defaultdict(list)
-	for entry in entries:
-		by_room[entry["warehouse_short_name"]].append(entry)
-	stock = {row["warehouse_short_name"]: row["quantity"] for row in item.get("_stock", [])}
-	for room in ("A01", "A06", "C-Hall"):
-		if room not in stock:
-			continue
-		room_entries = by_room.get(room, [])
-
-		arrangements = [
-			entry.get("arrangement_note") for entry in room_entries if entry.get("arrangement_note")
-		]
-		if room == "C-Hall":
-			stage = sum(
-				entry["raw_quantity"]
-				for entry in room_entries
-				if entry.get("capture_collection_name") == "餐厅 / 舞台"
-			)
-			main = stock[room] - stage
-			if stage == 0:
-				text = f"C-Hall：{stock[room]} {item['stock_uom_label']}"
-			elif main == 0:
-				text = f"C-Hall：{stock[room]} {item['stock_uom_label']}（均在舞台；舞台为厅内存放位置）"
-			else:
-				text = (
-					f"C-Hall：{stock[room]} {item['stock_uom_label']}（主餐厅 {main}，舞台 {stage}；"
-					"舞台为厅内存放位置）"
-				)
-		else:
-			text = f"{room}：{stock[room]} {item['stock_uom_label']}"
-		if arrangements:
-			text += "；" + "；".join(dict.fromkeys(arrangements))
-		lines.append(text)
-	return "\n".join(line for line in lines if line is not None)
+	return text
 
 
 def _validate(data, expected=None):
@@ -188,6 +139,29 @@ def _validate(data, expected=None):
 	if not all(candidates) or len(set(candidates)) != len(candidates):
 		raise ValueError("candidate_code 缺失或重复")
 	by_seed = {item["seed_key"]: item for item in items}
+	display_notes = data.get("05_display_notes", {})
+	item_notes = display_notes.get("items") if isinstance(display_notes, dict) else None
+	room_notes = display_notes.get("rooms") if isinstance(display_notes, dict) else None
+	if not isinstance(item_notes, dict):
+		raise ValueError("05_display_notes.json 的 items 必须是对象")
+	if set(item_notes) != set(seed_keys):
+		missing = sorted(set(seed_keys) - set(item_notes))
+		extra = sorted(set(item_notes) - set(seed_keys))
+		raise ValueError(f"05_display_notes.json seed_key 不匹配：缺少 {missing}，多余 {extra}")
+	if any(not isinstance(note, str) for note in item_notes.values()):
+		raise ValueError("05_display_notes.json 的 Item 说明必须是字符串")
+	room_keys = set(room_notes) if isinstance(room_notes, dict) else set()
+	if not isinstance(room_notes, dict) or room_keys != DISPLAY_NOTE_ROOMS:
+		missing = sorted(DISPLAY_NOTE_ROOMS - room_keys)
+		extra = sorted(room_keys - DISPLAY_NOTE_ROOMS)
+		raise ValueError(f"05_display_notes.json room 不匹配：缺少 {missing}，多余 {extra}")
+	if any(not isinstance(note, str) or not note.strip() for note in room_notes.values()):
+		raise ValueError("05_display_notes.json 的 room 文本必须是非空字符串")
+	known_candidates = set(candidates)
+	for note in item_notes.values():
+		unknown = sorted(set(re.findall(r"\{([^{}]+)\}", note)) - known_candidates)
+		if unknown:
+			raise ValueError(f"05_display_notes.json 包含未知 candidate_code 占位符：{unknown}")
 	if any(row.get("item_seed_key") not in by_seed for row in stock):
 		raise ValueError("存在找不到对应 Item 的期初库存行")
 	pairs = [(row["item_seed_key"], row["warehouse_short_name"]) for row in stock]
@@ -288,17 +262,43 @@ def _validate(data, expected=None):
 	}
 
 
-def _entry_map(data):
+def _format_item_name(item):
+	return f"{item['item_name']}({item['stock_uom_label']})"
+
+
+def _item_state_diff(item, source, group, description):
+	"""Compare every seed-owned Item field, including its fully resolved description."""
+	expected_fields = {
+		"item_name": _format_item_name(source),
+		"item_group": group,
+		"description": description,
+		"stock_uom": "Nos",
+		"is_stock_item": 1,
+	}
 	return {
-		item["seed_key"]: [
-			row for row in data["04_source_entries"] if row["item_seed_key"] == item["seed_key"]
-		]
-		for item in data["02_items"]
+		key: {"expected": value, "actual": item.get(key)}
+		for key, value in expected_fields.items()
+		if item.get(key) != value
 	}
 
 
-def _format_item_name(item):
-	return f"{item['item_name']}({item['stock_uom_label']})"
+def _preview_codes(sources, item_codes):
+	"""Resolve missing Item codes without advancing the allocator's series."""
+	missing = [source for source in sources if not item_codes.get(source["seed_key"])]
+	if not missing:
+		return dict(item_codes)
+	first = suggest_item_code()
+	number = int(first.removeprefix("ITM-"))
+	for source in missing:
+		while number <= 999999:
+			code = f"ITM-{number:06d}"
+			number += 1
+			if not frappe.db.exists("Item", code):
+				item_codes[source["seed_key"]] = code
+				break
+		else:
+			frappe.throw("Item code capacity ITM-999999 has been exhausted")
+	return dict(item_codes)
 
 
 def _existing_location(parent, label):
@@ -354,7 +354,6 @@ def _ensure_expected_state(data, *, apply=False):
 		plan["item_group"].append({"action": "unchanged", "name": group})
 	else:
 		plan["item_group"].append({"action": "create", "name": "家具与大型用品", "parent": root})
-	entries_by_seed = _entry_map(data)
 	stock_by_seed = defaultdict(list)
 	for row in data["03_opening_stock"]:
 		stock_by_seed[row["item_seed_key"]].append(row)
@@ -368,25 +367,18 @@ def _ensure_expected_state(data, *, apply=False):
 				and frappe.db.get_value("Item", candidate_name, "ti_import_ref") != source["seed_key"]
 			):
 				frappe.throw(f"Item {candidate_name} 名称相同但 seed key 不匹配")
-		code = code or ""
+		item_codes[source["seed_key"]] = code or ""
+	existing_seed_keys = {key for key, code in item_codes.items() if code}
+	item_codes = _preview_codes(data["02_items"], item_codes)
+	candidate_codes = {item["candidate_code"]: item_codes[item["seed_key"]] for item in data["02_items"]}
+	for source in data["02_items"]:
+		code = frappe.db.get_value("Item", {"ti_import_ref": source["seed_key"]}, "name")
 		description = _description(
-			{**source, "_stock": stock_by_seed[source["seed_key"]]},
-			entries_by_seed[source["seed_key"]],
+			source, data["05_display_notes"]["items"][source["seed_key"]], candidate_codes
 		)
 		if code:
 			item = frappe.get_doc("Item", code)
-			expected_fields = {
-				"item_name": _format_item_name(source),
-				"item_group": group or "家具与大型用品",
-				"description": description,
-				"stock_uom": "Nos",
-				"is_stock_item": 1,
-			}
-			diff = {
-				key: {"expected": value, "actual": item.get(key)}
-				for key, value in expected_fields.items()
-				if item.get(key) != value
-			}
+			diff = _item_state_diff(item, source, group or "家具与大型用品", description)
 			if diff:
 				frappe.throw(f"Seed Item {source['seed_key']} 有主数据差异：{frappe.as_json(diff)}")
 			item_codes[source["seed_key"]] = code
@@ -400,9 +392,15 @@ def _ensure_expected_state(data, *, apply=False):
 			)
 		else:
 			plan["items"].append(
-				{"action": "create", "seed_key": source["seed_key"], "item_name": _format_item_name(source)}
+				{
+					"action": "create",
+					"seed_key": source["seed_key"],
+					"item_code": code,
+					"item_name": _format_item_name(source),
+					"description": description,
+					"description_pending_codes": False,
+				}
 			)
-			item_codes[source["seed_key"]] = ""
 	for source in data["02_items"]:
 		code = item_codes[source["seed_key"]]
 		for photo in source["photos"]:
@@ -430,7 +428,6 @@ def _ensure_expected_state(data, *, apply=False):
 				{
 					"action": "unchanged" if file_row else "create",
 					"seed_key": source["seed_key"],
-					"photo_id": photo["capture_photo_id"],
 					"primary": source["photos"].index(photo) == 0,
 					"reference_only": bool(photo.get("reference_only")),
 				}
@@ -482,7 +479,7 @@ def _ensure_expected_state(data, *, apply=False):
 	# Existing item balances are checked before any create action can mutate the site.
 	for source in data["02_items"]:
 		code = item_codes[source["seed_key"]]
-		if not code:
+		if source["seed_key"] not in existing_seed_keys:
 			continue
 		wanted = {
 			row["warehouse_short_name"]: int(row["quantity"])
@@ -526,7 +523,43 @@ def _create_area(label, parent, short_label=None):
 	return _existing_location(parent, label)
 
 
-def _create_reconciliation(room, room_leaf, rows, item_codes, room_note, source_entries):
+def _count_sheet(data, room, rows, item_codes):
+	items = {item["seed_key"]: item for item in data["02_items"]}
+	entries = [entry for entry in data["04_source_entries"] if entry["warehouse_short_name"] == room]
+	output = io.StringIO()
+	writer = csv.writer(output)
+	writer.writerow(("物品编码", "物品名称", "数量", "单位", "摆放"))
+	for row in rows:
+		item = items[row["item_seed_key"]]
+		item_entries = [entry for entry in entries if entry["item_seed_key"] == item["seed_key"]]
+		placement = ""
+		if room == "C-Hall":
+			stage = sum(
+				int(entry["raw_quantity"])
+				for entry in item_entries
+				if entry.get("capture_collection_name") == "餐厅 / 舞台"
+			)
+			if stage:
+				main = int(row["quantity"]) - stage
+				placement = f"主餐厅 {main}，舞台 {stage}" if main else f"舞台 {stage}"
+		elif room == "A01":
+			arranged = [entry for entry in item_entries if entry.get("arrangement_note")]
+			if arranged:
+				quantity = sum(int(entry["raw_quantity"]) for entry in arranged)
+				placement = f"{quantity} {item['stock_uom_label']}收在角落待用"
+		writer.writerow(
+			(
+				item_codes[item["seed_key"]],
+				_format_item_name(item),
+				row["quantity"],
+				item["stock_uom_label"],
+				placement,
+			)
+		)
+	return output.getvalue().encode("utf-8-sig")
+
+
+def _create_reconciliation(room, room_leaf, rows, item_codes, room_note, data):
 	doc = frappe.new_doc("Stock Reconciliation")
 	doc.company = frappe.get_single("Temple Inventory Settings").company
 	doc.purpose = "Opening Stock"
@@ -551,28 +584,12 @@ def _create_reconciliation(room, room_leaf, rows, item_codes, room_note, source_
 		)
 	doc.insert(ignore_permissions=True)
 	doc.submit()
-	output = io.StringIO()
-	writer = csv.DictWriter(output, fieldnames=CSV_FIELDS, extrasaction="ignore")
-	writer.writeheader()
-	for entry in source_entries:
-		writer.writerow({**entry, "photo_paths": ";".join(entry.get("photo_paths") or [])})
 	from temple_inventory.native_samples import _attach_file
 
 	_attach_file(
-		f"家具盘点来源-{room}.csv", output.getvalue().encode("utf-8-sig"), "Stock Reconciliation", doc.name
+		f"盘点清单-{room}.csv", _count_sheet(data, room, rows, item_codes), "Stock Reconciliation", doc.name
 	)
 	return doc
-
-
-def _room_note(room, room_data):
-	text = next(row["description"] for row in room_data if row["key"] == room)
-	if room == "C-Hall":
-		text += "\n盘点合计 70：主餐厅 58，舞台 12（舞台为厅内存放位置，不单设仓库）。"
-	elif room == "A01":
-		text += "\n盘点合计 148，含收起待用 38（其中 T04 为 2）；物品仍可用，全部计入库存。"
-	else:
-		text += "\n盘点合计 57；固定连排座椅按物理连接的组计数。"
-	return text + "\n以上为 2026-11-09 最后观察到的数量。"
 
 
 def _apply(data, plan, item_codes):
@@ -600,7 +617,6 @@ def _apply(data, plan, item_codes):
 		frappe.db.get_value("Item Group", "家具与大型用品", "name")
 		or catalog.create_category("家具与大型用品", root, is_group=True)["name"]
 	)
-	entries_by_seed = _entry_map(data)
 	stock_by_seed = defaultdict(list)
 	for row in data["03_opening_stock"]:
 		stock_by_seed[row["item_seed_key"]].append(row)
@@ -608,12 +624,13 @@ def _apply(data, plan, item_codes):
 	for source in data["02_items"]:
 		seed_key = source["seed_key"]
 		code = frappe.db.get_value("Item", {"ti_import_ref": seed_key}, "name")
-		description = _description(
-			{**source, "_stock": stock_by_seed[seed_key]},
-			entries_by_seed[seed_key],
-		)
-		if not code:
-			code = allocate_item_code()
+		item_codes[seed_key] = code or allocate_item_code()
+	candidate_codes = {item["candidate_code"]: item_codes[item["seed_key"]] for item in data["02_items"]}
+	for source in data["02_items"]:
+		seed_key = source["seed_key"]
+		code = item_codes[seed_key]
+		description = _description(source, data["05_display_notes"]["items"][seed_key], candidate_codes)
+		if not frappe.db.exists("Item", code):
 			catalog.save_item(
 				{
 					"item_code": code,
@@ -629,9 +646,12 @@ def _apply(data, plan, item_codes):
 			item_doc = frappe.get_doc("Item", code)
 			item_doc.ti_import_ref = seed_key
 			item_doc.save(ignore_permissions=True)
-		item_codes[seed_key] = code
 		item_doc = frappe.get_doc("Item", code)
+		reference_count = sum(bool(photo.get("reference_only")) for photo in source["photos"])
+		photo_indexes = {"regular": 0, "reference": 0}
 		for index, photo in enumerate(source["photos"]):
+			kind = "reference" if photo.get("reference_only") else "regular"
+			photo_indexes[kind] += 1
 			content = data["_photo"](photo["packaged_image_path"])
 			found = None
 			for file_row in frappe.get_all(
@@ -648,7 +668,9 @@ def _apply(data, plan, item_codes):
 				from temple_inventory.native_samples import _attach_file
 
 				filename = (
-					("参考图-" if photo.get("reference_only") else "") + photo["capture_photo_id"] + ".jpg"
+					f"{code}-参考图{f'-{photo_indexes[kind]}' if reference_count > 1 else ''}.jpg"
+					if photo.get("reference_only")
+					else f"{code}-{photo_indexes[kind]}.jpg"
 				)
 				found = _attach_file(filename, content, "Item", code, "image" if index == 0 else None)
 			if index == 0 and item_doc.image != found.file_url:
@@ -673,9 +695,13 @@ def _apply(data, plan, item_codes):
 			reconciliation_names[room] = existing
 			continue
 		rows = [row for row in data["03_opening_stock"] if row["warehouse_short_name"] == room]
-		room_entries = [row for row in data["04_source_entries"] if row["warehouse_short_name"] == room]
 		doc = _create_reconciliation(
-			room, room_leaves[room], rows, item_codes, _room_note(room, data["01_warehouses"]), room_entries
+			room,
+			room_leaves[room],
+			rows,
+			item_codes,
+			data["05_display_notes"]["rooms"][room],
+			data,
 		)
 		reconciliation_names[room] = doc.name
 	photo_coverage = {}
@@ -690,9 +716,7 @@ def _apply(data, plan, item_codes):
 		photo_coverage[source["seed_key"]] = {
 			"primary": bool(frappe.db.get_value("Item", code, "image")),
 			"attachments": len([row for row in files if row.attached_to_field != "ti_image_variant"]),
-			"reference_only": [
-				photo["capture_photo_id"] for photo in source["photos"] if photo.get("reference_only")
-			],
+			"reference_only": sum(bool(photo.get("reference_only")) for photo in source["photos"]),
 		}
 	seed_codes = sorted(item_codes.values())
 	file_rows = frappe.get_all(
