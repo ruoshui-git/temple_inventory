@@ -83,6 +83,16 @@ def bootstrap():
 		"initialization": configuration_status(),
 		"settings": {
 			field: settings.get(field)
+			if field
+			not in (
+				"root_warehouse",
+				"physical_root_warehouse",
+				"system_root_warehouse",
+				"leased_warehouse",
+				"damaged_warehouse",
+			)
+			or settings.get(field) in visible
+			else ""
 			for field in (
 				"company",
 				"root_warehouse",

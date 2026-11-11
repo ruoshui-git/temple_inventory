@@ -5,6 +5,7 @@
 import hashlib
 
 import frappe
+from frappe.permissions import get_role_permissions
 
 from temple_inventory.native_access import erpnext_installed, require_frontend_account
 from temple_inventory.native_topology import present_locations
@@ -18,7 +19,7 @@ POINTERS = {
 }
 
 
-def _settings(*, write=False, lock=False):
+def _settings(*, write=False, lock=False, global_read=False):
 	require_frontend_account()
 	if not erpnext_installed():
 		frappe.throw("需要先安装 ERPNext")
@@ -30,7 +31,11 @@ def _settings(*, write=False, lock=False):
 			"select field from `tabSingles` where doctype=%s for update", "Temple Inventory Settings"
 		)
 	settings = frappe.get_doc("Temple Inventory Settings")
-	settings.check_permission("write" if write else "read")
+	if global_read and not write:
+		if not get_role_permissions("Temple Inventory Settings").get("read"):
+			frappe.throw("当前账户无权读取库存配置", frappe.PermissionError)
+	else:
+		settings.check_permission("write" if write else "read")
 	return settings
 
 
@@ -84,7 +89,7 @@ def _inside(row, root):
 
 @frappe.whitelist()
 def status():
-	settings = _settings()
+	settings = _settings(global_read=True)
 	companies = frappe.get_list("Company", pluck="name", limit_page_length=0)
 	company = settings.company or (companies[0] if len(companies) == 1 else "")
 	if company:
@@ -123,7 +128,7 @@ def status():
 					}[issue],
 				}
 			)
-		pointers.append({"field": field, "label": label, "current": name, "issue": issue})
+		pointers.append({"field": field, "label": label, "current": name if row else "", "issue": issue})
 	root = configured.get("root_warehouse")
 	for field in (
 		"physical_root_warehouse",

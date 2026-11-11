@@ -9,6 +9,10 @@ def _suggestions(doctype, field, search, filters=None, limit=30):
 	search = str(search or "").strip()[:100]
 	conditions = dict(filters or {})
 	conditions[field] = ["like", f"%{search}%"] if search else ["!=", ""]
+	if doctype in ("Stock Entry", "Stock Reconciliation"):
+		allowed_names = _documents_with_visible_warehouses(doctype, conditions)
+		if allowed_names is not None:
+			conditions["name"] = ["in", sorted(allowed_names) or [""]]
 	rows = frappe.get_list(
 		doctype,
 		filters=conditions,
@@ -20,6 +24,47 @@ def _suggestions(doctype, field, search, filters=None, limit=30):
 	return [
 		{"value": row[field], "label": row[field], "count": int(row.count or 0)} for row in rows if row[field]
 	]
+
+
+def _documents_with_visible_warehouses(doctype, conditions):
+	"""Return matching readable documents whose lines use only readable warehouses."""
+	settings = frappe.get_single("Temple Inventory Settings")
+	warehouse_names = set(
+		frappe.get_list(
+			"Warehouse",
+			filters={"company": settings.company},
+			fields=["name"],
+			limit_page_length=0,
+			pluck="name",
+		)
+	)
+	if len(warehouse_names) == frappe.db.count("Warehouse", {"company": settings.company}):
+		return None
+	documents = frappe.get_list(
+		doctype, filters=conditions, fields=["name"], limit_page_length=0, pluck="name"
+	)
+	if not documents:
+		return set()
+	if doctype == "Stock Entry":
+		warehouse_check = """(s_warehouse is not null and s_warehouse not in %(warehouses)s)
+			or (t_warehouse is not null and t_warehouse not in %(warehouses)s)"""
+	else:
+		warehouse_check = "warehouse is not null and warehouse not in %(warehouses)s"
+	params = {"documents": tuple(documents)}
+	if warehouse_names:
+		params["warehouses"] = tuple(warehouse_names)
+		outside = warehouse_check
+	else:
+		outside = warehouse_check.replace("s_warehouse not in %(warehouses)s", "s_warehouse is not null")
+		outside = outside.replace("t_warehouse not in %(warehouses)s", "t_warehouse is not null")
+		outside = outside.replace("warehouse not in %(warehouses)s", "warehouse is not null")
+	invalid = frappe.db.sql(
+		f"select distinct parent from `tab{'Stock Entry Detail' if doctype == 'Stock Entry' else 'Stock Reconciliation Item'}` "
+		f"where parent in %(documents)s and ({outside})",
+		params,
+		pluck=True,
+	)
+	return set(documents) - set(invalid)
 
 
 @frappe.whitelist()

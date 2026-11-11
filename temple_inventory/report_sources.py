@@ -6,6 +6,7 @@ import tempfile
 from collections import defaultdict
 
 import frappe
+from frappe.permissions import get_role_permissions
 from frappe.utils import get_datetime, get_time, getdate, now_datetime, nowdate
 
 from temple_inventory.native_balances import (
@@ -110,7 +111,8 @@ class ReportContext:
 		self.location_labels = {row["name"]: row["label"] for row in presented}
 		self.location_paths = {row["name"]: row["path"] for row in presented}
 		self.native_location_names = {row["name"]: row["native_name"] for row in presented}
-		self.settings.check_permission("read")
+		if not get_role_permissions("Temple Inventory Settings").get("read"):
+			frappe.throw("当前账户无权读取库存配置", frappe.PermissionError)
 		self.company = self.settings.company
 		if not self.company:
 			frappe.throw("请先配置库存公司")
@@ -389,7 +391,7 @@ class ReportContext:
 					)
 					by_parent = defaultdict(list)
 					for child in child_rows:
-						by_parent[child.parent].append(dict(child))
+						by_parent[child.parent].append({**dict(child), "doctype": definition.options})
 					child_tables[field] = by_parent
 			for row in rows:
 				payload = dict(row)
@@ -448,7 +450,7 @@ class ReportContext:
 					order_by="parent asc, idx asc",
 					limit_page_length=0,
 				):
-					entries[row.parent].append(_PreloadedRow(dict(row)))
+					entries[row.parent].append(_PreloadedRow({**dict(row), "doctype": child_doctype}))
 					if row.get("serial_no"):
 						self._serial_by_bundle_entry[row.name] = row.serial_no
 			for row in bundles:
