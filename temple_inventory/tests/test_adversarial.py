@@ -1,5 +1,7 @@
 """Rollback-only adversarial probes for audited native inventory boundaries."""
 
+# ruff: noqa: RUF001 — Chinese UI punctuation is intentional.
+
 import copy
 import hashlib
 import io
@@ -511,6 +513,47 @@ class AdversarialTests(NativeDocumentTests):
 		result = counts.save_count(str(uuid4()), data)
 		self.assertTrue(result.get("no_adjustment"))
 		self.assertFalse(result.get("name"))
+
+	def _queued_count_draft(self):
+		self.receipt(2)
+		result = counts.save_count(str(uuid4()), self.count_data(1, "Reviewed"))
+		return frappe.get_doc("Stock Reconciliation", result["name"])
+
+	def test_adv_queued_count_errors_hide_tracebacks(self):
+		cases = (
+			(
+				"QueryDeadlockError: (1020, \"Record has changed since last read in table 'tabSingles'\")",
+				"后台确认与另一项库存操作发生冲突，未作任何更改，请重新确认。",
+			),
+			(
+				'Traceback (most recent call last):\n  File "worker.py", line 42\nRuntimeError: private traceback',
+				"后台操作失败，未作任何更改，请重试或联系管理员。",
+			),
+			("数量超出允许的小数位数", "数量超出允许的小数位数"),
+		)
+		for content, expected in cases:
+			with self.subTest(content=content):
+				doc = self._queued_count_draft()
+				doc.add_comment("Comment", frappe._("Action Failed") + "<br><br>" + content)
+				with patch("temple_inventory.native_api.QUEUED_ROW_THRESHOLD", 0):
+					serialized = native_api.serialize(doc)
+				self.assertEqual(serialized["queue_error"], expected)
+				self.assertNotIn("Traceback", serialized["queue_error"])
+				self.assertNotIn("tabSingles", serialized["queue_error"])
+
+	def test_adv_submitted_count_does_not_show_an_earlier_queue_failure(self):
+		doc = self._queued_count_draft()
+		doc.submit()
+		self.assertEqual(doc.docstatus, 1)
+		doc.add_comment(
+			"Comment",
+			frappe._("Action Failed")
+			+ "<br><br>QueryTimeoutError: Lock wait timeout exceeded; try restarting transaction",
+		)
+		with patch("temple_inventory.native_api.QUEUED_ROW_THRESHOLD", 0):
+			serialized = native_api.serialize(doc)
+		# A draft that failed once and was then confirmed must not keep showing the old failure.
+		self.assertEqual(serialized["queue_error"], "")
 
 	def test_adv_count_existing_draft_is_untouched_when_reviews_match(self):
 		self.receipt(2)

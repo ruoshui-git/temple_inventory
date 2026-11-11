@@ -39,6 +39,7 @@ HEADER_FIELDS = {
 	"ti_handler_name",
 	"ti_reviewer_name",
 }
+QUEUED_ROW_THRESHOLD = 100
 SETTLEMENT_KINDS = ("Return", "Damage", "Loss")
 SETTLEMENT_HEADER_FIELDS = {"ti_activity", "ti_borrower"}
 ENTRY_LINE_FIELDS = {
@@ -279,7 +280,11 @@ def serialize(doc):
 	permissions["create"] = frappe.has_permission(doc.doctype, "create")
 	editable = bool(doc.docstatus == 0 and kind and permissions["write"])
 	queue_error = ""
-	if doc.doctype == "Stock Reconciliation" and doc.docstatus == 0 and len(doc.get("items", [])) > 100:
+	if (
+		doc.doctype == "Stock Reconciliation"
+		and doc.docstatus == 0
+		and len(doc.get("items", [])) > QUEUED_ROW_THRESHOLD
+	):
 		failure_prefix = frappe._("Action Failed")
 		comments = frappe.get_all(
 			"Comment",
@@ -294,7 +299,21 @@ def serialize(doc):
 			limit_page_length=1,
 		)
 		if comments and comments[0].content.startswith(failure_prefix):
-			queue_error = re.sub(r"<[^>]*>", "", comments[0].content[len(failure_prefix) :]).strip()
+			content = comments[0].content[len(failure_prefix) :]
+			if any(
+				marker in content
+				for marker in (
+					"QueryDeadlockError",
+					"QueryTimeoutError",
+					"Record has changed since last read",
+					"Lock wait timeout",
+				)
+			):
+				queue_error = "后台确认与另一项库存操作发生冲突，未作任何更改，请重新确认。"
+			elif "Traceback (most recent call last)" in content:
+				queue_error = "后台操作失败，未作任何更改，请重试或联系管理员。"
+			else:
+				queue_error = re.sub(r"<[^>]*>", "", content).strip()
 	data.update(
 		{
 			"identity": {"doctype": doc.doctype, "name": doc.name},
