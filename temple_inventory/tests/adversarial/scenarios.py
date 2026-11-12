@@ -1395,7 +1395,10 @@ def _hold_import_job(import_name):
 
 def R8(audit, iteration):
 	items = _ensure_r8_stock(audit)
-	stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+	# The baseline is read as of a whole second; stock posted in that same second is not in it yet.
+	time.sleep(2)
+	# Site time, not the harness process clock: a count stamped ahead of the site hides later stock.
+	stamp = audit.direct(lambda frappe: frappe.utils.now_datetime()).strftime("%Y-%m-%d %H:%M:%S")
 	baseline = audit.rpc(
 		audit.session("Inventory Manager"),
 		"R8",

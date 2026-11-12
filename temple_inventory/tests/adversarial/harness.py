@@ -1072,7 +1072,7 @@ class Audit:
 	def background_queue_state(self):
 		return self.direct(lambda frappe: _background_queue_state(frappe, self.site))
 
-	def wait_for_background_idle(self, label, *, timeout=600, max_total=100):
+	def wait_for_background_idle(self, label, *, timeout=600, max_total=350):
 		"""Wait for this site's queued or started jobs without disturbing other tenants."""
 		started = time.monotonic()
 		while True:
