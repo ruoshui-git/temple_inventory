@@ -42,6 +42,11 @@ KNOWN_FILE_PERMISSION_HOOKS = {
 	"frappe.core.doctype.file.file.has_permission",
 	"temple_inventory.native_files.file_permission",
 }
+COUNT_REVIEW_LABELS = {"Reviewed": "已核对", "Unreviewed": "未核对"}
+STATUS_LABELS = {0: "草稿", 1: "已提交", 2: "已取消", "0": "草稿", "1": "已提交", "2": "已取消"}
+OUTCOME_LABELS = {"Returned": "完好归还", "Damaged": "损坏归还", "Lost": "遗失", "outstanding": "未归还"}
+LOAN_STATUS_LABELS = {"Draft": "草稿", "Cancelled": "已取消", "Open": "未结清", "Settled": "已结清"}
+KIND_LABELS = {**MOVEMENT_LABELS, "Reconcile": "盘点调整", "Opening": "期初库存"}
 
 
 def _has_custom_permission_check(doctype):
@@ -125,6 +130,7 @@ class ReportContext:
 			lambda name, by_batch=False: loan_balances(name, by_batch=by_batch)
 		)
 		self._preloaded_loan_balances = {}
+		self._document_fields = {}
 		self.query = query
 		self.scope = query["scope"]
 		self.period = resolved_period(self.scope["period"])
@@ -638,7 +644,15 @@ class ReportContext:
 			if memo is not None and key in memo:
 				label = memo[key]
 			else:
-				label = frappe.db.get_value("Item Group", item_group, "item_group_name") or item_group
+				cache.update(
+					{
+						row.name: row.item_group_name
+						for row in frappe.get_all(
+							"Item Group", fields=["name", "item_group_name"], limit_page_length=0
+						)
+					}
+				)
+				label = cache.get(item_group) or item_group
 				if memo is not None:
 					memo[key] = label
 			cache[item_group] = label
@@ -711,6 +725,40 @@ class ReportContext:
 	def search_values_for_line(self, row):
 		"""Return user-facing searchable values for this report row's active view."""
 		query = self.query
+		view = query.get("view")
+		if query.get("dataset") == "counts" and view == "records":
+			return (
+				row.get("document"),
+				KIND_LABELS.get(row.get("kind")),
+				STATUS_LABELS.get(row.get("docstatus")),
+				row.get("activity_title"),
+				row.get("borrower"),
+				row.get("recorder"),
+				row.get("handler"),
+				row.get("reviewer"),
+				row.get("time"),
+				row.get("date"),
+				COUNT_REVIEW_LABELS.get(row.get("review_state")),
+			)
+		if query.get("dataset") in ("movements", "loans") and view == "records":
+			return (
+				row.get("document"),
+				KIND_LABELS.get(row.get("kind")),
+				STATUS_LABELS.get(row.get("docstatus")),
+				row.get("activity_title"),
+				row.get("borrower"),
+				row.get("recorder"),
+				row.get("handler"),
+				row.get("reviewer"),
+				row.get("time"),
+				row.get("date"),
+				row.get("source_warehouse_label"),
+				row.get("source_warehouse_path"),
+				row.get("destination_warehouse_label"),
+				row.get("destination_warehouse_path"),
+				row.get("warehouse_label"),
+				row.get("warehouse_path"),
+			)
 		item_values = [
 			row.get("item_code"),
 			row.get("item_name"),
@@ -725,19 +773,11 @@ class ReportContext:
 			row.get("warehouse_path"),
 		]
 		batch_values = [row.get("batch_no")]
-		kind_labels = {**MOVEMENT_LABELS, "Reconcile": "盘点调整", "Opening": "期初库存"}
-		status_labels = {0: "草稿", 1: "已提交", 2: "已取消", "0": "草稿", "1": "已提交", "2": "已取消"}
-		outcome_labels = {
-			"Returned": "完好归还",
-			"Damaged": "损坏归还",
-			"Lost": "遗失",
-			"outstanding": "未归还",
-		}
-		loan_status_labels = {"Draft": "草稿", "Cancelled": "已取消", "Open": "未结清", "Settled": "已结清"}
+		kind_labels = KIND_LABELS
 		common = [
 			row.get("document"),
 			kind_labels.get(row.get("kind")),
-			status_labels.get(row.get("docstatus")),
+			STATUS_LABELS.get(row.get("docstatus")),
 			row.get("activity_title"),
 			row.get("borrower"),
 			row.get("recorder"),
@@ -746,15 +786,7 @@ class ReportContext:
 			row.get("time"),
 			row.get("date"),
 		]
-		view = query.get("view")
-		if query.get("dataset") in ("movements", "loans") and view == "records":
-			return [*common, *location_values]
 		if query.get("dataset") == "counts":
-			if view == "records":
-				return [
-					*common,
-					{"Reviewed": "已核对", "Unreviewed": "未核对"}.get(row.get("review_state")),
-				]
 			return [*item_values, *location_values, *batch_values, *common, row.get("reason")]
 		if query.get("dataset") in ("movements", "loans"):
 			return [
@@ -763,8 +795,8 @@ class ReportContext:
 				*batch_values,
 				*common,
 				row.get("original_loan"),
-				outcome_labels.get(row.get("outcome")),
-				loan_status_labels.get(row.get("loan_status")),
+				OUTCOME_LABELS.get(row.get("outcome")),
+				LOAN_STATUS_LABELS.get(row.get("loan_status")),
 				row.get("stock_uom_label") or row.get("stock_uom"),
 			]
 		return [*item_values, *location_values, *batch_values, *common]
@@ -794,7 +826,7 @@ class ReportContext:
 		if not self.matches_item(row["item_code"]):
 			return False
 		source, target = row.get("source_warehouse"), row.get("destination_warehouse")
-		locations = [value for value in (source, target, row.get("warehouse")) if value]
+		locations = tuple(value for value in (source, target, row.get("warehouse")) if value)
 		if not any(
 			location in self.selected and self.matches_item(row["item_code"], location)
 			for location in locations
@@ -1325,27 +1357,33 @@ def line_attribution(context, line):
 
 
 def document_fields(context, doc):
-	return {
-		"doctype": doc.doctype,
-		"document": doc.name,
-		"document_id": f"{doc.doctype}:{doc.name}",
-		"docstatus": int(doc.docstatus),
-		"kind": document_kind(doc),
-		"date": str(doc.posting_date),
-		# Precise, zero-padded values keep sorting exact; displays format to seconds.
-		"time": get_time(doc.posting_time).isoformat(),
-		"posting_timestamp": str(get_datetime(f"{doc.posting_date} {doc.posting_time}")),
-		"modified": str(get_datetime(doc.modified)),
-		**document_attribution(context, doc),
-		"source": doc.get("ti_source_text") or "",
-		"purpose": doc.get("ti_purpose_text") or "",
-		"recorded_by": doc.owner,
-		"recorder": doc.get("ti_recorder_name") or "",
-		"handler": doc.get("ti_handler_name") or "",
-		"reviewer": doc.get("ti_reviewer_name") or "",
-		"notes": doc.get("ti_notes") or doc.get("remarks") or "",
-		"amended_from": doc.get("amended_from") or "",
-	}
+	cache = getattr(context, "_document_fields", None)
+	if not isinstance(cache, dict):
+		cache = {}
+	key = (doc.doctype, doc.name)
+	if key not in cache:
+		cache[key] = {
+			"doctype": doc.doctype,
+			"document": doc.name,
+			"document_id": f"{doc.doctype}:{doc.name}",
+			"docstatus": int(doc.docstatus),
+			"kind": document_kind(doc),
+			"date": str(doc.posting_date),
+			# Precise, zero-padded values keep sorting exact; displays format to seconds.
+			"time": get_time(doc.posting_time).isoformat(),
+			"posting_timestamp": str(get_datetime(f"{doc.posting_date} {doc.posting_time}")),
+			"modified": str(get_datetime(doc.modified)),
+			**document_attribution(context, doc),
+			"source": doc.get("ti_source_text") or "",
+			"purpose": doc.get("ti_purpose_text") or "",
+			"recorded_by": doc.owner,
+			"recorder": doc.get("ti_recorder_name") or "",
+			"handler": doc.get("ti_handler_name") or "",
+			"reviewer": doc.get("ti_reviewer_name") or "",
+			"notes": doc.get("ti_notes") or doc.get("remarks") or "",
+			"amended_from": doc.get("amended_from") or "",
+		}
+	return cache[key]
 
 
 def batch_allocations(row, context=None):
@@ -1798,6 +1836,32 @@ def linked_settlement_rows(context):
 def count_rows(context):
 	frappe.has_permission("Stock Reconciliation", "read", throw=True)
 	query = context.query
+
+	def allocations_for(line, doc):
+		if (
+			doc.docstatus != 2
+			and not line.get("serial_and_batch_bundle")
+			and not line.get("current_serial_and_batch_bundle")
+		):
+			baseline = float(line.get("current_qty") or 0)
+			actual = float(line.get("qty") or 0)
+			return [
+				{
+					"batch_no": line.get("batch_no") or "",
+					"baseline_qty": baseline,
+					"actual_qty": actual,
+					"difference": actual - baseline,
+					"bundle_line": "",
+					"current_bundle_line": "",
+				}
+			]
+		return reconciliation_allocations(
+			line,
+			batch_checker=context.batch,
+			bundle_cache=context._bundle_cache,
+			bundle_loader=context.bundle,
+		)
+
 	values = list(
 		paged(
 			"Stock Reconciliation",
@@ -1896,12 +1960,7 @@ def count_rows(context):
 					)
 				# Only the line's own native row: another location's row would misstate this one.
 				if native_line:
-					allocations = reconciliation_allocations(
-						native_line,
-						batch_checker=context.batch,
-						bundle_cache=context._bundle_cache,
-						bundle_loader=context.bundle,
-					)
+					allocations = allocations_for(native_line, doc)
 				else:
 					baseline = float(line.baseline_qty or 0)
 					actual = float(line.actual_qty or 0) if state != "Unreviewed" else None
@@ -1914,12 +1973,7 @@ def count_rows(context):
 						}
 					]
 			else:
-				allocations = reconciliation_allocations(
-					line,
-					batch_checker=context.batch,
-					bundle_cache=context._bundle_cache,
-					bundle_loader=context.bundle,
-				)
+				allocations = allocations_for(line, doc)
 			for allocation in allocations:
 				if doc.purpose == "Opening Stock":
 					allocation = {

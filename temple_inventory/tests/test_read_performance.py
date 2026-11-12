@@ -64,6 +64,24 @@ class ReadPerformanceTests(unittest.TestCase):
 				),
 				87,
 			),
+			(
+				"counts_page",
+				lambda: browse.counts_page(
+					{"dataset": "counts", "view": "records", "statuses": [0, 1, 2]}, page_length=1
+				),
+				60,
+			),
+			(
+				"movement_records",
+				lambda: report_page({"dataset": "movements", "view": "records"}, page_length=1),
+				80,
+			),
+			("movement_history", lambda: browse.movement_history({"dataset": "movements"}), 115),
+			(
+				"operation_contributions",
+				lambda: browse.operation_contributions({"dataset": "movements"}),
+				120,
+			),
 		)
 		for name, endpoint, ceiling in queries:
 			frappe.set_user(user)
