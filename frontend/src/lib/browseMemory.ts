@@ -1,4 +1,4 @@
-/** Tab-local UI state and page depth. Native result rows are always read again. */
+/** Tab-local UI state, loaded depth, and short-lived native result snapshots. */
 import {
   inject,
   nextTick,
@@ -30,6 +30,7 @@ interface Entry {
   ui: Map<string, UISnapshot>;
   depth: Map<string, number>;
   restore: Set<string>;
+  responses: Map<string, { value: unknown; savedAt: number }>;
 }
 const pagedReads = new Set([
   "browse.inventory_page",
@@ -40,6 +41,13 @@ const pagedReads = new Set([
   "browse.expiry_analysis",
   "browse.native_drafts",
   "browse.counts_page",
+  "browse.dashboard_card",
+  "browse.more_summary",
+  "browse.movement_history",
+  "browse.loan_item_history",
+  "browse.native_draft_count",
+  "browse.warehouse_tree",
+  "warehouses.tree",
 ]);
 const restorePageLimits: Record<string, number> = {
   "browse.operation_page": 50,
@@ -66,11 +74,23 @@ interface PagedResult {
 export function createBrowseMemory(context: () => string) {
   const entries = new Map<string, Entry>();
   let active = "";
+  let account = "";
+  const maxAge = 5 * 60_000;
   function activate(key = context()) {
+    const parts = key.split(":");
+    const nextAccount = parts.length >= 3 ? parts.slice(0, 2).join(":") : "";
+    if (account && nextAccount && nextAccount !== account) entries.clear();
+    if (nextAccount) account = nextAccount;
     if (key === active) return;
     active = key;
     let entry = entries.get(key);
-    if (!entry) entry = { ui: new Map(), depth: new Map(), restore: new Set() };
+    if (!entry)
+      entry = {
+        ui: new Map(),
+        depth: new Map(),
+        restore: new Set(),
+        responses: new Map(),
+      };
     else entry.restore = new Set(entry.depth.keys());
     entries.delete(key);
     entries.set(key, entry);
@@ -81,14 +101,35 @@ export function createBrowseMemory(context: () => string) {
     activate();
     return entries.get(active)!;
   }
+  function remember(entry: Entry, key: string, value: unknown) {
+    entry.responses.delete(key);
+    entry.responses.set(key, { value: copy(value), savedAt: Date.now() });
+    while (entry.responses.size > 128)
+      entry.responses.delete(entry.responses.keys().next().value!);
+  }
+  function isRead(endpoint: string) {
+    return /(^browse\.|\.get_|\.load_|\.list_|\.tree$|\.detail$|\.status$|\.info$|\.preview$|\.validate_|\.search$|\.options$|\.choices$|\.history$|\.analysis$|\.page$|\.count$|\.summary$|\.unread_count$|\.public_key$|\.my_devices$|\.inbox$|\.bootstrap$|\.units$|\.borrowers$)/.test(
+      endpoint,
+    );
+  }
   async function read<T>(
     endpoint: string,
     args: Record<string, unknown>,
     signal: AbortSignal | undefined,
     fetch: (args: Record<string, unknown>) => Promise<T>,
+    callbacks: {
+      onRefreshStart?: () => void;
+      onRefresh?: (value: T) => void;
+      onRefreshError?: (error: unknown) => void;
+    } = {},
   ): Promise<T> {
     const entry = capture(),
-      { start: _start, page_length: _length, ...scope } = args;
+      {
+        start: _start,
+        page_length: _length,
+        refresh: _refresh,
+        ...scope
+      } = args;
     const key = endpoint + ":" + stable(scope),
       start = Number(args.start || 0);
     const desiredAtStart =
@@ -98,6 +139,62 @@ export function createBrowseMemory(context: () => string) {
       Number(args.page_length) || 30,
       Math.min(desiredAtStart, limit),
     );
+    const remembered = start === 0 ? entry.responses.get(key) : undefined;
+    if (args.refresh === true)
+      entries.forEach((saved) => saved.responses.clear());
+    const freshCache = remembered && Date.now() - remembered.savedAt <= maxAge;
+    if (remembered && !freshCache) entry.responses.delete(key);
+    if (
+      freshCache &&
+      callbacks.onRefresh &&
+      args.refresh !== true &&
+      !signal?.aborted
+    ) {
+      const stale = copy(remembered.value) as T;
+      setTimeout(() => {
+        if (signal?.aborted) return;
+        callbacks.onRefreshStart?.();
+        void fetch(
+          desiredAtStart > Number(args.page_length || 30)
+            ? { ...args, page_length: requestedLength }
+            : args,
+        )
+          .then(async (value) => {
+            if (signal?.aborted) return;
+            let refreshed = value;
+            const page = value as PagedResult;
+            if (
+              desiredAtStart > page.rows.length &&
+              page.next_start !== null &&
+              page.rows.length
+            ) {
+              const rows = [...page.rows];
+              let cursor: number | null = page.next_start;
+              const stride = Math.max(1, Number(page.next_start) || 1);
+              while (cursor !== null && rows.length < desiredAtStart) {
+                const length = Math.min(stride, desiredAtStart - rows.length);
+                const more = (await fetch({
+                  ...args,
+                  start: cursor,
+                  page_length: length,
+                })) as PagedResult;
+                if (signal?.aborted) return;
+                if (more.matched_count !== page.matched_count)
+                  throw new Error("浏览期间结果已变化，请重试当前范围");
+                rows.push(...more.rows);
+                cursor = more.next_start as number | null;
+                if (!more.rows.length) break;
+              }
+              refreshed = { ...page, rows, next_start: cursor } as T;
+            }
+            if (Array.isArray((refreshed as PagedResult)?.rows))
+              remember(entry, key, refreshed);
+            callbacks.onRefresh?.(refreshed);
+          })
+          .catch((error) => callbacks.onRefreshError?.(error));
+      }, 0);
+      return stale;
+    }
     let response: T = await fetch(
       desiredAtStart > Number(args.page_length || 30)
         ? { ...args, page_length: requestedLength }
@@ -163,6 +260,19 @@ export function createBrowseMemory(context: () => string) {
     }
     if (rows.length !== page.rows.length)
       response = { ...page, rows, next_start: cursor } as T;
+    const previous = entry.responses.get(key)?.value as PagedResult | undefined;
+    const cachedResponse =
+      start > 0 &&
+      Array.isArray(previous?.rows) &&
+      Array.isArray((response as PagedResult).rows) &&
+      previous.matched_count === page.matched_count
+        ? {
+            ...response,
+            rows: [...previous.rows, ...rows],
+            next_start: cursor,
+          }
+        : response;
+    remember(entry, key, cachedResponse);
     for (const identity of new Set([key, tableKey])) {
       entry.depth.set(
         identity,
@@ -185,13 +295,59 @@ export function createBrowseMemory(context: () => string) {
           ? read<T>(endpoint, args, signal, (next) =>
               services.call<T>(endpoint, next, signal),
             )
+          : services.call<T>(endpoint, args, signal).then((value) => {
+              if (!isRead(endpoint))
+                entries.forEach((entry) => entry.responses.clear());
+              return value;
+            }),
+      callBrowse: <T>(
+        endpoint: string,
+        args: Record<string, unknown> = {},
+        signal?: AbortSignal,
+        callbacks?: {
+          onRefreshStart?: () => void;
+          onRefresh?: (value: T) => void;
+          onRefreshError?: (error: unknown) => void;
+        },
+      ) =>
+        pagedReads.has(endpoint)
+          ? read<T>(
+              endpoint,
+              args,
+              signal,
+              (next) => services.call<T>(endpoint, next, signal),
+              callbacks,
+            )
           : services.call<T>(endpoint, args, signal),
-      report: (query, options = {}, signal) =>
+      report: (query, options = {}, signal) => (
+        options.refresh
+          ? entries.forEach((saved) => saved.responses.clear())
+          : undefined,
         read("report", { query, ...options }, signal, (next) => {
           const { query: selected, ...page } = next;
           return services.report(selected as typeof query, page, signal);
+        })
+      ),
+      reportBrowse: (query, options = {}, signal, callbacks) => (
+        options.refresh
+          ? entries.forEach((saved) => saved.responses.clear())
+          : undefined,
+        read(
+          "report",
+          { query, ...options },
+          signal,
+          (next) => {
+            const { query: selected, ...page } = next;
+            return services.report(selected as typeof query, page, signal);
+          },
+          callbacks,
+        )
+      ),
+      upload: (...args) =>
+        services.upload(...args).then((value) => {
+          entries.forEach((entry) => entry.responses.clear());
+          return value;
         }),
-      upload: services.upload,
     };
   }
   return { activate, capture, identity: () => active, wrap };
@@ -200,6 +356,36 @@ type BrowseMemory = ReturnType<typeof createBrowseMemory>;
 const key: InjectionKey<BrowseMemory> = Symbol("browse-memory");
 export function provideBrowseMemory(memory: BrowseMemory) {
   provide(key, memory);
+}
+export function browseCall<T>(
+  services: InventoryServices,
+  endpoint: string,
+  args: Record<string, unknown>,
+  signal: AbortSignal | undefined,
+  callbacks: {
+    onRefreshStart?: () => void;
+    onRefresh?: (value: T) => void;
+    onRefreshError?: (error: unknown) => void;
+  },
+): Promise<T> {
+  return services.callBrowse
+    ? services.callBrowse<T>(endpoint, args, signal, callbacks)
+    : services.call<T>(endpoint, args, signal);
+}
+export function browseReport(
+  services: InventoryServices,
+  query: Parameters<InventoryServices["report"]>[0],
+  options: Parameters<InventoryServices["report"]>[1],
+  signal: AbortSignal | undefined,
+  callbacks: {
+    onRefreshStart?: () => void;
+    onRefresh?: (value: import("../services/contracts").ReportPage) => void;
+    onRefreshError?: (error: unknown) => void;
+  },
+) {
+  return services.reportBrowse
+    ? services.reportBrowse(query, options, signal, callbacks)
+    : services.report(query, options, signal);
 }
 export function useBrowseMemoryIdentity() {
   return inject(key, undefined)?.identity() || "";

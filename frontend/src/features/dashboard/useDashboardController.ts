@@ -15,7 +15,7 @@ import { sortByUnit } from "../../lib/units";
 import { formatQuantityWithUnit } from "../../lib/formatQuantity";
 import { defaultPeriods } from "../../lib/uiPreferences";
 import { onCategoryRenamed } from "../../lib/categoryRename";
-import { useBrowseState } from "../../lib/browseMemory";
+import { browseCall, useBrowseState } from "../../lib/browseMemory";
 import {
   useInventoryServices,
   useReferenceData,
@@ -201,8 +201,10 @@ export function useDashboardController(navigate: (query: ReportQuery) => void) {
     const section = sections[key];
     section.status = retry ? "retrying" : "loading";
     section.error = "";
+    let backgroundRefreshing = false;
     try {
-      const result = await services.call<Partial<DashboardResult>>(
+      const result = await browseCall<Partial<DashboardResult>>(
+        services,
         "browse.dashboard_card",
         {
           card: key,
@@ -212,6 +214,36 @@ export function useDashboardController(navigate: (query: ReportQuery) => void) {
           ...(retry ? { refresh: true } : {}),
         },
         request.controller.signal,
+        {
+          onRefreshStart: () => {
+            backgroundRefreshing = true;
+            section.status = "retrying";
+          },
+          onRefresh: (fresh) => {
+            if (
+              disposed ||
+              reference.user !== account ||
+              requests.get(key) !== request
+            )
+              return;
+            backgroundRefreshing = false;
+            section.result = { ...empty(), ...fresh };
+            section.hasResult = true;
+            section.status = "ready";
+          },
+          onRefreshError: (error) => {
+            if (
+              disposed ||
+              reference.user !== account ||
+              requests.get(key) !== request
+            )
+              return;
+            backgroundRefreshing = false;
+            section.error =
+              error instanceof Error ? error.message : "暂时无法读取";
+            section.status = "error";
+          },
+        },
       );
       if (
         disposed ||
@@ -221,7 +253,7 @@ export function useDashboardController(navigate: (query: ReportQuery) => void) {
         return;
       section.result = { ...empty(), ...result };
       section.hasResult = true;
-      section.status = "ready";
+      section.status = backgroundRefreshing ? "retrying" : "ready";
       announcement.value = `${dashboardSections[key]}已更新`;
     } catch (error) {
       if (

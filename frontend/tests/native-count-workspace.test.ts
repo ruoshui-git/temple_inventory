@@ -216,7 +216,13 @@ describe("compact count workspace", () => {
       true,
     );
     await flushPromises();
-    expect(phone.wrapper.findAll(".count-card")).toHaveLength(100);
+    expect(
+      phone.wrapper
+        .find(".count-card-list .virtual-list")
+        .attributes("data-total"),
+    ).toBe("100");
+    expect(phone.wrapper.findAll(".count-card").length).toBeGreaterThan(0);
+    expect(phone.wrapper.findAll(".count-card").length).toBeLessThan(100);
     await phone.wrapper
       .findAll("button")
       .find((button) => button.text() === "下一页")!

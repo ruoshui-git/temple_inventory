@@ -14,6 +14,7 @@ import CountSummary from "./CountSummary.vue";
 import type { CountRow } from "./countModel";
 import type { CountEditor } from "./useCountEditor";
 import DataTable from "../../components/ui/DataTable.vue";
+import VirtualList from "../../components/ui/VirtualList.vue";
 import { useOptionalInventoryServices } from "../../services/contracts";
 import type { DataColumn, DataTableEntry, DataTableGroup } from "../../lib/dataTable";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
@@ -181,6 +182,9 @@ const pageCount = computed(() => Math.max(1, Math.ceil(sortedRows.value.length /
 const visibleRows = computed(() =>
 	sortedRows.value.slice((visiblePage.value - 1) * pageSize, visiblePage.value * pageSize),
 );
+const virtualCountList = ref<{
+	scrollToIndex: (index: number, focus?: boolean, selector?: string) => Promise<void>;
+}>();
 const groupCounts = computed(() => {
 	const counts = new Map<string, number>();
 	if (groupBy.value === "none") return counts;
@@ -330,6 +334,27 @@ function serialDifferenceLabel(row: CountRow) {
 async function nextCountInput(event: KeyboardEvent) {
 	event.preventDefault();
 	const current = event.currentTarget as HTMLInputElement;
+	const virtualIndex = Number(
+		current.closest<HTMLElement>("[data-virtual-index]")?.dataset.virtualIndex,
+	);
+	if (visibleRows.value.length > 80 && Number.isFinite(virtualIndex)) {
+		if (virtualIndex + 1 < visibleRows.value.length) {
+			await virtualCountList.value?.scrollToIndex(
+				virtualIndex + 1,
+				true,
+				".count-card-input:not(:disabled)",
+			);
+		} else if (visiblePage.value < pageCount.value) {
+			visiblePage.value++;
+			await nextTick();
+			await virtualCountList.value?.scrollToIndex(
+				0,
+				true,
+				".count-card-input:not(:disabled)",
+			);
+		}
+		return;
+	}
 	const inputs = Array.from(
 		current
 			.closest(".count-card-list")
@@ -348,6 +373,24 @@ async function nextCountInput(event: KeyboardEvent) {
 		)?.focus();
 	}
 }
+watch([showError, issues], async ([shown, currentIssues]) => {
+	if (!shown || !currentIssues.length) return;
+	const index = sortedRows.value.findIndex((row) => c.countKey(row) === currentIssues[0]!.key);
+	if (index < 0) return;
+	visiblePage.value = Math.floor(index / pageSize) + 1;
+	await nextTick();
+	if (isMobile.value) {
+		await virtualCountList.value?.scrollToIndex(
+			index % pageSize,
+			true,
+			"input:not(:disabled)",
+		);
+	} else {
+		Array.from(document.querySelectorAll<HTMLElement>("[data-count-key]"))
+			.find((element) => element.dataset.countKey === currentIssues[0]!.key)
+			?.scrollIntoView({ block: "center" });
+	}
+});
 function itemImage(row: CountRow) {
 	return {
 		code: row.item_code,
@@ -461,141 +504,165 @@ function itemImage(row: CountRow) {
 		>
 			<p v-if="baselineBusy" class="sr-only" role="status">正在刷新账面基准…</p>
 			<p v-if="!visibleRows.length" class="data-table-state">{{ countEmptyText }}</p>
-			<article
-				v-for="row in visibleRows"
-				:key="c.countKey(row)"
-				class="count-card"
-				:data-count-key="c.countKey(row)"
+			<VirtualList
+				ref="virtualCountList"
+				:keys="visibleRows.map(c.countKey)"
+				:estimate="210"
+				:threshold="80"
+				:gap="12"
+				tab-through=".count-card-input:not(:disabled), .serial-count input:not(:disabled)"
 			>
-				<div class="count-card-heading">
-					<div class="count-card-image"><ItemImage :item="itemImage(row)" /></div>
-					<div class="count-card-identity">
-						<strong>{{
-							row.item_name || names[row.item_code] || row.item_code
-						}}</strong>
-						<small
-							>{{ row.item_code
-							}}<template v-if="row.batch_no"> · {{ row.batch_no }}</template></small
+				<template #default="{ index }">
+					<article
+						v-for="row in [visibleRows[index]]"
+						:key="c.countKey(row)"
+						class="count-card"
+						:data-count-key="c.countKey(row)"
+					>
+						<div class="count-card-heading">
+							<div class="count-card-image">
+								<ItemImage :item="itemImage(row)" />
+							</div>
+							<div class="count-card-identity">
+								<strong>{{
+									row.item_name || names[row.item_code] || row.item_code
+								}}</strong>
+								<small
+									>{{ row.item_code
+									}}<template v-if="row.batch_no">
+										· {{ row.batch_no }}</template
+									></small
+								>
+								<small class="count-card-location">{{
+									warehouseLabel(row.warehouse, reference.warehouses)
+								}}</small>
+							</div>
+						</div>
+						<div class="count-card-counts" :class="{ 'is-serial': row.is_serial }">
+							<div class="count-card-book">
+								<span>账面</span
+								><strong
+									>{{ row.baseline_qty }}
+									{{ unitLabel(String(row.stock_uom || "")) }}</strong
+								>
+							</div>
+							<div class="count-card-entry">
+								<template v-if="row.is_serial">
+									<label>实点序列号</label>
+									<SerialCountChecklist
+										:row="row"
+										:writable="writable"
+										:busy="busy || baselineBusy"
+										@update="serialsChanged(row, $event)"
+									/>
+									<details
+										v-if="hasCountInput(row) && serialDifferenceLabel(row)"
+										class="serial-count-difference"
+									>
+										<summary>{{ serialDifferenceLabel(row) }}</summary>
+										<p v-if="serialCountDifference(row).missing.length">
+											缺少：{{
+												serialCountDifference(row).missing.join("、")
+											}}
+										</p>
+										<p v-if="serialCountDifference(row).found.length">
+											多出：{{ serialCountDifference(row).found.join("、") }}
+										</p>
+									</details>
+								</template>
+								<template v-else>
+									<label
+										:for="`count-input-${encodeURIComponent(c.countKey(row))}`"
+										>实点数量</label
+									>
+									<input
+										v-if="writable"
+										:id="`count-input-${encodeURIComponent(c.countKey(row))}`"
+										class="count-card-input"
+										type="number"
+										inputmode="decimal"
+										enterkeyhint="next"
+										min="0"
+										:step="
+											reference.units.find(
+												(unit) => unit.name === row.stock_uom,
+											)?.whole
+												? 1
+												: 'any'
+										"
+										:value="hasCountInput(row) ? row.actual_qty : ''"
+										:disabled="busy || baselineBusy"
+										:aria-label="`${row.item_name || names[row.item_code] || row.item_code}实点数量`"
+										:aria-invalid="
+											showError &&
+											issues.some((issue) => issue.key === c.countKey(row))
+										"
+										@input="input(row, $event)"
+										@keydown.enter="nextCountInput"
+									/>
+									<strong v-else
+										>{{ hasCountInput(row) ? row.actual_qty : "未核对" }}
+										{{ unitLabel(String(row.stock_uom || "")) }}</strong
+									>
+									<span
+										v-if="
+											hasCountInput(row) &&
+											row.actual_qty !== row.baseline_qty
+										"
+										class="count-card-difference"
+										:class="
+											row.actual_qty! > row.baseline_qty
+												? 'count-difference-positive'
+												: 'count-difference-negative'
+										"
+										>差异 {{ row.actual_qty! - row.baseline_qty > 0 ? "+" : ""
+										}}{{ row.actual_qty! - row.baseline_qty }}</span
+									>
+									<span
+										v-else-if="!hasCountInput(row)"
+										class="count-card-pending"
+										>未核对</span
+									>
+								</template>
+							</div>
+						</div>
+						<div
+							v-if="row.needs_review && row.actual_qty !== null"
+							class="count-baseline-warning"
 						>
-						<small class="count-card-location">{{
-							warehouseLabel(row.warehouse, reference.warehouses)
-						}}</small>
-					</div>
-				</div>
-				<div class="count-card-counts" :class="{ 'is-serial': row.is_serial }">
-					<div class="count-card-book">
-						<span>账面</span
-						><strong
-							>{{ row.baseline_qty }}
-							{{ unitLabel(String(row.stock_uom || "")) }}</strong
-						>
-					</div>
-					<div class="count-card-entry">
-						<template v-if="row.is_serial">
-							<label>实点序列号</label>
-							<SerialCountChecklist
-								:row="row"
-								:writable="writable"
-								:busy="busy || baselineBusy"
-								@update="serialsChanged(row, $event)"
-							/>
-							<details
-								v-if="hasCountInput(row) && serialDifferenceLabel(row)"
-								class="serial-count-difference"
-							>
-								<summary>{{ serialDifferenceLabel(row) }}</summary>
-								<p v-if="serialCountDifference(row).missing.length">
-									缺少：{{ serialCountDifference(row).missing.join("、") }}
-								</p>
-								<p v-if="serialCountDifference(row).found.length">
-									多出：{{ serialCountDifference(row).found.join("、") }}
-								</p>
-							</details>
-						</template>
-						<template v-else>
-							<label :for="`count-input-${encodeURIComponent(c.countKey(row))}`"
-								>实点数量</label
-							>
-							<input
-								v-if="writable"
-								:id="`count-input-${encodeURIComponent(c.countKey(row))}`"
-								class="count-card-input"
-								type="number"
-								inputmode="decimal"
-								enterkeyhint="next"
-								min="0"
-								:step="
-									reference.units.find((unit) => unit.name === row.stock_uom)
-										?.whole
-										? 1
-										: 'any'
-								"
-								:value="hasCountInput(row) ? row.actual_qty : ''"
+							<span>基准已变化</span>
+							<button
+								type="button"
 								:disabled="busy || baselineBusy"
-								:aria-label="`${row.item_name || names[row.item_code] || row.item_code}实点数量`"
-								:aria-invalid="
-									showError &&
-									issues.some((issue) => issue.key === c.countKey(row))
-								"
-								@input="input(row, $event)"
-								@keydown.enter="nextCountInput"
-							/>
-							<strong v-else
-								>{{ hasCountInput(row) ? row.actual_qty : "未核对" }}
-								{{ unitLabel(String(row.stock_uom || "")) }}</strong
+								@click="c.rereview(row)"
 							>
-							<span
-								v-if="hasCountInput(row) && row.actual_qty !== row.baseline_qty"
-								class="count-card-difference"
-								:class="
-									row.actual_qty! > row.baseline_qty
-										? 'count-difference-positive'
-										: 'count-difference-negative'
-								"
-								>差异 {{ row.actual_qty! - row.baseline_qty > 0 ? "+" : ""
-								}}{{ row.actual_qty! - row.baseline_qty }}</span
+								确认仍按当前实点
+							</button>
+						</div>
+						<div class="count-card-actions">
+							<UiButton
+								size="compact"
+								:disabled="busy || baselineBusy"
+								@click="c.openHistory(row)"
+								>历史</UiButton
 							>
-							<span v-else-if="!hasCountInput(row)" class="count-card-pending"
-								>未核对</span
+							<UiButton
+								v-if="writable"
+								size="compact"
+								:disabled="busy || baselineBusy"
+								@click="clear(row)"
+								>清除</UiButton
 							>
-						</template>
-					</div>
-				</div>
-				<div
-					v-if="row.needs_review && row.actual_qty !== null"
-					class="count-baseline-warning"
-				>
-					<span>基准已变化</span>
-					<button
-						type="button"
-						:disabled="busy || baselineBusy"
-						@click="c.rereview(row)"
-					>
-						确认仍按当前实点
-					</button>
-				</div>
-				<div class="count-card-actions">
-					<UiButton
-						size="compact"
-						:disabled="busy || baselineBusy"
-						@click="c.openHistory(row)"
-						>历史</UiButton
-					>
-					<UiButton
-						v-if="writable"
-						size="compact"
-						:disabled="busy || baselineBusy"
-						@click="clear(row)"
-						>清除</UiButton
-					>
-					<UiButton
-						v-if="writable || row.reason"
-						size="compact"
-						@click="notesTarget = row"
-						>备注</UiButton
-					>
-				</div>
-			</article>
+							<UiButton
+								v-if="writable || row.reason"
+								size="compact"
+								@click="notesTarget = row"
+								>备注</UiButton
+							>
+						</div>
+					</article>
+				</template>
+			</VirtualList>
 		</div>
 		<DataTable
 			sticky-header

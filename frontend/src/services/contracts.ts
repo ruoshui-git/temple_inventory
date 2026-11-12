@@ -144,10 +144,30 @@ export interface InventoryServices {
     args?: Record<string, unknown>,
     signal?: AbortSignal,
   ): Promise<T>;
+  callBrowse?<T>(
+    endpoint: string,
+    args?: Record<string, unknown>,
+    signal?: AbortSignal,
+    callbacks?: {
+      onRefreshStart?: () => void;
+      onRefresh?: (value: T) => void;
+      onRefreshError?: (error: unknown) => void;
+    },
+  ): Promise<T>;
   report(
     query: ReportQuery,
     options?: PageOptions,
     signal?: AbortSignal,
+  ): Promise<ReportPage>;
+  reportBrowse?(
+    query: ReportQuery,
+    options?: PageOptions,
+    signal?: AbortSignal,
+    callbacks?: {
+      onRefreshStart?: () => void;
+      onRefresh?: (value: ReportPage) => void;
+      onRefreshError?: (error: unknown) => void;
+    },
   ): Promise<ReportPage>;
   upload(
     file: File,

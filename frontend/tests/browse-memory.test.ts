@@ -39,6 +39,115 @@ function services() {
 }
 
 describe("browse navigation memory", () => {
+  it("returns remembered rows immediately and notifies the controller with the fresh response", async () => {
+    let entry = "site:user:/stock:1";
+    const source = services(),
+      memory = createBrowseMemory(() => entry),
+      wrapped = memory.wrap(source);
+    await wrapped.call("browse.inventory_page", {
+      query: { search: "A" },
+      page_length: 2,
+    });
+    entry = "site:user:/item/A:2";
+    memory.activate();
+    entry = "site:user:/stock:1";
+    memory.activate();
+    let resolve!: (value: unknown) => void;
+    vi.mocked(source.call).mockImplementationOnce(
+      () => new Promise((done) => (resolve = done)) as never,
+    );
+    const onRefresh = vi.fn();
+    const result = await wrapped.callBrowse!<{ rows: { qty: number }[] }>(
+      "browse.inventory_page",
+      {
+        query: { search: "A" },
+        page_length: 2,
+      },
+      undefined,
+      { onRefresh },
+    );
+    expect(result.rows[0]?.qty).toBe(7);
+    await new Promise((done) => setTimeout(done, 0));
+    resolve({
+      rows: [
+        { id: 0, qty: 9 },
+        { id: 1, qty: 9 },
+      ],
+      matched_count: 6,
+      next_start: 2,
+    });
+    await flushPromises();
+    expect(onRefresh).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rows: [
+          { id: 0, qty: 9 },
+          { id: 1, qty: 9 },
+        ],
+      }),
+    );
+    expect(source.call).toHaveBeenCalledTimes(2);
+  });
+
+  it("clears remembered responses after successful writes and never crosses accounts, queries or five minutes", async () => {
+    let entry = "site:user:/stock:1";
+    const source = services(),
+      memory = createBrowseMemory(() => entry),
+      wrapped = memory.wrap(source);
+    await wrapped.call("browse.inventory_page", { query: { search: "A" } });
+    entry = "site:user:/item/A:2";
+    memory.activate();
+    entry = "site:user:/stock:1";
+    memory.activate();
+    vi.mocked(source.call).mockResolvedValueOnce({
+      rows: [{ qty: 8 }],
+      matched_count: 1,
+      next_start: null,
+    } as never);
+    await wrapped.call("native_api.save_document", {});
+    const fresh = vi.fn();
+    await wrapped.callBrowse!(
+      "browse.inventory_page",
+      { query: { search: "A" } },
+      undefined,
+      { onRefresh: fresh },
+    );
+    expect(fresh).not.toHaveBeenCalled();
+    entry = "site:other:/stock:1";
+    memory.activate();
+    const accountFresh = vi.fn();
+    await wrapped.callBrowse!(
+      "browse.inventory_page",
+      { query: { search: "A" } },
+      undefined,
+      { onRefresh: accountFresh },
+    );
+    expect(accountFresh).not.toHaveBeenCalled();
+    entry = "site:user:/stock:1";
+    memory.activate();
+    const queryFresh = vi.fn();
+    await wrapped.callBrowse!(
+      "browse.inventory_page",
+      { query: { search: "B" } },
+      undefined,
+      { onRefresh: queryFresh },
+    );
+    expect(queryFresh).not.toHaveBeenCalled();
+    await wrapped.call("browse.inventory_page", { query: { search: "A" } });
+    entry = "site:user:/item/A:2";
+    memory.activate();
+    entry = "site:user:/stock:1";
+    memory.activate();
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 5 * 60_000 + 1);
+    const expiredFresh = vi.fn();
+    await wrapped.callBrowse!(
+      "browse.inventory_page",
+      { query: { search: "A" } },
+      undefined,
+      { onRefresh: expiredFresh },
+    );
+    expect(expiredFresh).not.toHaveBeenCalled();
+  });
+
   it("scopes browse-group snapshots to each browser history entry", () => {
     let entry = "site:manager:/loans?view=items:1";
     const memory = createBrowseMemory(() => entry);

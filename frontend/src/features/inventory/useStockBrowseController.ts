@@ -17,7 +17,7 @@ import {
 import { reportFilterChips } from "../../lib/reportFilters";
 import { expiryStatus, type StockItem } from "../../lib/stockPresentation";
 import { isForbiddenError, isUnavailableError } from "../../lib/serviceFailure";
-import { useBrowseState } from "../../lib/browseMemory";
+import { browseCall, useBrowseState } from "../../lib/browseMemory";
 import { onCategoryRenamed } from "../../lib/categoryRename";
 import { useReportGroups } from "../../composables/useReportGroups";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
@@ -221,8 +221,10 @@ export function useStockBrowseController(
     data.moreError = "";
     data.refreshFailed = false;
     if (!more) data.stale = data.rows.length > 0;
+    let backgroundRefreshing = false;
     try {
-      const result = await services.call<InventoryPage>(
+      const result = await browseCall<InventoryPage>(
+        services,
         "browse.inventory_page",
         {
           query: { ...query.value, view: "summary", groupBy: [] },
@@ -231,6 +233,37 @@ export function useStockBrowseController(
           ...(refresh ? { refresh: true } : {}),
         },
         request.signal,
+        {
+          onRefreshStart: () => {
+            if (current !== generation) return;
+            backgroundRefreshing = true;
+            data.loading = true;
+            data.stale = true;
+          },
+          onRefresh: (fresh) => {
+            if (current !== generation || reference.user !== account) return;
+            backgroundRefreshing = false;
+            data.rows = fresh.rows;
+            selection.retain(data.rows.map((row) => row.code));
+            data.total = fresh.matched_count;
+            data.next = fresh.next_start;
+            data.summary = fresh.summary;
+            data.analysis = fresh.analysis;
+            data.snapshot = fresh.snapshot;
+            data.stale = false;
+            data.refreshFailed = false;
+            data.loading = false;
+          },
+          onRefreshError: (error) => {
+            if (current !== generation || reference.user !== account) return;
+            backgroundRefreshing = false;
+            data.error =
+              error instanceof Error ? error.message : "库存刷新失败";
+            data.refreshFailed = true;
+            data.stale = false;
+            data.loading = false;
+          },
+        },
       );
       if (current !== generation || reference.user !== account) return;
       data.rows = more
@@ -247,7 +280,7 @@ export function useStockBrowseController(
       data.summary = result.summary;
       data.analysis = result.analysis;
       data.snapshot = result.snapshot;
-      data.stale = false;
+      data.stale = backgroundRefreshing;
       data.forbidden = false;
       data.refreshFailed = false;
     } catch (error) {
@@ -263,7 +296,7 @@ export function useStockBrowseController(
       }
     } finally {
       if (current === generation) {
-        data.loading = false;
+        data.loading = backgroundRefreshing;
         loadingMore.value = false;
       }
     }

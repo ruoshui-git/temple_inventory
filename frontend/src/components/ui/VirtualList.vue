@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 const props = withDefaults(
-	defineProps<{ keys: string[]; estimate?: number; threshold?: number }>(),
+	defineProps<{
+		keys: string[];
+		estimate?: number;
+		threshold?: number;
+		tabThrough?: string;
+		gap?: number;
+	}>(),
 	{
 		estimate: 120,
 		threshold: 100,
@@ -20,7 +26,7 @@ const offsets = computed(() => {
 	void revision.value;
 	const result = [0];
 	props.keys.forEach((key) =>
-		result.push(result.at(-1)! + (measured.get(key) ?? props.estimate)),
+		result.push(result.at(-1)! + (measured.get(key) ?? props.estimate + (props.gap || 0))),
 	);
 	return result;
 });
@@ -46,6 +52,7 @@ const indices = computed(() => {
 });
 let observer: ResizeObserver | undefined;
 let lastWidth = 0;
+let anchorKey = "";
 let scrollSettle: ReturnType<typeof setTimeout> | undefined;
 let userScrolling = false;
 const observed = new Set<HTMLElement>();
@@ -109,12 +116,21 @@ watch(
 	() => [...props.keys],
 	(keys, previous) => {
 		if (previous && previous.every((key, index) => keys[index] === key)) return;
-		top.value = 0;
-		pinned.value = -1;
-		if (viewport.value) viewport.value.scrollTop = 0;
+		const oldIndex = previous?.indexOf(anchorKey) ?? -1;
+		const nextIndex = keys.indexOf(anchorKey);
+		const restoreIndex =
+			nextIndex >= 0 ? nextIndex : Math.max(0, Math.min(oldIndex, keys.length - 1));
+		const pinnedKey = previous?.[pinned.value];
+		pinned.value = pinnedKey ? keys.indexOf(pinnedKey) : -1;
+		top.value = offsets.value[restoreIndex] || 0;
+		if (viewport.value) viewport.value.scrollTop = top.value;
 	},
 );
-async function scrollToIndex(index: number, focus = false) {
+async function scrollToIndex(
+	index: number,
+	focus = false,
+	selector = 'input,button,[tabindex="0"]',
+) {
 	if (!viewport.value) return;
 	const offset = offsets.value[index] || 0;
 	if (
@@ -124,14 +140,28 @@ async function scrollToIndex(index: number, focus = false) {
 	)
 		viewport.value.scrollTop = offset;
 	top.value = viewport.value.scrollTop;
+	anchorKey = props.keys[anchor()] || "";
 	await nextTick();
 	const row = viewport.value.querySelector<HTMLElement>(`[data-virtual-index="${index}"]`);
 	if (focus)
-		row?.querySelector<HTMLElement>('input,button,[tabindex="0"]')?.focus({
+		row?.querySelector<HTMLElement>(selector)?.focus({
 			preventScroll: true,
 		});
 }
 function key(event: KeyboardEvent) {
+	if (event.key === "Tab" && props.tabThrough) {
+		const target = event.target as HTMLElement;
+		if (target.matches(props.tabThrough)) {
+			const row = target.closest<HTMLElement>("[data-virtual-index]");
+			const index = Number(row?.dataset.virtualIndex);
+			const next = index + (event.shiftKey ? -1 : 1);
+			if (row && next >= 0 && next < props.keys.length) {
+				event.preventDefault();
+				void scrollToIndex(next, true, props.tabThrough);
+			}
+		}
+		return;
+	}
 	if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
 	const row = (event.target as HTMLElement).closest<HTMLElement>("[data-virtual-index]");
 	if (!row) return;
@@ -153,6 +183,7 @@ function key(event: KeyboardEvent) {
 }
 function onScroll(event: Event) {
 	top.value = (event.target as HTMLElement).scrollTop;
+	anchorKey = props.keys[anchor()] || "";
 	userScrolling = true;
 	clearTimeout(scrollSettle);
 	scrollSettle = setTimeout(() => (userScrolling = false), 140);
@@ -181,11 +212,13 @@ defineExpose({ scrollToIndex });
 				v-for="index in indices"
 				:key="keys[index]"
 				:data-virtual-index="index"
-				:style="
-					enabled
-						? { position: 'absolute', top: offsets[index] + 'px', width: '100%' }
-						: undefined
-				"
+				:style="{
+					position: enabled ? 'absolute' : undefined,
+					top: enabled ? offsets[index] + 'px' : undefined,
+					width: enabled ? '100%' : undefined,
+					paddingBottom: gap ? gap + 'px' : undefined,
+					boxSizing: 'border-box',
+				}"
 			>
 				<slot :index="index" />
 			</div>

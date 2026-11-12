@@ -18,7 +18,7 @@ import {
 import type { OperationGroup } from "../movements/useOperationBrowse";
 import { isForbiddenError, isUnavailableError } from "../../lib/serviceFailure";
 import { canOnDoctype } from "../../lib/capabilities";
-import { useBrowseState } from "../../lib/browseMemory";
+import { browseCall, useBrowseState } from "../../lib/browseMemory";
 import { useReportGroups } from "../../composables/useReportGroups";
 import {
   browseLayoutStorageKey,
@@ -201,8 +201,10 @@ export function useNativeRecords(
     error.value = "";
     retryMore = more;
     if (!more) stale.value = rows.value.length > 0;
+    let backgroundRefreshing = false;
     try {
-      const page = await services.call<NativeRecordPage>(
+      const page = await browseCall<NativeRecordPage>(
+        services,
         props.mode === "drafts" ? "browse.native_drafts" : "browse.counts_page",
         {
           query: JSON.parse(JSON.stringify(query.value)),
@@ -211,6 +213,34 @@ export function useNativeRecords(
           ...(refresh ? { refresh: true } : {}),
         },
         controller.signal,
+        {
+          onRefreshStart: () => {
+            if (!active() || current !== generation) return;
+            backgroundRefreshing = true;
+            loading.value = true;
+            stale.value = true;
+          },
+          onRefresh: (fresh) => {
+            if (!active() || current !== generation) return;
+            backgroundRefreshing = false;
+            rows.value = fresh.rows;
+            total.value = fresh.matched_count;
+            next.value = fresh.next_start;
+            snapshot.value = fresh.snapshot;
+            forbidden.value = false;
+            initialized.value = true;
+            stale.value = false;
+            loading.value = false;
+          },
+          onRefreshError: (reason) => {
+            if (!active() || current !== generation) return;
+            backgroundRefreshing = false;
+            error.value =
+              reason instanceof Error ? reason.message : "记录刷新失败";
+            stale.value = true;
+            loading.value = false;
+          },
+        },
       );
       if (!active() || current !== generation) return;
       rows.value = more
@@ -226,7 +256,7 @@ export function useNativeRecords(
       snapshot.value = page.snapshot;
       forbidden.value = false;
       initialized.value = true;
-      stale.value = false;
+      stale.value = backgroundRefreshing;
     } catch (reason) {
       if (active() && current === generation) {
         if (isUnavailableError(reason)) {
@@ -241,7 +271,8 @@ export function useNativeRecords(
         error.value = reason instanceof Error ? reason.message : "记录读取失败";
       }
     } finally {
-      if (active() && current === generation) loading.value = false;
+      if (active() && current === generation)
+        loading.value = backgroundRefreshing;
     }
   }
   watch(

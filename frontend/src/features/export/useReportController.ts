@@ -18,7 +18,7 @@ import { decodeReportQuery } from "../../lib/reportQuery";
 import { browseDefaults } from "../../lib/browseDefaults";
 import { onCategoryRenamed } from "../../lib/categoryRename";
 import { isForbiddenError, isUnavailableError } from "../../lib/serviceFailure";
-import { useBrowseState } from "../../lib/browseMemory";
+import { browseReport, useBrowseState } from "../../lib/browseMemory";
 import { useReportGroups } from "../../composables/useReportGroups";
 
 import {
@@ -123,11 +123,67 @@ export function useReportController(
     result.forbidden = false;
     result.refreshFailed = false;
     result.stale = result.tables.some((table) => table.rows.length > 0);
+    let backgroundRefreshing = false;
     try {
-      const page = await services.report(
+      const page = await browseReport(
+        services,
         query.value,
         { page_length: 30, ...(forceFresh ? { refresh: true } : {}) },
         controller.signal,
+        {
+          onRefreshStart: () => {
+            backgroundRefreshing = true;
+            result.loading = true;
+            result.stale = true;
+          },
+          onRefresh: (fresh) => {
+            if (requestGeneration !== generation || reference.user !== account)
+              return;
+            backgroundRefreshing = false;
+            result.main = fresh.table;
+            result.tables = fresh.tables.map((table) => ({
+              id: table.id,
+              label: table.label,
+              columns: [],
+              rows: [],
+              total: table.count,
+              next: null,
+              loading: false,
+              error: "",
+              initialized: false,
+            }));
+            const main = result.tables.find(
+              (table) => table.id === fresh.table,
+            )!;
+            merge(main, fresh);
+            if (query.value.groupBy.length)
+              groups.seed(
+                fresh.rows as unknown as import("../../services/contracts").GroupedReportRow[],
+                fresh.next_start,
+                fresh.leaf_columns || [],
+                fresh.matched_count,
+              );
+            result.total = fresh.matched_count;
+            result.snapshot = fresh.snapshot;
+            result.summary = fresh.summary;
+            result.period = fresh.period.date_from
+              ? `${fresh.period.date_from} 至 ${fresh.period.date_to}`
+              : "全部时间";
+            result.stale = false;
+            result.refreshFailed = false;
+            result.loading = false;
+          },
+          onRefreshError: (error) => {
+            if (requestGeneration !== generation || reference.user !== account)
+              return;
+            backgroundRefreshing = false;
+            result.error =
+              error instanceof Error ? error.message : "读取导出数据失败";
+            result.refreshFailed = true;
+            result.stale = false;
+            result.loading = false;
+          },
+        },
       );
       if (requestGeneration !== generation || reference.user !== account)
         return;
@@ -158,7 +214,7 @@ export function useReportController(
       result.period = page.period.date_from
         ? `${page.period.date_from} 至 ${page.period.date_to}`
         : "全部时间";
-      result.stale = false;
+      result.stale = backgroundRefreshing;
       result.refreshFailed = false;
     } catch (error) {
       if (requestGeneration === generation && reference.user === account) {
@@ -173,7 +229,8 @@ export function useReportController(
       }
     } finally {
       requests.delete(controller);
-      if (requestGeneration === generation) result.loading = false;
+      if (requestGeneration === generation)
+        result.loading = backgroundRefreshing;
     }
   }
   async function loadTable(

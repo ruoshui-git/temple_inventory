@@ -117,7 +117,11 @@ function parentLabel(name?: string) {
 			<template #subtitle>{{ visibleRows.length }} 个节点</template>
 			<template #actions>
 				<BrowseOverflowMenu>
-					<UiButton icon="refresh" :disabled="busy" :loading="loading" @click="c.load"
+					<UiButton
+						icon="refresh"
+						:disabled="busy"
+						:loading="loading"
+						@click="c.load(true)"
 						>刷新</UiButton
 					>
 				</BrowseOverflowMenu>

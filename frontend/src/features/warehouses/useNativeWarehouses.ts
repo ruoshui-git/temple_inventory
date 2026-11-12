@@ -11,7 +11,7 @@ import {
   type RecoverySnapshot,
 } from "../../lib/browserRecovery";
 import { useUpdateBlocker } from "../../lib/updateSafety";
-import { useBrowseState } from "../../lib/browseMemory";
+import { browseCall, useBrowseState } from "../../lib/browseMemory";
 import { isForbiddenError } from "../../lib/serviceFailure";
 import { showToast } from "../../services/toast";
 import { useFormValidation } from "../../composables/useFormValidation";
@@ -251,7 +251,7 @@ export function useNativeWarehouses(
     baseline.value = JSON.stringify(form);
     dialogOpen.value = true;
   }
-  async function load() {
+  async function load(refresh = false) {
     request?.abort();
     const current = ++generation,
       controller = new AbortController();
@@ -259,9 +259,35 @@ export function useNativeWarehouses(
     loading.value = true;
     error.value = "";
     forbidden.value = false;
+    let backgroundRefreshing = false;
     try {
       const [value, configuration] = await Promise.all([
-        services.call<WarehouseTree>("warehouses.tree", {}, controller.signal),
+        browseCall<WarehouseTree>(
+          services,
+          "warehouses.tree",
+          refresh ? { refresh: true } : {},
+          controller.signal,
+          {
+            onRefreshStart: () => {
+              if (!active() || current !== generation) return;
+              backgroundRefreshing = true;
+              loading.value = true;
+            },
+            onRefresh: (fresh) => {
+              if (!active() || current !== generation) return;
+              backgroundRefreshing = false;
+              tree.value = fresh;
+              loading.value = false;
+            },
+            onRefreshError: (reason) => {
+              if (!active() || current !== generation) return;
+              backgroundRefreshing = false;
+              error.value =
+                reason instanceof Error ? reason.message : "位置资料刷新失败";
+              loading.value = false;
+            },
+          },
+        ),
         services
           .call<{ needs_first_room?: boolean }>(
             "configuration.status",
@@ -306,7 +332,8 @@ export function useNativeWarehouses(
           reason instanceof Error ? reason.message : "位置资料读取失败";
       }
     } finally {
-      if (active() && current === generation) loading.value = false;
+      if (active() && current === generation)
+        loading.value = backgroundRefreshing;
     }
   }
   async function loadStockSummary(name: string, signal?: AbortSignal) {

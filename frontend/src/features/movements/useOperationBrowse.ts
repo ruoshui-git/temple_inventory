@@ -21,7 +21,7 @@ import type { CatalogItem } from "../../lib/catalogPresentation";
 import { presentCatalogItem } from "../../lib/catalogPresentation";
 import { isUnavailableError } from "../../lib/serviceFailure";
 import { isForbiddenError } from "../../lib/serviceFailure";
-import { useBrowseState } from "../../lib/browseMemory";
+import { browseCall, useBrowseState } from "../../lib/browseMemory";
 import { sortableColumnsForView } from "../../lib/reportContract";
 import { useReportGroups } from "../../composables/useReportGroups";
 import { useBrowseSelection } from "../../composables/useBrowseSelection";
@@ -300,7 +300,7 @@ export function useOperationBrowse(
       !result.stale &&
       Object.values(details).every((table) => !table.loading),
   );
-  async function load(more = false) {
+  async function load(more = false, refresh = false) {
     if (more && (result.loading || result.next === null || result.stale))
       return;
     if (!more) cancel();
@@ -313,17 +313,63 @@ export function useOperationBrowse(
     result.forbidden = false;
     result.refreshFailed = false;
     if (!more) result.stale = result.initialized;
+    let backgroundRefreshing = false;
     const sent = JSON.parse(JSON.stringify(query.value));
     try {
-      const page = await services.call<OperationBrowsePage>(
+      const page = await browseCall<OperationBrowsePage>(
+        services,
         "browse.operation_page",
         {
           query: sent,
           records: props.records,
           start: more ? result.next : 0,
           page_length: 20,
+          ...(refresh ? { refresh: true } : {}),
         },
         request.signal,
+        {
+          onRefreshStart: () => {
+            if (!active(current)) return;
+            backgroundRefreshing = true;
+            result.loading = true;
+            result.stale = true;
+          },
+          onRefresh: (fresh) => {
+            if (!active(current)) return;
+            backgroundRefreshing = false;
+            result.rows = fresh.rows;
+            selection.retain(result.rows.map((row) => String(row.id)));
+            result.total = fresh.matched_count;
+            result.next = fresh.next_start;
+            result.summary = fresh.summary;
+            result.totals = fresh.totals;
+            result.snapshot = fresh.snapshot;
+            result.initialized = true;
+            result.stale = false;
+            result.refreshFailed = false;
+            for (const key of Object.keys(analyses)) delete analyses[key];
+            for (const [key, value] of Object.entries(fresh.analysis))
+              analyses[key] = {
+                ...detail(key, "当前结果分析"),
+                rows: value.rows,
+                total: value.matched_count,
+                next: value.next_start,
+                initialized: true,
+              };
+            result.loading = false;
+          },
+          onRefreshError: (reason) => {
+            if (!active(current)) return;
+            backgroundRefreshing = false;
+            result.error =
+              reason instanceof Error
+                ? reason.message
+                : "刷新失败，原结果仍保留";
+            result.refreshFailed = true;
+            result.stale = false;
+            result.loading = false;
+          },
+        },
       );
       if (!active(current) || request.signal.aborted) return;
       result.rows = more
@@ -340,7 +386,7 @@ export function useOperationBrowse(
       result.summary = page.summary;
       result.totals = page.totals;
       result.snapshot = page.snapshot;
-      result.stale = false;
+      result.stale = backgroundRefreshing;
       result.refreshFailed = false;
       result.initialized = true;
       if (!more) {
@@ -387,7 +433,7 @@ export function useOperationBrowse(
       }
     } finally {
       requests.delete(request);
-      if (active(current)) result.loading = false;
+      if (active(current)) result.loading = backgroundRefreshing;
     }
   }
   watch(
@@ -801,7 +847,7 @@ export function useOperationBrowse(
     clearFilters,
     reset,
     load,
-    retry: () => load(retryMore),
+    retry: () => load(retryMore, true),
     loadDetails,
     retryDetails,
     setDetailSort,

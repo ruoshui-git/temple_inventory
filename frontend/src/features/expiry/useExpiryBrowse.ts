@@ -20,7 +20,7 @@ import {
 } from "../../lib/reportFilters";
 import type { BrowseRowsPage } from "../movements/useOperationBrowse";
 import { isForbiddenError, isUnavailableError } from "../../lib/serviceFailure";
-import { useBrowseState } from "../../lib/browseMemory";
+import { browseCall, useBrowseState } from "../../lib/browseMemory";
 import type { StockItem } from "../../lib/stockPresentation";
 import {
   clearScopeField,
@@ -183,8 +183,10 @@ export function useExpiryBrowse(
     result.error = "";
     retryMore = more;
     if (!more) result.stale = result.rows.length > 0;
+    let backgroundRefreshing = false;
     try {
-      const value = await services.call<ExpiryPageData>(
+      const value = await browseCall<ExpiryPageData>(
+        services,
         "browse.expiry_page",
         {
           query: query.value,
@@ -193,6 +195,44 @@ export function useExpiryBrowse(
           ...(refresh ? { refresh: true } : {}),
         },
         request.signal,
+        {
+          onRefreshStart: () => {
+            if (!active(current)) return;
+            backgroundRefreshing = true;
+            result.loading = true;
+            result.stale = true;
+          },
+          onRefresh: (fresh) => {
+            if (!active(current)) return;
+            backgroundRefreshing = false;
+            result.rows = fresh.rows;
+            selection.retain(result.rows.map((row) => String(row.id)));
+            Object.assign(result, {
+              total: fresh.matched_count,
+              next: fresh.next_start,
+              itemCount: fresh.item_count,
+              batchCount: fresh.batch_count,
+              snapshot: fresh.snapshot,
+              totals: fresh.totals,
+              facets: fresh.facets,
+              stale: false,
+              initialized: true,
+              forbidden: false,
+              loading: false,
+            });
+            for (const key of Object.keys(analyses)) delete analyses[key];
+            for (const [key, page] of Object.entries(fresh.analysis))
+              analyses[key] = { ...page, loading: false, error: "" };
+          },
+          onRefreshError: (reason) => {
+            if (!active(current)) return;
+            backgroundRefreshing = false;
+            result.error =
+              reason instanceof Error ? reason.message : "刷新效期批次失败";
+            result.stale = false;
+            result.loading = false;
+          },
+        },
       );
       if (!active(current)) return;
       result.rows = more
@@ -212,7 +252,7 @@ export function useExpiryBrowse(
         snapshot: value.snapshot,
         totals: value.totals,
         facets: value.facets,
-        stale: false,
+        stale: backgroundRefreshing,
         initialized: true,
         forbidden: false,
       });
@@ -228,7 +268,7 @@ export function useExpiryBrowse(
       }
     } finally {
       requests.delete(request);
-      if (active(current)) result.loading = false;
+      if (active(current)) result.loading = backgroundRefreshing;
     }
   }
   watch(
