@@ -52,6 +52,26 @@ describe("read request sharing", () => {
     await expect(secondRead).resolves.toEqual({ rows: [1] });
   });
 
+  it("shares only concurrent loan detail reads for the same loan", async () => {
+    const pending = deferred<{ name: string }>();
+    mocked.request.mockReturnValue(pending.promise);
+    const first = frappeServices.call("native_api.loan_detail", {
+      name: "LOAN-A",
+    });
+    const second = frappeServices.call("native_api.loan_detail", {
+      name: "LOAN-A",
+    });
+    await Promise.resolve();
+    expect(mocked.request).toHaveBeenCalledTimes(1);
+    pending.resolve({ name: "LOAN-A" });
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      { name: "LOAN-A" },
+      { name: "LOAN-A" },
+    ]);
+    await frappeServices.call("native_api.loan_detail", { name: "LOAN-A" });
+    expect(mocked.request).toHaveBeenCalledTimes(2);
+  });
+
   it("keeps mutations independent and drops pending reads when the account changes", async () => {
     mocked.request.mockImplementation(
       (_path: string, _args: unknown, _form: unknown, signal: AbortSignal) => {

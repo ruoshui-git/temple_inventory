@@ -41,6 +41,10 @@ const pagedReads = new Set([
   "browse.native_drafts",
   "browse.counts_page",
 ]);
+const restorePageLimits: Record<string, number> = {
+  "browse.operation_page": 50,
+  report: 200,
+};
 function stable(value: unknown): string {
   return JSON.stringify(value, (_key, item) =>
     item && typeof item === "object" && !Array.isArray(item)
@@ -87,7 +91,18 @@ export function createBrowseMemory(context: () => string) {
       { start: _start, page_length: _length, ...scope } = args;
     const key = endpoint + ":" + stable(scope),
       start = Number(args.start || 0);
-    let response: T = await fetch(args);
+    const desiredAtStart =
+      start === 0 && entry.restore.has(key) ? entry.depth.get(key) || 0 : 0;
+    const limit = restorePageLimits[endpoint] || 100;
+    const requestedLength = Math.max(
+      Number(args.page_length) || 30,
+      Math.min(desiredAtStart, limit),
+    );
+    let response: T = await fetch(
+      desiredAtStart > Number(args.page_length || 30)
+        ? { ...args, page_length: requestedLength }
+        : args,
+    );
     if (signal?.aborted) return response;
     const page = response as PagedResult;
     if (!Array.isArray(page?.rows)) return response;
@@ -103,19 +118,48 @@ export function createBrowseMemory(context: () => string) {
         : 0;
     const rows = [...page.rows];
     let cursor = page.next_start;
-    while (
+    if (
       start === 0 &&
       rows.length < desired &&
       cursor !== null &&
       rows.length
     ) {
-      const more = (await fetch({ ...args, start: cursor })) as PagedResult;
+      const pageStarts: { start: number; length: number }[] = [];
+      let nextStart = cursor;
+      const stride = Math.max(1, cursor - start);
+      while (
+        nextStart !== null &&
+        rows.length + pageStarts.reduce((sum, row) => sum + row.length, 0) <
+          desired
+      ) {
+        const length = Math.min(
+          stride,
+          desired -
+            rows.length -
+            pageStarts.reduce((sum, row) => sum + row.length, 0),
+        );
+        pageStarts.push({ start: nextStart, length });
+        nextStart += stride;
+      }
+      const pages = await Promise.all(
+        pageStarts.map(
+          ({ start: pageStart, length }) =>
+            fetch({
+              ...args,
+              start: pageStart,
+              page_length: length,
+            }) as Promise<PagedResult>,
+        ),
+      );
       if (signal?.aborted) return response;
-      if (more.matched_count !== page.matched_count)
-        throw new Error("浏览期间结果已变化，请重试当前范围");
-      rows.push(...more.rows);
-      if (!more.rows.length || more.next_start === cursor) break;
-      cursor = more.next_start;
+      for (let index = 0; index < pages.length; index++) {
+        const more = pages[index]!;
+        if (more.matched_count !== page.matched_count)
+          throw new Error("浏览期间结果已变化，请重试当前范围");
+        rows.push(...more.rows);
+        cursor = more.next_start;
+        if (!more.rows.length) break;
+      }
     }
     if (rows.length !== page.rows.length)
       response = { ...page, rows, next_start: cursor } as T;

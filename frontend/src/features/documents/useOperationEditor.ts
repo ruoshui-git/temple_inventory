@@ -64,6 +64,7 @@ export function useOperationEditor(props: {
     action = ref<"delete" | "cancel" | "amend" | "duplicate">();
   const hydrating = ref(false);
   const itemCache = new Map<string, StockItem>();
+  const loanDetails = new Map<string, Promise<NativeDocument>>();
   const generatedBatches = new Map<string, { key: string; name: string }>();
   // Explicit batches the server already resolved for this exact line content.
   const confirmedBatches = new Map<string, string>();
@@ -71,6 +72,7 @@ export function useOperationEditor(props: {
   let ready = false,
     disposed = false,
     discarded = false,
+    loadController: AbortController | undefined,
     timer: ReturnType<typeof setTimeout> | undefined;
   const leaveRequested = ref(false),
     allowLeave = ref(false),
@@ -325,11 +327,12 @@ export function useOperationEditor(props: {
     valid: (value) =>
       !issues(value as unknown as OperationDraft).length && writable.value,
     services: {
-      load: async (identity) =>
+      load: async (identity, signal) =>
         decodeOperation(
           await services.call<NativeDocument>(
             "native_api.load_document",
             identity as unknown as Record<string, unknown>,
+            signal,
           ),
         ),
       create: async (doctype, requestId, values) =>
@@ -506,6 +509,10 @@ export function useOperationEditor(props: {
   let initialItemsApplied = false;
   async function load(discardDirty = false) {
     if (loading.value) return;
+    loadController?.abort();
+    loadController = new AbortController();
+    const signal = loadController.signal;
+    loanDetails.clear();
     state.error = "";
     loading.value = true;
     hydrating.value = true;
@@ -513,7 +520,12 @@ export function useOperationEditor(props: {
     clearTimeout(timer);
     try {
       if (props.identity || state.identity)
-        await editor.load((props.identity || state.identity)!, discardDirty);
+        await editor.load(
+          (props.identity || state.identity)!,
+          discardDirty,
+          undefined,
+          signal,
+        );
       if (!active()) return;
       await hydrate();
       if (!state.identity && props.initialWarehouse) {
@@ -617,14 +629,21 @@ export function useOperationEditor(props: {
             batch_no: string;
             qty: number;
           }[]
-        >("temple_inventory.loans.outstanding_lines", {
-          item_codes: itemCodes,
-        });
+        >(
+          "temple_inventory.loans.outstanding_lines",
+          {
+            item_codes: itemCodes,
+          },
+          signal,
+        );
         const byLoan = new Map<string, typeof rows>();
         for (const row of rows)
           byLoan.set(row.loan, [...(byLoan.get(row.loan) || []), row]);
-        for (const [name, allocations] of byLoan)
-          await appendLoan(name, allocations);
+        await Promise.all(
+          [...byLoan].map(([name, allocations]) =>
+            appendLoan(name, allocations, signal),
+          ),
+        );
         initialItemsApplied = true;
       }
       if (!state.identity && props.originalLoan) {
@@ -640,10 +659,14 @@ export function useOperationEditor(props: {
         } catch {
           // Existing single-loan prefill values are plain names.
         }
-        for (const name of [...new Set(loanNames)]) await appendLoan(name);
+        await Promise.all(
+          [...new Set(loanNames)].map((name) =>
+            appendLoan(name, undefined, signal),
+          ),
+        );
       }
       if (draft.value.items.some((line) => line.loanName))
-        await refreshLoanBalances();
+        await refreshLoanBalances(false, signal);
     } catch (reason) {
       state.error =
         reason instanceof Error ? reason.message : "操作资料读取失败";
@@ -755,11 +778,10 @@ export function useOperationEditor(props: {
       batch_no: string;
       qty: number;
     }[],
+    signal?: AbortSignal,
   ) {
     if (!name || !active()) return;
-    const loan = await services.call<NativeDocument>("native_api.loan_detail", {
-      name,
-    });
+    const loan = await loadLoanDetail(name, false, signal);
     if (loan.docstatus !== 1 || loan.kind !== "Loan")
       throw new Error("请选择已提交的原借出记录");
     const additions = [];
@@ -837,7 +859,25 @@ export function useOperationEditor(props: {
     draft.value.loanName ||= name;
     draft.value.items.push(...additions);
   }
-  async function refreshLoanBalances() {
+  async function loadLoanDetail(
+    name: string,
+    refresh = false,
+    signal?: AbortSignal,
+  ) {
+    if (refresh || !loanDetails.has(name)) {
+      const pending = services.call<NativeDocument>(
+        "native_api.loan_detail",
+        {
+          name,
+        },
+        signal,
+      );
+      loanDetails.set(name, pending);
+      return pending;
+    }
+    return loanDetails.get(name)!;
+  }
+  async function refreshLoanBalances(refresh = true, signal?: AbortSignal) {
     const checks = await Promise.allSettled(
       [
         ...new Set(
@@ -846,10 +886,7 @@ export function useOperationEditor(props: {
           ),
         ),
       ].map(async (name) => {
-        const loan = await services.call<NativeDocument>(
-          "native_api.loan_detail",
-          { name },
-        );
+        const loan = await loadLoanDetail(name, refresh, signal);
         for (const line of draft.value.items.filter(
           (line) => line.loanName === name,
         )) {
@@ -971,6 +1008,7 @@ export function useOperationEditor(props: {
     document.addEventListener("inventory-session-restored", sessionRestored);
   onBeforeUnmount(() => {
     clearTimeout(timer);
+    loadController?.abort();
     if (dirty.value && !discarded) editor.retain();
     disposed = true;
     ready = false;
@@ -980,7 +1018,7 @@ export function useOperationEditor(props: {
   });
   void load()
     .then(async () => {
-      await refreshLoanBalances();
+      await refreshLoanBalances(false, loadController?.signal);
       if (!props.recoveryId) return;
       const entry = recovery.read(props.recoveryId);
       if (!entry || entry.editorKind !== "Stock Entry") {
@@ -1000,6 +1038,16 @@ export function useOperationEditor(props: {
       supportingDirty.value ||
       busy.value ||
       state.status === "saving",
+  );
+
+  watch(
+    () => props.identity?.name,
+    (name, previous) => {
+      if (previous && name !== previous) {
+        loadController?.abort();
+        void load(true);
+      }
+    },
   );
 
   return {

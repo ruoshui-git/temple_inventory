@@ -14,6 +14,7 @@ const shareableReads = new Set([
   "browse.counts_page",
   "browse.native_drafts",
   "browse.native_draft_count",
+  "native_api.loan_detail",
   "temple_inventory.projections.group_page",
 ]);
 interface SharedRead {

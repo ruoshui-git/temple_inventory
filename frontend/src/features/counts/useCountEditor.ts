@@ -64,6 +64,7 @@ export function useCountEditor(props: {
     discarded = false,
     baselineLoaded = false,
     epoch = 0,
+    loadController: AbortController | undefined,
     timer: ReturnType<typeof setTimeout> | undefined,
     leaveResolve: ((value: boolean) => void) | undefined,
     allowLeave = false;
@@ -170,11 +171,15 @@ export function useCountEditor(props: {
     recoveryDebounceMs: 500,
     valid: () => valid.value && writable.value,
     services: {
-      load: async (identity) =>
+      load: async (identity, signal) =>
         decodeCount(
-          await services.call<NativeDocument>("native_api.load_document", {
-            ...identity,
-          }),
+          await services.call<NativeDocument>(
+            "native_api.load_document",
+            {
+              ...identity,
+            },
+            signal,
+          ),
         ),
       create: (_doctype, requestId, values) => write(requestId, values),
       save: (identity, version, values) =>
@@ -354,7 +359,7 @@ export function useCountEditor(props: {
     });
   }
   watch(fingerprint, changed);
-  async function loadNames() {
+  async function loadNames(signal?: AbortSignal) {
     const codes = [
       ...new Set([
         ...rows.value.map((row) => row.item_code),
@@ -397,7 +402,7 @@ export function useCountEditor(props: {
     );
     const result = await services.call<
       { name: string; item_name: string; image: string }[]
-    >("catalog.item_summaries", { item_codes: missing });
+    >("catalog.item_summaries", { item_codes: missing }, signal);
     if (!active()) return;
     for (const item of result) {
       names[item.name] = item.item_name;
@@ -405,6 +410,9 @@ export function useCountEditor(props: {
     }
   }
   async function load(discardDirty = false) {
+    loadController?.abort();
+    loadController = new AbortController();
+    const signal = loadController.signal;
     loading.value = true;
     ready = false;
     clearTimeout(timer);
@@ -417,6 +425,7 @@ export function useCountEditor(props: {
           },
           discardDirty,
           props.initialDocument,
+          signal,
         );
       if (!active()) return;
       if (state.identity?.doctype === "Stock Reconciliation") {
@@ -426,7 +435,7 @@ export function useCountEditor(props: {
             missing_serials: string[];
             found_serials: string[];
           })[]
-        >("counts.count_serial_details", { name: state.identity.name });
+        >("counts.count_serial_details", { name: state.identity.name }, signal);
         if (!active()) return;
         const byKey = new Map(serialDetails.map((row) => [countKey(row), row]));
         for (const target of [state.values, state.server]) {
@@ -460,10 +469,12 @@ export function useCountEditor(props: {
         ready = true;
       }
     }
-    if (!deskOrigin.value) await refresh(false);
-    await loadNames();
+    await Promise.all([
+      !deskOrigin.value ? refresh(false, signal) : Promise.resolve(),
+      loadNames(signal),
+    ]);
   }
-  async function refresh(markEdited = true) {
+  async function refresh(markEdited = true, signal?: AbortSignal) {
     if (!canRefresh.value || baselineBusy.value) return;
     if (!reference.physicalLeaves.length) {
       baselineError.value = "没有可访问的实体末级位置";
@@ -478,6 +489,7 @@ export function useCountEditor(props: {
         const currentDocument = await services.call<NativeDocument>(
           "native_api.load_document",
           { ...state.identity },
+          signal,
         );
         if (
           currentDocument.version !== state.version ||
@@ -491,15 +503,20 @@ export function useCountEditor(props: {
         timestamp: string;
         warehouses: string[];
         removed_rows: CountRow[];
-      }>("counts.count_baseline", {
-        timestamp: timestamp.value,
-        previous_rows: [
-          ...rows.value,
-          ...removed.value.filter(
-            (old) => !rows.value.some((row) => countKey(row) === countKey(old)),
-          ),
-        ],
-      });
+      }>(
+        "counts.count_baseline",
+        {
+          timestamp: timestamp.value,
+          previous_rows: [
+            ...rows.value,
+            ...removed.value.filter(
+              (old) =>
+                !rows.value.some((row) => countKey(row) === countKey(old)),
+            ),
+          ],
+        },
+        signal,
+      );
       if (
         !active() ||
         current !== epoch ||
@@ -855,6 +872,7 @@ export function useCountEditor(props: {
     document.addEventListener("inventory-session-restored", sessionRestored);
   onBeforeUnmount(() => {
     clearTimeout(timer);
+    loadController?.abort();
     if (dirty.value && !discarded) editor.retain();
     disposed = true;
     epoch++;
@@ -879,6 +897,16 @@ export function useCountEditor(props: {
       supportingDirty.value ||
       busy.value ||
       state.status === "saving",
+  );
+
+  watch(
+    () => props.name,
+    (name, previous) => {
+      if (previous && name !== previous) {
+        loadController?.abort();
+        void load(true);
+      }
+    },
   );
 
   return {

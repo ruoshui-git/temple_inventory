@@ -1,5 +1,14 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from "vue";
+import {
+	computed,
+	defineAsyncComponent,
+	nextTick,
+	onBeforeUnmount,
+	onDeactivated,
+	onMounted,
+	ref,
+	watch,
+} from "vue";
 import {
 	ScannerService,
 	cameraError,
@@ -10,7 +19,7 @@ import {
 import { sessionExpired } from "../lib/sessionState";
 import Overlay from "./ui/Overlay.vue";
 import UiButton from "./ui/UiButton.vue";
-import ImageCrop from "./ui/ImageCrop.vue";
+const ImageCrop = defineAsyncComponent(() => import("./ui/ImageCrop.vue"));
 export type ScannerPresentation = "inline" | "modal" | "continuous" | "camera";
 const props = withDefaults(
 	defineProps<{

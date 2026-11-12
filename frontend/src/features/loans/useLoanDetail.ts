@@ -109,7 +109,7 @@ export function useLoanDetail(props: { name: string }) {
     sort: "desc" as const,
   }));
   const history = useMovementHistory(historyQuery, {
-    enabled: () => loan.value?.name === props.name && active(),
+    enabled: () => Boolean(props.name) && active(),
   });
   useBrowseState(
     "loan-detail",

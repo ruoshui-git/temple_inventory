@@ -29,9 +29,13 @@ export function useNotifications(
   let disposed = false;
   let popoverOpen = false;
   let rowsStale = true;
+  let lastSuccessfulCountRefresh = 0;
+  let countRefreshInFlight = false;
   const active = () => !disposed && reference.user === account;
 
   async function refreshCount() {
+    if (countRefreshInFlight) return;
+    countRefreshInFlight = true;
     try {
       const [count, status] = await Promise.all([
         services.call<number>("notifications.unread_count"),
@@ -41,6 +45,7 @@ export function useNotifications(
         }),
       ]);
       if (!active()) return;
+      lastSuccessfulCountRefresh = Date.now();
       const changed = count !== unreadCount.value;
       unreadCount.value = count;
       hasRunningExports.value = status.has_running_exports;
@@ -51,6 +56,8 @@ export function useNotifications(
       }
     } catch {
       /* Keep the last known badge while offline. */
+    } finally {
+      countRefreshInFlight = false;
     }
   }
   function updateAppBadge(count: number) {
@@ -132,10 +139,19 @@ export function useNotifications(
     window.dispatchEvent(new Event("inventory-notification-refresh"));
   }
   function refreshOnVisibility() {
-    if (document.visibilityState === "visible") void refreshCount();
+    if (
+      document.visibilityState === "visible" &&
+      !countRefreshInFlight &&
+      Date.now() - lastSuccessfulCountRefresh >= 30_000
+    )
+      void refreshCount();
   }
   function refreshOnFocus() {
-    void refreshCount();
+    if (
+      !countRefreshInFlight &&
+      Date.now() - lastSuccessfulCountRefresh >= 30_000
+    )
+      void refreshCount();
   }
   function refreshOnAction() {
     void refreshCount();

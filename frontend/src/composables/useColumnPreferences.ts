@@ -14,6 +14,8 @@ const memory = new Map<string, ColumnPreference>();
 // table/card switches can remount row details; reuse that server-confirmed
 // presentation state instead of issuing another preference read per remount.
 const validated = new Set<string>();
+const preferenceReads = new Map<string, Promise<unknown>>();
+const preferenceReadEpochs = new Map<string, number>();
 const saveQueues = new Map<string, Promise<void>>();
 let activeScope = "";
 
@@ -143,6 +145,8 @@ export function useColumnPreferences(
     if (activeScope !== currentScope.value) {
       memory.clear();
       validated.clear();
+      preferenceReads.clear();
+      preferenceReadEpochs.clear();
       activeScope = currentScope.value;
     }
     const local = readLocal(currentKey.value);
@@ -165,13 +169,27 @@ export function useColumnPreferences(
       return;
     }
     try {
-      const result = await services.call<unknown>(
-        "table_preferences.get_column_preferences",
-        {
-          table_id: currentTableId.value,
-        },
-      );
+      const readKey = currentKey.value;
+      const readEpoch = preferenceReadEpochs.get(readKey) || 0;
+      let read = preferenceReads.get(readKey);
+      if (!read) {
+        read = services.call<unknown>(
+          "table_preferences.get_column_preferences",
+          {
+            table_id: currentTableId.value,
+          },
+        );
+        preferenceReads.set(readKey, read);
+        void read
+          .finally(() => {
+            if (preferenceReads.get(readKey) === read)
+              preferenceReads.delete(readKey);
+          })
+          .catch(() => undefined);
+      }
+      const result = await read;
       if (ownEpoch !== epoch) return;
+      if (readEpoch !== (preferenceReadEpochs.get(readKey) || 0)) return;
       validated.add(currentKey.value);
       const saved = normalizedPreference(result);
       if (!saved && revision === 0 && !dirty) {
@@ -218,6 +236,9 @@ export function useColumnPreferences(
       const normalized = normalizedPreference(confirmed);
       if (!normalized) throw new Error("服务器未确认列设置");
       if (ownEpoch === epoch && ownRevision === revision) {
+        preferenceReads.delete(key);
+        preferenceReadEpochs.set(key, (preferenceReadEpochs.get(key) || 0) + 1);
+        validated.add(key);
         apply(normalized);
         dirty = false;
         cache(currentPreference(), false);
@@ -251,6 +272,8 @@ export function useColumnPreferences(
 
   function commit() {
     revision += 1;
+    const key = currentKey.value;
+    preferenceReadEpochs.set(key, (preferenceReadEpochs.get(key) || 0) + 1);
     const values = currentPreference();
     dirty = true;
     cache(values, true);

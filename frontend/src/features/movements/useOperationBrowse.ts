@@ -373,7 +373,7 @@ export function useOperationBrowse(
           item_count: 0,
         };
         expanded.add(flatHistory.id);
-        await loadDetails(flatHistory);
+        void loadDetails(flatHistory);
       }
     } catch (reason) {
       if (request.signal.aborted) return;

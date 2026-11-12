@@ -165,6 +165,32 @@ function addLine(c: ReturnType<typeof useOperationEditor>) {
   });
 }
 describe("native movement editor integration", () => {
+  it("aborts Return prefill reads when the editor unmounts", async () => {
+    let signal: AbortSignal | undefined;
+    const base = service();
+    const call = vi.fn(
+      (
+        method: string,
+        args: Record<string, unknown>,
+        requestSignal?: AbortSignal,
+      ) => {
+        if (method === "temple_inventory.loans.outstanding_lines") {
+          signal = requestSignal;
+          return new Promise<never>(() => undefined);
+        }
+        return base(method, args) as never;
+      },
+    );
+    setup(
+      () => useOperationEditor({ kind: "Return", initialItems: ["ITEM-A"] }),
+      call,
+    );
+    await flushPromises();
+    expect(signal?.aborted).toBe(false);
+    wrappers.at(-1)?.unmount();
+    expect(signal?.aborted).toBe(true);
+  });
+
   it("only labels generated batches for items that track batches", async () => {
     const call = vi.fn(async (method: string) => {
       if (method === "catalog.operation_items")
@@ -282,6 +308,9 @@ describe("native movement editor integration", () => {
       (controller) => h(OperationLines, { draft: controller.draft.value }),
     );
     await flushPromises();
+    expect(
+      call.mock.calls.filter(([method]) => method === "native_api.loan_detail"),
+    ).toHaveLength(1);
     expect(c.draft.value.items[0]).toMatchObject({
       serials: ["SERIAL-A", "SERIAL-B", "SERIAL-C"],
       outstandingSerials: ["SERIAL-A", "SERIAL-B", "SERIAL-C"],
@@ -1245,6 +1274,7 @@ describe("native movement editor integration", () => {
     expect(call).toHaveBeenCalledWith(
       "temple_inventory.loans.outstanding_lines",
       { item_codes: ["ITEM-A"] },
+      expect.any(AbortSignal),
     );
     expect(c.draft.value.items).toHaveLength(1);
     expect(c.draft.value.items[0]).toMatchObject({

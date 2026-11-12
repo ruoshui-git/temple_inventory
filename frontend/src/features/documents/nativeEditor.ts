@@ -36,7 +36,7 @@ function matching(result: NativeSaveResult): result is MatchingCountResult {
   return result.no_adjustment === true;
 }
 export interface DocumentServices {
-  load(identity: NativeIdentity): Promise<NativeDocument>;
+  load(identity: NativeIdentity, signal?: AbortSignal): Promise<NativeDocument>;
   create(
     doctype: NativeIdentity["doctype"],
     requestId: string,
@@ -324,12 +324,13 @@ export function createNativeEditor(options: {
     identity: NativeIdentity,
     discardDirty = false,
     suppliedResponse?: NativeDocument,
+    signal?: AbortSignal,
   ) {
     const requestEpoch = ++epoch;
     try {
       const response =
-        suppliedResponse || (await options.services.load(identity));
-      if (!active(requestEpoch)) return;
+        suppliedResponse || (await options.services.load(identity, signal));
+      if (signal?.aborted || !active(requestEpoch)) return;
       if (
         !discardDirty &&
         state.revision > 0 &&

@@ -62,10 +62,13 @@ export function useApplication(
         reference.capabilities = authenticated.capabilities;
       if (authenticated.role_label)
         reference.role_label = authenticated.role_label;
-      const status = await services.call<InitializationStatus>(
-        "configuration.status",
-      );
+      const [statusResult, bootstrapResult] = await Promise.allSettled([
+        services.call<InitializationStatus>("configuration.status"),
+        services.call<BootstrapData>("browse.bootstrap"),
+      ]);
       if (!current(request)) return;
+      if (statusResult.status === "rejected") throw statusResult.reason;
+      const status = statusResult.value;
       state.status = status;
       state.accessBlocked = status.blockers.some(
         (issue) =>
@@ -78,8 +81,8 @@ export function useApplication(
         state.gate = wasReady && !changed ? "ready" : "setup";
         return;
       }
-      const bootstrap = await services.call<BootstrapData>("browse.bootstrap");
-      if (!current(request)) return;
+      if (bootstrapResult.status === "rejected") throw bootstrapResult.reason;
+      const bootstrap = bootstrapResult.value;
       if (bootstrap.user !== authenticated.user) {
         Object.assign(reference, createReferenceData());
         reference.user = bootstrap.user;

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from "vue";
+import { preferenceUser } from "../../lib/uiPreferences";
 import SearchSelect, { type SearchOption } from "./SearchSelect.vue";
 const props = defineProps<{
 	modelValue?: string;
@@ -25,6 +26,10 @@ let generation = 0;
 let controller: AbortController | undefined;
 let failedStart = 0;
 let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+const firstPages = new Map<
+	string,
+	{ savedAt: number; result: { rows: SearchOption[]; total: number; next: number | null } }
+>();
 const labels = new Map<string, string>();
 async function search(value = query.value, start = 0, immediate = false) {
 	query.value = value;
@@ -40,15 +45,25 @@ async function search(value = query.value, start = 0, immediate = false) {
 		debounceTimer = setTimeout(() => void search(value, start, true), 250);
 		return;
 	}
+	const cacheKey = `${preferenceUser.value}\u0000${props.context || ""}\u0000${value}`;
+	const cached = start === 0 ? firstPages.get(cacheKey) : undefined;
+	const showCached = Boolean(cached && Date.now() - cached.savedAt < 30_000);
+	if (showCached) {
+		rows.value = cached!.result.rows;
+		total.value = cached!.result.total;
+		next.value = cached!.result.next;
+		cached!.result.rows.forEach((row) => labels.set(row.value, row.label));
+	}
 	const request = ++generation;
 	controller?.abort();
 	controller = new AbortController();
-	loading.value = true;
+	loading.value = !showCached;
 	error.value = "";
 	failedStart = start;
 	try {
 		const result = await props.load(value, start, controller.signal);
 		if (request !== generation) return;
+		if (start === 0) firstPages.set(cacheKey, { savedAt: Date.now(), result });
 		rows.value = start
 			? [
 					...rows.value,
@@ -70,6 +85,7 @@ async function search(value = query.value, start = 0, immediate = false) {
 watch(
 	() => props.context,
 	() => {
+		firstPages.clear();
 		generation++;
 		controller?.abort();
 		if (debounceTimer) clearTimeout(debounceTimer);
@@ -80,6 +96,16 @@ watch(
 		error.value = "";
 	},
 );
+watch(preferenceUser, () => {
+	firstPages.clear();
+	generation++;
+	controller?.abort();
+	rows.value = [];
+	total.value = 0;
+	next.value = null;
+	loading.value = false;
+	error.value = "";
+});
 onBeforeUnmount(() => {
 	generation++;
 	controller?.abort();

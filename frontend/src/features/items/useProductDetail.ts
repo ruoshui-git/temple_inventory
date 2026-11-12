@@ -141,11 +141,11 @@ export function useProductDetail(props: { code: string; tab?: string }) {
   );
   const movements = useMovementHistory(movementQuery, {
     itemCode: () => props.code,
-    enabled: () => visible.value,
+    enabled: () => Boolean(props.code) && active(),
   });
   const loans = useMovementHistory(loanQuery, {
     itemCode: () => props.code,
-    enabled: () => visible.value,
+    enabled: () => Boolean(props.code) && active(),
     loanAllocations: true,
   });
   useBrowseState(

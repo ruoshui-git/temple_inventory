@@ -164,6 +164,15 @@ function setup(
   return { c, props, reference, report, call, wrapper, settle };
 }
 describe("native loan details", () => {
+  it("starts route-scoped history before the loan detail response", async () => {
+    const call = vi.fn(() => new Promise(() => undefined));
+    setup(call as never);
+    await flushPromises();
+    const endpoints = call.mock.calls.map(([endpoint]) => endpoint);
+    expect(endpoints).toContain("native_api.loan_detail");
+    expect(endpoints).toContain("browse.movement_history");
+  });
+
   it("keeps the loan detail in a neutral skeleton state before its first response", () => {
     const pending = new Promise(() => undefined);
     const call = vi.fn(() => pending);

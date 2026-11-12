@@ -132,4 +132,27 @@ describe("column preferences across a page remount", () => {
       hidden: ["batch_no", "warehouse_label"],
     });
   });
+
+  it("shares one in-flight preference read across mounted instances", async () => {
+    const reference = createReferenceData();
+    Object.assign(reference, {
+      site: `shared-${++siteSequence}.local`,
+      user: "shared-user",
+    });
+    const call = serverCall();
+
+    const instances = Array.from({ length: 6 }, () =>
+      mountPage(reference, call, { id: "T1" }),
+    );
+    await flushPromises();
+
+    expect(
+      call.mock.calls.filter(([method]) =>
+        method.endsWith("get_column_preferences"),
+      ),
+    ).toHaveLength(1);
+    expect(
+      instances.every((instance) => instance.controller().isReady.value),
+    ).toBe(true);
+  });
 });

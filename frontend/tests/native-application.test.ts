@@ -224,6 +224,31 @@ describe("native application boundary", () => {
     expect(bootstraps()).toHaveLength(2);
   });
 
+  it("starts status and bootstrap together after session restoration", async () => {
+    let resolveStatus!: (value: object) => void;
+    let resolveBootstrap!: (value: BootstrapData) => void;
+    const status = new Promise<object>((resolve) => (resolveStatus = resolve));
+    const boot = new Promise<BootstrapData>(
+      (resolve) => (resolveBootstrap = resolve),
+    );
+    const call = vi.fn((endpoint: string) =>
+      endpoint === "configuration.status" ? status : boot,
+    );
+    const app = setup(
+      vi.fn(async () => sessionValue()),
+      call,
+    );
+    await flushPromises();
+    expect(call.mock.calls.map(([endpoint]) => endpoint).sort()).toEqual([
+      "browse.bootstrap",
+      "configuration.status",
+    ]);
+    resolveStatus({ setup_required: false, warnings: [], blockers: [] });
+    resolveBootstrap(bootstrap());
+    await flushPromises();
+    expect(app.c.state.gate).toBe("ready");
+  });
+
   it("delays worker activation while an editor retains unsaved input and releases its guard on unmount", async () => {
     const pending = ref(true),
       child = defineComponent({

@@ -196,6 +196,8 @@ const borrowerGroups = ref<OutstandingBorrowerSummary[]>([]),
 	borrowerGroupsNext = ref<number | null>(null),
 	borrowerSuggestions = ref<string[]>([]);
 let borrowerSearchTimer: ReturnType<typeof setTimeout> | undefined;
+let borrowerSearchGeneration = 0;
+let borrowerSearchController: AbortController | undefined;
 onMounted(async () => {
 	if (draft.value.kind === "Loan") {
 		try {
@@ -207,18 +209,31 @@ onMounted(async () => {
 	}
 	if (draft.value.kind === "Return") await loadOutstandingLoanGroups();
 });
-onBeforeUnmount(() => clearTimeout(borrowerSearchTimer));
+onBeforeUnmount(() => {
+	clearTimeout(borrowerSearchTimer);
+	borrowerSearchGeneration++;
+	borrowerSearchController?.abort();
+});
 async function loadOutstandingLoanGroups(append = false) {
+	const generation = ++borrowerSearchGeneration;
+	borrowerSearchController?.abort();
+	const controller = new AbortController();
+	borrowerSearchController = controller;
 	outstandingLoading.value = true;
 	try {
 		const result = await services.call<{
 			rows: OutstandingBorrowerSummary[];
 			next: number | null;
-		}>("native_api.outstanding_loan_groups", {
-			search: loanSearch.value,
-			start: append ? borrowerGroupsNext.value || 0 : 0,
-			page_length: 30,
-		});
+		}>(
+			"native_api.outstanding_loan_groups",
+			{
+				search: loanSearch.value,
+				start: append ? borrowerGroupsNext.value || 0 : 0,
+				page_length: 30,
+			},
+			controller.signal,
+		);
+		if (generation !== borrowerSearchGeneration) return;
 		borrowerGroups.value = append ? [...borrowerGroups.value, ...result.rows] : result.rows;
 		borrowerGroupsNext.value = result.next;
 		if (!append) {
@@ -226,9 +241,10 @@ async function loadOutstandingLoanGroups(append = false) {
 			expandedBorrower.value = "";
 		}
 	} catch (reason) {
-		state.error = reason instanceof Error ? reason.message : "未结清借用加载失败";
+		if (generation === borrowerSearchGeneration && !controller.signal.aborted)
+			state.error = reason instanceof Error ? reason.message : "未结清借用加载失败";
 	} finally {
-		outstandingLoading.value = false;
+		if (generation === borrowerSearchGeneration) outstandingLoading.value = false;
 	}
 }
 function scheduleBorrowerSearch() {

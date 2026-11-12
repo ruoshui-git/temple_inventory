@@ -142,7 +142,7 @@ describe("notification controller flows", () => {
     ).toBe("2 箱 · 1 个");
     setUnitSource(undefined);
   });
-  it("refreshes unread count on focus and visibility and after marking a row read", async () => {
+  it("coalesces focus and visibility refreshes within 30 seconds", async () => {
     let unread = 1;
     const call = vi.fn(async (endpoint: string) => {
       if (endpoint === "notifications.inbox")
@@ -173,12 +173,14 @@ describe("notification controller flows", () => {
     window.dispatchEvent(new Event("focus"));
     document.dispatchEvent(new Event("visibilitychange"));
     await flushPromises();
+    expect(
+      call.mock.calls.filter(([name]) => name === "notifications.unread_count"),
+    ).toHaveLength(1);
     await wrapper.get("#mark").trigger("click");
     await flushPromises();
     expect(
-      call.mock.calls.filter(([name]) => name === "notifications.unread_count")
-        .length,
-    ).toBeGreaterThanOrEqual(3);
+      call.mock.calls.filter(([name]) => name === "notifications.unread_count"),
+    ).toHaveLength(3);
     expect(call).toHaveBeenCalledWith("notifications.mark_read", {
       names: '["N-1"]',
     });

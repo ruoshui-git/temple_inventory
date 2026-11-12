@@ -104,6 +104,40 @@ describe("browse navigation memory", () => {
     ).toHaveLength(2);
   });
 
+  it("restores depth within the endpoint page limit in one enlarged request", async () => {
+    let entry = "restore-depth";
+    const source = services(),
+      memory = createBrowseMemory(() => entry),
+      wrapped = memory.wrap(source);
+    vi.mocked(source.call).mockImplementation(async (_endpoint, args = {}) => {
+      const start = Number(args.start || 0),
+        length = Number(args.page_length || 30);
+      return {
+        rows: Array.from({ length }, (_, index) => ({ id: start + index })),
+        matched_count: 200,
+        next_start: start + length < 200 ? start + length : null,
+      } as never;
+    });
+    await wrapped.call("browse.inventory_page", { page_length: 20 });
+    await wrapped.call("browse.inventory_page", { start: 20, page_length: 20 });
+    entry = "other";
+    memory.activate();
+    entry = "restore-depth";
+    memory.activate();
+    vi.mocked(source.call).mockClear();
+
+    const restored = await wrapped.call<{ rows: unknown[] }>(
+      "browse.inventory_page",
+      {
+        page_length: 20,
+      },
+    );
+
+    expect(restored.rows).toHaveLength(40);
+    expect(vi.mocked(source.call)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(source.call).mock.calls[0]?.[1]?.page_length).toBe(40);
+  });
+
   it("restores main and related report tables independently and isolates account and scope", async () => {
     let entry = "site:manager:/reports:1";
     const source = services(),
