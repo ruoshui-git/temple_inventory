@@ -34,6 +34,10 @@ This document owns tokens, geometry and shared visual contracts. [UI_UX_DECISION
 - **Scanner dialog:** small dialog, square preview, camera controls, manual entry and image recognition in one column. ItemPicker retains its inline scan stage.
 - **NotificationCenter:** bell target at least 44px, count capped at `99+`, accessible name includes unread count. Desktop bounded popover; phone full-height sheet. Rows use kind icon, emphasized subject, unread dot, relative time and export action.
 
+## Motion
+
+- Use `--p-motion` (140ms), `--p-motion-fast` (90ms), and `--p-motion-ease`. UI transitions animate opacity and transform; operation rows may animate opacity and height. They never delay input or dismissal, and the global reduced-motion rule disables them.
+
 ## Geometry
 
 ### Density and desktop browse

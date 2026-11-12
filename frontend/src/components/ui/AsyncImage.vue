@@ -141,7 +141,7 @@ function handleError() {
 	width: 100%;
 	height: 100%;
 	max-width: 100%;
-	transition: opacity 120ms ease;
+	transition: opacity var(--p-motion-fast) var(--p-motion-ease);
 }
 .async-image--loading img {
 	opacity: 0;

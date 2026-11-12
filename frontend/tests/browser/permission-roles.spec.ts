@@ -55,11 +55,13 @@ for (const role of ["Viewer", "Operator", "Manager"] as const) {
         if (allowed[role].includes(capability))
           await expect(page.getByTestId("forbidden-state")).toHaveCount(0);
         else await expect(page.getByTestId("forbidden-state")).toBeVisible();
-        await expect(
-          width === 390
-            ? page.locator(".app-mobile-nav")
-            : page.getByRole("navigation", { name: "应用主导航" }),
-        ).toBeVisible();
+        if (width === 390) {
+          await expect(page.locator(".app-mobile-nav")).toHaveCount(0);
+        } else {
+          await expect(
+            page.getByRole("navigation", { name: "应用主导航" }),
+          ).toBeVisible();
+        }
       }
 
       if (role === "Operator") {

@@ -5,6 +5,7 @@ withDefaults(
 		label: string;
 		placeholder?: string;
 		autocomplete?: string;
+		inputAttrs?: Record<string, unknown>;
 	}>(),
 	{ placeholder: "", autocomplete: "off" },
 );
@@ -15,6 +16,7 @@ const emit = defineEmits<{ "update:modelValue": [value: string] }>();
 	<label class="browse-persistent-search shared-search-field">
 		<span class="sr-only">{{ label }}</span>
 		<input
+			v-bind="inputAttrs"
 			:value="modelValue"
 			type="search"
 			:aria-label="label"

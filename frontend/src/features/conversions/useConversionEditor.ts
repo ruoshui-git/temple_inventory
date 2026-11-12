@@ -207,7 +207,7 @@ export function useConversionEditor(
       error.value =
         reason instanceof Error
           ? reason.message
-          : "常用换算保存失败，输入已保留";
+          : "常用换算保存失败：输入已保留";
       conflict.value =
         String((reason as { kind?: string })?.kind) ===
         "TimestampMismatchError";

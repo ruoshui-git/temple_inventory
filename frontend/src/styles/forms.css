@@ -254,7 +254,7 @@ input[list]::-webkit-calendar-picker-indicator {
 		);
 	}
 	.form-page .form-review {
-		bottom: calc(var(--app-nav-height, 80px) + 8px);
+		bottom: calc(var(--app-nav-height, 80px) + env(safe-area-inset-bottom, 0px) + 8px);
 		max-height: min(220px, 40dvh);
 	}
 }
@@ -421,6 +421,9 @@ input[list]::-webkit-calendar-picker-indicator {
 .operation-location-section {
 	min-width: 0;
 }
+.operation-rows {
+	display: contents;
+}
 .operation-location-heading {
 	position: sticky;
 	top: calc(var(--app-desktop-nav-height, 64px) + 68px);
@@ -524,9 +527,9 @@ input[list]::-webkit-calendar-picker-indicator {
 	padding: var(--p-table-cell-y) var(--p-table-cell-x);
 	border-bottom: 1px solid var(--p-border-soft);
 	transition:
-		background-color 180ms ease,
-		border-color 180ms ease,
-		box-shadow 180ms ease;
+		background-color var(--p-motion) var(--p-motion-ease),
+		border-color var(--p-motion) var(--p-motion-ease),
+		box-shadow var(--p-motion) var(--p-motion-ease);
 }
 .operation-row-item {
 	display: flex;
@@ -570,7 +573,8 @@ input[list]::-webkit-calendar-picker-indicator {
 		max-height: var(--p-control);
 	}
 	:root:is([data-ti-density="xcompact"], [data-ti-density="compact"])
-		.operation-compact-identity strong {
+		.operation-compact-identity
+		strong {
 		-webkit-line-clamp: 1;
 	}
 }
@@ -917,7 +921,9 @@ input[list]::-webkit-calendar-picker-indicator {
 	border-radius: var(--p-radius-control);
 }
 .workspace-expanded {
-	padding-bottom: calc(var(--form-review-height, 180px) + var(--app-nav-height, 0px) + 24px);
+	padding-bottom: calc(
+		var(--form-review-height, 180px) + var(--app-nav-height, 0px) + 24px + env(safe-area-inset-bottom, 0px)
+	);
 }
 @media (max-width: 1023px) {
 	:root .form-page.form-page .form-review {
@@ -938,7 +944,7 @@ input[list]::-webkit-calendar-picker-indicator {
 		position: fixed;
 		left: 12px;
 		right: 12px;
-		bottom: calc(var(--app-nav-height, 80px) + 8px);
+		bottom: calc(var(--app-nav-height, 80px) + env(safe-area-inset-bottom, 0px) + 8px);
 		max-height: none;
 		overflow: visible;
 		display: grid;
@@ -971,7 +977,8 @@ input[list]::-webkit-calendar-picker-indicator {
 	}
 	.form-page {
 		padding-bottom: calc(
-			var(--app-action-bar-height) + var(--app-nav-height, 80px) + var(--p-gap)
+			var(--app-action-bar-height) + var(--app-nav-height, 80px) + var(--p-gap) +
+				env(safe-area-inset-bottom, 0px)
 		);
 	}
 	.form-page .form-page-heading {

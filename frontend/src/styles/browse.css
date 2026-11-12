@@ -120,8 +120,8 @@ body:has(.browse-page) {
 	text-decoration-color: transparent;
 	text-underline-offset: 0.16em;
 	transition:
-		text-decoration-color var(--p-motion),
-		color var(--p-motion);
+		text-decoration-color var(--p-motion) var(--p-motion-ease),
+		color var(--p-motion) var(--p-motion-ease);
 	min-height: var(--p-control);
 }
 .browse-row-link:focus-visible {
@@ -748,7 +748,7 @@ body:has(.browse-page) {
 	justify-content: flex-start;
 }
 .async-result-region {
-	transition: opacity var(--p-motion-fast);
+	transition: opacity var(--p-motion-fast) var(--p-motion-ease);
 }
 .async-result-region.is-refreshing {
 	opacity: 0.58;
@@ -920,7 +920,7 @@ body:has(.browse-page) {
 .browse-result-summary-disclosure {
 	margin-inline-start: 2px;
 	color: var(--p-accent);
-	transition: transform var(--p-motion);
+	transition: transform var(--p-motion) var(--p-motion-ease);
 }
 .browse-result-summary-trigger[aria-expanded="true"] .browse-result-summary-disclosure {
 	transform: rotate(90deg);
@@ -1326,8 +1326,8 @@ body:has(.browse-page) {
 }
 .dashboard-grid .browse-card {
 	transition:
-		border-color var(--p-motion),
-		box-shadow var(--p-motion);
+		border-color var(--p-motion) var(--p-motion-ease),
+		box-shadow var(--p-motion) var(--p-motion-ease);
 }
 .dashboard-grid .browse-card:focus-within {
 	border-color: var(--p-accent);
@@ -1722,8 +1722,8 @@ body:has(.browse-page) {
 
 .dashboard .quantity-summary-metric {
 	transition:
-		border-color var(--p-motion),
-		box-shadow var(--p-motion);
+		border-color var(--p-motion) var(--p-motion-ease),
+		box-shadow var(--p-motion) var(--p-motion-ease);
 }
 @media (hover: hover) {
 	.dashboard .quantity-summary-metric:hover {
@@ -1802,7 +1802,7 @@ body:has(.browse-page) {
 @media (min-width: 1024px) and (pointer: fine) {
 	.browse-row-actions {
 		opacity: 0;
-		transition: opacity var(--p-motion);
+		transition: opacity var(--p-motion) var(--p-motion-ease);
 	}
 	.data-table-scroll tr:focus-within .browse-row-actions {
 		opacity: 1;
@@ -2258,8 +2258,8 @@ body:has(.browse-page) {
 	border-radius: var(--p-radius-control);
 	background: var(--p-surface);
 	transition:
-		border-color 120ms ease,
-		box-shadow 120ms ease;
+		border-color var(--p-motion-fast) var(--p-motion-ease),
+		box-shadow var(--p-motion-fast) var(--p-motion-ease);
 }
 .browse-search-container:focus-within {
 	border-color: var(--p-accent);
@@ -2714,7 +2714,7 @@ body:has(.browse-page) {
 		display: inline-block;
 		margin-inline-start: 0;
 		color: var(--p-accent);
-		transition: transform var(--p-motion);
+		transition: transform var(--p-motion) var(--p-motion-ease);
 	}
 	.browse-result-summary-trigger[aria-expanded="true"] .browse-result-summary-mobile-disclosure {
 		transform: rotate(90deg);
@@ -3096,6 +3096,20 @@ body:has(.browse-page) {
 	background: var(--p-surface);
 	box-shadow: var(--p-shadow);
 }
+.selection-bar-enter-active,
+.selection-bar-leave-active {
+	transition:
+		opacity var(--p-motion) var(--p-motion-ease),
+		transform var(--p-motion) var(--p-motion-ease);
+}
+.selection-bar-enter-from,
+.selection-bar-leave-to {
+	opacity: 0;
+	transform: translateY(6px);
+}
+.selection-bar-leave-active {
+	transition-duration: var(--p-motion-fast);
+}
 @media (max-width: 1023px) {
 	/* The FAB is teleported to <body> on phones, so the selection bar must hide it from there. */
 	body:has(.stock-selection-actions) .browse-split-button {
@@ -3339,7 +3353,7 @@ body:has(.browse-page) {
 	transform: rotate(90deg);
 }
 .dashboard-unit-disclosure .ti-disclosure-icon {
-	transition: transform 140ms ease;
+	transition: transform var(--p-motion) var(--p-motion-ease);
 }
 @media (max-width: 600px) {
 	.dashboard-inventory-metrics {

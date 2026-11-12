@@ -18,6 +18,10 @@ import { useCapabilities } from "../../composables/useCapabilities";
 import ForbiddenState from "../../components/ui/ForbiddenState.vue";
 import { useBackNavigation } from "../../composables/useBackNavigation";
 import { routeTarget } from "../../lib/routeRegistry";
+import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
+import BrowseEmpty from "../../components/ui/BrowseEmpty.vue";
+import { presentationText } from "../../lib/presentationLabels";
+import { unitGroupExpanded } from "../../lib/unitBrowse";
 
 const props = defineProps<{ controller: ReturnType<typeof useUnitsController> }>();
 const c = props.controller;
@@ -31,6 +35,12 @@ const mayDelete = computed(() => can("uom.delete"));
 // The server refuses to disable a unit that Items still use.
 function inUse(row: Record<string, unknown>) {
 	return Boolean(row.enabled) && Number(row.item_count) + Number(row.conversion_count) > 0;
+}
+function usedByItems(row: Record<string, unknown>) {
+	return Number(row.item_count) + Number(row.conversion_count) > 0;
+}
+function isRemainder(row: Record<string, unknown>) {
+	return row.unitRemainder === true;
 }
 function usage(row: Record<string, unknown>) {
 	return `库存单位物品 ${row.item_count} 项，物品单位换算 ${row.conversion_count} 项`;
@@ -61,7 +71,9 @@ const sorting = useArrayTableSort(recordRows, "category", [
 	"item_count",
 	"conversion_count",
 ]);
-const collapsed = ref(new Set<string>());
+const expandedGroups = ref(new Set<string>());
+const collapsedGroups = ref(new Set<string>());
+const expandedUnused = ref(new Set<string>());
 const groupedRows = computed<DataTableEntry[]>(() => {
 	const groups = new Map<string, DataTableRecord[]>();
 	for (const row of sorting.rows.value) {
@@ -71,10 +83,44 @@ const groupedRows = computed<DataTableEntry[]>(() => {
 		groups.set(category, entries);
 	}
 	const result: DataTableEntry[] = [];
+	const allRows = c.rows?.value || c.visible.value;
+	const allCategories = new Map<string, number>();
+	for (const row of allRows) {
+		const category = String(row.category || "未分类");
+		allCategories.set(
+			category,
+			(allCategories.get(category) || 0) +
+				Number(row.item_count) +
+				Number(row.conversion_count),
+		);
+	}
+	const defaultExpanded = new Set(
+		[...allCategories.entries()]
+			.filter(([, itemCount]) => itemCount > 0)
+			.map(([group]) => `category:${group}`),
+	);
+	if (!defaultExpanded.size) {
+		const firstCategory = allCategories.has("未分类")
+			? "未分类"
+			: [...allCategories.keys()].sort((a, b) => a.localeCompare(b, "zh-CN"))[0];
+		if (firstCategory) defaultExpanded.add(`category:${firstCategory}`);
+	}
+	const filtering = Boolean(
+		c.search.value.trim() ||
+		c.categoryFilter.value ||
+		c.wholeFilter.value !== "all" ||
+		c.statusFilter.value !== "all",
+	);
 	for (const category of [...groups.keys()].sort((a, b) => a.localeCompare(b, "zh-CN"))) {
 		const rows = groups.get(category) || [];
 		const id = `category:${category}`;
-		const expanded = !collapsed.value.has(id);
+		const expanded = unitGroupExpanded(
+			id,
+			defaultExpanded,
+			filtering,
+			expandedGroups.value,
+			collapsedGroups.value,
+		);
 		result.push({
 			kind: "group",
 			id,
@@ -88,15 +134,52 @@ const groupedRows = computed<DataTableEntry[]>(() => {
 			hasChildren: rows.length > 0,
 			value: { category },
 		});
-		if (expanded) result.push(...rows);
+		if (expanded) {
+			const usedRows = rows.filter((row) => usedByItems(row.value));
+			const unusedRows = rows.filter((row) => !usedByItems(row.value));
+			if (filtering) result.push(...rows);
+			else {
+				result.push(...usedRows);
+				if (unusedRows.length) {
+					const remainderId = `unused:${category}`;
+					const expandedRemainder = expandedUnused.value.has(remainderId);
+					result.push({
+						kind: "record",
+						id: remainderId,
+						value: {
+							unitRemainder: true,
+							category,
+							remaining: unusedRows.length,
+							expanded: expandedRemainder,
+						},
+					});
+					if (expandedRemainder) result.push(...unusedRows);
+				}
+			}
+		}
 	}
 	return result;
 });
 function toggleGroup(id: string) {
-	const next = new Set(collapsed.value);
+	const group = groupedRows.value.find((entry) => entry.kind === "group" && entry.id === id);
+	const expanded = group?.kind === "group" && group.expanded;
+	if (expanded) {
+		collapsedGroups.value = new Set([...collapsedGroups.value, id]);
+		expandedGroups.value.delete(id);
+	} else {
+		expandedGroups.value = new Set([...expandedGroups.value, id]);
+		collapsedGroups.value.delete(id);
+	}
+}
+function toggleUnused(category: string) {
+	const id = `unused:${category}`;
+	const next = new Set(expandedUnused.value);
 	if (next.has(id)) next.delete(id);
 	else next.add(id);
-	collapsed.value = next;
+	expandedUnused.value = next;
+}
+function remainderLabel(row: Record<string, unknown>) {
+	return `${row.expanded ? "收起" : "显示"}其余 ${row.remaining} 个单位`;
 }
 const filterCount = computed(
 	() =>
@@ -185,6 +268,11 @@ const filterLabels = computed(() => ({
 				</div>
 			</template>
 		</BrowseToolbar>
+		<BrowseResultSummary
+			v-if="c.forbidden?.value !== true && c.initialized.value"
+			:label="`${c.visible.value.length} 个单位`"
+			:metrics="[]"
+		/>
 		<ForbiddenState v-if="c.forbidden?.value === true" @back="back" />
 		<p v-else-if="c.refreshError.value" class="notice-bar danger" role="alert">
 			{{ c.refreshError.value }}
@@ -197,6 +285,7 @@ const filterLabels = computed(() => ({
 			:rows="groupedRows"
 			:loading="c.loading.value"
 			:initialized="c.initialized.value"
+			:loading-text="presentationText.loading"
 			:sort-by="sorting.sortBy.value"
 			:sort-direction="sorting.sortDirection.value"
 			empty-text="没有匹配的单位"
@@ -205,7 +294,15 @@ const filterLabels = computed(() => ({
 			@toggle-group="toggleGroup"
 		>
 			<template #cell="{ column, row }">
-				<template v-if="column.id === 'must_be_whole_number'">{{
+				<UiButton
+					v-if="isRemainder(row) && column.id === 'label'"
+					class="units-rest-toggle"
+					variant="ghost"
+					@click.stop="toggleUnused(String(row.category))"
+					>{{ remainderLabel(row) }}</UiButton
+				>
+				<template v-else-if="isRemainder(row)"></template>
+				<template v-else-if="column.id === 'must_be_whole_number'">{{
 					row.must_be_whole_number ? "整数" : "可小数"
 				}}</template>
 				<template v-else-if="column.id === 'enabled'">{{
@@ -261,13 +358,18 @@ const filterLabels = computed(() => ({
 					:aria-expanded="entry.expanded"
 					@click="toggleGroup(entry.id)"
 				>
-					<DisclosureIcon
-						variant="inline"
-						:style="{ transform: entry.expanded ? 'rotate(90deg)' : undefined }"
-					/>
+					<DisclosureIcon variant="inline" />
 					{{ entry.label }} <small>{{ entry.count }} 个单位</small>
 				</button>
-				<article v-else :key="entry.id" class="units-phone-row">
+				<article v-else-if="isRemainder(entry.value)" class="units-rest-row">
+					<UiButton
+						class="units-rest-toggle"
+						variant="ghost"
+						@click="toggleUnused(String(entry.value.category))"
+						>{{ remainderLabel(entry.value) }}</UiButton
+					>
+				</article>
+				<article v-else :key="entry.id" class="units-phone-card">
 					<template v-for="row in [entry.value]" :key="String(row.name)">
 						<div class="units-phone-identity">
 							<strong>{{ row.label }}</strong>
@@ -323,9 +425,10 @@ const filterLabels = computed(() => ({
 					</template>
 				</article>
 			</template>
-			<p v-if="!c.visible.value.length && c.initialized.value" class="muted">
-				没有匹配的单位。
-			</p>
+			<BrowseEmpty
+				v-if="!c.visible.value.length && c.initialized.value"
+				text="没有匹配的单位"
+			/>
 		</div>
 		<Overlay
 			v-if="c.dialog.value"
@@ -391,15 +494,15 @@ const filterLabels = computed(() => ({
 				<p v-if="c.error.value" role="alert">{{ c.error.value }}</p>
 			</form>
 			<template #footer>
-				<UiButton :disabled="c.saving.value" @click="c.dialog.value = false"
-					>取消</UiButton
-				>
+				<UiButton :disabled="c.saving.value" @click="c.dialog.value = false">{{
+					presentationText.dismiss
+				}}</UiButton>
 				<UiButton
 					variant="primary"
 					type="submit"
 					form="unit-form"
 					:loading="c.saving.value"
-					>保存</UiButton
+					>{{ presentationText.save }}</UiButton
 				>
 			</template>
 		</Overlay>
@@ -408,7 +511,7 @@ const filterLabels = computed(() => ({
 
 <style scoped>
 .units-page {
-	padding-bottom: 32px;
+	padding-bottom: calc(32px + env(safe-area-inset-bottom, 0px));
 }
 .unit-delete-reason {
 	display: block;
@@ -431,7 +534,7 @@ const filterLabels = computed(() => ({
 	gap: 8px;
 	margin-top: 12px;
 }
-.units-phone-row {
+.units-phone-card {
 	position: relative;
 	display: grid;
 	gap: 8px;
@@ -455,6 +558,15 @@ const filterLabels = computed(() => ({
 .units-phone-group small {
 	color: var(--p-muted);
 	font-weight: 400;
+}
+.units-rest-row {
+	display: grid;
+	grid-column: 1 / -1;
+}
+.units-rest-toggle {
+	min-height: 44px;
+	justify-content: flex-start;
+	color: var(--p-accent);
 }
 .units-phone-identity {
 	display: grid;

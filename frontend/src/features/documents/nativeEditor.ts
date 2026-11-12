@@ -1,6 +1,7 @@
 import { reactive } from "vue";
 import { confirm as confirmDialog } from "../../services/confirm";
 import { isForbiddenError } from "../../lib/serviceFailure";
+import { presentationText } from "../../lib/presentationLabels";
 import {
   recoveryValues,
   type BrowserRecoveryStore,
@@ -166,7 +167,9 @@ export function createNativeEditor(options: {
             ? "forbidden"
             : "error";
     state.error =
-      error instanceof Error ? error.message : "保存失败，请保留当前输入并重试";
+      error instanceof Error
+        ? error.message
+        : presentationText.saveFailed("请保留当前输入并重试");
     retain();
   }
   function mergeRowIdentities(

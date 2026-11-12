@@ -33,6 +33,7 @@ const emit = defineEmits<{
 		<input
 			v-if="autoCount !== undefined"
 			type="number"
+			inputmode="decimal"
 			min="1"
 			step="1"
 			:aria-label="autoCountLabel || `${label}自动生成序列号数量`"

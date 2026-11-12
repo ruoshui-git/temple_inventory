@@ -95,10 +95,16 @@ function fixture(isMobile = true) {
   const categoryFilter = ref("");
   const wholeFilter = ref<"all" | "whole" | "fractional">("all");
   const statusFilter = ref<"all" | "enabled" | "disabled">("all");
+  const search = ref("");
   const controller = {
+    rows: sourceRows,
     visible: computed(() =>
       sourceRows.value.filter(
         (row) =>
+          (!search.value ||
+            `${row.name} ${row.label} ${row.category}`
+              .toLocaleLowerCase()
+              .includes(search.value.toLocaleLowerCase())) &&
           (!categoryFilter.value ||
             (categoryFilter.value === "__uncategorized"
               ? !row.category
@@ -109,7 +115,7 @@ function fixture(isMobile = true) {
             row.enabled === (statusFilter.value === "enabled")),
       ),
     ),
-    search: ref(""),
+    search,
     categoryFilter,
     wholeFilter,
     statusFilter,
@@ -196,35 +202,82 @@ describe("units management page", () => {
 
   it("filters phone rows and collapses category groups", async () => {
     const { wrapper, controller } = fixture();
-    expect(wrapper.findAll(".units-phone-row")).toHaveLength(2);
+    expect(wrapper.findAll(".units-phone-card")).toHaveLength(1);
+    expect(wrapper.findAll(".units-phone-group")).toHaveLength(2);
     controller.categoryFilter.value = "Count";
     await wrapper.vm.$nextTick();
-    expect(wrapper.findAll(".units-phone-row")).toHaveLength(1);
-    expect(wrapper.find(".units-phone-row").text()).toContain("个");
+    expect(wrapper.findAll(".units-phone-card")).toHaveLength(1);
+    expect(wrapper.find(".units-phone-card").text()).toContain("个");
     await wrapper.get(".units-phone-group").trigger("click");
-    expect(wrapper.findAll(".units-phone-row")).toHaveLength(0);
+    expect(wrapper.findAll(".units-phone-card")).toHaveLength(0);
     controller.categoryFilter.value = "";
     controller.wholeFilter.value = "fractional";
     await wrapper.vm.$nextTick();
-    expect(wrapper.findAll(".units-phone-row")).toHaveLength(1);
-    expect(wrapper.find(".units-phone-row").text()).toContain("公斤");
+    expect(wrapper.findAll(".units-phone-card")).toHaveLength(1);
+    expect(wrapper.find(".units-phone-card").text()).toContain("公斤");
+    controller.search.value = "公斤";
+    await wrapper.vm.$nextTick();
+    expect(wrapper.findAll(".units-phone-card")).toHaveLength(1);
+    expect(wrapper.find(".units-phone-card").text()).toContain("公斤");
+    controller.search.value = "";
     controller.wholeFilter.value = "all";
     controller.statusFilter.value = "enabled";
     await wrapper.vm.$nextTick();
-    expect(wrapper.findAll(".units-phone-row")).toHaveLength(0);
+    expect(wrapper.findAll(".units-phone-card")).toHaveLength(0);
     await wrapper.get(".units-phone-group").trigger("click");
-    expect(wrapper.findAll(".units-phone-row")).toHaveLength(1);
-    expect(wrapper.find(".units-phone-row").text()).toContain("个");
+    expect(wrapper.findAll(".units-phone-card")).toHaveLength(1);
+    expect(wrapper.find(".units-phone-card").text()).toContain("个");
+  });
+
+  it("shows used units first and expands the unused remainder on phone and desktop", async () => {
+    for (const isMobile of [true, false]) {
+      const { wrapper, controller } = fixture(isMobile);
+      controller.rows.value.push({
+        name: "Case",
+        label: "箱",
+        category: "Count",
+        must_be_whole_number: true,
+        enabled: true,
+        item_count: 0,
+        conversion_count: 0,
+        deletable: true,
+        delete_reason: "",
+      });
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.findAll(".units-phone-card")).toHaveLength(
+        isMobile ? 1 : 0,
+      );
+      expect(wrapper.find(".units-rest-toggle").text()).toBe(
+        "显示其余 1 个单位",
+      );
+      await wrapper.get(".units-rest-toggle").trigger("click");
+      await wrapper.vm.$nextTick();
+      expect(wrapper.findAll(".units-phone-card")).toHaveLength(
+        isMobile ? 2 : 0,
+      );
+      expect(wrapper.find(".units-rest-toggle").text()).toBe(
+        "收起其余 1 个单位",
+      );
+
+      controller.search.value = "Case";
+      await wrapper.vm.$nextTick();
+      expect(wrapper.text()).toContain("箱");
+      expect(wrapper.findAll(".units-rest-toggle")).toHaveLength(0);
+      if (isMobile)
+        expect(wrapper.findAll(".units-phone-card")).toHaveLength(1);
+      wrapper.unmount();
+    }
   });
 
   it("applies unit filters to the grouped desktop table too", async () => {
     const { wrapper, controller } = fixture(false);
     await flushPromises();
-    expect(wrapper.findAll("tr")).toHaveLength(4);
+    expect(wrapper.findAll("tr")).toHaveLength(3);
     controller.categoryFilter.value = "Weight";
     await wrapper.vm.$nextTick();
     expect(wrapper.findAll("tr")).toHaveLength(2);
     expect(wrapper.text()).toContain("公斤");
-    expect(wrapper.text()).not.toContain("个");
+    expect(wrapper.text()).not.toContain("Nos");
   });
 });

@@ -71,7 +71,7 @@
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-card);
 	overflow: hidden;
-	transition: border-color var(--p-motion);
+	transition: border-color var(--p-motion) var(--p-motion-ease);
 	/* The whole card opens its item (or toggles it while selecting). */
 	cursor: pointer;
 }

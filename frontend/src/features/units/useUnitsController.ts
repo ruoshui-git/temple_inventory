@@ -16,6 +16,7 @@ import {
   listUnitCategories,
   type UnitRow,
 } from "../../services/units";
+import { filterUnitRows } from "../../lib/unitBrowse";
 
 export function useUnitsController() {
   const services = useInventoryServices();
@@ -48,21 +49,12 @@ export function useUnitsController() {
   ]);
 
   const visible = computed(() => {
-    const term = search.value.trim().toLocaleLowerCase();
-    return rows.value.filter(
-      (row) =>
-        (!term ||
-          `${row.name} ${row.label} ${row.category}`
-            .toLocaleLowerCase()
-            .includes(term)) &&
-        (!categoryFilter.value ||
-          (categoryFilter.value === "__uncategorized"
-            ? !row.category
-            : row.category === categoryFilter.value)) &&
-        (wholeFilter.value === "all" ||
-          row.must_be_whole_number === (wholeFilter.value === "whole")) &&
-        (statusFilter.value === "all" ||
-          row.enabled === (statusFilter.value === "enabled")),
+    return filterUnitRows(
+      rows.value,
+      search.value,
+      categoryFilter.value,
+      wholeFilter.value,
+      statusFilter.value,
     );
   });
   async function refresh() {

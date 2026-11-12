@@ -447,7 +447,7 @@ export function useNativeWarehouses(
     } catch (reason) {
       if (active()) {
         formError.value =
-          reason instanceof Error ? reason.message : "位置保存失败，输入仍保留";
+          reason instanceof Error ? reason.message : "位置保存失败：输入仍保留";
         showToast(formError.value, "danger");
       }
     } finally {

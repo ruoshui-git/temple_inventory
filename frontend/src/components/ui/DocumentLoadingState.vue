@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { presentationText } from "../../lib/presentationLabels";
 withDefaults(defineProps<{ label?: string; variant?: "form" | "detail"; announce?: boolean }>(), {
-	label: "记录加载中…",
+	label: presentationText.loading,
 	variant: "form",
 	announce: true,
 });

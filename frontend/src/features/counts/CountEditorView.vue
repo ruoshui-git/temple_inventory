@@ -7,6 +7,7 @@ import PageHeader from "../../components/ui/PageHeader.vue";
 import BackButton from "../../components/ui/BackButton.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import { kindIcons } from "../../lib/kindIcons";
+import { presentationText } from "../../lib/presentationLabels";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import QuickExport from "../../components/QuickExport.vue";
 import type { ReportQuery } from "../../lib/reportContract";
@@ -295,7 +296,7 @@ const status = computed(
 			browser: "已暂存在此浏览器",
 			saving: "正在保存草稿单据…",
 			saved: "已存为草稿单据",
-			error: "保存失败，输入已保留",
+			error: "保存失败：输入已保留",
 			conflict: "记录已更改，输入已保留",
 			deleted: "记录已删除",
 			forbidden: "无权访问原记录",
@@ -495,7 +496,7 @@ async function back() {
 		</div>
 		<DocumentLoadingState
 			v-if="initialExistingLoad"
-			label="盘点记录加载中…"
+			:label="presentationText.loading"
 			:announce="false"
 		/>
 		<p

@@ -238,7 +238,7 @@ export function useReferenceCreation(
     } catch (reason) {
       if (!disposed) {
         error.value =
-          reason instanceof Error ? reason.message : "保存失败，输入已保留";
+          reason instanceof Error ? reason.message : "保存失败：输入已保留";
         const kindValue =
           reason && typeof reason === "object" && "kind" in reason
             ? String((reason as { kind: string }).kind)

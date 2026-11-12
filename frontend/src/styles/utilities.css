@@ -19,6 +19,7 @@
 @media (max-width: 1023px) {
 	.ui-overlay:not(:has(.ui-dialog--small)) {
 		padding: var(--p-gap);
+		padding-block-end: max(var(--p-gap), env(safe-area-inset-bottom, 0px));
 	}
 	.ui-dialog .dialog-content {
 		padding: var(--p-pad);
@@ -377,8 +378,8 @@
 	background: var(--p-switch-off);
 	cursor: pointer;
 	transition:
-		background-color 140ms ease,
-		border-color 140ms ease;
+		background-color var(--p-motion) var(--p-motion-ease),
+		border-color var(--p-motion) var(--p-motion-ease);
 }
 .notification-switch-row input::before {
 	content: "";
@@ -390,7 +391,7 @@
 	border-radius: 50%;
 	background: var(--p-surface);
 	box-shadow: var(--p-shadow-subtle);
-	transition: transform 140ms ease;
+	transition: transform var(--p-motion) var(--p-motion-ease);
 }
 .notification-switch-row input:checked {
 	border-color: var(--p-accent);

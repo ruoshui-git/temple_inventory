@@ -74,7 +74,12 @@ onBeforeUnmount(() => {
 </script>
 <template>
 	<Teleport to="body">
-		<div v-if="messages.length" class="notification-toast-stack" :class="placement">
+		<TransitionGroup
+			name="toast-motion"
+			tag="div"
+			class="notification-toast-stack"
+			:class="placement"
+		>
 			<div
 				v-for="current in messages"
 				:key="current.id"
@@ -106,6 +111,6 @@ onBeforeUnmount(() => {
 					×
 				</UiButton>
 			</div>
-		</div>
+		</TransitionGroup>
 	</Teleport>
 </template>

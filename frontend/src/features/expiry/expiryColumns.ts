@@ -1,5 +1,6 @@
 import type { DataColumn } from "../../lib/dataTable";
 import type { ReportRow } from "../../lib/reportContract";
+import { presentationText } from "../../lib/presentationLabels";
 
 export const expiryColumnDefinitions: DataColumn[] = [
   { id: "image", label: "图片", defaultVisible: true, export: [] },

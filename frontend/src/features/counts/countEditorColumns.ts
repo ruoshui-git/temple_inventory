@@ -1,4 +1,5 @@
 import type { DataColumn } from "../../lib/dataTable";
+import { presentationText } from "../../lib/presentationLabels";
 
 export const countEditorColumns: DataColumn[] = [
   {

@@ -14,6 +14,7 @@ import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import type { useActivityTypesController } from "./useActivityTypesController";
 import type { ActivityTypeRow } from "../../services/activityTypes";
 import { useCapabilities } from "../../composables/useCapabilities";
+import { presentationText } from "../../lib/presentationLabels";
 
 const props = defineProps<{ controller: ReturnType<typeof useActivityTypesController> }>();
 const c = props.controller;
@@ -209,7 +210,7 @@ function orderDisabled(row: Record<string, unknown>, delta: -1 | 1) {
 				没有匹配的活动类型。
 			</p>
 			<p v-if="c.loading.value && !c.initialized.value" class="muted" role="status">
-				活动类型加载中…
+				{{ presentationText.loading }}
 			</p>
 		</div>
 		<Overlay

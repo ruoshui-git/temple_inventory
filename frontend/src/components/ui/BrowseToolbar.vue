@@ -347,6 +347,8 @@ defineExpose({ editFilter });
 				<slot name="result-tools" />
 			</div>
 		</div>
-		<slot name="selection" />
+		<Transition name="selection-bar">
+			<slot name="selection" />
+		</Transition>
 	</div>
 </template>

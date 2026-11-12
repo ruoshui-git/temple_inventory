@@ -535,8 +535,8 @@ defineExpose({
 	color: var(--p-surface);
 	pointer-events: none;
 	transition:
-		border-color 120ms ease,
-		color 120ms ease;
+		border-color var(--p-motion-fast) var(--p-motion-ease),
+		color var(--p-motion-fast) var(--p-motion-ease);
 }
 .scanner-aim::before {
 	position: absolute;

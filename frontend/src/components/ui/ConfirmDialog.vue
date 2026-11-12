@@ -3,6 +3,7 @@ import { nextTick, useId, watch } from "vue";
 import Overlay from "./Overlay.vue";
 import UiButton from "./UiButton.vue";
 import { resolveConfirm, useConfirm } from "../../services/confirm";
+import { presentationText } from "../../lib/presentationLabels";
 const { state } = useConfirm();
 const messageId = useId();
 watch(
@@ -28,13 +29,13 @@ watch(
 		<p :id="messageId">{{ state.pending.options.message }}</p>
 		<template #footer>
 			<UiButton class="confirm-dialog-cancel" @click="resolveConfirm(false)">
-				{{ state.pending.options.cancelLabel || "取消" }}
+				{{ state.pending.options.cancelLabel || presentationText.dismiss }}
 			</UiButton>
 			<UiButton
 				:variant="state.pending.options.tone === 'danger' ? 'danger' : 'primary'"
 				@click="resolveConfirm(true)"
 			>
-				{{ state.pending.options.confirmLabel || "确认" }}
+				{{ state.pending.options.confirmLabel || presentationText.confirm }}
 			</UiButton>
 		</template>
 	</Overlay>

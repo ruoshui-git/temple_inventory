@@ -391,7 +391,7 @@ export function useCategoriesController() {
         error.value =
           reason instanceof Error
             ? reason.message
-            : "类别保存失败，请保留输入后重试";
+            : "类别保存失败：请保留输入后重试";
         showToast(`分类保存失败：${error.value}`, "danger");
       }
     } finally {

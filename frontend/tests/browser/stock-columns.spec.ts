@@ -147,3 +147,17 @@ test("the phone 更多 sheet opens the stock export dialog", async ({ page }) =>
   await expect(dialog.getByText("导出", { exact: true }).first()).toBeVisible();
   await page.screenshot({ path: join(shots, "stock-phone-export.png") });
 });
+
+test("phone stock column settings share the summary controls row", async ({
+  page,
+}) => {
+  await prepare(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/inventory/stock");
+  await page.getByRole("button", { name: "表格视图" }).click();
+  await expect(
+    page.locator(
+      ".browse-summary-controls .data-table-settings-outlet .data-table-column-trigger",
+    ),
+  ).toBeVisible();
+});

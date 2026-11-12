@@ -7,6 +7,7 @@ import type { MovementHistoryRow, ReportRow } from "../../lib/reportContract";
 import { useFormValidation } from "../../composables/useFormValidation";
 import { useConfirm } from "../../services/confirm";
 import { isForbiddenError } from "../../lib/serviceFailure";
+import { presentationText } from "../../lib/presentationLabels";
 
 export interface BatchDetail {
   name: string;
@@ -206,7 +207,7 @@ export function useBatchDetailController(props: {
         error.value =
           reason instanceof Error
             ? reason.message
-            : "保存失败，请保留输入后重试。";
+            : presentationText.saveFailed("请保留输入后重试。");
     } finally {
       if (active(current)) saving.value = false;
     }

@@ -124,20 +124,22 @@ function activated(event: MouseEvent) {
 			</button>
 		</Overlay>
 		<Teleport v-else :to="target">
-			<div
-				ref="popup"
-				v-show="open && !useSheet"
-				class="popup-menu-panel browse-action-menu"
-				:class="[props.panelClass, { 'popup-menu-panel--sheet': sheet }]"
-				role="menu"
-				:aria-label="label"
-				:style="style"
-				@keydown="keydown"
-				@click="activated"
-				@popup-menu-descendant-activate="close()"
-			>
-				<slot />
-			</div>
+			<Transition name="popup-motion">
+				<div
+					ref="popup"
+					v-show="open && !useSheet"
+					class="popup-menu-panel browse-action-menu"
+					:class="[props.panelClass, { 'popup-menu-panel--sheet': sheet }]"
+					role="menu"
+					:aria-label="label"
+					:style="style"
+					@keydown="keydown"
+					@click="activated"
+					@popup-menu-descendant-activate="close()"
+				>
+					<slot />
+				</div>
+			</Transition>
 		</Teleport>
 	</span>
 </template>
@@ -147,6 +149,21 @@ function activated(event: MouseEvent) {
 	z-index: var(--p-z-menu);
 	overflow-y: auto;
 	overscroll-behavior: contain;
+	transform-origin: top center;
+}
+.popup-motion-enter-active,
+.popup-motion-leave-active {
+	transition:
+		opacity var(--p-motion) var(--p-motion-ease),
+		transform var(--p-motion) var(--p-motion-ease);
+}
+.popup-motion-enter-from,
+.popup-motion-leave-to {
+	opacity: 0;
+	transform: translateY(-4px) scale(0.985);
+}
+.popup-motion-leave-active {
+	transition-duration: var(--p-motion-fast);
 }
 @media (pointer: coarse), (max-width: 1023px) {
 	.popup-menu-panel :deep(button),
@@ -162,6 +179,8 @@ function activated(event: MouseEvent) {
 	}
 }
 @media (prefers-reduced-motion: reduce) {
+	.popup-motion-enter-active,
+	.popup-motion-leave-active,
 	.popup-menu-panel,
 	.popup-menu-trigger {
 		scroll-behavior: auto;

@@ -60,6 +60,7 @@
 	--p-shadow: 0 16px 48px var(--p-shadow-color);
 	--p-motion: 140ms;
 	--p-motion-fast: 90ms;
+	--p-motion-ease: cubic-bezier(0.2, 0, 0, 1);
 	--p-touch-target: 44px;
 	--p-z-sticky-content: 10;
 	--p-z-sticky: 20;
@@ -998,7 +999,7 @@ strong {
 @media (hover: hover) {
 	.item-image-button .image-magnifier {
 		opacity: 0;
-		transition: opacity var(--p-motion);
+		transition: opacity var(--p-motion) var(--p-motion-ease);
 	}
 	.item-image-button:hover .image-magnifier,
 	.item-image-button:focus-visible .image-magnifier {
@@ -1162,10 +1163,12 @@ strong {
 	background: var(--p-scrim);
 	z-index: var(--p-z-overlay);
 	display: flex;
+	animation: overlay-fade-in var(--p-motion) var(--p-motion-ease) both;
 	justify-content: center;
 	align-items: center;
 	padding: 24px max(24px, env(safe-area-inset-right, 0px)) 24px
 		max(24px, env(safe-area-inset-left, 0px));
+	padding-block-end: max(24px, env(safe-area-inset-bottom, 0px));
 }
 .ui-dialog {
 	display: flex;
@@ -1176,6 +1179,35 @@ strong {
 	border-radius: var(--p-radius-card);
 	box-shadow: var(--p-shadow);
 	overflow: hidden;
+	animation: dialog-enter var(--p-motion) var(--p-motion-ease) both;
+}
+@keyframes overlay-fade-in {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+@keyframes dialog-enter {
+	from {
+		opacity: 0;
+		transform: translateY(8px) scale(0.985);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
+}
+@keyframes sheet-enter {
+	from {
+		opacity: 0;
+		transform: translateY(12px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
 }
 .ui-dialog--small {
 	width: min(440px, calc(100vw - 32px));
@@ -1221,6 +1253,11 @@ strong {
 .ui-overlay:has(.popup-menu-sheet-overlay) {
 	align-items: flex-end;
 	padding: 0;
+}
+.ui-overlay:has(.popup-menu-sheet-overlay) .popup-menu-sheet-overlay,
+.ui-overlay:has(.browse-filter-sheet) .browse-filter-sheet {
+	animation-name: sheet-enter;
+	transform-origin: bottom center;
 }
 .popup-menu-sheet-overlay {
 	width: 100%;
@@ -1394,6 +1431,20 @@ strong {
 	border-radius: var(--p-radius-control);
 	box-shadow: var(--p-shadow);
 	z-index: var(--p-z-toast);
+}
+.toast-motion-enter-active,
+.toast-motion-leave-active {
+	transition:
+		opacity var(--p-motion) var(--p-motion-ease),
+		transform var(--p-motion) var(--p-motion-ease);
+}
+.toast-motion-enter-from,
+.toast-motion-leave-to {
+	opacity: 0;
+	transform: translateY(-6px);
+}
+.toast-motion-leave-active {
+	transition-duration: var(--p-motion-fast);
 }
 .notification-toast-stack {
 	position: fixed;
@@ -1928,7 +1979,7 @@ strong {
 	background: var(--p-surface);
 	color: var(--p-ink);
 	opacity: 0.68;
-	transition: opacity var(--p-motion);
+	transition: opacity var(--p-motion) var(--p-motion-ease);
 	display: grid;
 	place-items: center;
 	width: var(--p-control);
@@ -2070,9 +2121,9 @@ button {
 	border-radius: var(--p-radius-control);
 	background: transparent;
 	transition:
-		background var(--p-motion),
-		border-color var(--p-motion),
-		color var(--p-motion);
+		background var(--p-motion) var(--p-motion-ease),
+		border-color var(--p-motion) var(--p-motion-ease),
+		color var(--p-motion) var(--p-motion-ease);
 	white-space: normal;
 	overflow-wrap: anywhere;
 }
@@ -2212,7 +2263,9 @@ button {
 }
 @media (max-width: 1023px) {
 	.app-workspace {
-		padding-bottom: calc(var(--app-nav-height, 80px) + 24px);
+		padding-bottom: calc(
+			var(--app-nav-height, 80px) + 24px + env(safe-area-inset-bottom, 0px)
+		);
 	}
 }
 
@@ -2682,7 +2735,7 @@ button {
 	align-items: center;
 	justify-content: center;
 	transform-origin: 50% 50%;
-	transition: transform var(--p-motion);
+	transition: transform var(--p-motion) var(--p-motion-ease);
 }
 .ti-disclosure-icon svg {
 	width: 1em;
@@ -2763,8 +2816,8 @@ button {
 		height: 0;
 		overflow: clip;
 		transition:
-			content-visibility var(--p-motion) allow-discrete,
-			height var(--p-motion);
+			content-visibility var(--p-motion) var(--p-motion-ease) allow-discrete,
+			height var(--p-motion) var(--p-motion-ease);
 	}
 	.ti-disclosure-section[open]::details-content {
 		height: auto;

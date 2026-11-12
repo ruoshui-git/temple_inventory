@@ -15,8 +15,6 @@ import { environment } from "../lib/environment";
 import EnvironmentBadge from "./EnvironmentBadge.vue";
 import ConfirmDialog from "./ui/ConfirmDialog.vue";
 import { useVirtualKeyboard } from "../composables/useVirtualKeyboard";
-import { useOptionalReferenceData } from "../services/contracts";
-import { routeAllowed, type CapabilityKey } from "../lib/capabilities";
 const props = withDefaults(
 	defineProps<{
 		primary: NavigationItem[];
@@ -38,13 +36,7 @@ const emit = defineEmits<{
 	"update:inventoryExpanded": [value: boolean];
 }>();
 const { isMobile } = useResponsiveLayout();
-const reference = useOptionalReferenceData();
-const taskEditor = computed(() => {
-	const route = router.currentRoute.value;
-	if (!routeAllowed(route.meta.requires as CapabilityKey | undefined, reference?.capabilities))
-		return false;
-	return Boolean(route.meta.taskEditor);
-});
+const taskEditor = computed(() => Boolean(router.currentRoute.value.meta.taskEditor));
 const { keyboardOpen } = useVirtualKeyboard();
 const routeProgressVisible = ref(false);
 const unregisterRouteProgress = registerRouteProgress(router, (value) => {

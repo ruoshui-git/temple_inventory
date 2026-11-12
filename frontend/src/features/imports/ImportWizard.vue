@@ -9,6 +9,7 @@ import {
 	openingActionLabels,
 } from "./itemConfig";
 import DataTable from "../../components/ui/DataTable.vue";
+import SearchField from "../../components/ui/SearchField.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import type { DataColumn, DataTableEntry } from "../../lib/dataTable";
@@ -345,11 +346,10 @@ const downloadRejected = () => downloadReport("rejected");
 					</button>
 				</section>
 				<div class="import-tools">
-					<input
+					<SearchField
 						v-model="c.query.value"
-						type="search"
+						label="搜索预览"
 						placeholder="搜索物品名称、编号或错误"
-						aria-label="搜索预览"
 					/><select v-model="c.filter.value" aria-label="按处理结果筛选">
 						<option value="all">全部结果</option>
 						<option v-for="action in actionKeys" :key="action" :value="action">
@@ -615,7 +615,8 @@ h1 {
 	flex-wrap: wrap;
 	margin-top: var(--p-field-gap);
 }
-.import-tools input {
+.import-tools input,
+.import-tools .shared-search-field input {
 	flex: 1 1 240px;
 	min-height: 44px;
 }

@@ -188,7 +188,7 @@ export function useConfiguration(changed: () => void) {
         error.value =
           reason instanceof Error
             ? reason.message
-            : "配置保存失败，当前选择仍保留";
+            : "配置保存失败：当前选择仍保留";
         showToast(`配置保存失败：${error.value}`, "danger");
       }
     } finally {

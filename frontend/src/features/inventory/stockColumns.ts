@@ -1,4 +1,5 @@
 import type { DataColumn } from "../../lib/dataTable";
+import { presentationText } from "../../lib/presentationLabels";
 import { expiryStatus, type StockItem } from "../../lib/stockPresentation";
 import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
 import type { ReferenceData } from "../../services/contracts";
@@ -54,7 +55,7 @@ export function inventoryColumnsForPage(
     },
     {
       id: "locations",
-      label: "位置",
+      label: presentationText.location,
       defaultVisible: desktopColumnsVisible,
       kind: "chip",
       export: ["warehouse_label"],

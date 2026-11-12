@@ -14,6 +14,7 @@ import CountSummary from "./CountSummary.vue";
 import type { CountRow } from "./countModel";
 import type { CountEditor } from "./useCountEditor";
 import DataTable from "../../components/ui/DataTable.vue";
+import SearchField from "../../components/ui/SearchField.vue";
 import VirtualList from "../../components/ui/VirtualList.vue";
 import { useOptionalInventoryServices } from "../../services/contracts";
 import type { DataColumn, DataTableEntry, DataTableGroup } from "../../lib/dataTable";
@@ -427,14 +428,12 @@ function itemImage(row: CountRow) {
 					initial-expansion="branching-leaves"
 				/>
 			</FilterPanel>
-			<label class="form-field count-search">
-				搜索物品、批次或位置
-				<input
-					v-model="search"
-					type="search"
-					placeholder="输入物品名称、编码、批次或位置"
-				/>
-			</label>
+			<SearchField
+				class="count-search"
+				v-model="search"
+				label="搜索物品、批次或位置"
+				placeholder="输入物品名称、编码、批次或位置"
+			/>
 			<label class="form-field count-group-by"
 				>分组方式<select v-model="groupBy">
 					<option value="location">位置</option>

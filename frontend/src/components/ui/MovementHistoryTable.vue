@@ -2,7 +2,7 @@
 import { computed, useSlots } from "vue";
 import { useOptionalInventoryServices } from "../../services/contracts";
 import { formatQuantity } from "../../lib/formatQuantity";
-import { movementLabels } from "../../lib/presentationLabels";
+import { movementLabels, presentationText } from "../../lib/presentationLabels";
 import { formatSiteDateTime } from "../../lib/nativeTime";
 import type { HistoryRow } from "../../features/movements/useMovementHistory";
 import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
@@ -400,7 +400,7 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 		</DataTable>
 		<div class="movement-history-mobile" :aria-busy="loading || undefined">
 			<p v-if="loading && !initialized" class="history-mobile-state" role="status">
-				正在加载记录…
+				{{ presentationText.loading }}
 			</p>
 			<p v-if="error" class="history-mobile-state" role="alert">
 				{{ error }} <UiButton size="compact" @click="emit('retry')">重试</UiButton>

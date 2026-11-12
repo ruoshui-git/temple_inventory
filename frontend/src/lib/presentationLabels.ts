@@ -12,6 +12,17 @@ export const movementLabels: Record<string, string> = {
   Opening: "期初库存",
 };
 
+/** Shared UI copy for states and common dialog actions. */
+export const presentationText = {
+  location: "位置",
+  loading: "正在加载…",
+  noMatches: "没有符合条件的记录",
+  confirm: "确认",
+  save: "保存",
+  dismiss: "取消",
+  saveFailed: (detail: string) => `保存失败：${detail}`,
+} as const;
+
 export const operationLabels = Object.fromEntries(
   Object.entries(movementLabels).filter(
     ([kind]) => kind !== "Reconcile" && kind !== "Opening",

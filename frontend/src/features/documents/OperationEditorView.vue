@@ -10,7 +10,7 @@ import type { ReportQuery } from "../../lib/reportContract";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { OperationEditor } from "./useOperationEditor";
 import type { NativeDocument } from "./nativeEditor";
-import { operationLabels } from "../../lib/presentationLabels";
+import { operationLabels, presentationText } from "../../lib/presentationLabels";
 import OperationLines from "./OperationLines.vue";
 import AllocationSummary from "./AllocationSummary.vue";
 import TransactionContext from "./TransactionContext.vue";
@@ -528,7 +528,7 @@ const statusLabels = {
 	browser: "已暂存在此浏览器",
 	saving: "正在保存草稿单据…",
 	saved: "已存为草稿单据",
-	error: "保存失败，输入已保留",
+	error: "保存失败：输入已保留",
 	conflict: "记录已更改，输入已保留",
 	deleted: "记录已删除",
 	forbidden: "无权访问原记录",
@@ -702,7 +702,7 @@ async function lifecycle() {
 		</PageHeader>
 		<DocumentLoadingState
 			v-if="initialExistingLoad"
-			label="库存单据加载中…"
+			:label="presentationText.loading"
 			:announce="false"
 		/>
 		<div

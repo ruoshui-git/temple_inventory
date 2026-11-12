@@ -265,7 +265,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", keydown));
 	position: absolute;
 	inset: 0 auto 0 0;
 	background: var(--p-accent);
-	transition: width var(--p-motion-fast, 150ms) linear;
+	transition: width var(--p-motion-fast) var(--p-motion-ease);
 }
 .task-tray-progress.is-indeterminate > span,
 .task-tray-meter .is-indeterminate {

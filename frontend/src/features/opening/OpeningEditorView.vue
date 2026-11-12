@@ -484,6 +484,7 @@ async function lifecycle(kind: "cancel" | "amend") {
 										(row.has_serial_no && row.autoSerialCount !== undefined)
 									"
 									type="number"
+									inputmode="decimal"
 									min="0.001"
 									step="any"
 								/>
@@ -494,6 +495,7 @@ async function lifecycle(kind: "cancel" | "amend") {
 									:aria-label="`${rowName(row)}估值单价`"
 									:disabled="!writable"
 									type="number"
+									inputmode="decimal"
 									min="0"
 									step="any"
 									placeholder="留空使用 ERPNext 估值"

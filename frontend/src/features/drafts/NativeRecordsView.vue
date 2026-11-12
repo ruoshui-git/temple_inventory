@@ -9,7 +9,7 @@ import { canOnDoctype } from "../../lib/capabilities";
 import type { NativeRecordsController, NativeRecord } from "./useNativeRecords";
 import type { RecoverySnapshot } from "../../lib/browserRecovery";
 import type { ReportQuery } from "../../lib/reportContract";
-import { movementLabels } from "../../lib/presentationLabels";
+import { movementLabels, presentationText } from "../../lib/presentationLabels";
 import UiButton from "../../components/ui/UiButton.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import PeriodFilter from "../../components/ui/PeriodFilter.vue";
@@ -998,7 +998,7 @@ function openDetailsRow() {
 						:sort-by="query.sortBy"
 						:sort-direction="query.sort"
 						:loading="loading || Boolean(query.groupBy.length && groupRoot?.loading)"
-						loading-text="库存记录加载中…"
+						:loading-text="presentationText.loading"
 						:initialized="Boolean(initialized || groupRoot?.initialized)"
 						:error="query.groupBy.length ? groupRoot?.error || error : error"
 						:stale="query.groupBy.length ? Boolean(groupRoot?.stale) : stale"

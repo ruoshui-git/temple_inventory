@@ -32,6 +32,7 @@ import {
 } from "./itemDetailColumns";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import { exportFields } from "../../lib/exportColumns";
+import SearchField from "../../components/ui/SearchField.vue";
 const props = withDefaults(defineProps<{ controller: ProductDetail; active?: boolean }>(), {
 	active: true,
 });
@@ -339,9 +340,7 @@ const productExportColumns = computed(() => {
 			</nav>
 			<section v-if="tab === 'serials'" class="browse-table-wrap" aria-label="物品序列号">
 				<div class="browse-card-heading">
-					<label class="form-field"
-						>搜索序列号<input v-model="c.serialSearch.value" type="search"
-					/></label>
+					<SearchField v-model="c.serialSearch.value" label="搜索序列号" />
 					<label class="form-field"
 						>状态<select v-model="c.serialStatus.value">
 							<option value="Active">在库 / 借出 / 损坏</option>

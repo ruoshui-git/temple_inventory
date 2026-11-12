@@ -719,6 +719,8 @@ for (const viewport of [
     ]) {
       await page.goto(path);
       await expect(page.locator("main").first()).toBeVisible();
+      if (viewport.phone && path === "/inventory/counts/new")
+        await expect(page.locator(".app-mobile-nav")).toHaveCount(0);
       for (const density of stops) {
         await page.evaluate(
           (value) => (document.documentElement.dataset.tiDensity = value),

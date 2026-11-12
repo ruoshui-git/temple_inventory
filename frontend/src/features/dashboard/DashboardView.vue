@@ -455,12 +455,9 @@ function datasetChanged(dataset: ReportDataset) {
 								:aria-expanded="metric.expanded"
 								@click="toggleInventoryMetric(metric.key)"
 							>
-								<DisclosureIcon
-									variant="inline"
-									:style="{
-										transform: metric.expanded ? 'rotate(90deg)' : undefined,
-									}"
-								/>{{ metric.expanded ? "收起" : `+${metric.rest} 单位` }}
+								<DisclosureIcon variant="inline" />{{
+									metric.expanded ? "收起" : `+${metric.rest} 单位`
+								}}
 							</button>
 						</article>
 					</div>

@@ -396,7 +396,7 @@ export function useItemEditor(
     } catch (reason) {
       if (!active()) return;
       error.value =
-        reason instanceof Error ? reason.message : "物品保存失败，输入已保留";
+        reason instanceof Error ? reason.message : "物品保存失败：输入已保留";
       showToast(`物品保存失败：${error.value}`, "danger");
       conflict.value = ["TimestampMismatchError", "DoesNotExistError"].includes(
         String((reason as { kind?: string })?.kind),

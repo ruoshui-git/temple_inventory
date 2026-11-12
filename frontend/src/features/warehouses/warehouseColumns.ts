@@ -1,4 +1,5 @@
 import type { DataColumn } from "../../lib/dataTable";
+import { presentationText } from "../../lib/presentationLabels";
 
 export const warehouseColumnDefinitions: DataColumn[] = [
   { id: "image", label: "图片", align: "center", export: [] },

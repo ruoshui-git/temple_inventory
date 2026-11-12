@@ -1,6 +1,7 @@
 .data-table {
 	min-width: 0;
 	color: var(--p-ink);
+	--data-table-settings-column-width: 56px;
 }
 
 .data-table-column-trigger,
@@ -143,7 +144,7 @@
 	content: "";
 	opacity: 0;
 	pointer-events: none;
-	transition: opacity 120ms ease;
+	transition: opacity var(--p-motion-fast) var(--p-motion-ease);
 	z-index: 2;
 	border-radius: inherit;
 }
@@ -186,8 +187,8 @@
 	box-shadow: 0 2px 8px var(--p-shadow-color);
 	cursor: pointer;
 	transition:
-		opacity 120ms ease,
-		visibility 120ms ease;
+		opacity var(--p-motion-fast) var(--p-motion-ease),
+		visibility var(--p-motion-fast) var(--p-motion-ease);
 }
 .data-table-overflow-hint.is-hidden {
 	opacity: 0;
@@ -700,6 +701,17 @@
 .data-table-scroll th.data-table-settings-heading {
 	background: var(--p-soft);
 	z-index: 3;
+	width: var(--data-table-settings-column-width);
+	min-width: var(--data-table-settings-column-width);
+	max-width: var(--data-table-settings-column-width);
+}
+/* Tables without a semantic primary field give spare width to their first column,
+   keeping the trailing settings control at its fixed width. */
+.data-table-scroll table:has(.data-table-settings-heading):not(:has(.data-column-primary))
+	:is(th, td):first-child {
+	width: 100%;
+	min-width: 200px;
+	white-space: normal;
 }
 /* Settings body cells are empty: unless a content column is pinned beside them, let rows
    scroll under them so the edge fade sits on the table border instead of inside it. */

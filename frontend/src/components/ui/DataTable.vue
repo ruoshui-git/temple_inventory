@@ -17,6 +17,7 @@ import { useStickyGroupRows, type StickyGroupMeta } from "../../composables/useS
 import FloatingTableScrollbar from "./FloatingTableScrollbar.vue";
 import DetailPopover from "./DetailPopover.vue";
 import ColumnSettings from "./ColumnSettings.vue";
+import { presentationText } from "../../lib/presentationLabels";
 import DataCell from "./DataCell.vue";
 
 const props = withDefaults(
@@ -61,9 +62,9 @@ const props = withDefaults(
 		initialized: true,
 		error: "",
 		retained: false,
-		emptyText: "没有符合条件的记录",
+		emptyText: presentationText.noMatches,
 		emptyAction: "",
-		loadingText: "表格数据加载中…",
+		loadingText: presentationText.loading,
 		retryText: "重试",
 		selectionEnabled: false,
 		selectedKeys: () => [],
@@ -321,9 +322,10 @@ function updateSettingsViewport() {
 		parent && parent !== document.body;
 		parent = parent.parentElement
 	) {
-		const outlet = parent.querySelector<HTMLElement>(
-			".browse-summary-copy, [data-table-settings-outlet]",
-		);
+		const outlet =
+			parent.querySelector<HTMLElement>(".browse-summary-controls") ||
+			parent.querySelector<HTMLElement>("[data-table-settings-outlet]") ||
+			parent.querySelector<HTMLElement>(".browse-summary-copy");
 		if (!outlet) continue;
 		if (!outlet.querySelector(".data-table-settings-outlet")) settingsOutlet.value = outlet;
 		return;
@@ -374,10 +376,10 @@ const orderedColumns = computed(() =>
 );
 function columnKind(column: DataColumn) {
 	const kind = dataColumnKind(column);
-	if (kind !== "primary") return kind;
 	const firstPrimary = orderedColumns.value.find(
 		(candidate) => dataColumnKind(candidate) === "primary",
 	);
+	if (kind !== "primary") return kind;
 	return firstPrimary === column ? "primary" : "text";
 }
 const recordRows = computed(() =>

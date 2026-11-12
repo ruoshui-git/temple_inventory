@@ -13,6 +13,7 @@ export default defineConfig({
   use: {
     baseURL: `http://127.0.0.1:${port}`,
     viewport: { width: 390, height: 844 },
+    reducedMotion: "reduce",
     trace: "retain-on-failure",
     launchOptions: {
       executablePath:

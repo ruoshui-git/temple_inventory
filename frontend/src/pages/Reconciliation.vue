@@ -14,6 +14,7 @@ import ForbiddenState from "../components/ui/ForbiddenState.vue";
 import { isForbiddenError } from "../lib/serviceFailure";
 import UiButton from "../components/ui/UiButton.vue";
 import { useBackNavigation } from "../composables/useBackNavigation";
+import { presentationText } from "../lib/presentationLabels";
 
 const route = useRoute(),
 	router = useRouter();
@@ -84,7 +85,7 @@ function nextCount() {
 }
 </script>
 <template>
-	<DocumentLoadingState v-if="dispatching" label="盘点记录加载中…" :announce="false" />
+	<DocumentLoadingState v-if="dispatching" :label="presentationText.loading" :announce="false" />
 	<ForbiddenState v-else-if="dispatchForbidden" @back="goBack(routeTarget('counts'))" />
 	<p v-else-if="dispatchError" class="notice-bar danger" role="alert">
 		{{ dispatchError }}

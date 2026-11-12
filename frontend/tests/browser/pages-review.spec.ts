@@ -86,13 +86,12 @@ test("units filters and category groups show loaded rows", async ({
   page,
 }, info) => {
   await nativeUiSession(page);
+  const countUnit = unitRow("Nos", "个", "计数", true, true);
+  countUnit.item_count = 1;
   await page.route("**/api/method/temple_inventory.units.list_units", (route) =>
     route.fulfill({
       json: {
-        message: [
-          unitRow("Nos", "个", "计数", true, true),
-          unitRow("Kg", "公斤", "重量", false, true),
-        ],
+        message: [countUnit, unitRow("Kg", "公斤", "重量", false, true)],
       },
     }),
   );
@@ -105,7 +104,11 @@ test("units filters and category groups show loaded rows", async ({
   );
   await page.setViewportSize({ width: 430, height: 932 });
   await page.goto("/inventory/stock/units");
-  await expect(page.locator(".units-phone-row")).toHaveCount(2);
+  await expect(page.locator(".units-phone-card")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: /重量/ })).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
   await expect(page.locator(".mobile-context-back")).toContainText("库存");
   await expect(
     page.locator(".mobile-context:not(.mobile-context-back) a"),
@@ -114,7 +117,7 @@ test("units filters and category groups show loaded rows", async ({
   const panel = page.getByRole("dialog");
   await panel.getByLabel("单位类别").selectOption("计数");
   await page.keyboard.press("Escape");
-  await expect(page.locator(".units-phone-row")).toHaveCount(1);
+  await expect(page.locator(".units-phone-card")).toHaveCount(1);
   await expect(page.locator(".units-phone-group")).toContainText("计数");
   await expect(page.locator(".browse-active-chip")).toContainText("计数");
   await page.screenshot({

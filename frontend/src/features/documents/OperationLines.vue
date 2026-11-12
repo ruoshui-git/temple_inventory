@@ -53,6 +53,7 @@ import { useConfirm } from "../../services/confirm";
 import ConversionEditor from "../conversions/ConversionEditor.vue";
 import { operationLabels } from "../../lib/presentationLabels";
 import InboundSerialField from "./InboundSerialField.vue";
+import SearchField from "../../components/ui/SearchField.vue";
 import {
 	shouldShowLineTools,
 	transferDestinationOptions,
@@ -614,9 +615,64 @@ const visibleIds = computed(
 				.map((line) => line.id),
 		),
 );
+const filteringRows = ref(false);
+watch([search, incompleteOnly], () => {
+	filteringRows.value = true;
+	void nextTick(() => (filteringRows.value = false));
+});
 const highlightedLineIds = ref(new Set<string>());
 const highlightTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const knownLineIds = new Set(props.draft.items.map((line) => line.id));
+const rowMotionIds = new Set<string>();
+function lineMotionAllowed() {
+	return !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+}
+function enterLine(element: Element, done: () => void) {
+	const row = element as HTMLElement;
+	const id = row.dataset.lineId || "";
+	if (!rowMotionIds.has(id) || filteringRows.value || !lineMotionAllowed()) {
+		rowMotionIds.delete(id);
+		return done();
+	}
+	const height = row.getBoundingClientRect().height;
+	row.style.overflow = "hidden";
+	row.style.height = "0px";
+	row.style.opacity = "0";
+	requestAnimationFrame(() => {
+		row.style.transition =
+			"height var(--p-motion-fast) var(--p-motion-ease), opacity var(--p-motion-fast) var(--p-motion-ease)";
+		row.style.height = `${height}px`;
+		row.style.opacity = "1";
+		window.setTimeout(() => {
+			row.style.removeProperty("height");
+			row.style.removeProperty("overflow");
+			row.style.removeProperty("opacity");
+			row.style.removeProperty("transition");
+			rowMotionIds.delete(id);
+			done();
+		}, 110);
+	});
+}
+function leaveLine(element: Element, done: () => void) {
+	const row = element as HTMLElement;
+	const id = row.dataset.lineId || "";
+	if (!rowMotionIds.has(id) || filteringRows.value || !lineMotionAllowed()) {
+		rowMotionIds.delete(id);
+		return done();
+	}
+	row.style.height = `${row.getBoundingClientRect().height}px`;
+	row.style.overflow = "hidden";
+	requestAnimationFrame(() => {
+		row.style.transition =
+			"height var(--p-motion-fast) var(--p-motion-ease), opacity var(--p-motion-fast) var(--p-motion-ease)";
+		row.style.height = "0px";
+		row.style.opacity = "0";
+		window.setTimeout(() => {
+			rowMotionIds.delete(id);
+			done();
+		}, 110);
+	});
+}
 function markRecent(line: AllocationLine) {
 	scanRecency++;
 	recency.set(line.id, scanRecency);
@@ -644,10 +700,12 @@ watch(
 			knownLineIds.add(id);
 			const line = props.draft.items.find((row) => row.id === id);
 			if (line && !props.hydrating && !pendingLineIds.value.has(id)) markRecent(line);
+			if (line && !props.hydrating && !pendingLineIds.value.has(id)) rowMotionIds.add(id);
 		}
 		for (const id of [...knownLineIds]) {
 			if (present.has(id)) continue;
 			knownLineIds.delete(id);
+			rowMotionIds.add(id);
 			recency.delete(id);
 			const timer = highlightTimers.get(id);
 			if (timer) clearTimeout(timer);
@@ -1604,12 +1662,13 @@ function receiveBatchChanged(line: AllocationLine) {
 						>扫码添加</UiButton
 					>
 				</div>
-				<label class="inline-field line-search"
-					>搜索明细<input
-						v-model="search"
-						type="search"
+				<!-- prettier-ignore -->
+				<SearchField
+					v-model="search"
+					class="inline-field line-search"
+					label="搜索明细"
 						placeholder="物品名称、编号、库位或批次"
-				/></label>
+				/>
 				<div class="line-toolbar-status">
 					<span class="line-toolbar-summary" role="status"
 						>{{ itemCount }} 种物品 · {{ draft.items.length }} 条明细 ·
@@ -1736,433 +1795,454 @@ function receiveBatchChanged(line: AllocationLine) {
 					<span v-if="sectionHasOutcome(section)">归还结果</span>
 					<span>⋯</span>
 				</div>
-				<article
-					v-for="line in section.lines"
-					:key="line.id"
-					v-show="visibleIds.has(line.id)"
-					class="operation-compact-row"
-					:class="{
-						'operation-compact-row--recent': highlightedLineIds.has(line.id),
-						'is-batch-tracked': hasBatchRows(line.code),
-						'is-serial-tracked': hasSerial(line),
-					}"
-					:style="{ '--operation-grid-template': sectionGridTemplate(section) }"
-					:data-line-id="line.id"
+				<TransitionGroup
+					tag="div"
+					name="operation-row"
+					class="operation-rows"
+					@enter="enterLine"
+					@leave="leaveLine"
 				>
-					<div class="operation-row-item">
-						<div class="operation-row-thumbnail">
-							<ItemImage
-								v-if="stockItem(line.code)"
-								:item="stockItem(line.code)!"
-								:thumbnail-size="32"
-								:target-size="32"
-							/>
-						</div>
-						<div class="operation-compact-identity">
-							<strong :title="lineName(line)">{{ lineName(line) }}</strong>
-							<small class="muted">{{ line.code }}</small>
-							<small v-if="draft.kind === 'Repair'" class="muted"
-								>损坏来源：{{
-									warehouseLabel(
-										line.sourceLocation || "",
-										reference.warehouses,
-										"未指定",
-									)
-								}}</small
-							>
-						</div>
-					</div>
-					<div v-if="sectionHasBatch(section)" class="operation-row-batch">
-						<div class="operation-row-cell operation-row-batch-id">
-							<span class="operation-phone-field-label">批次</span>
-							<template v-if="hasBatchRows(line.code)">
-								<input
-									v-if="receive"
-									data-field="batch"
-									v-model="line.batch"
-									:aria-label="`${lineName(line)}批次`"
-									placeholder="自动生成"
-									enterkeyhint="next"
-									:disabled="disabled || hydrating"
-									:aria-invalid="lineInvalid(line, 'batch')"
-									:aria-describedby="
-										lineInvalid(line, 'batch')
-											? lineIssueId(line, 'batch')
-											: undefined
-									"
-									@input="receiveBatchChanged(line)"
-								/>
-								<SearchSelect
-									v-else-if="!settlement && !line.batchAllocations?.length"
-									:label="`${lineName(line)}批次`"
-									external-label
-									:aria-label="`${lineName(line)}批次`"
-									:model-value="line.batch"
-									:disabled="disabled || hydrating"
-									:invalid="lineInvalid(line, 'batch')"
-									:options="
-										(lineStock(line)?.batches || []).map((batch) => ({
-											value: batch.id,
-											label: batch.id,
-											detail: `可用 ${batch.available} · 到期 ${batch.expiry || '无效期'}`,
-										}))
-									"
-									@update:model-value="
-										line.batch = $event;
-										changeBatch(line);
-									"
-								/>
-								<span v-else class="operation-cell-value">{{
-									line.batch ||
-									(line.batchAllocations?.length
-										? "已记录多批次"
-										: "原借出未记录批次")
-								}}</span>
-							</template>
-							<p
-								v-if="lineInvalid(line, 'batch')"
-								:id="lineIssueId(line, 'batch')"
-								class="utility-error"
-							>
-								{{ lineIssue(line, "batch")?.message }}
-							</p>
-						</div>
-						<div class="operation-row-cell operation-row-expiry">
-							<span class="operation-phone-field-label">效期</span>
-							<template v-if="hasBatchRows(line.code)">
-								<input
-									v-if="receive && stockItem(line.code)?.tracksExpiry"
-									data-field="expiry"
-									v-model="line.expiry"
-									type="date"
-									enterkeyhint="next"
-									:aria-label="`${lineName(line)}效期`"
-									:disabled="disabled || hydrating"
-									:aria-invalid="lineInvalid(line, 'expiry')"
-									:aria-describedby="
-										lineInvalid(line, 'expiry')
-											? lineIssueId(line, 'expiry')
-											: undefined
-									"
-								/>
-								<span v-else class="operation-cell-value">{{
-									line.expiry || "无效期"
-								}}</span>
-							</template>
-							<p
-								v-if="lineInvalid(line, 'expiry')"
-								:id="lineIssueId(line, 'expiry')"
-								class="utility-error"
-							>
-								{{ lineIssue(line, "expiry")?.message }}
-							</p>
-						</div>
-						<div class="operation-row-cell operation-row-manufacturing">
-							<span class="operation-phone-field-label">生产日期</span>
-							<template v-if="hasBatchRows(line.code)">
-								<input
-									v-if="receive"
-									data-field="manufacturingDate"
-									v-model="line.manufacturingDate"
-									type="date"
-									enterkeyhint="next"
-									:aria-label="`${lineName(line)}生产日期`"
-									:disabled="disabled || hydrating"
-									:aria-invalid="lineInvalid(line, 'manufacturingDate')"
-									:aria-describedby="
-										lineInvalid(line, 'manufacturingDate')
-											? lineIssueId(line, 'manufacturingDate')
-											: undefined
-									"
-								/>
-								<span v-else class="operation-cell-value">{{
-									line.manufacturingDate || "—"
-								}}</span>
-							</template>
-						</div>
-					</div>
-					<div v-if="hasSerial(line)" class="operation-row-batch operation-row-serial">
-						<div class="operation-row-cell operation-row-serial-field">
-							<span class="operation-phone-field-label">序列号</span>
-							<template v-if="receive">
-								<InboundSerialField
-									:label="lineName(line)"
-									:serials="line.serials || []"
-									:input-value="serialInput[line.id] || ''"
-									:auto-count="line.autoSerialCount"
-									:has-series="hasSerialSeries(line)"
-									:auto-count-label="'自动生成序列号数量'"
-									:disabled="disabled || hydrating"
-									@update:input-value="serialInput[line.id] = $event"
-									@toggle-auto="toggleAutoSerial(line, $event)"
-									@update:auto-count="setAutoSerialCount(line, $event)"
-									@add="acceptInboundSerialInput(line, $event)"
-									@remove="removeSerial(line, $event)"
-								/>
-							</template>
-							<template v-else>
-								<div class="operation-serial-chips">
-									<span
-										v-for="serial in line.serials || []"
-										:key="serial"
-										class="operation-serial-chip"
-									>
-										{{ serial }}
-										<button
-											type="button"
-											:disabled="disabled || hydrating"
-											:aria-label="`移除序列号 ${serial}`"
-											@click="removeSerial(line, serial)"
-										>
-											×
-										</button>
-									</span>
-								</div>
-								<input
-									v-model="serialSearch[line.id]"
-									:aria-label="`${lineName(line)}搜索${line.loanName ? '未归还' : '可用'}序列号`"
-									:placeholder="
-										line.loanName ? '搜索未归还序列号' : '搜索可用序列号'
-									"
-									:disabled="disabled || hydrating"
-									@focus="loadSerials(line)"
-									@input="
-										serialOptions[line.id] = [];
-										loadSerials(line);
-									"
-								/>
-								<div
-									class="operation-serial-options"
-									role="listbox"
-									aria-multiselectable="true"
-								>
-									<button
-										v-for="serial in serialOptions[line.id] || []"
-										:key="serial"
-										type="button"
-										role="option"
-										:aria-selected="(line.serials || []).includes(serial)"
-										:disabled="disabled || hydrating"
-										@click="
-											(line.serials || []).includes(serial)
-												? removeSerial(line, serial)
-												: ((line.serials = [
-														...(line.serials || []),
-														serial,
-													]),
-													syncSerialQuantity(line))
-										"
-									>
-										{{ serial }}
-									</button>
-									<button
-										v-if="serialNext[line.id] != null"
-										type="button"
-										:disabled="serialLoading[line.id]"
-										@click="loadSerials(line, true)"
-									>
-										加载更多
-									</button>
-									<p v-if="serialLoading[line.id]" class="muted">正在加载…</p>
-								</div>
-							</template>
-							<p
-								v-if="lineInvalid(line, 'serials')"
-								:id="lineIssueId(line, 'serials')"
-								class="utility-error"
-							>
-								{{ lineIssue(line, "serials")?.message }}
-							</p>
-						</div>
-					</div>
-					<div class="operation-row-controls">
-						<label class="operation-row-cell operation-row-quantity">
-							<span class="operation-phone-field-label">数量</span>
-							<input
-								v-if="!hasSerial(line)"
-								data-field="qty"
-								type="number"
-								inputmode="decimal"
-								min="0"
-								step="any"
-								enterkeyhint="next"
-								:value="enteredQty(line)"
-								:disabled="disabled || hydrating"
-								:aria-label="`${lineName(line)}数量`"
-								:aria-invalid="lineInvalid(line, 'qty')"
-								:aria-describedby="
-									lineInvalid(line, 'qty') ? lineIssueId(line, 'qty') : undefined
-								"
-								@input="
-									setEnteredQty(
-										line,
-										Number(($event.target as HTMLInputElement).value),
-									)
-								"
-							/>
-							<span v-else class="operation-cell-value">{{ line.qty }}</span>
-							<span
-								v-if="!receive && !disabled"
-								class="operation-row-existing muted"
-							>
-								现有 {{ formatQuantity(existingQuantity(line)) }}
-								<UnitText :name="line.uom" />
-							</span>
-							<p
-								v-if="lineInvalid(line, 'qty')"
-								:id="lineIssueId(line, 'qty')"
-								class="utility-error"
-							>
-								{{ lineIssue(line, "qty")?.message }}
-							</p>
-						</label>
-						<label class="operation-row-cell operation-row-unit">
-							<span class="operation-phone-field-label">单位</span>
-							<SearchSelect
-								:label="`${lineName(line)}单位`"
-								external-label
-								:aria-label="`${lineName(line)}单位`"
-								:model-value="line.entryUom || line.uom"
-								:disabled="disabled || hydrating || hasSerial(line)"
-								:clearable="false"
-								data-field="uom"
-								enterkeyhint="next"
-								:options="[
-									unitOption(line.uom),
-									...(stockItem(line.code)?.alternateUnits?.map((row) =>
-										unitOption(row.uom, {
-											factor: row.factor,
-											stockUom: line.uom,
-										}),
-									) || []),
-									{ value: '__other', label: '设置换算…' },
-								]"
-								@update:model-value="selectUnit(line, $event)"
-							/>
-						</label>
-						<span
-							v-if="line.entryUom && line.entryUom !== line.uom"
-							class="operation-row-stock-total muted"
-							>=
-							{{
-								formatQuantity(
-									enteredQty(line) * Number(line.conversionFactor || 1),
-								)
-							}}
-							<UnitText :name="line.uom"
-						/></span>
-						<span
-							v-else
-							class="operation-row-stock-total-empty"
-							aria-hidden="true"
-						></span>
-						<label
-							v-if="draft.kind === 'Transfer'"
-							class="operation-row-cell operation-row-destination"
-						>
-							<span class="operation-phone-field-label">调入</span>
-							<SearchSelect
-								:label="`${lineName(line)}调入位置`"
-								external-label
-								:aria-label="`${lineName(line)}调入位置`"
-								:model-value="line.location"
-								:disabled="disabled || hydrating"
-								:invalid="lineInvalid(line, 'location')"
-								:options="
-									places
-										.filter(
-											(name) =>
-												name !== (line.sourceLocation || line.location),
-										)
-										.map((name) => ({
-											value: name,
-											label: warehouseLabel(name, reference.warehouses),
-											title: warehousePath(name, reference.warehouses),
-											detail: warehousePath(name, reference.warehouses),
-										}))
-								"
-								@update:model-value="line.location = $event"
-							/>
-						</label>
-						<label
-							v-if="['Damage', 'Loss'].includes(draft.kind)"
-							class="operation-row-cell operation-row-reason"
-						>
-							<span class="operation-phone-field-label">原因</span>
-							<input
-								v-model="line.reason"
-								:disabled="disabled || hydrating"
-								:aria-label="`${lineName(line)}原因`"
-								placeholder="填写原因"
-							/>
-							<p
-								v-if="lineInvalid(line, 'reason')"
-								:id="lineIssueId(line, 'reason')"
-								class="utility-error"
-							>
-								{{ lineIssue(line, "reason")?.message }}
-							</p>
-						</label>
-						<label
-							v-if="draft.kind === 'Return' && line.loanName"
-							class="operation-row-cell operation-row-outcome"
-						>
-							<span class="operation-phone-field-label">归还结果</span>
-							<SearchSelect
-								:label="`${lineName(line)}归还结果`"
-								external-label
-								:aria-label="`${lineName(line)}归还结果`"
-								:model-value="line.returnOutcome || 'returned'"
-								:disabled="disabled || hydrating"
-								:clearable="false"
-								:options="[
-									{ value: 'returned', label: '完好归还' },
-									{ value: 'damaged', label: '损坏归还' },
-									{ value: 'lost', label: '遗失' },
-								]"
-								@update:model-value="
-									line.returnOutcome = $event as 'returned' | 'damaged' | 'lost'
-								"
-							/>
-						</label>
-						<span
-							v-if="sectionHasOutcome(section) && !line.loanName"
-							class="operation-row-cell operation-row-empty"
-							aria-hidden="true"
-						></span>
-					</div>
-					<PopupMenu
-						class="operation-row-menu"
-						panel-class="operation-row-menu-panel"
-						label="明细操作"
-						variant="icon"
-						align="end"
-						sheet
+					<article
+						v-for="line in section.lines"
+						:key="line.id"
+						v-show="visibleIds.has(line.id)"
+						class="operation-compact-row"
+						:class="{
+							'operation-compact-row--recent': highlightedLineIds.has(line.id),
+							'is-batch-tracked': hasBatchRows(line.code),
+							'is-serial-tracked': hasSerial(line),
+						}"
+						:style="{ '--operation-grid-template': sectionGridTemplate(section) }"
+						:data-line-id="line.id"
 					>
-						<SearchSelect
-							:label="'移到其他位置'"
-							external-label
-							aria-label="移到其他位置"
-							model-value=""
-							placeholder="选择其他位置"
-							:disabled="disabled || hydrating || fixedSectionLocation"
-							:options="lineLocationOptions(section, line)"
-							@update:model-value="moveLineFromMenu(line, $event)"
-						/>
-						<button type="button" :disabled="disabled" @click="pick([line])">
-							<InventoryIcon name="box" />
-							更换物品
-						</button>
-						<button type="button" :disabled="disabled" @click="duplicateLine(line)">
-							<InventoryIcon name="document" />
-							复制为新行
-						</button>
-						<button type="button" :disabled="disabled" @click="remove(line)">
-							<InventoryIcon name="trash" />
-							删除
-						</button>
-					</PopupMenu>
-				</article>
+						<div class="operation-row-item">
+							<div class="operation-row-thumbnail">
+								<ItemImage
+									v-if="stockItem(line.code)"
+									:item="stockItem(line.code)!"
+									:thumbnail-size="32"
+									:target-size="32"
+								/>
+							</div>
+							<div class="operation-compact-identity">
+								<strong :title="lineName(line)">{{ lineName(line) }}</strong>
+								<small class="muted">{{ line.code }}</small>
+								<small v-if="draft.kind === 'Repair'" class="muted"
+									>损坏来源：{{
+										warehouseLabel(
+											line.sourceLocation || "",
+											reference.warehouses,
+											"未指定",
+										)
+									}}</small
+								>
+							</div>
+						</div>
+						<div v-if="sectionHasBatch(section)" class="operation-row-batch">
+							<div class="operation-row-cell operation-row-batch-id">
+								<span class="operation-phone-field-label">批次</span>
+								<template v-if="hasBatchRows(line.code)">
+									<input
+										v-if="receive"
+										data-field="batch"
+										v-model="line.batch"
+										:aria-label="`${lineName(line)}批次`"
+										placeholder="自动生成"
+										enterkeyhint="next"
+										:disabled="disabled || hydrating"
+										:aria-invalid="lineInvalid(line, 'batch')"
+										:aria-describedby="
+											lineInvalid(line, 'batch')
+												? lineIssueId(line, 'batch')
+												: undefined
+										"
+										@input="receiveBatchChanged(line)"
+									/>
+									<SearchSelect
+										v-else-if="!settlement && !line.batchAllocations?.length"
+										:label="`${lineName(line)}批次`"
+										external-label
+										:aria-label="`${lineName(line)}批次`"
+										:model-value="line.batch"
+										:disabled="disabled || hydrating"
+										:invalid="lineInvalid(line, 'batch')"
+										:options="
+											(lineStock(line)?.batches || []).map((batch) => ({
+												value: batch.id,
+												label: batch.id,
+												detail: `可用 ${batch.available} · 到期 ${batch.expiry || '无效期'}`,
+											}))
+										"
+										@update:model-value="
+											line.batch = $event;
+											changeBatch(line);
+										"
+									/>
+									<span v-else class="operation-cell-value">{{
+										line.batch ||
+										(line.batchAllocations?.length
+											? "已记录多批次"
+											: "原借出未记录批次")
+									}}</span>
+								</template>
+								<p
+									v-if="lineInvalid(line, 'batch')"
+									:id="lineIssueId(line, 'batch')"
+									class="utility-error"
+								>
+									{{ lineIssue(line, "batch")?.message }}
+								</p>
+							</div>
+							<div class="operation-row-cell operation-row-expiry">
+								<span class="operation-phone-field-label">效期</span>
+								<template v-if="hasBatchRows(line.code)">
+									<input
+										v-if="receive && stockItem(line.code)?.tracksExpiry"
+										data-field="expiry"
+										v-model="line.expiry"
+										type="date"
+										enterkeyhint="next"
+										:aria-label="`${lineName(line)}效期`"
+										:disabled="disabled || hydrating"
+										:aria-invalid="lineInvalid(line, 'expiry')"
+										:aria-describedby="
+											lineInvalid(line, 'expiry')
+												? lineIssueId(line, 'expiry')
+												: undefined
+										"
+									/>
+									<span v-else class="operation-cell-value">{{
+										line.expiry || "无效期"
+									}}</span>
+								</template>
+								<p
+									v-if="lineInvalid(line, 'expiry')"
+									:id="lineIssueId(line, 'expiry')"
+									class="utility-error"
+								>
+									{{ lineIssue(line, "expiry")?.message }}
+								</p>
+							</div>
+							<div class="operation-row-cell operation-row-manufacturing">
+								<span class="operation-phone-field-label">生产日期</span>
+								<template v-if="hasBatchRows(line.code)">
+									<input
+										v-if="receive"
+										data-field="manufacturingDate"
+										v-model="line.manufacturingDate"
+										type="date"
+										enterkeyhint="next"
+										:aria-label="`${lineName(line)}生产日期`"
+										:disabled="disabled || hydrating"
+										:aria-invalid="lineInvalid(line, 'manufacturingDate')"
+										:aria-describedby="
+											lineInvalid(line, 'manufacturingDate')
+												? lineIssueId(line, 'manufacturingDate')
+												: undefined
+										"
+									/>
+									<span v-else class="operation-cell-value">{{
+										line.manufacturingDate || "—"
+									}}</span>
+								</template>
+							</div>
+						</div>
+						<div
+							v-if="hasSerial(line)"
+							class="operation-row-batch operation-row-serial"
+						>
+							<div class="operation-row-cell operation-row-serial-field">
+								<span class="operation-phone-field-label">序列号</span>
+								<template v-if="receive">
+									<InboundSerialField
+										:label="lineName(line)"
+										:serials="line.serials || []"
+										:input-value="serialInput[line.id] || ''"
+										:auto-count="line.autoSerialCount"
+										:has-series="hasSerialSeries(line)"
+										:auto-count-label="'自动生成序列号数量'"
+										:disabled="disabled || hydrating"
+										@update:input-value="serialInput[line.id] = $event"
+										@toggle-auto="toggleAutoSerial(line, $event)"
+										@update:auto-count="setAutoSerialCount(line, $event)"
+										@add="acceptInboundSerialInput(line, $event)"
+										@remove="removeSerial(line, $event)"
+									/>
+								</template>
+								<template v-else>
+									<div class="operation-serial-chips">
+										<span
+											v-for="serial in line.serials || []"
+											:key="serial"
+											class="operation-serial-chip"
+										>
+											{{ serial }}
+											<button
+												type="button"
+												:disabled="disabled || hydrating"
+												:aria-label="`移除序列号 ${serial}`"
+												@click="removeSerial(line, serial)"
+											>
+												×
+											</button>
+										</span>
+									</div>
+									<input
+										v-model="serialSearch[line.id]"
+										:aria-label="`${lineName(line)}搜索${line.loanName ? '未归还' : '可用'}序列号`"
+										:placeholder="
+											line.loanName ? '搜索未归还序列号' : '搜索可用序列号'
+										"
+										:disabled="disabled || hydrating"
+										@focus="loadSerials(line)"
+										@input="
+											serialOptions[line.id] = [];
+											loadSerials(line);
+										"
+									/>
+									<div
+										class="operation-serial-options"
+										role="listbox"
+										aria-multiselectable="true"
+									>
+										<button
+											v-for="serial in serialOptions[line.id] || []"
+											:key="serial"
+											type="button"
+											role="option"
+											:aria-selected="(line.serials || []).includes(serial)"
+											:disabled="disabled || hydrating"
+											@click="
+												(line.serials || []).includes(serial)
+													? removeSerial(line, serial)
+													: ((line.serials = [
+															...(line.serials || []),
+															serial,
+														]),
+														syncSerialQuantity(line))
+											"
+										>
+											{{ serial }}
+										</button>
+										<button
+											v-if="serialNext[line.id] != null"
+											type="button"
+											:disabled="serialLoading[line.id]"
+											@click="loadSerials(line, true)"
+										>
+											加载更多
+										</button>
+										<p v-if="serialLoading[line.id]" class="muted">
+											正在加载…
+										</p>
+									</div>
+								</template>
+								<p
+									v-if="lineInvalid(line, 'serials')"
+									:id="lineIssueId(line, 'serials')"
+									class="utility-error"
+								>
+									{{ lineIssue(line, "serials")?.message }}
+								</p>
+							</div>
+						</div>
+						<div class="operation-row-controls">
+							<label class="operation-row-cell operation-row-quantity">
+								<span class="operation-phone-field-label">数量</span>
+								<input
+									v-if="!hasSerial(line)"
+									data-field="qty"
+									type="number"
+									inputmode="decimal"
+									min="0"
+									step="any"
+									enterkeyhint="next"
+									:value="enteredQty(line)"
+									:disabled="disabled || hydrating"
+									:aria-label="`${lineName(line)}数量`"
+									:aria-invalid="lineInvalid(line, 'qty')"
+									:aria-describedby="
+										lineInvalid(line, 'qty')
+											? lineIssueId(line, 'qty')
+											: undefined
+									"
+									@input="
+										setEnteredQty(
+											line,
+											Number(($event.target as HTMLInputElement).value),
+										)
+									"
+								/>
+								<span v-else class="operation-cell-value">{{ line.qty }}</span>
+								<span
+									v-if="!receive && !disabled"
+									class="operation-row-existing muted"
+								>
+									现有 {{ formatQuantity(existingQuantity(line)) }}
+									<UnitText :name="line.uom" />
+								</span>
+								<p
+									v-if="lineInvalid(line, 'qty')"
+									:id="lineIssueId(line, 'qty')"
+									class="utility-error"
+								>
+									{{ lineIssue(line, "qty")?.message }}
+								</p>
+							</label>
+							<label class="operation-row-cell operation-row-unit">
+								<span class="operation-phone-field-label">单位</span>
+								<SearchSelect
+									:label="`${lineName(line)}单位`"
+									external-label
+									:aria-label="`${lineName(line)}单位`"
+									:model-value="line.entryUom || line.uom"
+									:disabled="disabled || hydrating || hasSerial(line)"
+									:clearable="false"
+									data-field="uom"
+									enterkeyhint="next"
+									:options="[
+										unitOption(line.uom),
+										...(stockItem(line.code)?.alternateUnits?.map((row) =>
+											unitOption(row.uom, {
+												factor: row.factor,
+												stockUom: line.uom,
+											}),
+										) || []),
+										{ value: '__other', label: '设置换算…' },
+									]"
+									@update:model-value="selectUnit(line, $event)"
+								/>
+							</label>
+							<span
+								v-if="line.entryUom && line.entryUom !== line.uom"
+								class="operation-row-stock-total muted"
+								>=
+								{{
+									formatQuantity(
+										enteredQty(line) * Number(line.conversionFactor || 1),
+									)
+								}}
+								<UnitText :name="line.uom"
+							/></span>
+							<span
+								v-else
+								class="operation-row-stock-total-empty"
+								aria-hidden="true"
+							></span>
+							<label
+								v-if="draft.kind === 'Transfer'"
+								class="operation-row-cell operation-row-destination"
+							>
+								<span class="operation-phone-field-label">调入</span>
+								<SearchSelect
+									:label="`${lineName(line)}调入位置`"
+									external-label
+									:aria-label="`${lineName(line)}调入位置`"
+									:model-value="line.location"
+									:disabled="disabled || hydrating"
+									:invalid="lineInvalid(line, 'location')"
+									:options="
+										places
+											.filter(
+												(name) =>
+													name !==
+													(line.sourceLocation || line.location),
+											)
+											.map((name) => ({
+												value: name,
+												label: warehouseLabel(name, reference.warehouses),
+												title: warehousePath(name, reference.warehouses),
+												detail: warehousePath(name, reference.warehouses),
+											}))
+									"
+									@update:model-value="line.location = $event"
+								/>
+							</label>
+							<label
+								v-if="['Damage', 'Loss'].includes(draft.kind)"
+								class="operation-row-cell operation-row-reason"
+							>
+								<span class="operation-phone-field-label">原因</span>
+								<input
+									v-model="line.reason"
+									:disabled="disabled || hydrating"
+									:aria-label="`${lineName(line)}原因`"
+									placeholder="填写原因"
+								/>
+								<p
+									v-if="lineInvalid(line, 'reason')"
+									:id="lineIssueId(line, 'reason')"
+									class="utility-error"
+								>
+									{{ lineIssue(line, "reason")?.message }}
+								</p>
+							</label>
+							<label
+								v-if="draft.kind === 'Return' && line.loanName"
+								class="operation-row-cell operation-row-outcome"
+							>
+								<span class="operation-phone-field-label">归还结果</span>
+								<SearchSelect
+									:label="`${lineName(line)}归还结果`"
+									external-label
+									:aria-label="`${lineName(line)}归还结果`"
+									:model-value="line.returnOutcome || 'returned'"
+									:disabled="disabled || hydrating"
+									:clearable="false"
+									:options="[
+										{ value: 'returned', label: '完好归还' },
+										{ value: 'damaged', label: '损坏归还' },
+										{ value: 'lost', label: '遗失' },
+									]"
+									@update:model-value="
+										line.returnOutcome = $event as
+											'returned' | 'damaged' | 'lost'
+									"
+								/>
+							</label>
+							<span
+								v-if="sectionHasOutcome(section) && !line.loanName"
+								class="operation-row-cell operation-row-empty"
+								aria-hidden="true"
+							></span>
+						</div>
+						<PopupMenu
+							class="operation-row-menu"
+							panel-class="operation-row-menu-panel"
+							label="明细操作"
+							variant="icon"
+							align="end"
+							sheet
+						>
+							<SearchSelect
+								:label="'移到其他位置'"
+								external-label
+								aria-label="移到其他位置"
+								model-value=""
+								placeholder="选择其他位置"
+								:disabled="disabled || hydrating || fixedSectionLocation"
+								:options="lineLocationOptions(section, line)"
+								@update:model-value="moveLineFromMenu(line, $event)"
+							/>
+							<button type="button" :disabled="disabled" @click="pick([line])">
+								<InventoryIcon name="box" />
+								更换物品
+							</button>
+							<button
+								type="button"
+								:disabled="disabled"
+								@click="duplicateLine(line)"
+							>
+								<InventoryIcon name="document" />
+								复制为新行
+							</button>
+							<button type="button" :disabled="disabled" @click="remove(line)">
+								<InventoryIcon name="trash" />
+								删除
+							</button>
+						</PopupMenu>
+					</article>
+				</TransitionGroup>
 			</section>
 			<div
 				v-if="!disabled && !settlement && draft.items.length"

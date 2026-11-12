@@ -1,6 +1,7 @@
 import type { OperationGroup } from "./useOperationBrowse";
 import type { DataColumn } from "../../lib/dataTable";
 import { sortableColumnsForView } from "../../lib/reportContract";
+import { presentationText } from "../../lib/presentationLabels";
 
 export function operationColumnsFor(
   family: "movements" | "loans",

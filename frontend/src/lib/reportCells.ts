@@ -1,4 +1,6 @@
 /** Static presentation metadata for native report cells. */
+import { presentationText } from "./presentationLabels";
+
 export const reportColumnLabels: Record<string, string> = {
   posting_timestamp: "入账时间",
   time: "时间",
