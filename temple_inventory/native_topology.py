@@ -14,13 +14,37 @@ SYSTEM_POINTERS = (
 )
 
 
-def _settings():
-	"""Temple Inventory Settings for reading; callers that change it load their own copy.
+def _clear_request_memos():
+	frappe.local.temple_inventory_memos = None
 
-	Scope checks read the settings several times per save. Building the Single is
-	the costly part, so reuse the copy built for the same stored rows. The rows are
-	read every call, so writes, direct SQL and rolled-back transactions all show.
+
+def request_memo(name):
+	"""Return this transaction's memo for `name`, or None while it has uncommitted writes.
+
+	Scope and topology reads repeat many times per request. A memo is only safe while
+	the transaction has written nothing; commit and rollback start a new snapshot, so
+	both drop every memo.
 	"""
+	if getattr(frappe.db, "transaction_writes", 0):
+		return None
+	store = getattr(frappe.local, "temple_inventory_memos", None)
+	if store is None:
+		store = frappe.local.temple_inventory_memos = {}
+		frappe.db.after_commit.add(_clear_request_memos)
+		frappe.db.after_rollback.add(_clear_request_memos)
+	return store.setdefault(name, {})
+
+
+def _settings():
+	"""Temple Inventory Settings for reading; callers that change it load their own copy."""
+	memo = request_memo("settings")
+	user = frappe.session.user
+	if memo is not None:
+		if user not in memo:
+			memo[user] = frappe.get_single("Temple Inventory Settings")
+		return memo[user]
+	# Mid-write, building the Single is the costly part: reuse the copy built for the
+	# same stored rows, which are read every call so writes and savepoint rollbacks show.
 	state = (
 		tuple(
 			frappe.db.sql(
@@ -46,17 +70,16 @@ def _settings():
 def _warehouse_map(company):
 	if not company:
 		return {}
-	if not getattr(frappe.db, "transaction_writes", 0):
-		cache = getattr(frappe.local, "temple_inventory_warehouse_maps", None)
-		if cache is None:
-			cache = frappe.local.temple_inventory_warehouse_maps = {}
-		if company in cache:
-			return cache[company]
+	cache = request_memo("warehouse_maps")
+	key = (frappe.session.user, company)
+	if cache is not None and key in cache:
+		return cache[key]
 	rows = frappe.get_list(
 		"Warehouse",
 		filters={"company": company},
 		fields=[
 			"name",
+			"owner",
 			"warehouse_name",
 			"parent_warehouse",
 			"warehouse_type",
@@ -74,23 +97,31 @@ def _warehouse_map(company):
 		limit_page_length=0,
 	)
 	result = {row.name: row for row in rows}
-	if not getattr(frappe.db, "transaction_writes", 0):
-		cache[company] = result
+	if cache is not None:
+		cache[key] = result
 	return result
 
 
 def _visible_warehouses(settings=None):
 	settings = settings or _settings()
+	user = frappe.session.user
+	key = (user, settings.company, settings.root_warehouse)
+	memo = request_memo("visible_warehouses")
+	if memo is not None and key in memo:
+		return memo[key]
 	if not settings.root_warehouse:
 		return {}
 	root = frappe.db.get_value("Warehouse", settings.root_warehouse, ["lft", "rgt"], as_dict=True)
 	if not root:
 		return {}
-	return {
+	result = {
 		name: row
 		for name, row in _warehouse_map(settings.company).items()
 		if row.lft >= root.lft and row.rgt <= root.rgt
 	}
+	if memo is not None:
+		memo[key] = result
+	return result
 
 
 def _system_warehouse_names(settings=None):
@@ -100,16 +131,24 @@ def _system_warehouse_names(settings=None):
 
 def _physical_tree(settings=None):
 	settings = settings or _settings()
+	user = frappe.session.user
+	key = (user, settings.company, settings.root_warehouse, settings.physical_root_warehouse)
+	memo = request_memo("physical_trees")
+	if memo is not None and key in memo:
+		return memo[key]
 	visible = _visible_warehouses(settings)
 	root = visible.get(settings.physical_root_warehouse)
 	if not root or not root.is_group:
 		return {}
 	protected = _system_warehouse_names(settings)
-	return {
+	result = {
 		name: row
 		for name, row in visible.items()
 		if name not in protected and root.lft < row.lft and row.rgt < root.rgt
 	}
+	if memo is not None:
+		memo[key] = result
+	return result
 
 
 def _enabled_branch(row, visible):
@@ -124,14 +163,22 @@ def _enabled_branch(row, visible):
 
 def _allowed_warehouses(settings=None):
 	settings = settings or _settings()
+	user = frappe.session.user
+	key = (user, settings.company, settings.root_warehouse, settings.physical_root_warehouse)
+	memo = request_memo("allowed_warehouses")
+	if memo is not None and key in memo:
+		return memo[key]
 	visible = _visible_warehouses(settings)
-	return {
+	result = {
 		row.warehouse: visible[row.warehouse]
 		for row in settings.get("allowed_warehouses", [])
 		if row.warehouse in visible
 		and not cint(visible[row.warehouse].is_group)
 		and _enabled_branch(visible[row.warehouse], visible)
 	}
+	if memo is not None:
+		memo[key] = result
+	return result
 
 
 def _derived_kind(row, direct_by_parent, rows, systems):
@@ -150,10 +197,47 @@ def _derived_kind(row, direct_by_parent, rows, systems):
 def _can_edit(name, systems):
 	if name in systems:
 		return False
+	key = (frappe.session.user, name)
+	memo = request_memo("warehouse_edit_permissions")
+	if memo is not None and key in memo:
+		return memo[key]
 	try:
-		return bool(frappe.has_permission("Warehouse", "write", doc=name))
+		allowed = bool(frappe.has_permission("Warehouse", "write", doc=name))
 	except frappe.DoesNotExistError, frappe.PermissionError:
-		return False
+		allowed = False
+	if memo is not None:
+		memo[key] = allowed
+	return allowed
+
+
+def _editable_warehouses(rows, systems):
+	"""Resolve write shares once for already-readable Warehouse rows."""
+	names = set(rows) - set(systems)
+	if not names:
+		return set()
+	user = frappe.session.user
+	if user == "Administrator":
+		return names
+	from frappe.permissions import get_role_permissions, get_user_permissions
+
+	role_write = bool(get_role_permissions("Warehouse", user=user).get("write"))
+	owner_write = bool(get_role_permissions("Warehouse", user=user, is_owner=True).get("write"))
+	if not any("owner" not in rows[name] for name in names):
+		user_permissions = get_user_permissions(user)
+		if role_write and not user_permissions:
+			return names
+		if not role_write and not owner_write:
+			return set(
+				frappe.share.get_shared(
+					"Warehouse",
+					user,
+					rights=["write"],
+					filters=[["share_name", "in", sorted(names)]],
+				)
+			)
+		if not user_permissions and owner_write:
+			return {name for name in names if rows[name].get("owner") == user}
+	return {name for name in names if _can_edit(name, systems)}
 
 
 def present_locations(rows, *, physical_root=None, settings=None):
@@ -164,7 +248,40 @@ def present_locations(rows, *, physical_root=None, settings=None):
 		rows = {name: frappe._dict(row) for name, row in rows.items()}
 	else:
 		rows = {row.get("name"): frappe._dict(row) for row in rows if row.get("name")}
+	row_key = tuple(
+		sorted(
+			(
+				name,
+				row.get("owner"),
+				row.get("parent_warehouse"),
+				row.get("warehouse_name"),
+				row.get("warehouse_type"),
+				row.get("ti_label"),
+				row.get("ti_short_label"),
+				row.get("ti_direct_storage"),
+				row.get("is_group"),
+				row.get("disabled"),
+				row.get("lft"),
+				row.get("rgt"),
+				row.get("modified"),
+			)
+			for name, row in rows.items()
+		)
+	)
+	settings_key = tuple(settings.get(field) for field in SYSTEM_POINTERS)
+	key = (
+		frappe.session.user,
+		physical_root,
+		settings.company,
+		settings.root_warehouse,
+		settings_key,
+		row_key,
+	)
+	memo = request_memo("present_locations")
+	if memo is not None and key in memo:
+		return [dict(item) for item in memo[key]]
 	systems = _system_warehouse_names(settings)
+	editable = _editable_warehouses(rows, systems)
 	direct_by_parent = {}
 	owners = {}
 	for name, row in rows.items():
@@ -238,7 +355,7 @@ def present_locations(rows, *, physical_root=None, settings=None):
 				"rgt": row.get("rgt"),
 				"version": str(row.get("modified") or ""),
 				"protected": name in systems,
-				"can_edit": _can_edit(name, systems),
+				"can_edit": name in editable,
 			}
 		)
 	# Keep names unique with the shortest ancestor suffix needed to distinguish peers.
@@ -262,6 +379,8 @@ def present_locations(rows, *, physical_root=None, settings=None):
 	for item in items:
 		if item["direct"] and item["owner"] in labels:
 			item["label"] = labels[item["owner"]]
+	if memo is not None:
+		memo[key] = [dict(item) for item in items]
 	return items
 
 

@@ -121,6 +121,7 @@ class NativeReportsFiltersTests(NativeReportTestCase):
 			snapshot_is_now=True,
 			item=lambda code: items.get(code),
 			preload_items=lambda _codes: None,
+			preload_batches=lambda _names: None,
 			matches_item=lambda _code, _warehouse: True,
 			item_fields=lambda item: {"item_code": item.name, "item_name": item.item_name},
 			matches_search=lambda _values, **_kwargs: True,

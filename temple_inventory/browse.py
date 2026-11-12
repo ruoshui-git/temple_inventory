@@ -17,7 +17,7 @@ from temple_inventory.projections import (  # noqa: F401
 	group_field_name,
 	report_page,
 )
-from temple_inventory.report_query import validate_query
+from temple_inventory.report_query import sortable_field, validate_query
 from temple_inventory.report_sources import (
 	available_scope_leaves,
 	batch_allocations,
@@ -144,20 +144,17 @@ def native_drafts(query=None, start=0, page_length=30, refresh=False):
 def native_draft_count():
 	"""Count readable native drafts without building the full movement projection."""
 	require_app()
-	query = validate_query({"dataset": "movements", "view": "records", "statuses": [0]})
-	from temple_inventory.report_sources import ReportContext
+	return {"matched_count": _draft_summary()["draft_count"]}
 
-	context = ReportContext(query, load_item_attachments=False)
-	count = 0
-	for doctype in _readable_native_doctypes():
-		names = frappe.get_list(
-			doctype,
-			filters={"company": context.company, "docstatus": 0},
-			pluck="name",
-		)
-		context.preload_parents(doctype, names)
-		count += sum(bool(context.parent(doctype, name)) for name in names)
-	return {"matched_count": count}
+
+def _draft_summary():
+	query = validate_query({"dataset": "movements", "view": "records", "statuses": [0]})
+	with Projection(query, load_item_attachments=False) as projection:
+		projection.build(complete_records=False)
+		count = projection.db.execute(
+			"select count(distinct json_extract(payload, '$.document_id')) from rows where table_id='records'"
+		).fetchone()[0]
+		return {"draft_count": count, "snapshot": projection.context.snapshot}
 
 
 @frappe.whitelist()
@@ -190,25 +187,29 @@ def _native_record_page(query, start, page_length, refresh=False):
 		refresh=refresh,
 		load_item_attachments=query["dataset"] != "counts",
 	) as projection:
-		projection.build()
-		projection.group(
-			"lines",
-			"native_records",
-			(
-				"doctype",
-				"document",
-				"document_id",
-				"date",
-				"time",
-				"modified",
-				"docstatus",
-				"kind",
-				"activity",
-				"activity_title",
-				"borrower",
-			),
-			(),
+		projection.build(
+			complete_records=False,
+			requested_table="native_records" if query["dataset"] == "counts" else None,
 		)
+		if projection.main_table != "native_records":
+			projection.group(
+				"lines",
+				"native_records",
+				(
+					"doctype",
+					"document",
+					"document_id",
+					"date",
+					"time",
+					"modified",
+					"docstatus",
+					"kind",
+					"activity",
+					"activity_title",
+					"borrower",
+				),
+				(),
+			)
 		rows = list(projection.rows("native_records", offset=start, limit=size))
 		for doctype in _readable_native_doctypes():
 			projection.context.preload_parents(
@@ -230,12 +231,7 @@ def _native_record_page(query, start, page_length, refresh=False):
 @frappe.whitelist()
 def more_summary():
 	require_app()
-	with Projection({"dataset": "movements", "view": "records", "statuses": [0]}, refresh=True) as projection:
-		projection.build()
-		count = projection.db.execute(
-			"select count(distinct json_extract(payload, '$.document_id')) from rows where table_id='records'"
-		).fetchone()[0]
-		return {"draft_count": count, "snapshot": projection.context.snapshot}
+	return _draft_summary()
 
 
 def _expiry_projection(query, *, refresh=False):
@@ -672,7 +668,27 @@ def _inventory_page(query=None, start=0, page_length=30, refresh=False):
 		projection.context.preload_primary_item_images(codes)
 		projection.context._item_fields.cache_clear()
 		locations = {code: {} for code in codes}
-		for row in projection.rows("locations"):
+		if codes:
+			field = sortable_field("inventory", "summary", projection.query["sortBy"])
+			direction = projection.query["sort"]
+			sort = (
+				"identity"
+				if field == "identity"
+				else "date"
+				if field == "date"
+				else f"json_extract(payload, '$.{field}')"
+			)
+			placeholders = ",".join("?" for _ in codes)
+			cursor = projection.db.execute(
+				f"select payload from rows where table_id=? "
+				f"and json_extract(payload, '$.item_code') in ({placeholders}) "
+				f"order by {sort} {direction}, identity {direction}",
+				("locations", *sorted(codes)),
+			)
+			location_rows = (json.loads(payload) for (payload,) in cursor)
+		else:
+			location_rows = ()
+		for row in location_rows:
 			code, warehouse = row["item_code"], row["warehouse"]
 			if code not in codes or not warehouse:
 				continue
@@ -942,7 +958,8 @@ def operation_page(query, records=False, start=0, page_length=20):
 		projection.build()
 		if not records:
 			image_table = "lines" if projection.query["dataset"] == "movements" else "outcomes"
-			projection.context.preload_primary_item_images(
+			projection.context.load_item_attachments = True
+			projection.context.preload_item_attachments(
 				row["item_code"] for row in projection.rows(image_table)
 			)
 			projection.context._item_fields.cache_clear()

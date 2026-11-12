@@ -14,6 +14,7 @@ from temple_inventory.item_code import allocate_item_code
 from temple_inventory.item_code import suggest_item_code as next_item_code
 from temple_inventory.native_access import check_item, load_locked, require_app, retry_native_request
 from temple_inventory.native_files import FILE_PERMISSION_FIELDS, attachments, can_read, readable_parents
+from temple_inventory.native_topology import request_memo
 from temple_inventory.projections import report_page
 from temple_inventory.report_query import validate_query
 from temple_inventory.report_sources import ReportContext, paged, stock_rows
@@ -32,9 +33,15 @@ def _image(item):
 
 def item_group_root():
 	"""Resolve ERPNext's native Item Group root from its nested-set metadata."""
+	user = frappe.session.user
+	memo = request_memo("item_group_roots")
+	if memo is not None and user in memo:
+		return memo[user]
 	name = frappe.db.get_value("Item Group", {"lft": 1}, "name")
 	if not name:
 		frappe.throw("未找到物品类别根节点")
+	if memo is not None:
+		memo[user] = name
 	return name
 
 
@@ -324,13 +331,21 @@ def item_summaries(item_codes):
 	rows = frappe.get_list(
 		"Item",
 		filters={"name": ["in", sorted(set(item_codes)) or [""]]},
-		fields=["name", "item_name"],
+		fields=["name", "item_name", "image"],
 		limit_page_length=0,
 	)
+	context = ReportContext(
+		validate_query({"dataset": "inventory", "view": "locations"}),
+		load_item_children=False,
+	)
+	context.preload_items(row.name for row in rows)
+	context.preload_item_attachments(row.name for row in rows)
 	result = []
 	for row in rows:
-		item = frappe.get_doc("Item", row.name)
-		image, _files, _primary = _image(item)
+		item = context.item(row.name)
+		image = (
+			item.image if item and item.image in context._permitted_item_images.get(row.name, set()) else ""
+		)
 		result.append({"name": row.name, "item_name": row.item_name, "image": image})
 	return result
 

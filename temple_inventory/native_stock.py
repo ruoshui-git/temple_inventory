@@ -143,7 +143,13 @@ def warehouse_scopes():
 		_physical_tree,
 		_settings,
 		_visible_warehouses,
+		request_memo,
 	)
+
+	user = frappe.session.user
+	memo = request_memo("warehouse_scopes")
+	if memo is not None and user in memo:
+		return memo[user]
 
 	settings = _settings()
 	visible = _visible_warehouses(settings)
@@ -158,7 +164,10 @@ def warehouse_scopes():
 	)
 	damaged_leaf = visible.get(settings.damaged_warehouse)
 	damaged = {damaged_leaf.name} if damaged_leaf and _enabled_branch(damaged_leaf, visible) else set()
-	return settings, visible, physical, leased, damaged
+	result = settings, visible, physical, leased, damaged
+	if memo is not None:
+		memo[user] = result
+	return result
 
 
 def _check_leaf(name, permitted, visible):
@@ -395,16 +404,30 @@ def _row_serials(row):
 
 def loan_balances(loan_name, *, lock=False, by_batch=False, by_serial=False):
 	"""Internal projection. Callers must authorize the original document and scope."""
+	return loan_balances_many([loan_name], lock=lock, by_batch=by_batch, by_serial=by_serial).get(
+		loan_name,
+		defaultdict(lambda: {"Returned": set(), "Damaged": set(), "Lost": set()})
+		if by_serial
+		else defaultdict(lambda: {"Returned": Decimal(0), "Damaged": Decimal(0), "Lost": Decimal(0)}),
+	)
+
+
+def loan_balances_many(loan_names, *, lock=False, by_batch=False, by_serial=False):
+	"""Resolve submitted settlements for several already-authorized loans in one query."""
+	loan_names = sorted(set(loan_names))
+	if not loan_names:
+		return {}
 	rows = frappe.db.sql(
 		"""
-		select line.ti_original_loan_line as original_line, line.ti_settlement_outcome as outcome,
+		select line.ti_original_loan as loan_name,
+		       line.ti_original_loan_line as original_line, line.ti_settlement_outcome as outcome,
 		       line.item_code, line.transfer_qty, line.batch_no, line.serial_no,
 	       line.serial_and_batch_bundle
 		from `tabStock Entry Detail` line
 		join `tabStock Entry` parent on parent.name = line.parent
 		join `tabStock Entry Detail` original on original.name = line.ti_original_loan_line
 		join `tabStock Entry` loan on loan.name = original.parent
-		where parent.docstatus = 1 and line.ti_original_loan = %s
+		where parent.docstatus = 1 and line.ti_original_loan in %(loan_names)s
 		  and loan.name = line.ti_original_loan and loan.docstatus = 1
 		  and loan.ti_movement_kind = 'Loan' and loan.company = parent.company
 		  and original.item_code = line.item_code and original.t_warehouse = line.s_warehouse
@@ -416,23 +439,28 @@ def loan_balances(loan_name, *, lock=False, by_batch=False, by_serial=False):
 		        and line.ti_settlement_outcome = 'Lost'))
 		"""
 		+ (" for update" if lock else ""),
-		loan_name,
+		{"loan_names": tuple(loan_names)},
 		as_dict=True,
 	)
-	if by_serial:
-		result = defaultdict(lambda: {"Returned": set(), "Damaged": set(), "Lost": set()})
-	else:
-		result = defaultdict(lambda: {"Returned": Decimal(0), "Damaged": Decimal(0), "Lost": Decimal(0)})
+	result = {
+		name: defaultdict(
+			lambda: {"Returned": set(), "Damaged": set(), "Lost": set()}
+			if by_serial
+			else {"Returned": Decimal(0), "Damaged": Decimal(0), "Lost": Decimal(0)}
+		)
+		for name in loan_names
+	}
 	for row in rows:
+		balances = result[row.loan_name]
 		if by_serial:
 			for serial in _row_serials(row):
-				result[row.original_line].setdefault(row.outcome, set()).add(serial)
+				balances[row.original_line].setdefault(row.outcome, set()).add(serial)
 		elif by_batch:
 			for batch, quantity in batch_quantities(row).items():
-				if row.outcome in result[(row.original_line, batch)]:
-					result[(row.original_line, batch)][row.outcome] += quantity
-		elif row.outcome in result[row.original_line]:
-			result[row.original_line][row.outcome] += Decimal(str(row.transfer_qty))
+				if row.outcome in balances[(row.original_line, batch)]:
+					balances[(row.original_line, batch)][row.outcome] += quantity
+		elif row.outcome in balances[row.original_line]:
+			balances[row.original_line][row.outcome] += Decimal(str(row.transfer_qty))
 	return result
 
 

@@ -100,7 +100,7 @@ def invalidate_after_commit(doc=None, *_args, **_kwargs):
 	if doc:
 		frappe.local.inventory_permission_signatures = {}
 		frappe.local.inventory_configuration_signature = None
-		frappe.local.temple_inventory_warehouse_maps = {}
+		frappe.local.temple_inventory_memos = None
 	if doc and doc.doctype == "User" and _args and _args[0] != "after_insert":
 		before = doc.get_doc_before_save()
 		roles_changed = _user_role_signature(doc) != _user_role_signature(before)
@@ -388,12 +388,19 @@ def _request_cacheable():
 		return False
 	# ERPNext repost workers rewrite Stock Ledger Entry and balances through SQL.
 	# Do not serve the intermediate state while a repost document is in progress.
+	user = frappe.session.user
+	from temple_inventory.native_topology import request_memo
+
+	checks = request_memo("repost_checks")
+	if checks is not None and user in checks:
+		return not checks[user]
 	try:
-		if frappe.db.exists("Repost Item Valuation", {"status": "In Progress"}):
-			return False
+		in_progress = bool(frappe.db.exists("Repost Item Valuation", {"status": "In Progress"}))
 	except Exception:
-		return False
-	return True
+		in_progress = True
+	if checks is not None:
+		checks[user] = in_progress
+	return not in_progress
 
 
 def begin_read_request():
@@ -487,6 +494,7 @@ def _projection_identity(projection, generation, permission, configuration):
 	query = {**query, "scope": dict(query.get("scope") or {})}
 	query["include_related"] = bool(getattr(projection, "related", False))
 	query["complete_records"] = bool(getattr(projection, "complete_records", True))
+	query["count_records_only"] = bool(getattr(projection, "count_record_fast_path", False))
 	query["load_item_attachments"] = bool(getattr(projection, "load_item_attachments", True))
 	for field in ("statuses", "itemCodes", "itemLocationKeys", "allocationKeys"):
 		if isinstance(query.get(field), list):
@@ -648,7 +656,7 @@ def restore_projection(projection):
 		projection.main_table = metadata["main_table"]
 		projection.summary_table = metadata["summary_table"]
 		projection.sums = tuple(metadata["sums"])
-		projection.context.snapshot = snapshot.decode("utf-8")
+		projection.restored_snapshot = snapshot.decode("utf-8")
 		return True
 	except redis.exceptions.RedisError, OSError, ValueError, TypeError, sqlite3.Error, zlib.error:
 		return False

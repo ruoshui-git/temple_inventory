@@ -732,13 +732,8 @@ class Projection(AbstractContextManager):
 		self.calculation_started = (
 			getattr(frappe.local, "inventory_cache_request_started", None) if self.cache_context else None
 		) or str(now_datetime())
-		self.context = ReportContext(
-			self.query,
-			snapshot=self.calculation_started,
-			snapshot_is_now=True,
-			load_item_attachments=self.load_item_attachments,
-			load_item_children=self.load_item_children,
-		)
+		self._context = None
+		self.restored_snapshot = None
 		self.temp = tempfile.TemporaryDirectory(prefix="ti-report-")
 		self.db = sqlite3.connect(f"{self.temp.name}/projection.sqlite")
 		self.db.execute("pragma cache_size = -8192")
@@ -755,6 +750,18 @@ class Projection(AbstractContextManager):
 		self.column_names = {}
 		self.cache_lock = None
 		self.cache_race_retries = 0
+
+	@property
+	def context(self):
+		if self._context is None:
+			self._context = ReportContext(
+				self.query,
+				snapshot=self.restored_snapshot or self.calculation_started,
+				snapshot_is_now=True,
+				load_item_attachments=self.load_item_attachments,
+				load_item_children=self.load_item_children,
+			)
+		return self._context
 
 	def __enter__(self):
 		from temple_inventory.read_cache import acquire_projection_lock
@@ -782,13 +789,14 @@ class Projection(AbstractContextManager):
 		self.cache_context = None
 		self.cache_bypass = True
 		self.calculation_started = str(now_datetime())
-		self.context = ReportContext(
+		self._context = ReportContext(
 			self.query,
 			snapshot=self.calculation_started,
 			snapshot_is_now=True,
 			load_item_attachments=self.load_item_attachments,
 			load_item_children=self.load_item_children,
 		)
+		self.restored_snapshot = None
 		self.db.close()
 		self.temp.cleanup()
 		self.temp = tempfile.TemporaryDirectory(prefix="ti-report-")
@@ -1159,13 +1167,49 @@ class Projection(AbstractContextManager):
 		self.main_table, self.summary_table, self.sums = "records", "records", tuple(sums)
 
 	def build(self, *, related=False, complete_records=True, requested_table=None):
-		query, context = self.query, self.context
-		dataset, view = query["dataset"], query["view"]
 		from temple_inventory.read_cache import restore_projection, store_projection
 
 		self.related = related
 		self.complete_records = complete_records
+		query = self.query
+		dataset, view = query["dataset"], query["view"]
+		scope = query["scope"]
+		count_record_fast_path = (
+			dataset == "counts"
+			and view == "records"
+			and requested_table == "native_records"
+			and not related
+			and not query["groupBy"]
+			and query["countReviewed"] == "all"
+			and not any(
+				(
+					scope.get("item"),
+					scope.get("categories"),
+					scope.get("uncategorized"),
+					scope.get("warehouses"),
+					scope.get("sources"),
+					scope.get("destinations"),
+					scope.get("kinds"),
+					scope.get("activity"),
+					scope.get("tracking", "all") != "all",
+					query.get("search"),
+					query.get("batchNo"),
+					query.get("record"),
+					query.get("recordDoctype"),
+					query.get("itemCodes"),
+					query.get("itemLocationKeys"),
+					query.get("allocationKeys"),
+					query.get("restrictItems"),
+					query.get("restrictAllocations"),
+					query.get("itemStatus", "enabled") != "enabled",
+					query.get("person", {}).get("name"),
+				)
+			)
+		)
+		# The count-only source stores a different table set, so it needs its own cache entry.
+		self.count_record_fast_path = count_record_fast_path
 		restored = restore_projection(self)
+		context = self.context
 		if not restored and dataset == "inventory" and view == "historical":
 			self.column_names.update({key: list(FIXED_COLUMNS[key]) for key in ("balances", "ledger")})
 			for table, row in historical_rows(context):
@@ -1319,6 +1363,32 @@ class Projection(AbstractContextManager):
 				("outcomes" if view == "loans" else view),
 				LOAN_SUMS if view == "loans" else ("stock_qty",),
 			)
+		elif not restored and count_record_fast_path:
+			from temple_inventory.report_sources import count_record_rows
+
+			fields = (
+				"doctype",
+				"document",
+				"document_id",
+				"date",
+				"time",
+				"modified",
+				"docstatus",
+				"kind",
+				"activity",
+				"activity_title",
+				"borrower",
+			)
+			self.column_names["native_records"] = [
+				"id",
+				*fields,
+				"item_count",
+				"document_count",
+				"row_count",
+				"allocation_count",
+			]
+			self.add("native_records", count_record_rows(context))
+			self.main_table, self.summary_table, sums = "native_records", "native_records", ()
 		elif not restored:
 			self.add("lines", count_rows(context))
 			self.column_names["lines"] = list(
@@ -1493,7 +1563,37 @@ class Projection(AbstractContextManager):
 		for row in self.rows("records"):
 			selected[(row["doctype"], row["document"])] = row
 		self.db.execute("delete from rows where table_id='records'")
+		for doctype in ("Stock Entry", "Stock Reconciliation"):
+			self.context.preload_parents(doctype, (name for kind, name in selected if kind == doctype))
+		preloaded_documents = [
+			self.context._preloaded_parents.get(identity)
+			for identity in selected
+			if identity[0] in ("Stock Entry", "Stock Reconciliation")
+		]
+		self.context.preload_items(
+			line.item_code for doc in preloaded_documents if doc for line in doc.get("items") or []
+		)
+		self.context.preload_bundles(
+			line
+			for doc in preloaded_documents
+			if doc
+			for line in [*(doc.get("items") or []), *(doc.get("ti_count_review") or [])]
+		)
+		self.context.preload_batches(
+			line.get("batch_no")
+			for doc in preloaded_documents
+			if doc
+			for line in [*(doc.get("items") or []), *(doc.get("ti_count_review") or [])]
+		)
 		documents = [(doctype, name, self.context.parent(doctype, name)) for doctype, name in selected]
+		self.context.preload_loan_balances(
+			[
+				name
+				for _doctype, name, doc in documents
+				if dataset == "loans" and doc and doc.get("ti_movement_kind") == "Loan"
+			],
+			by_batch=True,
+		)
 		for doctype, name, doc in documents:
 			if not doc:
 				continue

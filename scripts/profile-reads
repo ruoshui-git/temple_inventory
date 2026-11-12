@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+cd "$(dirname "$0")/.."
+kwargs=${1:-\{\}}
+scripts/dx scripts/heavy bench --site development.localhost execute temple_inventory.profiling.profile_reads --kwargs "$kwargs"

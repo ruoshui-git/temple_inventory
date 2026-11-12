@@ -94,15 +94,19 @@ def entry_bundle(
 			bundle_cache[cache_key] = None
 		return None
 	bundle = bundle_loader(name) if bundle_loader else None
+	preloaded = bundle is not None
 	bundle = bundle or frappe.get_doc("Serial and Batch Bundle", name)
-	bundle.check_permission("read")
+	from frappe.model.document import Document
+
+	if not preloaded or bundle.__class__.check_permission is not Document.check_permission:
+		bundle.check_permission("read")
 	if bundle.item_code != row.get("item_code"):
 		frappe.throw("批次明细不属于此物品")
 	for allocation in bundle.entries:
 		if allocation.batch_no:
 			if batch_checker:
 				batch_checker(allocation.batch_no)
-			else:
+			elif not (preloaded and bundle.flags.get("ti_permission_filtered_batches")):
 				frappe.get_doc("Batch", allocation.batch_no).check_permission("read")
 	if bundle_cache is not None:
 		bundle_cache[cache_key] = bundle

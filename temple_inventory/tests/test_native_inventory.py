@@ -46,6 +46,7 @@ from temple_inventory.tests.test_opening import OpeningStockTests
 from temple_inventory.tests.test_opening_import import OpeningStockImportTests
 from temple_inventory.tests.test_permissions import PermissionTests
 from temple_inventory.tests.test_printing import PrintingTests
+from temple_inventory.tests.test_read_performance import ReadPerformanceTests
 from temple_inventory.tests.test_schema_audit import SchemaAuditTests
 from temple_inventory.tests.test_search_scope import SearchScopeTests
 from temple_inventory.tests.test_serial_reports import SerialReportTests
@@ -103,6 +104,7 @@ def run(test_name=None):
 		SerialTrackingTests,
 		SerialReportTests,
 		PrintingTests,
+		ReadPerformanceTests,
 		ActivityTypeTests,
 		PermissionTests,
 		ItemImportTests,
