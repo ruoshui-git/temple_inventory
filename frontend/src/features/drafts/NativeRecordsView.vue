@@ -1152,7 +1152,7 @@ function openDetailsRow() {
 .drafts-difference p {
 	display: flex;
 	align-items: flex-start;
-	gap: 8px;
+	gap: var(--p-space-2);
 	margin: var(--p-space-2) 0 0;
 }
 .drafts-difference svg {
@@ -1183,7 +1183,7 @@ function openDetailsRow() {
 	display: flex;
 	align-items: center;
 	flex-wrap: wrap;
-	gap: 8px;
+	gap: var(--p-space-2);
 }
 .draft-title-link {
 	min-height: 0;
@@ -1242,14 +1242,14 @@ function openDetailsRow() {
 }
 @media (max-width: 1023px) {
 	.drafts-explainer {
-		margin-top: 8px;
+		margin-top: var(--p-space-2);
 		color: var(--p-muted);
 		font-size: 0.84rem;
 	}
 	.draft-entry {
 		grid-template-columns: minmax(0, 1fr) auto;
 		align-items: center;
-		gap: 8px;
+		gap: var(--p-space-2);
 		padding-block: 10px;
 	}
 	.draft-entry-heading {
@@ -1288,13 +1288,13 @@ function openDetailsRow() {
 		display: flex;
 		align-items: center;
 		justify-content: flex-end;
-		gap: 4px;
+		gap: var(--p-space-1);
 	}
 }
 @media (max-width: 600px) {
 	.draft-entry .browse-row-actions :deep(.ui-button) {
 		min-height: 44px;
-		padding-inline: 8px;
+		padding-inline: var(--p-space-2);
 		font-size: 0.78rem;
 	}
 }

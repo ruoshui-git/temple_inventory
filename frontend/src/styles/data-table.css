@@ -297,7 +297,7 @@
 	}
 	.data-table-scroll th.report-batch-column {
 		min-width: 72px !important;
-		padding-inline: 16px !important;
+		padding-inline: var(--p-space-4) !important;
 	}
 	.data-table-scroll table {
 		width: max-content;
@@ -388,7 +388,7 @@
 
 .data-table-scroll th,
 .data-table-scroll td {
-	padding: var(--p-table-cell-y, 12px) var(--p-table-cell-x, 12px);
+	padding: var(--p-table-cell-y, var(--p-space-3)) var(--p-table-cell-x, var(--p-space-3));
 	border-bottom: 1px solid var(--p-border);
 	vertical-align: middle;
 }
@@ -880,7 +880,7 @@
 	min-width: 14px;
 	height: 14px;
 	place-items: center;
-	margin-inline-start: 4px;
+	margin-inline-start: var(--p-space-1);
 	border: 0;
 	background: transparent;
 	color: var(--p-muted);
@@ -1066,7 +1066,7 @@
 }
 .operation-unit-more {
 	min-height: 24px;
-	margin-inline-start: 4px;
+	margin-inline-start: var(--p-space-1);
 	padding: 0;
 	border: 0;
 	background: transparent;
@@ -1233,7 +1233,7 @@
 
 	.data-table-selection-column {
 		min-width: 48px;
-		padding-block: 12px;
+		padding-block: var(--p-space-3);
 	}
 }
 
@@ -1272,7 +1272,7 @@
 		:is(button, .record-ref-chip, .location-endpoint, .browse-badge, .detail-popover-trigger) {
 		max-width: 100%;
 		padding-block: 0;
-		padding-inline: 4px;
+		padding-inline: var(--p-space-1);
 	}
 	.data-table-scroll
 		tbody
@@ -1436,7 +1436,7 @@
 @media (max-width: 600px) {
 	.native-record-mobile-status {
 		display: inline-flex;
-		margin-inline-start: 4px;
+		margin-inline-start: var(--p-space-1);
 		white-space: nowrap;
 	}
 }

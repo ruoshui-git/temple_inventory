@@ -1037,14 +1037,14 @@ function itemImage(row: CountRow) {
 .count-baseline-warning {
 	display: flex;
 	align-items: center;
-	gap: 4px;
+	gap: var(--p-space-1);
 	color: var(--p-muted);
 	font-size: 0.72rem;
 }
 .count-baseline-warning button {
 	min-height: 28px;
 	border: 0;
-	padding: 0 4px;
+	padding: 0 var(--p-space-1);
 	color: var(--p-accent-strong);
 	background: transparent;
 	text-decoration: underline;
@@ -1052,7 +1052,7 @@ function itemImage(row: CountRow) {
 .count-row-actions-inner {
 	display: flex;
 	align-items: center;
-	gap: 4px;
+	gap: var(--p-space-1);
 	white-space: nowrap;
 }
 .count-row-actions-inner :deep(button) {
@@ -1157,7 +1157,7 @@ function itemImage(row: CountRow) {
 	width: 100%;
 	min-width: 0;
 	min-height: 44px;
-	padding: 4px 8px;
+	padding: var(--p-space-1) var(--p-space-2);
 }
 .count-card-difference {
 	font-size: 0.78rem;
@@ -1184,7 +1184,7 @@ function itemImage(row: CountRow) {
 	flex: 0 0 auto;
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-control);
-	padding: 3px 8px;
+	padding: 3px var(--p-space-2);
 	color: var(--p-accent-strong);
 	background: var(--p-surface);
 	white-space: nowrap;
@@ -1212,7 +1212,7 @@ function itemImage(row: CountRow) {
 	background: var(--p-surface);
 }
 :deep(.count-table .data-table-group-detail-row .data-table-group-detail-cell) {
-	padding: 10px 16px;
+	padding: 10px var(--p-space-4);
 }
 @media (max-width: 1023px) {
 	.count-filter-bar {

@@ -64,7 +64,7 @@ body:has(.browse-page) {
 	margin-inline: -6px;
 }
 .browse-hierarchy-section > .form-choice-label {
-	margin-inline-start: 32px;
+	margin-inline-start: var(--p-space-8);
 }
 .browse-tree-row {
 	padding-block: var(--p-table-cell-y);
@@ -108,7 +108,7 @@ body:has(.browse-page) {
 .browse-link,
 .browse-row-link {
 	min-height: 36px;
-	padding: 4px 6px;
+	padding: var(--p-space-1) 6px;
 	border: 0;
 	background: transparent;
 	color: var(--p-accent-strong);
@@ -138,10 +138,10 @@ body:has(.browse-page) {
 .browse-link {
 	display: inline-flex;
 	align-items: center;
-	gap: 4px;
+	gap: var(--p-space-1);
 }
 .browse-result-count {
-	margin: 4px 0 8px;
+	margin: var(--p-space-1) 0 var(--p-space-2);
 }
 .browse-table-wrap {
 	width: 100%;
@@ -274,7 +274,7 @@ body:has(.browse-page) {
 @media (max-width: 1023px) and (max-height: 500px) and (orientation: landscape) {
 	.app-content:has(.browse-page) {
 		padding-block-start: 0;
-		padding-inline: 8px;
+		padding-inline: var(--p-space-2);
 	}
 	.browse-chrome .app-page-identity {
 		display: none;
@@ -285,14 +285,14 @@ body:has(.browse-page) {
 		padding-block: 2px;
 	}
 	.browse-chrome .browse-persistent-bar {
-		gap: 4px;
+		gap: var(--p-space-1);
 	}
 	.browse-persistent-search input {
 		min-height: 36px;
 	}
 	.browse-summary-line {
 		flex-wrap: nowrap;
-		gap: 4px;
+		gap: var(--p-space-1);
 		margin-block: 2px;
 	}
 	.browse-summary-copy {
@@ -410,7 +410,7 @@ body:has(.browse-page) {
 }
 .browse-dialog label {
 	display: grid;
-	gap: 4px;
+	gap: var(--p-space-1);
 	font-weight: 600;
 }
 .browse-dialog p {
@@ -426,7 +426,7 @@ body:has(.browse-page) {
 		--browse-fab-reserve: calc(var(--browse-fab-height) + var(--browse-fab-gap));
 	}
 	.browse-page {
-		padding: 0 16px
+		padding: 0 var(--p-space-4)
 			calc(
 				var(--app-nav-height, 84px) + var(--browse-fab-reserve) +
 					env(safe-area-inset-bottom)
@@ -533,7 +533,7 @@ body:has(.browse-page) {
 	gap: var(--p-space-2);
 	min-height: var(--p-control);
 	max-width: 100%;
-	padding: var(--p-control-pad-y) 12px;
+	padding: var(--p-control-pad-y) var(--p-space-3);
 	border: 1px solid var(--p-border);
 	background: var(--p-surface);
 	border-radius: 10px;
@@ -590,8 +590,8 @@ body:has(.browse-page) {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: 8px;
-	margin: 0 0 8px;
+	gap: var(--p-space-2);
+	margin: 0 0 var(--p-space-2);
 }
 .filter-rail-heading h3 {
 	margin: 0;
@@ -621,7 +621,7 @@ body:has(.browse-page) {
 	align-self: start;
 	flex: 0 0 28px;
 	flex-direction: column;
-	gap: 8px;
+	gap: var(--p-space-2);
 	border-inline-end: 1px solid var(--p-border);
 	border-radius: 0;
 	margin-inline-end: calc(-1 * var(--p-gap));
@@ -666,7 +666,7 @@ body:has(.browse-page) {
 	overflow-x: auto;
 	overflow-y: auto;
 	overscroll-behavior: contain;
-	padding: 4px 12px;
+	padding: var(--p-space-1) var(--p-space-3);
 	border: 0;
 	border-inline-end: 1px solid var(--p-border);
 	box-shadow: none;
@@ -674,7 +674,7 @@ body:has(.browse-page) {
 .browse-filter-rail .browse-filter-dense .hierarchy-facet + .hierarchy-facet,
 .browse-filter-rail .browse-filter-dense .browse-hierarchy-section + .browse-hierarchy-section {
 	border-block-start: 1px solid var(--p-border);
-	padding-block-start: 8px;
+	padding-block-start: var(--p-space-2);
 }
 .browse-filter-rail .browse-filter-dense .hierarchy-facet .facet-suggestions,
 .browse-filter-rail .browse-filter-dense .hierarchy-facet .facet-chips {
@@ -906,7 +906,7 @@ body:has(.browse-page) {
 	flex-wrap: wrap;
 	gap: 0 6px;
 	min-height: 30px;
-	padding: 4px 6px;
+	padding: var(--p-space-1) 6px;
 	margin: -4px -6px;
 	border: 0;
 	background: transparent;
@@ -937,7 +937,7 @@ body:has(.browse-page) {
 .browse-result-summary-panel {
 	width: 100%;
 	min-width: 0;
-	margin-top: 4px;
+	margin-top: var(--p-space-1);
 	grid-column: 1 / -1;
 }
 .browse-result-summary-panel .quantity-summary {
@@ -1143,7 +1143,7 @@ body:has(.browse-page) {
 	display: block;
 	display: flex;
 	gap: var(--p-space-2);
-	margin-top: 4px;
+	margin-top: var(--p-space-1);
 	font-weight: normal;
 	margin: 0;
 }
@@ -1159,11 +1159,11 @@ body:has(.browse-page) {
 	display: grid;
 	grid-template-columns: 56px minmax(0, 1fr);
 	min-height: 56px;
-	gap: 8px;
+	gap: var(--p-space-2);
 }
 .browse-group--mobile-list {
 	margin: 0;
-	padding: 8px 0;
+	padding: var(--p-space-2) 0;
 	border: 0;
 	border-bottom: 1px solid var(--p-border);
 	border-radius: 0;
@@ -1175,7 +1175,7 @@ body:has(.browse-page) {
 }
 .mobile-item-group-list {
 	margin-top: var(--p-space-2);
-	padding: 4px 12px;
+	padding: var(--p-space-1) var(--p-space-3);
 }
 .browse-group--mobile-list .browse-group-heading h2 {
 	display: contents;
@@ -1189,7 +1189,7 @@ body:has(.browse-page) {
 	grid-template-columns: minmax(0, 1fr) fit-content(40%) 20px;
 	min-height: 56px;
 	align-items: center;
-	gap: 8px;
+	gap: var(--p-space-2);
 	padding: 6px;
 	margin: -6px;
 	font: inherit;
@@ -1224,7 +1224,7 @@ body:has(.browse-page) {
 	min-width: 0;
 	min-height: 44px;
 	align-items: stretch;
-	gap: 8px;
+	gap: var(--p-space-2);
 }
 .mobile-operation-group-heading .browse-group-thumbnail {
 	width: 40px;
@@ -1239,10 +1239,10 @@ body:has(.browse-page) {
 	min-height: 44px;
 	align-items: center;
 	justify-content: flex-start;
-	gap: 8px;
+	gap: var(--p-space-2);
 	order: 1;
 	margin: 0;
-	padding: 4px 6px;
+	padding: var(--p-space-1) 6px;
 	font: inherit;
 	text-align: left;
 }
@@ -1272,7 +1272,7 @@ body:has(.browse-page) {
 	overflow-wrap: anywhere;
 }
 .mobile-operation-item-link {
-	margin-block-end: 8px;
+	margin-block-end: var(--p-space-2);
 }
 /* The toggle and its totals stack beside the thumbnail, or span the row without one. */
 .mobile-item-group-list .mobile-operation-group-heading:not(.has-thumbnail) {
@@ -1294,7 +1294,7 @@ body:has(.browse-page) {
 	font-size: var(--p-small);
 }
 .browse-group--mobile-list .browse-group-content {
-	padding: 8px 0 4px 64px;
+	padding: var(--p-space-2) 0 var(--p-space-1) 64px;
 }
 
 .browse-group--mobile-list .browse-group-content > .movement-history-surface,
@@ -1461,7 +1461,7 @@ body:has(.browse-page) {
 }
 .dashboard .dashboard-segmented button {
 	min-height: 30px;
-	padding: 4px 9px;
+	padding: var(--p-space-1) 9px;
 	border-radius: calc(var(--p-radius-control) - 2px);
 }
 .dashboard .dashboard-segmented button[aria-selected="true"] {
@@ -1519,7 +1519,7 @@ body:has(.browse-page) {
 	display: flex;
 	justify-content: space-between;
 	gap: var(--p-space-3);
-	padding: 5px 8px;
+	padding: 5px var(--p-space-2);
 	font-size: var(--p-small);
 }
 .dashboard-empty-locations li b {
@@ -1561,7 +1561,7 @@ body:has(.browse-page) {
 	display: flex;
 	min-height: 24px;
 	align-items: center;
-	gap: 4px;
+	gap: var(--p-space-1);
 	padding-inline: var(--p-space-3);
 	color: var(--p-muted);
 	font-size: var(--p-small);
@@ -1598,7 +1598,7 @@ body:has(.browse-page) {
 	display: inline-flex !important;
 	min-height: 24px !important;
 	margin: 0;
-	padding: 2px 4px;
+	padding: 2px var(--p-space-1);
 	border: 0;
 	border-radius: 0;
 	background: transparent !important;
@@ -1623,7 +1623,7 @@ body:has(.browse-page) {
 	min-width: 4em;
 	flex: 1 1 6em;
 	align-items: baseline;
-	gap: 4px;
+	gap: var(--p-space-1);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -1823,7 +1823,7 @@ body:has(.browse-page) {
 	}
 	.browse-row-actions > .ui-button {
 		min-height: 30px;
-		padding: 4px 8px;
+		padding: var(--p-space-1) var(--p-space-2);
 	}
 }
 
@@ -2111,7 +2111,7 @@ body:has(.browse-page) {
 	width: max-content;
 	min-width: min(9rem, calc(100vw - 16px));
 	max-width: min(24rem, calc(100vw - 16px));
-	padding: 4px;
+	padding: var(--p-space-1);
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-control);
 	background: var(--p-surface);
@@ -2122,7 +2122,7 @@ body:has(.browse-page) {
 	width: 100%;
 	min-height: var(--p-control);
 	align-items: center;
-	gap: 8px;
+	gap: var(--p-space-2);
 	padding: 6px 10px;
 	border: 0;
 	border-radius: calc(var(--p-radius-control) / 2);
@@ -2375,7 +2375,7 @@ body:has(.browse-page) {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	padding: 4px 8px 4px 10px;
+	padding: var(--p-space-1) var(--p-space-2) var(--p-space-1) 10px;
 	text-align: start;
 	overflow-wrap: anywhere;
 }
@@ -2394,7 +2394,7 @@ body:has(.browse-page) {
 	align-items: center;
 	min-height: 30px;
 	max-width: min(20rem, 100%);
-	padding: 4px 9px;
+	padding: var(--p-space-1) 9px;
 	border: 1px solid var(--p-border);
 	border-radius: 999px;
 	background: var(--p-soft);
@@ -2489,7 +2489,7 @@ body:has(.browse-page) {
 }
 .browse-sort-control .popup-menu-trigger-labeled {
 	min-height: 36px;
-	padding: 4px 10px;
+	padding: var(--p-space-1) 10px;
 	border: 1px solid var(--p-border);
 	border-radius: 999px;
 	background: var(--p-surface);
@@ -2533,7 +2533,7 @@ body:has(.browse-page) {
 	display: flex;
 	align-items: center;
 	flex-wrap: wrap;
-	gap: 8px;
+	gap: var(--p-space-2);
 	min-width: 0;
 }
 .browse-summary-line {
@@ -2541,14 +2541,14 @@ body:has(.browse-page) {
 	align-items: center;
 	justify-content: space-between;
 	flex-wrap: wrap;
-	gap: 8px;
+	gap: var(--p-space-2);
 }
 .browse-summary-copy {
 	display: flex;
 	flex: 1 1 14rem;
 	align-items: baseline;
 	min-width: 0;
-	gap: 8px;
+	gap: var(--p-space-2);
 }
 .stock-view-icons button {
 	min-width: 40px;
@@ -2570,15 +2570,15 @@ body:has(.browse-page) {
 }
 .browse-filter-dense {
 	display: grid;
-	gap: 8px;
+	gap: var(--p-space-2);
 	min-width: 0;
 }
 .browse-filter-dense .browse-filter-fields {
-	gap: 8px;
+	gap: var(--p-space-2);
 }
 .browse-filter-dense .browse-filter-fields fieldset {
 	margin: 0;
-	padding: 4px 0;
+	padding: var(--p-space-1) 0;
 }
 .browse-filter-dense .browse-hierarchy-section {
 	min-width: 0;
@@ -2586,7 +2586,7 @@ body:has(.browse-page) {
 	border: 0;
 }
 .browse-filter-dense .browse-hierarchy-section legend {
-	margin-block-end: 4px;
+	margin-block-end: var(--p-space-1);
 	font-size: var(--p-small);
 	font-weight: 650;
 	color: var(--p-ink);
@@ -2602,7 +2602,7 @@ body:has(.browse-page) {
 	margin: 0;
 	flex-wrap: nowrap;
 	justify-content: flex-start;
-	gap: 8px;
+	gap: var(--p-space-2);
 	max-width: 100%;
 	overflow-x: auto;
 	white-space: nowrap;
@@ -2680,7 +2680,7 @@ body:has(.browse-page) {
 	/* Controls share the label's line while the label keeps 10rem, and wrap under it otherwise. */
 	.browse-summary-line {
 		align-items: center;
-		gap: 4px;
+		gap: var(--p-space-1);
 	}
 	.browse-summary-copy {
 		display: block;
@@ -2693,7 +2693,7 @@ body:has(.browse-page) {
 	.browse-summary-controls {
 		flex: 0 0 auto;
 		flex-wrap: wrap;
-		gap: 4px;
+		gap: var(--p-space-1);
 		margin-inline-start: auto;
 	}
 	.browse-result-summary {
@@ -2732,7 +2732,7 @@ body:has(.browse-page) {
 		width: auto;
 		max-width: 100%;
 		min-height: 44px;
-		gap: 4px;
+		gap: var(--p-space-1);
 		padding-inline: 10px;
 		justify-content: center;
 		white-space: nowrap;
@@ -2760,7 +2760,7 @@ body:has(.browse-page) {
 	align-items: center;
 	gap: 6px;
 	min-height: 36px;
-	padding-inline: 8px;
+	padding-inline: var(--p-space-2);
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-control);
 	color: var(--p-ink);
@@ -2775,7 +2775,7 @@ body:has(.browse-page) {
 		white-space: pre;
 	}
 	.app-content {
-		padding-block-start: 16px;
+		padding-block-start: var(--p-space-4);
 	}
 	.app-content:has(.browse-page) {
 		padding-inline: 0;
@@ -2802,13 +2802,13 @@ body:has(.browse-page) {
 		display: none;
 	}
 	.browse-chrome .app-page-identity {
-		margin-block-end: 8px;
+		margin-block-end: var(--p-space-2);
 	}
 	.browse-chrome h1 {
 		font-size: var(--p-mobile-heading);
 	}
 	.browse-chrome .browse-persistent-bar {
-		gap: 4px;
+		gap: var(--p-space-1);
 	}
 	.browse-search-container {
 		padding: 2px;
@@ -2837,11 +2837,11 @@ body:has(.browse-page) {
 		min-height: var(--p-touch-target);
 	}
 	.browse-summary-line {
-		gap: 4px;
-		margin-block-start: 8px;
+		gap: var(--p-space-1);
+		margin-block-start: var(--p-space-2);
 	}
 	.browse-summary-controls {
-		gap: 4px;
+		gap: var(--p-space-1);
 		margin-inline-start: auto;
 		justify-content: flex-end;
 	}
@@ -3016,7 +3016,7 @@ body:has(.browse-page) {
 	bottom: calc(100% + 8px);
 	width: min(260px, calc(100vw - 32px));
 	margin: 0;
-	padding: 10px 12px;
+	padding: 10px var(--p-space-3);
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-card);
 	background: var(--p-surface);
@@ -3039,7 +3039,7 @@ body:has(.browse-page) {
 	flex: 1 1 0;
 	min-width: 0;
 	min-height: 38px;
-	padding: 4px 5px;
+	padding: var(--p-space-1) 5px;
 	gap: 3px;
 	font-size: var(--p-small);
 }
@@ -3063,7 +3063,7 @@ body:has(.browse-page) {
 	max-width: 100%;
 	overflow-x: auto;
 	overflow-y: auto;
-	margin-top: 4px;
+	margin-top: var(--p-space-1);
 }
 .compact-filter-content .hierarchy-facet .facet-suggestions {
 	max-height: none;
@@ -3072,7 +3072,7 @@ body:has(.browse-page) {
 .browse-filter-rail .browse-filter-dense .hierarchy-facet .facet-suggestions {
 	max-height: none;
 	overflow: visible;
-	margin-block-start: 4px;
+	margin-block-start: var(--p-space-1);
 }
 .browse-filter-dense .hierarchy-list {
 	width: max-content;
@@ -3083,10 +3083,10 @@ body:has(.browse-page) {
 	word-break: keep-all;
 }
 .browse-filter-rail > h3 {
-	margin: 0 0 8px;
+	margin: 0 0 var(--p-space-2);
 }
 .ui-drawer .browse-filter-dense {
-	padding: 0 8px;
+	padding: 0 var(--p-space-2);
 }
 .browse-result-toolbar > :first-child {
 	margin-inline-end: auto;
@@ -3137,11 +3137,11 @@ body:has(.browse-page) {
 
 /* A parent expander and leaf spacer occupy exactly the same track. */
 .hierarchy-facet .hierarchy-row {
-	gap: 4px;
+	gap: var(--p-space-1);
 	min-height: 32px;
 }
 .hierarchy-facet .hierarchy-row label.form-choice-label {
-	gap: 4px;
+	gap: var(--p-space-1);
 	min-height: 32px;
 	margin: 0;
 }
@@ -3190,7 +3190,7 @@ body:has(.browse-page) {
 		min-height: 44px;
 	}
 	.hierarchy-facet .hierarchy-row label.form-choice-label {
-		gap: 8px;
+		gap: var(--p-space-2);
 	}
 	.hierarchy-facet .tree-toggle,
 	.hierarchy-facet .tree-spacer {
@@ -3230,7 +3230,7 @@ body:has(.browse-page) {
 .expiry-item-identity {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: var(--p-space-2);
 }
 .expiry-item-identity .item-image-button,
 .expiry-item-identity .item-image,
@@ -3382,20 +3382,20 @@ body:has(.browse-page) {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 	align-items: start;
-	gap: 12px;
-	margin-block: 12px;
+	gap: var(--p-space-3);
+	margin-block: var(--p-space-3);
 }
 .dashboard-inventory-metric {
 	align-self: start;
 	min-width: 0;
-	padding: 12px;
+	padding: var(--p-space-3);
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-control);
 	background: var(--p-canvas);
 }
 .dashboard-inventory-metric > small {
 	display: block;
-	margin-bottom: 4px;
+	margin-bottom: var(--p-space-1);
 	color: var(--p-muted);
 	font-size: var(--p-small);
 }
@@ -3410,11 +3410,11 @@ body:has(.browse-page) {
 .dashboard-unit-disclosure {
 	display: inline-flex;
 	align-items: center;
-	gap: 4px;
+	gap: var(--p-space-1);
 	justify-self: start;
 	min-height: 24px;
 	margin-inline-start: -4px;
-	padding: 2px 4px;
+	padding: 2px var(--p-space-1);
 	border: 0;
 	background: transparent;
 	color: var(--p-muted);
@@ -3469,7 +3469,7 @@ body:has(.browse-page) {
 .activity-browse .record-ref-list {
 	display: flex;
 	flex-wrap: nowrap;
-	gap: 4px;
+	gap: var(--p-space-1);
 	max-width: 220px;
 	overflow-x: auto;
 	overflow-y: hidden;
@@ -3517,7 +3517,7 @@ body:has(.browse-page) {
 }
 .activities-page .activity-kind-summary .ui-button {
 	min-width: 0;
-	padding-inline: 4px;
+	padding-inline: var(--p-space-1);
 }
 .activities-page .activity-list-scroll {
 	min-width: 0;
@@ -3540,7 +3540,7 @@ body:has(.browse-page) {
 .detail-popover-content .activity-kind-popover-link {
 	display: block;
 	min-width: 150px;
-	padding: 8px 10px;
+	padding: var(--p-space-2) 10px;
 	border-radius: var(--p-radius-control);
 	color: var(--p-accent-strong);
 }
@@ -3565,7 +3565,7 @@ body:has(.browse-page) {
 	min-width: 0;
 	min-height: 138px;
 	align-content: start;
-	gap: 8px;
+	gap: var(--p-space-2);
 	padding: var(--p-space-3);
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-card);
@@ -3612,7 +3612,7 @@ body:has(.browse-page) {
 	justify-self: start;
 	min-height: 24px;
 	margin: 0;
-	padding: 2px 4px;
+	padding: 2px var(--p-space-1);
 	border: 0;
 	border-radius: 0;
 	background: transparent;
@@ -3628,7 +3628,7 @@ body:has(.browse-page) {
 	display: flex;
 	min-height: 24px;
 	align-items: center;
-	gap: 4px;
+	gap: var(--p-space-1);
 	padding-inline: var(--p-space-3);
 }
 .activities-page

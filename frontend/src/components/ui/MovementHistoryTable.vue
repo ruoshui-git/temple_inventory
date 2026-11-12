@@ -522,7 +522,7 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 	display: flex;
 	align-items: center;
 	flex-wrap: wrap;
-	gap: 4px;
+	gap: var(--p-space-1);
 }
 .history-record :deep(.ui-button),
 .movement-history-surface :deep(td > .ui-button) {
@@ -530,7 +530,7 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 	max-width: 154px;
 	height: auto;
 	min-height: 32px;
-	padding: 2px 4px;
+	padding: 2px var(--p-space-1);
 	text-align: start;
 	overflow-wrap: anywhere;
 	word-break: break-word;
@@ -556,12 +556,12 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 	}
 	.movement-history-mobile {
 		display: grid;
-		gap: 8px;
-		padding: 8px 0;
+		gap: var(--p-space-2);
+		padding: var(--p-space-2) 0;
 	}
 	.history-mobile-row {
 		min-width: 0;
-		padding: 8px 10px;
+		padding: var(--p-space-2) 10px;
 		border: 1px solid var(--p-border);
 		border-radius: var(--p-radius-card);
 		background: var(--p-surface);
@@ -614,7 +614,7 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 		flex-wrap: wrap;
 		align-items: center;
 		min-width: 0;
-		gap: 4px 8px;
+		gap: var(--p-space-1) var(--p-space-2);
 	}
 	.history-mobile-endpoints {
 		flex-wrap: wrap;
@@ -636,7 +636,7 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 	}
 	.history-mobile-sort {
 		justify-self: start;
-		padding: 4px 9px;
+		padding: var(--p-space-1) 9px;
 		border: 1px solid var(--p-border);
 		border-radius: 999px;
 		background: var(--p-surface);

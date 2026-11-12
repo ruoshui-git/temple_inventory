@@ -115,10 +115,10 @@ function closeFailure() {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: 12px;
+	gap: var(--p-space-3);
 	max-width: 680px;
 	margin-inline: auto;
-	padding: 12px 16px;
+	padding: var(--p-space-3) var(--p-space-4);
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-card);
 	background: var(--p-surface);

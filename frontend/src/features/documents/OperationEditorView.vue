@@ -1469,7 +1469,7 @@ async function lifecycle() {
 }
 
 :deep(.app-page-identity > .back-button) {
-	margin-top: 4px;
+	margin-top: var(--p-space-1);
 }
 
 :deep(.review-summary) {

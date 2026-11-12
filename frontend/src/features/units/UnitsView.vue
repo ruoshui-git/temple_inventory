@@ -511,7 +511,7 @@ const filterLabels = computed(() => ({
 
 <style scoped>
 .units-page {
-	padding-bottom: calc(32px + env(safe-area-inset-bottom, 0px));
+	padding-bottom: calc(var(--p-space-8) + env(safe-area-inset-bottom, 0px));
 }
 .unit-delete-reason {
 	display: block;
@@ -527,18 +527,18 @@ const filterLabels = computed(() => ({
 }
 .unit-form {
 	display: grid;
-	gap: 16px;
+	gap: var(--p-space-4);
 }
 .units-phone-rows {
 	display: grid;
-	gap: 8px;
-	margin-top: 12px;
+	gap: var(--p-space-2);
+	margin-top: var(--p-space-3);
 }
 .units-phone-card {
 	position: relative;
 	display: grid;
-	gap: 8px;
-	padding: 12px 56px 12px 14px;
+	gap: var(--p-space-2);
+	padding: var(--p-space-3) 56px var(--p-space-3) 14px;
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-card);
 	background: var(--p-surface);
@@ -546,9 +546,9 @@ const filterLabels = computed(() => ({
 .units-phone-group {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: var(--p-space-2);
 	min-height: 44px;
-	padding-inline: 8px;
+	padding-inline: var(--p-space-2);
 	border: 0;
 	background: transparent;
 	color: var(--p-ink);
@@ -585,7 +585,7 @@ const filterLabels = computed(() => ({
 .units-phone-details {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 5px 12px;
+	gap: 5px var(--p-space-3);
 	color: var(--p-muted);
 	font-size: var(--p-small);
 }
@@ -597,7 +597,7 @@ const filterLabels = computed(() => ({
 .unit-checkbox {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: var(--p-space-2);
 	min-height: 36px;
 }
 </style>

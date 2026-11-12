@@ -570,7 +570,7 @@ const productExportColumns = computed(() => {
 .item-disabled-badge {
 	display: inline-flex;
 	border-radius: 999px;
-	padding: 2px 8px;
+	padding: 2px var(--p-space-2);
 	color: var(--p-warning);
 	background: var(--p-warning-bg);
 	font-size: 0.8rem;

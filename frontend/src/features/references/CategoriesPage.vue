@@ -176,7 +176,7 @@ const {
 
 <style scoped>
 .category-management {
-	padding-bottom: 32px;
+	padding-bottom: var(--p-space-8);
 }
 @media (pointer: coarse) {
 	:global(.category-editor-form .form-choice-label) {
@@ -186,8 +186,8 @@ const {
 .category-tools {
 	display: flex;
 	align-items: center;
-	gap: 12px;
-	margin-top: 12px;
+	gap: var(--p-space-3);
+	margin-top: var(--p-space-3);
 }
 .category-tools .browse-result-summary {
 	margin-inline-start: auto;
@@ -208,16 +208,16 @@ const {
 .category-tree {
 	list-style: none;
 	padding: 0;
-	margin: 12px 0;
+	margin: var(--p-space-3) 0;
 }
 .category-row {
 	display: grid;
 	grid-template-columns: 36px minmax(180px, 240px) minmax(0, 1fr) 4.5rem 36px;
 	align-items: center;
-	gap: 8px;
+	gap: var(--p-space-2);
 	min-height: 48px;
-	padding: 5px 8px;
-	padding-inline-start: calc(8px + min(var(--category-depth), 5) * 22px);
+	padding: 5px var(--p-space-2);
+	padding-inline-start: calc(var(--p-space-2) + min(var(--category-depth), 5) * 22px);
 	border-bottom: 1px solid var(--p-border);
 }
 .category-row strong {
@@ -261,7 +261,7 @@ const {
 	transform: rotate(90deg);
 }
 .category-recovery {
-	padding: 12px;
+	padding: var(--p-space-3);
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-card);
 }
@@ -271,7 +271,7 @@ const {
 }
 @media (max-width: 1023px) {
 	.category-management > :deep(.app-page-header) {
-		margin-top: 16px;
+		margin-top: var(--p-space-4);
 	}
 	.category-tools {
 		align-items: stretch;

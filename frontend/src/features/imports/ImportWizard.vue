@@ -531,7 +531,7 @@ h1 {
 }
 .import-heading p {
 	color: var(--p-muted);
-	margin: 4px 0 0;
+	margin: var(--p-space-1) 0 0;
 }
 .import-steps {
 	list-style: none;
@@ -654,7 +654,7 @@ h1 {
 	color: var(--p-danger);
 }
 .import-compare {
-	margin: 4px 0 0;
+	margin: var(--p-space-1) 0 0;
 	color: var(--p-muted);
 	white-space: normal;
 	overflow-wrap: anywhere;

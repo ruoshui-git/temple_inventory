@@ -2480,7 +2480,7 @@ function receiveBatchChanged(line: AllocationLine) {
 .operation-serial-options {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 4px;
+	gap: var(--p-space-1);
 	max-height: 112px;
 	overflow: auto;
 }
@@ -2491,10 +2491,10 @@ function receiveBatchChanged(line: AllocationLine) {
 	min-height: 44px;
 	display: inline-flex;
 	align-items: center;
-	gap: 4px;
+	gap: var(--p-space-1);
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-control);
-	padding: 4px 8px;
+	padding: var(--p-space-1) var(--p-space-2);
 	background: var(--p-surface);
 }
 
@@ -2562,7 +2562,7 @@ function receiveBatchChanged(line: AllocationLine) {
 	.line-search {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
-		gap: 4px;
+		gap: var(--p-space-1);
 		white-space: normal;
 	}
 
@@ -2581,12 +2581,12 @@ function receiveBatchChanged(line: AllocationLine) {
 @media (max-width: 620px) {
 	.line-toolbar {
 		gap: 6px;
-		padding: 8px;
+		padding: var(--p-space-2);
 	}
 
 	.line-toolbar .ui-button {
 		min-height: 44px;
-		padding-inline: 8px;
+		padding-inline: var(--p-space-2);
 		white-space: nowrap;
 	}
 }

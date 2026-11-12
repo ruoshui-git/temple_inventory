@@ -97,7 +97,7 @@ const emit = defineEmits<{
 	min-height: 44px;
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-control);
-	padding: 4px 8px;
+	padding: var(--p-space-1) var(--p-space-2);
 	background: var(--p-surface);
 }
 .inbound-serial-chip button {

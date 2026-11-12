@@ -1037,7 +1037,7 @@ async function selectExisting(code: string, warehouse: string) {
 	grid-template-columns: 40px minmax(0, 1fr);
 }
 .picker-filter-rail--collapsed {
-	padding: 8px 0;
+	padding: var(--p-space-2) 0;
 	overflow: visible;
 }
 .picker-filter-rail--collapsed .filter-rail-heading {
@@ -1047,7 +1047,7 @@ async function selectExisting(code: string, warehouse: string) {
 	display: flex;
 	align-items: center;
 	justify-content: flex-end;
-	gap: 8px;
+	gap: var(--p-space-2);
 }
 @media (min-width: 1024px) {
 	.picker-chrome :deep(.browse-filter-control) {

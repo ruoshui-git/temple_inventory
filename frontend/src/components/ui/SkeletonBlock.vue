@@ -98,7 +98,7 @@ withDefaults(
 	align-items: center;
 	gap: 10px;
 	min-height: 76px;
-	padding: 6px 4px;
+	padding: 6px var(--p-space-1);
 	border-bottom: 1px solid var(--p-border);
 }
 .skeleton-block__stock-avatar {

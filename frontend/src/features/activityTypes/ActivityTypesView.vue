@@ -259,7 +259,7 @@ function orderDisabled(row: Record<string, unknown>, delta: -1 | 1) {
 
 <style scoped>
 .activity-types-page {
-	padding-bottom: 32px;
+	padding-bottom: var(--p-space-8);
 }
 .activity-type-actions {
 	display: flex;
@@ -281,14 +281,14 @@ function orderDisabled(row: Record<string, unknown>, delta: -1 | 1) {
 }
 .activity-types-phone-rows {
 	display: grid;
-	gap: 8px;
-	margin-top: 12px;
+	gap: var(--p-space-2);
+	margin-top: var(--p-space-3);
 }
 .activity-types-phone-row {
 	position: relative;
 	display: grid;
-	gap: 8px;
-	padding: 12px 12px;
+	gap: var(--p-space-2);
+	padding: var(--p-space-3) var(--p-space-3);
 	border: 1px solid var(--p-border);
 	border-radius: var(--p-radius-card);
 	background: var(--p-surface);
@@ -307,7 +307,7 @@ function orderDisabled(row: Record<string, unknown>, delta: -1 | 1) {
 .activity-types-phone-details {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 5px 12px;
+	gap: 5px var(--p-space-3);
 	color: var(--p-muted);
 	font-size: var(--p-small);
 }
@@ -320,12 +320,12 @@ function orderDisabled(row: Record<string, unknown>, delta: -1 | 1) {
 }
 .activity-type-form {
 	display: grid;
-	gap: 16px;
+	gap: var(--p-space-4);
 }
 .activity-type-checkbox {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: var(--p-space-2);
 	min-height: 36px;
 }
 .activity-type-help {

@@ -2467,7 +2467,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 	display: flex;
 	width: 100%;
 	align-items: center;
-	gap: 8px;
+	gap: var(--p-space-2);
 	min-height: var(--p-control);
 	padding: 6px 10px;
 	border: 0;

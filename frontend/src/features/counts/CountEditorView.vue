@@ -1229,13 +1229,13 @@ async function back() {
 	width: 100%;
 	min-width: 0;
 	min-height: 44px;
-	padding: 4px 8px;
+	padding: var(--p-space-1) var(--p-space-2);
 }
 .native-count-pagination {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	gap: 8px;
+	gap: var(--p-space-2);
 }
 @media (max-width: 1023px) {
 	.count-native-table th,

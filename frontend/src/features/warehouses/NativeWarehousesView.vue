@@ -512,7 +512,7 @@ function parentLabel(name?: string) {
 		grid-template-columns: 44px var(--p-table-thumbnail) minmax(0, 1fr);
 		gap: var(--p-field-gap);
 		padding-block: var(--p-control-pad-y);
-		padding-left: calc(min(var(--tree-depth, 0), 4) * 8px);
+		padding-left: calc(min(var(--tree-depth, 0), 4) * var(--p-space-2));
 	}
 	.browse-tree-row > button {
 		min-height: 44px;

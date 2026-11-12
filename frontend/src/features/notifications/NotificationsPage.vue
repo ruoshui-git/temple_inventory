@@ -62,14 +62,14 @@ watch([c.unreadOnly, c.notificationType], () => void c.refresh());
 	display: flex;
 	align-items: center;
 	gap: var(--p-space-2);
-	margin-bottom: 8px;
+	margin-bottom: var(--p-space-2);
 }
 .notification-mark-all {
 	margin-inline-start: auto;
 }
 @media (max-width: 1023px) {
 	.notification-page :deep(.app-page-header) {
-		margin-bottom: 8px;
+		margin-bottom: var(--p-space-2);
 	}
 	.notification-page-actions {
 		width: 100%;

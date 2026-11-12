@@ -73,7 +73,7 @@ function quantities(values: [string, number][], signed = false) {
 	color: var(--p-muted);
 }
 .metric strong {
-	margin-top: 4px;
+	margin-top: var(--p-space-1);
 	font-variant-numeric: tabular-nums;
 }
 .metric.is-increase strong {

@@ -55,7 +55,7 @@ input[list]::-webkit-calendar-picker-indicator {
 .operation-page-title-row h1 .operation-kind-heading-icon {
 	width: 20px;
 	height: 20px;
-	margin-inline-end: 8px;
+	margin-inline-end: var(--p-space-2);
 	color: var(--p-muted);
 	vertical-align: -3px;
 }
@@ -250,7 +250,7 @@ input[list]::-webkit-calendar-picker-indicator {
 @media (max-width: 1023px) {
 	.form-page {
 		padding-bottom: calc(
-			var(--form-review-height, 210px) + var(--app-nav-height, 80px) + 24px
+			var(--form-review-height, 210px) + var(--app-nav-height, 80px) + var(--p-space-6)
 		);
 	}
 	.form-page .form-review {
@@ -445,7 +445,7 @@ input[list]::-webkit-calendar-picker-indicator {
 }
 .operation-section-location .search-select-input input {
 	min-height: 36px;
-	padding-block: 4px;
+	padding-block: var(--p-space-1);
 }
 .operation-add-item-action {
 	grid-column: 5;
@@ -465,7 +465,7 @@ input[list]::-webkit-calendar-picker-indicator {
 	background: var(--p-soft);
 }
 .operation-add-section-quiet {
-	padding: 4px 0;
+	padding: var(--p-space-1) 0;
 	border: 0;
 	background: transparent;
 	color: var(--p-muted);
@@ -591,7 +591,7 @@ input[list]::-webkit-calendar-picker-indicator {
 }
 .operation-row-cell > .utility-error {
 	margin: 0;
-	padding: 4px 6px;
+	padding: var(--p-space-1) 6px;
 	font-size: 0.72rem;
 	line-height: 1.2;
 }
@@ -606,7 +606,7 @@ input[list]::-webkit-calendar-picker-indicator {
 	font-size: 0.82rem;
 }
 .operation-row-cell input[type="date"] {
-	padding-inline: 4px;
+	padding-inline: var(--p-space-1);
 	box-sizing: border-box;
 	min-width: 0;
 	max-width: 100%;
@@ -826,7 +826,7 @@ input[list]::-webkit-calendar-picker-indicator {
 		min-width: 0;
 		max-width: 100%;
 		min-height: 44px;
-		padding-inline: 4px;
+		padding-inline: var(--p-space-1);
 		font-size: 16px;
 	}
 	.operation-row-batch input[data-field="batch"]::placeholder {
@@ -922,7 +922,7 @@ input[list]::-webkit-calendar-picker-indicator {
 }
 .workspace-expanded {
 	padding-bottom: calc(
-		var(--form-review-height, 180px) + var(--app-nav-height, 0px) + 24px + env(safe-area-inset-bottom, 0px)
+		var(--form-review-height, 180px) + var(--app-nav-height, 0px) + var(--p-space-6) + env(safe-area-inset-bottom, 0px)
 	);
 }
 @media (max-width: 1023px) {
@@ -952,7 +952,7 @@ input[list]::-webkit-calendar-picker-indicator {
 		align-items: center;
 		gap: 6px;
 		margin: 0;
-		padding: 6px 8px;
+		padding: 6px var(--p-space-2);
 		border: 1px solid var(--p-border);
 		border-radius: 14px;
 		white-space: nowrap;
@@ -969,7 +969,7 @@ input[list]::-webkit-calendar-picker-indicator {
 	.document-actions > .ui-button {
 		grid-row: 1;
 		min-height: var(--p-control);
-		padding-inline: 8px;
+		padding-inline: var(--p-space-2);
 		white-space: nowrap;
 	}
 	.form-page .document-actions {
@@ -983,7 +983,7 @@ input[list]::-webkit-calendar-picker-indicator {
 	}
 	.form-page .form-page-heading {
 		align-items: flex-start;
-		gap: 8px;
+		gap: var(--p-space-2);
 		margin-block-end: 0;
 	}
 	.form-page .form-page-heading .app-page-identity {
@@ -1009,7 +1009,7 @@ input[list]::-webkit-calendar-picker-indicator {
 	.form-page .form-actions {
 		align-items: stretch;
 		flex-direction: column;
-		gap: 8px;
+		gap: var(--p-space-2);
 	}
 	.form-page .form-actions > :not(.desk-link) {
 		width: 100%;
@@ -1300,7 +1300,7 @@ input[list]::-webkit-calendar-picker-indicator {
 }
 .outstanding-loan-fields div {
 	display: flex;
-	gap: 4px;
+	gap: var(--p-space-1);
 }
 .outstanding-loan-fields dt {
 	color: var(--p-muted);
@@ -1438,16 +1438,16 @@ input[list]::-webkit-calendar-picker-indicator {
 }
 @media (max-width: 1023px) {
 	.form-page .form-main {
-		gap: 16px;
+		gap: var(--p-space-4);
 		padding: 0;
 	}
 	.form-page .form-main > .form-section {
 		margin-bottom: 0;
-		padding: 16px;
+		padding: var(--p-space-4);
 	}
 	.operation-lines-empty {
 		min-height: 0;
-		padding: 12px 0;
+		padding: var(--p-space-3) 0;
 		padding-block-end: 10px;
 	}
 	.operation-lines-empty > .receive-target {

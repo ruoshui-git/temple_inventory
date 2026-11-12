@@ -224,7 +224,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", keydown));
 	box-shadow: var(--p-shadow-raised);
 }
 .task-tray-title {
-	margin: 0 0 var(--p-space-2, 8px);
+	margin: 0 0 var(--p-space-2, var(--p-space-2));
 	font-size: 1rem;
 }
 .task-tray-list {
@@ -247,7 +247,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", keydown));
 }
 .task-tray-stage,
 .task-tray-error {
-	margin: 4px 0;
+	margin: var(--p-space-1) 0;
 	font-size: 0.875rem;
 }
 .task-tray-error {
