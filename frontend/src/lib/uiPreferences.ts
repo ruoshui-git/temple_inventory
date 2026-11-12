@@ -22,6 +22,7 @@ export const preferenceSaveState = ref<PreferenceSaveState>("saved");
 export const preferenceError = ref("");
 
 const CACHE_PREFIX = "temple-inventory:ui-preferences:v2:";
+const COLUMN_WIDTHS_PREFIX = `${CACHE_PREFIX}column-widths:`;
 let accountEpoch = 0;
 let editRevision = 0;
 
@@ -55,6 +56,45 @@ function snapshot(): DisplayPreferences {
 
 function cacheKey(user: string) {
   return `${CACHE_PREFIX}${encodeURIComponent(user)}`;
+}
+
+function columnWidthsKey(user: string, tableKey: string) {
+  return `${COLUMN_WIDTHS_PREFIX}${encodeURIComponent(user)}:${encodeURIComponent(tableKey)}`;
+}
+
+/** Browser-only table sizing stays per account and separate from server-backed display settings. */
+export function getColumnWidths(user: string, tableKey: string) {
+  if (!user || typeof window === "undefined") return {};
+  try {
+    const saved = JSON.parse(
+      window.localStorage.getItem(columnWidthsKey(user, tableKey)) || "null",
+    );
+    if (!saved || typeof saved !== "object" || Array.isArray(saved)) return {};
+    return Object.fromEntries(
+      Object.entries(saved).filter(
+        ([, width]) =>
+          typeof width === "number" && Number.isFinite(width) && width > 0,
+      ),
+    ) as Record<string, number>;
+  } catch {
+    return {};
+  }
+}
+
+export function setColumnWidths(
+  user: string,
+  tableKey: string,
+  widths: Record<string, number>,
+) {
+  if (!user || typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      columnWidthsKey(user, tableKey),
+      JSON.stringify(widths),
+    );
+  } catch {
+    // Browser storage is a presentation preference only.
+  }
 }
 
 function readCache(user: string): DisplayPreferences | undefined {

@@ -11,6 +11,7 @@ import {
 	applyLineConversion,
 } from "../../lib/quantityConversion";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
+import DateField from "../../components/ui/DateField.vue";
 import FormField from "../../components/ui/FormField.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
@@ -1896,11 +1897,11 @@ function receiveBatchChanged(line: AllocationLine) {
 							<div class="operation-row-cell operation-row-expiry">
 								<span class="operation-phone-field-label">效期</span>
 								<template v-if="hasBatchRows(line.code)">
-									<input
+									<DateField
 										v-if="receive && stockItem(line.code)?.tracksExpiry"
+										clearable
 										data-field="expiry"
 										v-model="line.expiry"
-										type="date"
 										enterkeyhint="next"
 										:aria-label="`${lineName(line)}效期`"
 										:disabled="disabled || hydrating"
@@ -1926,11 +1927,11 @@ function receiveBatchChanged(line: AllocationLine) {
 							<div class="operation-row-cell operation-row-manufacturing">
 								<span class="operation-phone-field-label">生产日期</span>
 								<template v-if="hasBatchRows(line.code)">
-									<input
+									<DateField
+										clearable
 										v-if="receive"
 										data-field="manufacturingDate"
 										v-model="line.manufacturingDate"
-										type="date"
 										enterkeyhint="next"
 										:aria-label="`${lineName(line)}生产日期`"
 										:disabled="disabled || hydrating"
@@ -2422,9 +2423,14 @@ function receiveBatchChanged(line: AllocationLine) {
 }
 
 .operation-lines-empty {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	align-content: start;
+	gap: var(--p-space-2);
 	min-height: 0;
 	padding: var(--p-pad) 0;
-	align-items: start;
+	width: 100%;
+	justify-self: stretch;
 	justify-items: start;
 	text-align: start;
 }
@@ -2435,18 +2441,12 @@ function receiveBatchChanged(line: AllocationLine) {
 }
 
 .operation-lines-empty > .receive-target {
-	margin-block-start: 77px;
-	margin-block-end: -77px;
+	margin-block: 0;
 	display: grid;
 	grid-template-columns: max-content minmax(0, 1fr);
 	align-items: center;
 	column-gap: var(--p-space-2);
 	width: min(100%, 28rem);
-}
-@media (min-width: 1024px) {
-	.operation-lines-empty {
-		padding-block-end: calc(var(--p-space-3) + 4px);
-	}
 }
 @media (max-width: 1023px) {
 	.operation-lines-empty > .receive-target {

@@ -1181,6 +1181,23 @@ strong {
 	overflow: hidden;
 	animation: dialog-enter var(--p-motion) var(--p-motion-ease) both;
 }
+.overlay-leave-active {
+	transition: opacity var(--p-motion) var(--p-motion-ease);
+}
+.overlay-leave-active .ui-dialog,
+.overlay-leave-active .overlay-stage-panel {
+	transition:
+		opacity var(--p-motion) var(--p-motion-ease),
+		transform var(--p-motion) var(--p-motion-ease);
+}
+.overlay-leave-to {
+	opacity: 0;
+}
+.overlay-leave-to .ui-dialog,
+.overlay-leave-to .overlay-stage-panel {
+	opacity: 0;
+	transform: translateY(8px) scale(0.985);
+}
 @keyframes overlay-fade-in {
 	from {
 		opacity: 0;
@@ -1861,6 +1878,11 @@ strong {
 	}
 }
 @media (prefers-reduced-motion: reduce) {
+	.overlay-leave-active,
+	.overlay-leave-active .ui-dialog,
+	.overlay-leave-active .overlay-stage-panel {
+		transition-duration: 0ms;
+	}
 	*,
 	*::before,
 	*::after {

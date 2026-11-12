@@ -3,7 +3,7 @@ import PageHeader from "../../components/ui/PageHeader.vue";
 import ForbiddenState from "../../components/ui/ForbiddenState.vue";
 import BackButton from "../../components/ui/BackButton.vue";
 import { formatSiteDateTime } from "../../lib/nativeTime";
-import { computed } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import type { ReportQuery } from "../../lib/reportContract";
 import type { LoanDetail, SettlementAction } from "./useLoanDetail";
 import UiButton from "../../components/ui/UiButton.vue";
@@ -33,6 +33,15 @@ const emit = defineEmits<{
 	openExport: [query: ReportQuery];
 }>();
 const c = props.controller;
+const wideHistoryOpen = ref(false);
+function updateWideHistory() {
+	wideHistoryOpen.value = window.innerWidth >= 1440;
+}
+onMounted(() => {
+	updateWideHistory();
+	window.addEventListener("resize", updateWideHistory);
+});
+onBeforeUnmount(() => window.removeEventListener("resize", updateWideHistory));
 const recordPrint = useRecordPrint();
 const { loan, loading, error, files, status, metrics } = c;
 const actions = [
@@ -61,7 +70,7 @@ function serialRemainder(serials: string[]) {
 }
 </script>
 <template>
-	<section class="browse-page">
+	<section class="browse-page loan-detail-page">
 		<PageHeader
 			><h1 tabindex="-1">借用详情</h1>
 			<template #back><BackButton @click="emit('back')" /></template
@@ -152,7 +161,7 @@ function serialRemainder(serials: string[]) {
 				v-for="line in loan.items"
 				:key="line.name"
 				:data-browse-row="line.name"
-				class="browse-loan-line"
+				class="browse-loan-line loan-detail-line"
 			>
 				<div>
 					<div class="loan-detail-item-identity">
@@ -278,6 +287,9 @@ function serialRemainder(serials: string[]) {
 				</div>
 			</DisclosureSection>
 			<DisclosureSection
+				class="loan-history-section"
+				:open="wideHistoryOpen"
+				@update:open="wideHistoryOpen = $event"
 				title="处理历史"
 				:count="c.history.result.total"
 				:summary="
@@ -307,45 +319,49 @@ function serialRemainder(serials: string[]) {
 					@open-item="emit('item', $event)"
 				/>
 			</DisclosureSection>
-			<DisclosureSection title="附件" :count="files.files.length">
-				<p v-if="files.error.value" role="alert">
-					{{ files.error.value }} <UiButton @click="c.loadFiles()">重试</UiButton>
-				</p>
-				<Attachments :controller="files" mode="display" />
-			</DisclosureSection>
-			<DisclosureSection title="记录资料">
-				<dl class="browse-detail-grid">
-					<div
-						v-for="(value, label) in {
-							记录人: loan.ti_recorder_name,
-							复核人: loan.ti_reviewer_name,
-							系统录入账户: loan.owner,
-							修订自: loan.amended_from,
-						}"
-						:key="label"
+			<div class="loan-detail-main">
+				<DisclosureSection title="附件" :count="files.files.length">
+					<p v-if="files.error.value" role="alert">
+						{{ files.error.value }} <UiButton @click="c.loadFiles()">重试</UiButton>
+					</p>
+					<Attachments :controller="files" mode="display" />
+				</DisclosureSection>
+				<DisclosureSection title="记录资料">
+					<dl class="browse-detail-grid">
+						<div
+							v-for="(value, label) in {
+								记录人: loan.ti_recorder_name,
+								复核人: loan.ti_reviewer_name,
+								系统录入账户: loan.owner,
+								修订自: loan.amended_from,
+							}"
+							:key="label"
+						>
+							<dt>{{ label }}</dt>
+							<dd class="content-long-text">
+								<RouterLink
+									v-if="value && personRole(label)"
+									:to="personDestination(String(value), personRole(label)!)"
+									>{{ value }}</RouterLink
+								><span v-else>{{ value || "未填写" }}</span>
+							</dd>
+						</div>
+					</dl>
+				</DisclosureSection>
+				<div class="browse-actions loan-detail-actions">
+					<UiButton
+						v-for="[action, label] in actions.filter(([action]) =>
+							c.canSettle(action),
+						)"
+						:key="action"
+						:variant="action === 'returned' ? 'primary' : undefined"
+						@click="settle(action)"
+						>{{ label }}</UiButton
 					>
-						<dt>{{ label }}</dt>
-						<dd class="content-long-text">
-							<RouterLink
-								v-if="value && personRole(label)"
-								:to="personDestination(String(value), personRole(label)!)"
-								>{{ value }}</RouterLink
-							><span v-else>{{ value || "未填写" }}</span>
-						</dd>
-					</div>
-				</dl>
-			</DisclosureSection>
-			<div class="browse-actions loan-detail-actions">
-				<UiButton
-					v-for="[action, label] in actions.filter(([action]) => c.canSettle(action))"
-					:key="action"
-					:variant="action === 'returned' ? 'primary' : undefined"
-					@click="settle(action)"
-					>{{ label }}</UiButton
-				>
-				<a class="loan-desk-link" :href="deskLink" target="_blank" rel="noopener"
-					>在 ERPNext Desk 中打开</a
-				>
+					<a class="loan-desk-link" :href="deskLink" target="_blank" rel="noopener"
+						>在 ERPNext Desk 中打开</a
+					>
+				</div>
 			</div>
 		</article>
 	</section>

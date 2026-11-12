@@ -164,6 +164,33 @@ function setup(matches: boolean, attach = false) {
 
 describe("operation review rail collapse", () => {
   beforeEach(() => revealIssue.mockClear());
+  it("routes Ctrl+S to draft save and Ctrl+Enter through the review action", async () => {
+    const { wrapper, controller } = setup(true, true);
+    controller.canSubmit.value = true;
+    const save = vi.spyOn(controller, "save").mockResolvedValue(undefined);
+    const review = vi.spyOn(controller, "review").mockResolvedValue(undefined);
+    await flushPromises();
+    const form = wrapper.get("form").element;
+    const saveEvent = new KeyboardEvent("keydown", {
+      key: "s",
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    form.dispatchEvent(saveEvent);
+    expect(saveEvent.defaultPrevented).toBe(true);
+    expect(save).toHaveBeenCalledWith(true);
+    const reviewEvent = new KeyboardEvent("keydown", {
+      key: "Enter",
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    form.dispatchEvent(reviewEvent);
+    expect(reviewEvent.defaultPrevented).toBe(true);
+    expect(review).toHaveBeenCalledOnce();
+  });
+
   it("shows only location and overall aggregates in a read-only review rail", async () => {
     const { wrapper, draft, controller } = setup(true);
     Object.assign(controller.state, { server: { editable: false } });

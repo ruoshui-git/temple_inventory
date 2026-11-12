@@ -15,6 +15,7 @@ import { useReferenceData } from "../../services/contracts";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
 import DataTable from "../../components/ui/DataTable.vue";
+import DateField from "../../components/ui/DateField.vue";
 import type { DataColumn, DataTableRecord } from "../../lib/dataTable";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import { useOptionalInventoryServices } from "../../services/contracts";
@@ -161,7 +162,7 @@ function openDocument(row: Record<string, unknown>) {
 			{{ c.error.value }} <UiButton @click="c.reload">重新读取</UiButton>
 		</div>
 		<p v-if="c.success.value" role="status">{{ c.success.value }}</p>
-		<section v-if="c.batch.value" class="batch-detail-card">
+		<section v-if="c.batch.value" class="batch-detail-card batch-detail-overview">
 			<div class="batch-detail-identity">
 				<ItemImage
 					:item="{
@@ -210,9 +211,9 @@ function openDocument(row: Record<string, unknown>) {
 						label="生产日期"
 						:error="c.validation.errors['batch-manufacturing-date']"
 						><template #default="{ fieldAttrs }"
-							><input
+							><DateField
+								clearable
 								v-model="c.manufacturingDate.value"
-								type="date"
 								v-bind="fieldAttrs" /></template
 					></FormField>
 					<FormField
@@ -220,9 +221,9 @@ function openDocument(row: Record<string, unknown>) {
 						label="到期日期"
 						:error="c.validation.errors['batch-expiry-date']"
 						><template #default="{ fieldAttrs }"
-							><input
+							><DateField
+								clearable
 								v-model="c.expiryDate.value"
-								type="date"
 								v-bind="fieldAttrs" /></template
 					></FormField>
 					<FormField class="batch-description" label="批次说明"
@@ -246,7 +247,7 @@ function openDocument(row: Record<string, unknown>) {
 				</div>
 			</dl>
 		</section>
-		<section v-if="c.batch.value" class="batch-detail-card">
+		<section v-if="c.batch.value" class="batch-detail-card batch-detail-locations">
 			<h2>存放位置 · {{ c.batch.value.locations.matched_count }} 处</h2>
 			<DataTable
 				ariaLabel="批次各库位余额"
@@ -286,7 +287,7 @@ function openDocument(row: Record<string, unknown>) {
 				{{ c.batch.value.locations.matched_count }}</UiButton
 			>
 		</section>
-		<section v-if="c.batch.value" class="batch-detail-card">
+		<section v-if="c.batch.value" class="batch-detail-card batch-detail-history">
 			<h2>批次流动记录 · {{ c.batch.value.history.matched_count }} 条</h2>
 			<MovementHistoryTable
 				:show-status="false"

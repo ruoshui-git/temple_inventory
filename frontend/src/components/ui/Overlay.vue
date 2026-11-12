@@ -177,6 +177,40 @@ function focusInitial() {
 	else panel.value?.focus({ preventScroll: true });
 }
 let layer: HTMLElement | null = null;
+function preserveExitFrame() {
+	const source = parentStage ? panel.value?.closest<HTMLElement>(".overlay-stage") : layer;
+	if (
+		!source?.isConnected ||
+		(typeof window.matchMedia === "function" &&
+			window.matchMedia("(prefers-reduced-motion: reduce)").matches)
+	)
+		return;
+	const host = document.createElement("div");
+	host.className = "overlay-exit-frame";
+	host.setAttribute("aria-hidden", "true");
+	host.inert = true;
+	const bounds = source.getBoundingClientRect();
+	host.style.cssText = `position:fixed;left:${bounds.left}px;top:${bounds.top}px;width:${bounds.width}px;height:${bounds.height}px;z-index:var(--p-z-overlay);pointer-events:none`;
+	const shadow = host.attachShadow({ mode: "open" });
+	document.head.querySelectorAll('style, link[rel="stylesheet"]').forEach((style) => {
+		shadow.append(style.cloneNode(true));
+	});
+	const frame = source.cloneNode(true) as HTMLElement;
+	frame.style.animation = "none";
+	frame.classList.add("overlay-leave-active");
+	frame.querySelectorAll<HTMLElement>("*").forEach((element) => {
+		element.style.animation = "none";
+	});
+	shadow.append(frame);
+	document.body.append(host);
+	void frame.offsetWidth;
+	frame.classList.add("overlay-leave-to");
+	const remove = () => host.remove();
+	frame.addEventListener("transitionend", (event) => {
+		if (event.target === frame) remove();
+	});
+	setTimeout(remove, 250);
+}
 function isTabbable(element: HTMLElement) {
 	if (element.tabIndex < 0 || element.matches(":disabled") || element.closest("[inert]"))
 		return false;
@@ -211,6 +245,22 @@ function keydown(event: KeyboardEvent) {
 		event.preventDefault();
 		event.stopPropagation();
 		requestClose();
+	}
+	if (
+		event.key === "Enter" &&
+		!event.defaultPrevented &&
+		!(
+			event.target instanceof Element &&
+			event.target.closest("button, textarea, [contenteditable='true']")
+		)
+	) {
+		const primary = panel.value?.querySelector<HTMLButtonElement>(
+			".dialog-footer .ui-button--primary, .ui-button--primary, button[type='submit']",
+		);
+		if (primary && !primary.disabled && primary.getAttribute("aria-busy") !== "true") {
+			event.preventDefault();
+			primary.click();
+		}
 	}
 	if (event.key !== "Tab") return;
 	const controls = Array.from(
@@ -281,6 +331,7 @@ onMounted(async () => {
 	focusInitial();
 });
 onBeforeUnmount(() => {
+	preserveExitFrame();
 	installGhostTapShield();
 	if (closeHistoryTimer) clearTimeout(closeHistoryTimer);
 	unregisterMarker?.();
@@ -341,50 +392,52 @@ onBeforeUnmount(() => {
 		v-if="!parentStage || parentStage.host.value"
 		:to="parentStage?.host.value || 'body'"
 	>
-		<div
-			:class="parentStage ? 'overlay-stage' : 'ui-overlay'"
-			@pointerdown.capture="overlayPointerDown"
-			@pointerdown="backdropPointerDown"
-			@pointercancel="backdropPointerStarted = false"
-			@click="backdropClick"
-			@keydown="keydown"
-		>
-			<section
-				ref="panel"
-				:style="panelStyle"
-				:class="panelClasses"
-				:role="props.role"
-				:aria-modal="parentStage ? undefined : true"
-				:aria-labelledby="activeStage?.titleId || titleId"
-				:aria-describedby="descriptionId"
-				tabindex="-1"
+		<Transition name="overlay">
+			<div
+				:class="parentStage ? 'overlay-stage' : 'ui-overlay'"
+				@pointerdown.capture="overlayPointerDown"
+				@pointerdown="backdropPointerDown"
+				@pointercancel="backdropPointerStarted = false"
+				@click="backdropClick"
+				@keydown="keydown"
 			>
-				<header v-show="!activeStage" class="dialog-heading">
-					<div>
-						<h2 :id="titleId">{{ title }}</h2>
-						<p v-if="subtitle">{{ subtitle }}</p>
+				<section
+					ref="panel"
+					:style="panelStyle"
+					:class="panelClasses"
+					:role="props.role"
+					:aria-modal="parentStage ? undefined : true"
+					:aria-labelledby="activeStage?.titleId || titleId"
+					:aria-describedby="descriptionId"
+					tabindex="-1"
+				>
+					<header v-show="!activeStage" class="dialog-heading">
+						<div>
+							<h2 :id="titleId">{{ title }}</h2>
+							<p v-if="subtitle">{{ subtitle }}</p>
+						</div>
+						<UiButton
+							v-if="dismissible && !filterSheet"
+							variant="ghost"
+							aria-label="关闭对话框"
+							@click="requestClose"
+							>关闭 ×</UiButton
+						>
+					</header>
+					<div v-show="!activeStage" class="dialog-content" :class="contentClass">
+						<slot />
 					</div>
-					<UiButton
-						v-if="dismissible && !filterSheet"
-						variant="ghost"
-						aria-label="关闭对话框"
-						@click="requestClose"
-						>关闭 ×</UiButton
-					>
-				</header>
-				<div v-show="!activeStage" class="dialog-content" :class="contentClass">
-					<slot />
-				</div>
-				<div
-					v-if="!parentStage"
-					v-show="activeStage"
-					ref="stageHost"
-					class="dialog-content"
-				/>
-				<footer v-if="$slots.footer" v-show="!activeStage" class="dialog-footer">
-					<slot name="footer" />
-				</footer>
-			</section>
-		</div>
+					<div
+						v-if="!parentStage"
+						v-show="activeStage"
+						ref="stageHost"
+						class="dialog-content"
+					/>
+					<footer v-if="$slots.footer" v-show="!activeStage" class="dialog-footer">
+						<slot name="footer" />
+					</footer>
+				</section>
+			</div>
+		</Transition>
 	</Teleport>
 </template>

@@ -20,6 +20,7 @@ import InventoryIcon from "../../components/InventoryIcon.vue";
 import { kindIcons } from "../../lib/kindIcons";
 import RecoverySummary from "../../components/ui/RecoverySummary.vue";
 import Overlay from "../../components/ui/Overlay.vue";
+import DateField from "../../components/ui/DateField.vue";
 import FormField from "../../components/ui/FormField.vue";
 import { useFormValidation } from "../../composables/useFormValidation";
 import { useConfirm } from "../../services/confirm";
@@ -154,8 +155,33 @@ const receive = computed(() => draft.value.kind === "Receive"),
 const { supportingDirty, leaveRequested: leaveOpen } = c;
 const recordPrint = useRecordPrint();
 const printDirty = computed(() => dirty.value || supportingDirty.value);
-const reviewShortcutTitle = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘+Enter" : "Ctrl+Enter";
+const desktopShortcuts =
+	typeof window !== "undefined" &&
+	typeof window.matchMedia === "function" &&
+	window.matchMedia("(min-width: 1024px) and (pointer: fine)").matches;
+const reviewShortcutTitle = desktopShortcuts
+	? /Mac|iPhone|iPad/.test(navigator.platform)
+		? "⌘+Enter"
+		: "Ctrl+Enter"
+	: undefined;
+const saveShortcutTitle = desktopShortcuts
+	? /Mac|iPhone|iPad/.test(navigator.platform)
+		? "⌘+S"
+		: "Ctrl+S"
+	: undefined;
 function reviewShortcut(event: KeyboardEvent) {
+	if (
+		(event.ctrlKey || event.metaKey) &&
+		event.key.toLowerCase() === "s" &&
+		props.active !== false &&
+		!document.querySelector(".ui-overlay") &&
+		formRoot.value?.contains(event.target as Node)
+	) {
+		event.preventDefault();
+		const save = formRoot.value.querySelector<HTMLButtonElement>("[data-save-action]");
+		if (!busy.value && save && !save.disabled) save.click();
+		return;
+	}
 	if (
 		!(event.ctrlKey || event.metaKey) ||
 		event.key !== "Enter" ||
@@ -806,10 +832,9 @@ async function lifecycle() {
 						</template>
 						<template v-else>
 							<label class="form-field"
-								>操作日期<input
+								>操作日期<DateField
 									v-model="draft.postingDate"
 									data-field="postingDate"
-									type="date"
 									:aria-invalid="
 										showError &&
 										issues.some((issue) => issue.field === 'postingDate')
@@ -1232,6 +1257,8 @@ async function lifecycle() {
 					<UiButton
 						v-if="!state.confirmationVersion"
 						:disabled="busy || supportingDirty"
+						data-save-action
+						:title="saveShortcutTitle"
 						@click="saveDraft"
 						>保存草稿</UiButton
 					><UiButton

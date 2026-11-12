@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import UiButton from "./UiButton.vue";
+import DateField from "./DateField.vue";
 
 /** "" reads stock now; "YYYY-MM-DD" or "YYYY-MM-DD HH:MM:SS" reads that site-local moment. */
 const props = defineProps<{ modelValue: string; today: string }>();
@@ -49,7 +50,7 @@ function useNow() {
 		<form class="as-of-fields" @submit.prevent="apply">
 			<label class="form-field">
 				<span>截至日期</span>
-				<input v-model="draftDate" type="date" :max="props.today" aria-label="截至日期" />
+				<DateField v-model="draftDate" :max="props.today" aria-label="截至日期" />
 			</label>
 			<label class="form-field">
 				<span>时间（可选）</span>

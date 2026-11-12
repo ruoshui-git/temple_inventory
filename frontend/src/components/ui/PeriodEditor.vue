@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { periodLabels, resolveSitePeriod, type DatePeriod } from "../../lib/sitePeriod";
+import DateField from "./DateField.vue";
 
 const props = defineProps<{ modelValue: DatePeriod; label: string; today: string }>();
 const emit = defineEmits<{ "update:modelValue": [value: DatePeriod] }>();
@@ -56,9 +57,9 @@ function update(value: DatePeriod) {
 		>
 		<template v-if="modelValue.key === 'custom'">
 			<label class="form-field"
-				>开始日期<input
-					:value="modelValue.from"
-					type="date"
+				>开始日期<DateField
+					clearable
+					:model-value="modelValue.from"
 					:aria-label="`${label}开始日期`"
 					@input="
 						update({ ...modelValue, from: ($event.target as HTMLInputElement).value })
@@ -66,9 +67,9 @@ function update(value: DatePeriod) {
 				/>
 			</label>
 			<label class="form-field"
-				>结束日期<input
-					:value="modelValue.to"
-					type="date"
+				>结束日期<DateField
+					clearable
+					:model-value="modelValue.to"
 					:aria-label="`${label}结束日期`"
 					@input="
 						update({ ...modelValue, to: ($event.target as HTMLInputElement).value })

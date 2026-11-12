@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
-import { defineComponent, h } from "vue";
+import { defineComponent, h, ref } from "vue";
 import CountEditorView from "../src/features/counts/CountEditorView.vue";
 import { useCountEditor } from "../src/features/counts/useCountEditor";
 import type { CountRow } from "../src/features/counts/countModel";
@@ -162,6 +162,34 @@ function successfulCountWrite(method: string, args: Record<string, unknown>) {
 }
 
 describe("count confirmation summary", () => {
+  it("routes Ctrl+S to draft save and Ctrl+Enter through the existing review", async () => {
+    const { wrapper, controller } = setup();
+    await flushPromises();
+    Object.defineProperty(controller, "canSubmit", { value: ref(true) });
+    const save = vi.spyOn(controller, "save").mockResolvedValue(undefined);
+    const review = vi.spyOn(controller, "review").mockResolvedValue(undefined);
+    await flushPromises();
+    const form = wrapper.get("form").element;
+    const saveEvent = new KeyboardEvent("keydown", {
+      key: "s",
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    form.dispatchEvent(saveEvent);
+    expect(saveEvent.defaultPrevented).toBe(true);
+    expect(save).toHaveBeenCalledWith(true);
+    const reviewEvent = new KeyboardEvent("keydown", {
+      key: "Enter",
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    form.dispatchEvent(reviewEvent);
+    expect(reviewEvent.defaultPrevented).toBe(true);
+    expect(review).toHaveBeenCalledOnce();
+  });
+
   it("submits once when confirmation is clicked twice and clears old errors", async () => {
     const { wrapper, controller, call } = setup();
     await flushPromises();

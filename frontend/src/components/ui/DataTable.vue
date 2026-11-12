@@ -19,6 +19,7 @@ import DetailPopover from "./DetailPopover.vue";
 import ColumnSettings from "./ColumnSettings.vue";
 import { presentationText } from "../../lib/presentationLabels";
 import DataCell from "./DataCell.vue";
+import { getColumnWidths, preferenceUser, setColumnWidths } from "../../lib/uiPreferences";
 
 const props = withDefaults(
 	defineProps<{
@@ -91,9 +92,85 @@ const emit = defineEmits<{
 const preferences = computed(() => props.columnPreferences);
 const tableScroll = ref<HTMLElement>();
 const tableFrame = ref<HTMLElement>();
+const desktopResizable = ref(false);
 const tableId = useId();
+const resizeTableKey = computed(
+	() => `${props.ariaLabel}:${props.columns.map((column) => String(column.id)).join(",")}`,
+);
+const columnWidths = ref<Record<string, number>>({});
+let resizeCleanup: (() => void) | undefined;
+function readColumnWidths() {
+	columnWidths.value = getColumnWidths(preferenceUser.value, resizeTableKey.value);
+}
+function saveColumnWidths() {
+	setColumnWidths(preferenceUser.value, resizeTableKey.value, columnWidths.value);
+}
+watch([preferenceUser, resizeTableKey], readColumnWidths, { immediate: true });
+function columnWidth(column: DataColumn) {
+	const width = columnWidths.value[String(column.id)];
+	return width ? { width: `${width}px`, minWidth: `${column.minWidth || 72}px` } : undefined;
+}
+function columnStyle(column: DataColumn) {
+	return { ...pinStyle(column), ...columnWidth(column) };
+}
+function resizeKeydown(event: KeyboardEvent, column: DataColumn) {
+	if (event.key === "Home" || event.key === "End") {
+		event.preventDefault();
+		columnWidths.value[String(column.id)] = event.key === "Home" ? column.minWidth || 72 : 720;
+		saveColumnWidths();
+		return;
+	}
+	if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+	event.preventDefault();
+	const id = String(column.id);
+	const base = columnWidths.value[id] || 180;
+	columnWidths.value = {
+		...columnWidths.value,
+		[id]: Math.max(column.minWidth || 72, base + (event.key === "ArrowRight" ? 12 : -12)),
+	};
+	saveColumnWidths();
+}
+function resetColumnWidth(column: DataColumn) {
+	const next = { ...columnWidths.value };
+	delete next[String(column.id)];
+	columnWidths.value = next;
+	saveColumnWidths();
+}
+function beginResize(event: PointerEvent, column: DataColumn) {
+	event.preventDefault();
+	event.stopPropagation();
+	const th = (event.currentTarget as HTMLElement).parentElement;
+	if (!th) return;
+	const startX = event.clientX;
+	const startWidth = th.getBoundingClientRect().width;
+	const id = String(column.id);
+	const move = (moveEvent: PointerEvent) => {
+		columnWidths.value = {
+			...columnWidths.value,
+			[id]: Math.max(
+				column.minWidth || 72,
+				Math.round(startWidth + moveEvent.clientX - startX),
+			),
+		};
+	};
+	const end = () => {
+		window.removeEventListener("pointermove", move);
+		window.removeEventListener("pointerup", end);
+		window.removeEventListener("pointercancel", end);
+		resizeCleanup = undefined;
+		saveColumnWidths();
+	};
+	resizeCleanup?.();
+	resizeCleanup = end;
+	window.addEventListener("pointermove", move);
+	window.addEventListener("pointerup", end, { once: true });
+	window.addEventListener("pointercancel", end, { once: true });
+}
+onScopeDispose(() => resizeCleanup?.());
 const headerHeight = ref(56);
 let headerObserver: ResizeObserver | undefined;
+let resizeMedia: MediaQueryList | undefined;
+let updateResizeMode: (() => void) | undefined;
 const {
 	overflowStart,
 	overflowEnd,
@@ -337,6 +414,12 @@ function syncSettingsOutlet() {
 }
 
 onMounted(() => {
+	if (typeof window.matchMedia === "function") {
+		resizeMedia = window.matchMedia("(min-width: 1024px) and (pointer: fine)");
+		updateResizeMode = () => (desktopResizable.value = resizeMedia?.matches === true);
+		updateResizeMode();
+		resizeMedia.addEventListener?.("change", updateResizeMode);
+	}
 	updateSettingsViewport();
 	const updateHeaderHeight = () => {
 		const header = tableScroll.value?.querySelector("thead");
@@ -354,6 +437,8 @@ onMounted(() => {
 });
 onScopeDispose(() => {
 	headerObserver?.disconnect();
+	if (resizeMedia && updateResizeMode)
+		resizeMedia.removeEventListener?.("change", updateResizeMode);
 	window.removeEventListener("resize", syncSettingsOutlet);
 	window.removeEventListener("scroll", syncSettingsOutlet, true);
 });
@@ -572,8 +657,21 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 									column.pinned === 'end' ? 'data-table-pinned-end' : undefined,
 									column.quantity ? 'quantity-column' : undefined,
 								]"
-								:style="pinStyle(column)"
+								:style="columnStyle(column)"
 							>
+								<span
+									v-if="column.resizable !== false"
+									class="data-table-resize-handle"
+									role="separator"
+									aria-orientation="vertical"
+									:aria-label="`调整${column.label}列宽`"
+									:aria-valuenow="columnWidths[String(column.id)] || undefined"
+									:aria-valuemin="column.minWidth || 72"
+									:tabindex="0"
+									@pointerdown="beginResize($event, column)"
+									@keydown="resizeKeydown($event, column)"
+									@dblclick.stop="resetColumnWidth(column)"
+								></span>
 								<button
 									v-if="column.sortable"
 									type="button"
@@ -897,7 +995,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 											column.quantity ? 'quantity-column' : undefined,
 											cellClass?.(String(column.id), recordValue(entry)),
 										]"
-										:style="pinStyle(column)"
+										:style="columnStyle(column)"
 										:title="
 											['primary', 'code', 'chip'].includes(
 												columnKind(column),

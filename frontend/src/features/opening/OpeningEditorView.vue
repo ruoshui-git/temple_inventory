@@ -12,6 +12,7 @@ import PageHeader from "../../components/ui/PageHeader.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import BackButton from "../../components/ui/BackButton.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
+import DateField from "../../components/ui/DateField.vue";
 import ItemImage from "../../components/ItemImage.vue";
 import InboundSerialField from "../documents/InboundSerialField.vue";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
@@ -263,9 +264,7 @@ async function lifecycle(kind: "cancel" | "amend") {
 		<div v-if="state.server?.queued" class="opening-queued" role="status">正在后台提交…</div>
 		<div v-else-if="queueError" class="opening-error" role="alert">{{ queueError }}</div>
 		<div class="opening-header card">
-			<label v-if="writable"
-				>期初日期<input v-model="values.posting_date" type="date"
-			/></label>
+			<label v-if="writable">期初日期<DateField v-model="values.posting_date" /></label>
 			<div v-else class="opening-readonly-field">
 				<small>期初日期</small><strong>{{ values.posting_date || "未填写" }}</strong>
 			</div>
@@ -437,12 +436,12 @@ async function lifecycle(kind: "cancel" | "amend") {
 								</div>
 							</td>
 							<td v-if="needsBatch" data-label="生产日期">
-								<input
+								<DateField
+									clearable
 									v-if="row.has_batch_no"
 									v-model="row.manufacturing_date"
 									:aria-label="`${rowName(row)}生产日期`"
 									:disabled="!writable"
-									type="date"
 									@blur="controller.ensureBatch(row)"
 								/>
 							</td>
@@ -466,12 +465,12 @@ async function lifecycle(kind: "cancel" | "amend") {
 								/>
 							</td>
 							<td v-if="needsExpiry" data-label="到期日期">
-								<input
+								<DateField
+									clearable
 									v-if="row.has_batch_no && row.has_expiry_date"
 									v-model="row.expiry_date"
 									:aria-label="`${rowName(row)}到期日期`"
 									:disabled="!writable"
-									type="date"
 									@blur="controller.ensureBatch(row)"
 								/>
 							</td>

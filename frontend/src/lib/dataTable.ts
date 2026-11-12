@@ -151,6 +151,8 @@ export interface DataColumn<Row = Record<string, unknown>> {
   pinned?: "start" | "end";
   hint?: string;
   quantity?: boolean;
+  minWidth?: number;
+  resizable?: boolean;
 }
 
 const numericColumnIds = new Set([

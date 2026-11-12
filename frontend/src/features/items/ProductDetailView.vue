@@ -4,7 +4,7 @@ import ForbiddenState from "../../components/ui/ForbiddenState.vue";
 import BackButton from "../../components/ui/BackButton.vue";
 import { useOptionalReferenceData } from "../../services/contracts";
 import { warehouseLabel } from "../../lib/warehouseLabel";
-import { computed } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import type { ProductDetail } from "./useProductDetail";
 import type { ReportQuery } from "../../lib/reportContract";
 import ItemGallery from "../../components/ItemGallery.vue";
@@ -59,6 +59,15 @@ function openSerialMovement(value: unknown) {
 }
 const c = props.controller;
 const { isMobile } = useResponsiveLayout();
+const wideHistoryOpen = ref(false);
+function updateWideHistory() {
+	wideHistoryOpen.value = window.innerWidth >= 1440;
+}
+onMounted(() => {
+	updateWideHistory();
+	window.addEventListener("resize", updateWideHistory);
+});
+onBeforeUnmount(() => window.removeEventListener("resize", updateWideHistory));
 const { confirm } = useConfirm();
 const { stockItem: item, loading, error, forbidden, tab, batches, files } = c;
 const metrics = computed(() =>
@@ -212,7 +221,7 @@ const productExportColumns = computed(() => {
 });
 </script>
 <template>
-	<section class="browse-page">
+	<section class="browse-page item-detail-page">
 		<PageHeader
 			><div>
 				<h1 tabindex="-1">物品详情</h1>
@@ -309,6 +318,7 @@ const productExportColumns = computed(() => {
 			</div>
 			<DisclosureSection
 				v-if="nonImageFiles.length"
+				class="item-detail-attachments"
 				title="附件"
 				:count="nonImageFiles.length"
 			>
@@ -318,150 +328,159 @@ const productExportColumns = computed(() => {
 					mode="display"
 				/>
 			</DisclosureSection>
-			<nav class="browse-tabs" aria-label="物品库存视图">
-				<button
-					:aria-current="tab === 'overview' ? 'page' : undefined"
-					@click="emit('tab', 'overview')"
-				>
-					库存分布</button
-				><button
-					v-if="item.tracksBatch"
-					:aria-current="tab === 'batches' ? 'page' : undefined"
-					@click="emit('tab', 'batches')"
-				>
-					批次信息</button
-				><button
-					v-if="c.item.value?.has_serial_no"
-					:aria-current="tab === 'serials' ? 'page' : undefined"
-					@click="emit('tab', 'serials')"
-				>
-					序列号
-				</button>
-			</nav>
-			<section v-if="tab === 'serials'" class="browse-table-wrap" aria-label="物品序列号">
-				<div class="browse-card-heading">
-					<SearchField v-model="c.serialSearch.value" label="搜索序列号" />
-					<label class="form-field"
-						>状态<select v-model="c.serialStatus.value">
-							<option value="Active">在库 / 借出 / 损坏</option>
-							<option value="Loaned">借出</option>
-							<option value="Damaged">损坏</option>
-							<option value="Inactive">已出库</option>
-							<option value="all">全部状态</option>
-						</select></label
+			<section class="item-detail-inventory">
+				<nav class="browse-tabs" aria-label="物品库存视图">
+					<button
+						:aria-current="tab === 'overview' ? 'page' : undefined"
+						@click="emit('tab', 'overview')"
 					>
+						库存分布</button
+					><button
+						v-if="item.tracksBatch"
+						:aria-current="tab === 'batches' ? 'page' : undefined"
+						@click="emit('tab', 'batches')"
+					>
+						批次信息</button
+					><button
+						v-if="c.item.value?.has_serial_no"
+						:aria-current="tab === 'serials' ? 'page' : undefined"
+						@click="emit('tab', 'serials')"
+					>
+						序列号
+					</button>
+				</nav>
+				<section
+					v-if="tab === 'serials'"
+					class="browse-table-wrap"
+					aria-label="物品序列号"
+				>
+					<div class="browse-card-heading">
+						<SearchField v-model="c.serialSearch.value" label="搜索序列号" />
+						<label class="form-field"
+							>状态<select v-model="c.serialStatus.value">
+								<option value="Active">在库 / 借出 / 损坏</option>
+								<option value="Loaned">借出</option>
+								<option value="Damaged">损坏</option>
+								<option value="Inactive">已出库</option>
+								<option value="all">全部状态</option>
+							</select></label
+						>
+					</div>
+					<p v-if="c.serialError.value" class="notice-bar danger" role="alert">
+						{{ c.serialError.value }}
+						<UiButton @click="c.loadSerials(true)">重试</UiButton>
+					</p>
+					<DataTable
+						v-if="!isMobile"
+						ariaLabel="物品序列号"
+						table-class="browse-table"
+						:columns="serialColumns"
+						:rows="serialTableRows"
+						:loading="c.serialLoading.value"
+						:initialized="true"
+						empty-text="没有符合条件的序列号。"
+					>
+						<template #cell="{ column, row }">
+							<UiButton
+								v-if="column.id === 'last_movement' && row.last_movement"
+								@click="openSerialMovement(row.last_movement)"
+								>{{ serialMovementName(row.last_movement) }}</UiButton
+							>
+							<template v-else>{{ row[column.id] || "—" }}</template>
+						</template>
+					</DataTable>
+					<ul v-else class="item-serial-rows">
+						<li v-for="serial in c.serialRows.value" :key="String(serial.serial)">
+							<strong>{{ serial.serial }}</strong
+							><span>{{ serial.status }} · {{ serial.location || "—" }}</span>
+							<UiButton
+								v-if="serial.last_movement"
+								@click="openSerialMovement(serial.last_movement)"
+								>最近流动：{{ serialMovementName(serial.last_movement) }}</UiButton
+							>
+						</li>
+					</ul>
+					<UiButton
+						v-if="c.serialNext.value !== null"
+						:disabled="c.serialLoading.value"
+						@click="c.loadSerials(false)"
+						>加载更多</UiButton
+					>
+				</section>
+				<div v-if="tab === 'batches'" class="browse-table-wrap">
+					<DataTable
+						ariaLabel="物品批次库存"
+						table-class="browse-table"
+						:columns="batchColumns"
+						:rows="batchSort.rows.value"
+						:loading="loading"
+						:initialized="Boolean(item)"
+						:sort-by="batchSort.sortBy.value"
+						:sort-direction="batchSort.sortDirection.value"
+						:column-preferences="batchPrefs"
+						@sort="batchSort.setSort"
+						empty-text="当前没有可显示的批次库存。"
+					>
+						<template #cell="{ column, row }">
+							<UiButton
+								v-if="column.id === 'batch_no'"
+								:aria-label="`打开批次资料：${row.id}`"
+								@click="emit('openBatch', String(row.id))"
+								>{{ row.id }}</UiButton
+							>
+							<template v-else-if="column.id === 'expiry'">{{
+								row.expiry || "无效期"
+							}}</template>
+							<template v-else-if="column.id === 'location'">{{
+								warehouseLabel(
+									String(row.location || ""),
+									warehouseReference?.warehouses || [],
+									String(row.label || ""),
+								)
+							}}</template>
+							<template v-else-if="column.id === 'uom' || column.id === 'stock_uom'"
+								><UnitText :name="row[column.id]"
+							/></template>
+							<template v-else>{{ row[column.id] ?? 0 }}</template>
+						</template>
+					</DataTable>
+					<p v-if="!batches.length" class="browse-note">当前没有可显示的批次库存。</p>
 				</div>
-				<p v-if="c.serialError.value" class="notice-bar danger" role="alert">
-					{{ c.serialError.value }}
-					<UiButton @click="c.loadSerials(true)">重试</UiButton>
-				</p>
-				<DataTable
-					v-if="!isMobile"
-					ariaLabel="物品序列号"
-					table-class="browse-table"
-					:columns="serialColumns"
-					:rows="serialTableRows"
-					:loading="c.serialLoading.value"
-					:initialized="true"
-					empty-text="没有符合条件的序列号。"
-				>
-					<template #cell="{ column, row }">
-						<UiButton
-							v-if="column.id === 'last_movement' && row.last_movement"
-							@click="openSerialMovement(row.last_movement)"
-							>{{ serialMovementName(row.last_movement) }}</UiButton
-						>
-						<template v-else>{{ row[column.id] || "—" }}</template>
-					</template>
-				</DataTable>
-				<ul v-else class="item-serial-rows">
-					<li v-for="serial in c.serialRows.value" :key="String(serial.serial)">
-						<strong>{{ serial.serial }}</strong
-						><span>{{ serial.status }} · {{ serial.location || "—" }}</span>
-						<UiButton
-							v-if="serial.last_movement"
-							@click="openSerialMovement(serial.last_movement)"
-							>最近流动：{{ serialMovementName(serial.last_movement) }}</UiButton
-						>
-					</li>
-				</ul>
-				<UiButton
-					v-if="c.serialNext.value !== null"
-					:disabled="c.serialLoading.value"
-					@click="c.loadSerials(false)"
-					>加载更多</UiButton
-				>
+				<div v-else-if="tab === 'overview'" class="browse-table-wrap">
+					<DataTable
+						ariaLabel="物品库位余额"
+						table-class="browse-table"
+						:columns="locationColumns"
+						:rows="locationSort.rows.value"
+						:loading="loading"
+						:initialized="Boolean(item)"
+						:sort-by="locationSort.sortBy.value"
+						:sort-direction="locationSort.sortDirection.value"
+						:column-preferences="locationPrefs"
+						@sort="locationSort.setSort"
+						empty-text="此物品暂无库存。"
+					>
+						<template #cell="{ column, row }">
+							<template v-if="column.id === 'location'">{{
+								warehouseLabel(
+									String(row.location || ""),
+									warehouseReference?.warehouses || [],
+									String(row.label || ""),
+								)
+							}}</template>
+							<template v-else-if="column.id === 'uom' || column.id === 'stock_uom'"
+								><UnitText :name="row[column.id]"
+							/></template>
+							<template v-else>{{ row[column.id] }}</template>
+						</template>
+					</DataTable>
+					<p v-if="!item.locations.length" class="browse-note">此物品暂无库存。</p>
+				</div>
 			</section>
-			<div v-if="tab === 'batches'" class="browse-table-wrap">
-				<DataTable
-					ariaLabel="物品批次库存"
-					table-class="browse-table"
-					:columns="batchColumns"
-					:rows="batchSort.rows.value"
-					:loading="loading"
-					:initialized="Boolean(item)"
-					:sort-by="batchSort.sortBy.value"
-					:sort-direction="batchSort.sortDirection.value"
-					:column-preferences="batchPrefs"
-					@sort="batchSort.setSort"
-					empty-text="当前没有可显示的批次库存。"
-				>
-					<template #cell="{ column, row }">
-						<UiButton
-							v-if="column.id === 'batch_no'"
-							:aria-label="`打开批次资料：${row.id}`"
-							@click="emit('openBatch', String(row.id))"
-							>{{ row.id }}</UiButton
-						>
-						<template v-else-if="column.id === 'expiry'">{{
-							row.expiry || "无效期"
-						}}</template>
-						<template v-else-if="column.id === 'location'">{{
-							warehouseLabel(
-								String(row.location || ""),
-								warehouseReference?.warehouses || [],
-								String(row.label || ""),
-							)
-						}}</template>
-						<template v-else-if="column.id === 'uom' || column.id === 'stock_uom'"
-							><UnitText :name="row[column.id]"
-						/></template>
-						<template v-else>{{ row[column.id] ?? 0 }}</template>
-					</template>
-				</DataTable>
-				<p v-if="!batches.length" class="browse-note">当前没有可显示的批次库存。</p>
-			</div>
-			<div v-else-if="tab === 'overview'" class="browse-table-wrap">
-				<DataTable
-					ariaLabel="物品库位余额"
-					table-class="browse-table"
-					:columns="locationColumns"
-					:rows="locationSort.rows.value"
-					:loading="loading"
-					:initialized="Boolean(item)"
-					:sort-by="locationSort.sortBy.value"
-					:sort-direction="locationSort.sortDirection.value"
-					:column-preferences="locationPrefs"
-					@sort="locationSort.setSort"
-					empty-text="此物品暂无库存。"
-				>
-					<template #cell="{ column, row }">
-						<template v-if="column.id === 'location'">{{
-							warehouseLabel(
-								String(row.location || ""),
-								warehouseReference?.warehouses || [],
-								String(row.label || ""),
-							)
-						}}</template>
-						<template v-else-if="column.id === 'uom' || column.id === 'stock_uom'"
-							><UnitText :name="row[column.id]"
-						/></template>
-						<template v-else>{{ row[column.id] }}</template>
-					</template>
-				</DataTable>
-				<p v-if="!item.locations.length" class="browse-note">此物品暂无库存。</p>
-			</div>
 			<DisclosureSection
+				class="item-detail-history"
+				:open="wideHistoryOpen"
+				@update:open="wideHistoryOpen = $event"
 				title="流动与借用历史"
 				:count="`${c.movements.result.total} / ${c.loans.result.total}`"
 				:summary="
@@ -545,7 +564,7 @@ const productExportColumns = computed(() => {
 .item-facts-grid dd :deep(.item-conversions) {
 	margin-top: var(--p-field-gap);
 }
-.item-detail-card > :deep(.browse-tabs) {
+.item-detail-card .item-detail-inventory > :deep(.browse-tabs) {
 	margin-top: var(--p-gap);
 }
 .item-disabled-badge {

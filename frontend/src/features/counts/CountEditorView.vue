@@ -21,6 +21,7 @@ import TransactionContext from "../documents/TransactionContext.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import RecoverySummary from "../../components/ui/RecoverySummary.vue";
 import Overlay from "../../components/ui/Overlay.vue";
+import DateField from "../../components/ui/DateField.vue";
 import Attachments from "../../components/Attachments.vue";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 import ItemImage from "../../components/ItemImage.vue";
@@ -148,8 +149,33 @@ async function reloadCount() {
 }
 const root = ref<HTMLElement>(),
 	actionBar = ref<HTMLElement>();
-const reviewShortcutTitle = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘+Enter" : "Ctrl+Enter";
+const desktopShortcuts =
+	typeof window !== "undefined" &&
+	typeof window.matchMedia === "function" &&
+	window.matchMedia("(min-width: 1024px) and (pointer: fine)").matches;
+const reviewShortcutTitle = desktopShortcuts
+	? /Mac|iPhone|iPad/.test(navigator.platform)
+		? "⌘+Enter"
+		: "Ctrl+Enter"
+	: undefined;
+const saveShortcutTitle = desktopShortcuts
+	? /Mac|iPhone|iPad/.test(navigator.platform)
+		? "⌘+S"
+		: "Ctrl+S"
+	: undefined;
 function reviewShortcut(event: KeyboardEvent) {
+	if (
+		(event.ctrlKey || event.metaKey) &&
+		event.key.toLowerCase() === "s" &&
+		props.active !== false &&
+		!document.querySelector(".ui-overlay") &&
+		root.value?.contains(event.target as Node)
+	) {
+		event.preventDefault();
+		const save = root.value.querySelector<HTMLButtonElement>("[data-save-action]");
+		if (!busy.value && save && !save.disabled) save.click();
+		return;
+	}
 	if (
 		!(event.ctrlKey || event.metaKey) ||
 		event.key !== "Enter" ||
@@ -594,10 +620,7 @@ async function back() {
 							</select></label
 						>
 						<label class="form-field"
-							>操作日期<input
-								v-model="values.posting_date"
-								type="date"
-								:disabled="busy"
+							>操作日期<DateField v-model="values.posting_date" :disabled="busy"
 						/></label>
 						<label class="form-field"
 							>操作时间<input
@@ -860,6 +883,8 @@ async function back() {
 					<UiButton
 						v-if="!state.confirmationVersion"
 						:disabled="busy || supportingDirty"
+						data-save-action
+						:title="saveShortcutTitle"
 						@click="saveDraft"
 						>保存草稿</UiButton
 					>

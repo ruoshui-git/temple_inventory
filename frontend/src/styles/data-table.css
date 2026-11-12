@@ -395,6 +395,26 @@
 .data-table-scroll tbody td {
 	vertical-align: middle;
 }
+@supports (content-visibility: auto) {
+	.data-table-scroll tbody > tr:not(.data-table-group-row):not(.data-table-skeleton-row) {
+		content-visibility: auto;
+		contain-intrinsic-size: auto 48px;
+	}
+	:root[data-ti-density="xcompact"] .data-table-scroll tbody > tr:not(.data-table-group-row),
+	:root[data-ti-density="compact"] .data-table-scroll tbody > tr:not(.data-table-group-row) {
+		contain-intrinsic-size: auto 40px;
+	}
+	:root[data-ti-density="spacious"] .data-table-scroll tbody > tr:not(.data-table-group-row) {
+		contain-intrinsic-size: auto 60px;
+	}
+}
+@media print {
+	.data-table-scroll tbody > tr,
+	.browse-card-item {
+		content-visibility: visible !important;
+		contain-intrinsic-size: none !important;
+	}
+}
 .data-table-scroll th {
 	position: sticky;
 	top: 0;
@@ -405,6 +425,26 @@
 	font-weight: 650;
 	text-align: inherit;
 	white-space: nowrap;
+}
+@media (min-width: 1024px) and (pointer: fine) {
+	.data-table-resize-handle {
+		position: absolute;
+		top: 0;
+		right: 0;
+		z-index: 2;
+		width: 9px;
+		height: 100%;
+		cursor: col-resize;
+		touch-action: none;
+	}
+	.data-table-resize-handle:hover::after,
+	.data-table-resize-handle:focus-visible::after {
+		position: absolute;
+		inset: 20% 3px;
+		content: "";
+		border-radius: 2px;
+		background: var(--p-accent);
+	}
 }
 /* Column sizing: every non-primary kind shrinks to its content (width: 1%) and
    never wraps; the single primary column is the only auto column, so it takes
@@ -707,7 +747,8 @@
 }
 /* Tables without a semantic primary field give spare width to their first column,
    keeping the trailing settings control at its fixed width. */
-.data-table-scroll table:has(.data-table-settings-heading):not(:has(.data-column-primary))
+.data-table-scroll
+	table:has(.data-table-settings-heading):not(:has(.data-column-primary))
 	:is(th, td):first-child {
 	width: 100%;
 	min-width: 200px;

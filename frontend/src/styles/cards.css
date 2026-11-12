@@ -66,6 +66,24 @@
 .browse-card-item {
 	min-width: 0;
 }
+@supports (content-visibility: auto) {
+	.browse-card-grid > .browse-card-item,
+	.stock-card-group > .browse-card-grid > .browse-card-item,
+	.browse-card-item--row {
+		content-visibility: auto;
+		contain-intrinsic-size: auto 210px;
+	}
+	:root[data-ti-density="xcompact"] .browse-card-grid > .browse-card-item,
+	:root[data-ti-density="compact"] .browse-card-grid > .browse-card-item {
+		contain-intrinsic-size: auto 172px;
+	}
+	:root[data-ti-density="spacious"] .browse-card-grid > .browse-card-item {
+		contain-intrinsic-size: auto 250px;
+	}
+	.browse-card-item--row {
+		contain-intrinsic-size: auto 80px;
+	}
+}
 .browse-card-item--card {
 	position: relative;
 	border: 1px solid var(--p-border);

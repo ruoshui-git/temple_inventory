@@ -224,6 +224,15 @@ body:has(.browse-page) {
 .browse-detail-card > .ti-disclosure-section + .ti-disclosure-section {
 	margin-block: 0;
 }
+.loan-detail-main {
+	display: contents;
+}
+.loan-detail-main > .ti-disclosure-section {
+	margin-block: var(--p-space-3);
+}
+.loan-detail-main > .ti-disclosure-section + .ti-disclosure-section {
+	margin-block: 0;
+}
 .detail-stat-grid .quantity-summary {
 	grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
 }
@@ -3269,6 +3278,84 @@ body:has(.browse-page) {
 }
 .batch-description {
 	grid-column: 1 / -1;
+}
+
+@media (min-width: 1440px) {
+	.batch-detail-page {
+		display: block;
+	}
+	.item-detail-card,
+	.loan-detail-page > .browse-detail-card,
+	.browse-page > .browse-detail-card {
+		width: min(100%, 1680px);
+		margin-inline: auto;
+	}
+	.item-detail-card {
+		display: block;
+	}
+	.loan-detail-page > .browse-detail-card {
+		display: block;
+	}
+	.loan-detail-page .browse-card-heading > :first-child {
+		flex: 0 1 auto;
+	}
+	.loan-detail-page .browse-card-heading {
+		justify-content: flex-start;
+		align-items: flex-start;
+		gap: var(--p-space-3);
+	}
+	.loan-detail-page .loan-status {
+		flex: 0 0 auto;
+	}
+	.loan-detail-page .loan-detail-actions .loan-desk-link {
+		margin-inline-start: 0;
+	}
+}
+
+@media (min-width: 1920px) {
+	.item-detail-card {
+		display: grid;
+		grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr);
+		column-gap: var(--p-gap);
+		align-items: start;
+	}
+	.item-detail-card > .item-detail-top,
+	.item-detail-card > .item-detail-attachments {
+		grid-column: 1 / -1;
+	}
+	.item-detail-inventory {
+		grid-column: 1;
+		min-width: 0;
+	}
+	.item-detail-card > .item-detail-history {
+		grid-column: 2;
+		min-width: 0;
+	}
+	.loan-detail-page > .browse-detail-card {
+		display: grid;
+		grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr);
+		column-gap: var(--p-gap);
+		align-items: start;
+	}
+	.loan-detail-page > .browse-detail-card > .browse-card-heading,
+	.loan-detail-page > .browse-detail-card > .browse-note,
+	.loan-detail-page > .browse-detail-card > .loan-key-facts {
+		grid-column: 1 / -1;
+	}
+	.loan-detail-main > * {
+		grid-column: 1;
+		min-width: 0;
+	}
+	.loan-detail-page > .browse-detail-card > .loan-history-section {
+		grid-column: 2;
+		grid-row: 4 / span 8;
+		min-width: 0;
+	}
+	.loan-detail-page > .browse-detail-card > .loan-detail-line,
+	.loan-detail-page > .browse-detail-card > .ti-disclosure-section:not(.loan-history-section) {
+		grid-column: 1;
+		min-width: 0;
+	}
 }
 .app-mobile-nav {
 	grid-template-columns: none;

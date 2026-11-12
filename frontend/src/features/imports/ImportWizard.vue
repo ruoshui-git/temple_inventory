@@ -12,6 +12,7 @@ import DataTable from "../../components/ui/DataTable.vue";
 import SearchField from "../../components/ui/SearchField.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import Overlay from "../../components/ui/Overlay.vue";
+import DateField from "../../components/ui/DateField.vue";
 import type { DataColumn, DataTableEntry } from "../../lib/dataTable";
 import { formatQuantity, formatQuantityWithUnit } from "../../lib/formatQuantity";
 import { postingTime } from "../../lib/nativeTime";
@@ -190,7 +191,7 @@ const downloadRejected = () => downloadReport("rejected");
 				填写好的{{ isOpening ? "期初库存" : "物品" }}模板（.xlsx，最多 5 MB、5,000 行）
 			</p>
 			<div v-if="isOpening" class="opening-posting-fields">
-				<label>期初日期<input v-model="c.postingDate.value" type="date" required /></label>
+				<label>期初日期<DateField v-model="c.postingDate.value" required /></label>
 				<label
 					>时间<input v-model="c.postingTime.value" type="time" step="1" required
 				/></label>

@@ -3,6 +3,7 @@ import { watch } from "vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
+import DateField from "../../components/ui/DateField.vue";
 import RecoverySummary from "../../components/ui/RecoverySummary.vue";
 import FormField from "../../components/ui/FormField.vue";
 import { useActivityEditor } from "./useActivityEditor";
@@ -95,16 +96,16 @@ async function cancel() {
 			></FormField>
 			<FormField label="开始日期" :error="controller.validation.errors['activity-start']"
 				><template #default="{ fieldAttrs }"
-					><input
-						type="date"
+					><DateField
+						clearable
 						v-model="input.start"
 						v-bind="fieldAttrs"
 						:disabled="busy || loading || conflict" /></template
 			></FormField>
 			<FormField label="结束日期" :error="controller.validation.errors['activity-end']"
 				><template #default="{ fieldAttrs }"
-					><input
-						type="date"
+					><DateField
+						clearable
 						v-model="input.end"
 						v-bind="fieldAttrs"
 						:disabled="busy || loading || conflict" /></template
