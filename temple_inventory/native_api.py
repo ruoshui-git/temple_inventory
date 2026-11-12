@@ -21,7 +21,7 @@ from temple_inventory.native_balances import entry_bundle, reconciliation_alloca
 from temple_inventory.native_stock import (
 	MOVEMENT_PURPOSES,
 	batch_quantities,
-	loan_balances,
+	loan_balances_many,
 	preserve_copied_conversions,
 )
 
@@ -83,6 +83,86 @@ def _identity(doctype):
 	if doctype not in NATIVE_DOCTYPES:
 		frappe.throw("不支持的库存记录类型")
 	return doctype
+
+
+def _doctype_needs_document_check(doctype):
+	"""Keep per-document checks when a controller or hook adds read rules."""
+	from frappe.model.base_document import get_controller
+	from frappe.model.document import Document
+
+	controller = get_controller(doctype)
+	return (
+		controller.check_permission is not Document.check_permission
+		or controller.has_permission is not Document.has_permission
+		or bool(frappe.get_hooks("has_permission").get(doctype))
+	)
+
+
+def _stock_entry_needs_document_check():
+	return _doctype_needs_document_check("Stock Entry")
+
+
+def _serialize_bundle_caches(rows):
+	"""Preload permission-filtered bundles and batches for one document response."""
+	from collections import defaultdict
+
+	names = {
+		row.get(field)
+		for row in rows
+		for field in ("serial_and_batch_bundle", "current_serial_and_batch_bundle")
+		if row.get(field)
+	}
+	if not names:
+		return {}, {}
+	if _doctype_needs_document_check("Serial and Batch Bundle"):
+		return {}, {}
+	meta = frappe.get_meta("Serial and Batch Bundle")
+	entries_field = meta.get_field("entries")
+	child_doctype = entries_field.options if entries_field else None
+	bundles = frappe.get_list(
+		"Serial and Batch Bundle",
+		filters={"name": ["in", sorted(names)]},
+		fields=["*"],
+		limit_page_length=0,
+	)
+	bundle_names = {row.name for row in bundles}
+	entries = defaultdict(list)
+	if child_doctype and bundle_names:
+		for row in frappe.get_all(
+			child_doctype,
+			filters={
+				"parent": ["in", sorted(bundle_names)],
+				"parenttype": "Serial and Batch Bundle",
+				"parentfield": "entries",
+			},
+			fields=["*"],
+			order_by="parent asc, idx asc",
+			limit_page_length=0,
+		):
+			entries[row.parent].append(frappe._dict({**dict(row), "doctype": child_doctype}))
+	batch_names = sorted(
+		{entry.batch_no for rows in entries.values() for entry in rows if entry.get("batch_no")}
+	)
+	batch_docs = {}
+	if batch_names and not _doctype_needs_document_check("Batch"):
+		batch_docs = {
+			row.name: frappe.get_doc({**dict(row), "doctype": "Batch"})
+			for row in frappe.get_list(
+				"Batch",
+				filters={"name": ["in", batch_names]},
+				fields=["*"],
+				limit_page_length=0,
+			)
+		}
+	bundle_docs = {}
+	for row in bundles:
+		bundle = frappe.get_doc({**dict(row), "doctype": "Serial and Batch Bundle"})
+		bundle.__dict__["entries"] = entries.get(row.name, [])
+		bundle.flags.ti_permission_filtered_batches = not _doctype_needs_document_check("Batch") and all(
+			not entry.get("batch_no") or entry.batch_no in batch_docs for entry in bundle.entries
+		)
+		bundle_docs[row.name] = bundle
+	return bundle_docs, batch_docs
 
 
 def _require_supported_edit(doc):
@@ -190,7 +270,32 @@ def _apply(doc, data):
 def serialize(doc):
 	doc.check_permission("read")
 	bundle_cache = {}
-	check_document_scope(doc, bundle_cache=bundle_cache)
+	batch_permissions = {}
+	rows = [*(doc.get("items") or []), *(doc.get("ti_count_review") or [])]
+	bundle_docs, batch_docs = _serialize_bundle_caches(rows)
+
+	def check_batch(name):
+		if name not in batch_permissions:
+			batch = batch_docs.get(name)
+			if not batch:
+				batch = frappe.get_doc("Batch", name)
+				batch.check_permission("read")
+			batch_permissions[name] = batch
+		return batch_permissions[name]
+
+	def load_bundle(name):
+		return bundle_docs.get(name)
+
+	from temple_inventory.native_stock import warehouse_scopes
+
+	visible_warehouses = warehouse_scopes()[1]
+	check_document_scope(
+		doc,
+		visible_warehouses=visible_warehouses,
+		batch_checker=check_batch,
+		bundle_cache=bundle_cache,
+		bundle_loader=load_bundle,
+	)
 	if doc.doctype == "Stock Entry":
 		kind = doc.get("ti_movement_kind") or {
 			"Material Receipt": "Receive",
@@ -203,7 +308,10 @@ def serialize(doc):
 	if doc.doctype == "Stock Reconciliation":
 		for original, line in zip(doc.get("items"), data["items"], strict=True):
 			line["recorded_count_allocations"] = reconciliation_allocations(
-				original, bundle_cache=bundle_cache
+				original,
+				batch_checker=check_batch,
+				bundle_cache=bundle_cache,
+				bundle_loader=load_bundle,
 			)
 	# The sample seeder discards responses, so it skips their display lookups.
 	if doc.doctype in ("Stock Entry", "Stock Reconciliation") and not frappe.flags.ti_sample_seeding:
@@ -240,7 +348,12 @@ def serialize(doc):
 		for original, line in zip(doc.get("items"), data["items"], strict=True):
 			if doc.doctype != "Stock Entry":
 				continue
-			bundle = entry_bundle(original, bundle_cache=bundle_cache)
+			bundle = entry_bundle(
+				original,
+				batch_checker=check_batch,
+				bundle_cache=bundle_cache,
+				bundle_loader=load_bundle,
+			)
 			line["serials"] = []
 			if bundle:
 				line["serials"] = [entry.serial_no for entry in bundle.entries if entry.serial_no]
@@ -674,9 +787,10 @@ def loan_detail(name):
 		activity = frappe.get_doc("Inventory Activity", loan.ti_activity)
 		if activity.has_permission("read"):
 			data["activity_title"] = activity.title
-	balances = loan_balances(name)
-	batch_balances = loan_balances(name, by_batch=True)
-	serial_balances = loan_balances(name, by_serial=True)
+	balance_views = loan_balances_many([name], views=True)[name]
+	balances = balance_views["quantity"]
+	batch_balances = balance_views["batch"]
+	serial_balances = balance_views["serial"]
 	for row in data["items"]:
 		outcomes = balances[row.name]
 		serial_outcomes = serial_balances[row.name]
@@ -858,43 +972,87 @@ def outstanding_loans(search="", borrower=None, start=0, page_length=10):
 		start=start,
 		page_length=page_length,
 	)
-	results = []
+	rows = [row for row in rows if frappe.has_permission("Stock Entry", "read", doc=row.name)]
+	if not rows:
+		return {"rows": [], "next": None}
+	from temple_inventory.native_access import check_document_scope
+
+	readable_rows = []
 	for row in rows:
 		loan = frappe.get_doc("Stock Entry", row.name)
 		if not loan.has_permission("read"):
 			continue
-		data = loan_detail(row.name)
-		items = []
-		for line in data["items"]:
-			quantity = float(line.get("outstanding_qty") or 0)
-			if quantity <= 0:
-				continue
-			item = frappe.get_doc("Item", line.item_code)
-			if not item.has_permission("read"):
-				continue
-			metadata = frappe.get_attr("temple_inventory.catalog.item_metadata")(item)
-			items.append(
-				{
-					"code": item.name,
-					"name": item.item_name,
-					"image": metadata["image"],
-					"uom": item.stock_uom,
-					"quantity": quantity,
-				}
-			)
-		if items:
-			activity = ""
-			if row.ti_activity:
-				activity_doc = frappe.get_doc("Inventory Activity", row.ti_activity)
-				if activity_doc.has_permission("read"):
-					activity = activity_doc.title
+		check_document_scope(loan)
+		readable_rows.append(row)
+	rows = readable_rows
+	if not rows:
+		return {"rows": [], "next": None}
+	loan_names = [row.name for row in rows]
+	lines = frappe.get_all(
+		"Stock Entry Detail",
+		filters={"parent": ["in", loan_names], "parenttype": "Stock Entry", "parentfield": "items"},
+		fields=["name", "parent", "item_code", "transfer_qty"],
+		order_by="parent, idx asc",
+	)
+	item_codes = sorted({line.item_code for line in lines if line.item_code})
+	items = frappe.get_list(
+		"Item",
+		filters={"name": ["in", item_codes or [""]]},
+		fields=["name", "item_name", "stock_uom", "image"],
+		limit_page_length=0,
+	)
+	if _doctype_needs_document_check("Item"):
+		items = [item for item in items if frappe.has_permission("Item", "read", doc=item.name)]
+	visible_items = {item.name: item for item in items}
+	from temple_inventory.catalog import _image
+
+	item_images = {name: _image(item)[0] for name, item in visible_items.items()}
+	balance_views = loan_balances_many(loan_names, views=True)
+	activity_titles = {}
+	activity_names = sorted({row.ti_activity for row in rows if row.ti_activity})
+	if activity_names:
+		if _doctype_needs_document_check("Inventory Activity"):
+			for activity_name in activity_names:
+				activity = frappe.get_doc("Inventory Activity", activity_name)
+				if activity.has_permission("read"):
+					activity_titles[activity_name] = activity.title
+		else:
+			activity_titles = {
+				row.name: row.title
+				for row in frappe.get_list(
+					"Inventory Activity",
+					filters={"name": ["in", activity_names]},
+					fields=["name", "title"],
+					limit_page_length=0,
+				)
+			}
+	lines_by_loan = {}
+	for line in lines:
+		if line.item_code in visible_items:
+			quantity_outcomes = balance_views[line.parent]["quantity"][line.name]
+			quantity = float(line.transfer_qty or 0) - float(sum(quantity_outcomes.values()))
+			if quantity > 0:
+				item = visible_items[line.item_code]
+				lines_by_loan.setdefault(line.parent, []).append(
+					{
+						"code": item.name,
+						"name": item.item_name,
+						"image": item_images.get(item.name, ""),
+						"uom": item.stock_uom,
+						"quantity": quantity,
+					}
+				)
+	results = []
+	for row in rows:
+		loan_items = lines_by_loan.get(row.name, [])
+		if loan_items:
 			results.append(
 				{
 					"name": row.name,
 					"date": str(row.posting_date),
 					"borrower": row.ti_borrower or "",
-					"activity": activity or "",
-					"items": items,
+					"activity": activity_titles.get(row.ti_activity, ""),
+					"items": loan_items,
 				}
 			)
 	return {"rows": results, "next": start + len(rows) if len(rows) == page_length else None}

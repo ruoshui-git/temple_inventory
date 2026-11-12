@@ -6,12 +6,18 @@ from unittest.mock import patch
 
 import frappe
 
-from temple_inventory import browse, catalog, native_stock
+from temple_inventory import browse, catalog, native_api, native_stock
 from temple_inventory.projections import report_page
 from temple_inventory.tests.test_native_documents import NativeDocumentTests
 
 
 class ReadPerformanceTests(unittest.TestCase):
+	movement = NativeDocumentTests.movement
+	create = NativeDocumentTests.create
+	submit = NativeDocumentTests.submit
+	receipt = NativeDocumentTests.receipt
+	loan = NativeDocumentTests.loan
+
 	MEMO_STATE = (
 		"temple_inventory_memos",
 		"inventory_permission_signatures",
@@ -94,3 +100,32 @@ class ReadPerformanceTests(unittest.TestCase):
 			frappe.set_user(users["b"])
 			self._reset_read_state()
 			self.assertEqual(native_stock.warehouse_scopes()[2], {self.b})
+
+	def test_native_document_and_loan_reads_have_bounded_queries(self):
+		borrower = f"Read Performance {self.token}"
+		loan = self.loan(5, borrower)
+		cases = (
+			("load_document", lambda: native_api.load_document("Stock Entry", loan.name), 70),
+			("loan_detail", lambda: native_api.loan_detail(loan.name), 80),
+			(
+				"outstanding_loans",
+				lambda: native_api.outstanding_loans(borrower=borrower, page_length=10),
+				90,
+			),
+			(
+				"outstanding_loan_groups",
+				lambda: native_api.outstanding_loan_groups(search=borrower),
+				90,
+			),
+		)
+		for name, endpoint, ceiling in cases:
+			endpoint()
+			with (
+				self.subTest(endpoint=name),
+				patch.object(frappe.db, "transaction_writes", 0),
+				patch.object(frappe.db, "sql", wraps=frappe.db.sql) as sql,
+			):
+				self._reset_read_state()
+				frappe.set_user("Administrator")
+				endpoint()
+				self.assertLessEqual(sql.call_count, ceiling, f"{name}: {sql.call_count}")

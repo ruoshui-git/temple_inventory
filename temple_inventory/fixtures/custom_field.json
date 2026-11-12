@@ -19,6 +19,7 @@
     "insert_after": "ti_section",
     "module": "Temple Inventory",
     "in_list_view": 1,
+    "search_index": 1,
     "name": "Stock Entry-ti_movement_kind"
   },
   {
@@ -158,7 +159,8 @@
     "insert_after": "batch_no",
     "module": "Temple Inventory",
     "name": "Stock Entry Detail-ti_original_loan",
-    "options": "Stock Entry"
+    "options": "Stock Entry",
+    "search_index": 1
   },
   {
     "doctype": "Custom Field",
@@ -168,7 +170,8 @@
     "label": "原借出明细",
     "insert_after": "ti_original_loan",
     "module": "Temple Inventory",
-    "name": "Stock Entry Detail-ti_original_loan_line"
+    "name": "Stock Entry Detail-ti_original_loan_line",
+    "search_index": 1
   },
   {
     "doctype": "Custom Field",

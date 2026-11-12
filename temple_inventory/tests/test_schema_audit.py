@@ -83,6 +83,19 @@ class SchemaAuditTests(unittest.TestCase):
 			},
 		)
 
+	def test_read_path_custom_fields_have_query_indexes(self):
+		import json
+
+		fields = json.loads((schema_audit.APP_ROOT / "fixtures" / "custom_field.json").read_text())
+		indexed = {(field["dt"], field["fieldname"]) for field in fields if field.get("search_index")}
+		self.assertTrue(
+			{
+				("Stock Entry", "ti_movement_kind"),
+				("Stock Entry Detail", "ti_original_loan"),
+				("Stock Entry Detail", "ti_original_loan_line"),
+			}.issubset(indexed)
+		)
+
 	def test_singular_count_warehouse_is_retired_not_a_compatibility_fixture(self):
 		self.assertIn("ti_count_warehouse", schema_audit.RETIRED_CUSTOM_FIELDS)
 		self.assertNotIn(

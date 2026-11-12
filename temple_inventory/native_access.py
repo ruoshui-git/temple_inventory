@@ -121,13 +121,20 @@ def frontend_account_denial():
 
 
 def require_frontend_account(check_account=True):
-	denial = frontend_account_denial()
+	from temple_inventory.native_topology import request_memo
+
+	memo = request_memo("frontend_account_access")
+	user = frappe.session.user
+	cached = memo is not None and user in memo
+	denial = memo[user] if cached else frontend_account_denial()
+	if memo is not None and not cached:
+		memo[user] = denial
 	if denial:
 		frappe.throw(*denial)
-	# Discard request-local permission objects that could have been built from
-	# the pre-change role list. The role gate above itself uses a current read.
-	frappe.local.user_perms = None
-	frappe.local.role_permissions = {}
+	if not cached:
+		# Discard permission objects that may predate the first live role check.
+		frappe.local.user_perms = None
+		frappe.local.role_permissions = {}
 	if check_account:
 		check_request_account()
 
@@ -151,11 +158,16 @@ def load_locked(doctype, name, version, permission="write"):
 
 
 def check_company(doc):
-	from temple_inventory.native_topology import _settings
+	from temple_inventory.native_topology import _settings, request_memo
 
 	if not doc.company or doc.company != _settings().company:
 		frappe.throw("记录不属于当前库存公司", frappe.PermissionError)
-	frappe.get_doc("Company", doc.company).check_permission("read")
+	memo = request_memo("company_read_permissions")
+	key = (frappe.session.user, doc.company)
+	if memo is None or key not in memo:
+		frappe.get_doc("Company", doc.company).check_permission("read")
+		if memo is not None:
+			memo[key] = True
 
 
 def check_item(item_code, *, lock=False):

@@ -19,6 +19,7 @@ from temple_inventory.projections import (  # noqa: F401
 )
 from temple_inventory.report_query import sortable_field, validate_query
 from temple_inventory.report_sources import (
+	_settlement_document_names_by_loan,
 	available_scope_leaves,
 	batch_allocations,
 	document_fields,
@@ -914,6 +915,14 @@ def _whole_operation_totals(projection, source):
 		projection.context.preload_parents(
 			doctype, [name for parent_doctype, name in documents if parent_doctype == doctype]
 		)
+	originals = []
+	for doctype, name in documents:
+		if doctype != "Stock Entry":
+			continue
+		loan = projection.context._preloaded_parents.get((doctype, name))
+		if loan and loan.get("ti_movement_kind") == "Loan":
+			originals.extend((name, line.name, line.item_code) for line in loan.get("items") or [])
+	projection.context._settlement_candidates_by_loan = _settlement_document_names_by_loan(originals)
 	for (doctype, name), row in documents.items():
 		whole = whole_operation(projection.context, doctype, name)
 		for quantity in whole["quantities"]:

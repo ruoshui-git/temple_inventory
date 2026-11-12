@@ -202,11 +202,21 @@ class ReportContext:
 				except frappe.PermissionError, frappe.DoesNotExistError:
 					return None
 			return item
+		from temple_inventory.native_topology import request_memo
+
+		memo = request_memo("report_readable_items")
+		key = (frappe.session.user, code)
+		if memo is not None and key in memo:
+			return memo[key]
 		try:
 			item = getattr(self, "_preloaded_items", {}).get(code) or frappe.get_cached_doc("Item", code)
 			item.check_permission("read")
 		except frappe.PermissionError, frappe.DoesNotExistError:
+			if memo is not None:
+				memo[key] = None
 			return None
+		if memo is not None:
+			memo[key] = item
 		return item
 
 	def activity(self, name):
@@ -621,7 +631,17 @@ class ReportContext:
 			return "无分类"
 		cache = self.__dict__.setdefault("_category_labels", {})
 		if item_group not in cache:
-			cache[item_group] = frappe.db.get_value("Item Group", item_group, "item_group_name") or item_group
+			from temple_inventory.native_topology import request_memo
+
+			memo = request_memo("item_group_labels")
+			key = (frappe.session.user, item_group)
+			if memo is not None and key in memo:
+				label = memo[key]
+			else:
+				label = frappe.db.get_value("Item Group", item_group, "item_group_name") or item_group
+				if memo is not None:
+					memo[key] = label
+			cache[item_group] = label
 		return cache[item_group]
 
 	def label(self, warehouse):
@@ -1213,8 +1233,13 @@ def whole_operation(context, doctype, name):
 		original_lines = {
 			(line.name, line.item_code): line for line in doc.items if line.name and line.item_code
 		}
-		candidate_names = _settlement_document_names(
-			(doc.name, line_name, item_code) for line_name, item_code in original_lines
+		preloaded_candidates = getattr(context, "_settlement_candidates_by_loan", None)
+		candidate_names = (
+			preloaded_candidates.get(doc.name, set())
+			if preloaded_candidates is not None
+			else _settlement_document_names(
+				(doc.name, line_name, item_code) for line_name, item_code in original_lines
+			)
 		)
 		settlements = {}
 		valid_settlements = {
@@ -1628,6 +1653,27 @@ def _settlement_document_names(originals):
 	return parents
 
 
+def _settlement_document_names_by_loan(originals):
+	"""Find matching submitted settlement parents for multiple Loan documents at once."""
+	originals = set(originals)
+	loans = sorted({loan for loan, _line, _item in originals if loan})
+	if not loans:
+		return {}
+	parents = defaultdict(set)
+	for start in range(0, len(loans), 500):
+		rows = frappe.get_all(
+			"Stock Entry Detail",
+			filters={"ti_original_loan": ["in", loans[start : start + 500]]},
+			fields=["parent", "ti_original_loan", "ti_original_loan_line", "item_code"],
+			limit_page_length=0,
+		)
+		for row in rows:
+			key = (row.ti_original_loan, row.ti_original_loan_line, row.item_code)
+			if key in originals:
+				parents[row.ti_original_loan].add(row.parent)
+	return parents
+
+
 def settlement_rows(context):
 	loans = {(row["original_loan_line"], row.get("batch_no") or ""): row for row in loan_rows(context)}
 	document_names = _settlement_document_names(
@@ -1911,6 +1957,10 @@ def count_rows(context):
 
 def count_record_rows(context):
 	"""Aggregate the unfiltered count-page source without serializing every allocation row."""
+	cached = getattr(context, "_count_record_rows_cache", None)
+	if cached is not None:
+		yield from cached
+		return
 	fields = (
 		"doctype",
 		"document",
@@ -1938,6 +1988,7 @@ def count_record_rows(context):
 		if row.get("item_code"):
 			record["_items"].add(row["item_code"])
 		record["row_count"] += 1
+	cached = []
 	for record in records.values():
 		record["item_count"] = len(record.pop("_items"))
 		record["document_count"] = 1
@@ -1945,7 +1996,9 @@ def count_record_rows(context):
 		record["id"] = json.dumps(
 			["native_records", *(record[field] for field in fields)], ensure_ascii=False
 		)
-		yield record
+		cached.append(record)
+	context._count_record_rows_cache = cached
+	yield from cached
 
 
 def historical_rows(context):

@@ -412,7 +412,7 @@ def loan_balances(loan_name, *, lock=False, by_batch=False, by_serial=False):
 	)
 
 
-def loan_balances_many(loan_names, *, lock=False, by_batch=False, by_serial=False):
+def loan_balances_many(loan_names, *, lock=False, by_batch=False, by_serial=False, views=False):
 	"""Resolve submitted settlements for several already-authorized loans in one query."""
 	loan_names = sorted(set(loan_names))
 	if not loan_names:
@@ -442,17 +442,39 @@ def loan_balances_many(loan_names, *, lock=False, by_batch=False, by_serial=Fals
 		{"loan_names": tuple(loan_names)},
 		as_dict=True,
 	)
-	result = {
-		name: defaultdict(
-			lambda: {"Returned": set(), "Damaged": set(), "Lost": set()}
-			if by_serial
-			else {"Returned": Decimal(0), "Damaged": Decimal(0), "Lost": Decimal(0)}
-		)
-		for name in loan_names
-	}
+	if views:
+		result = {
+			name: {
+				"quantity": defaultdict(
+					lambda: {"Returned": Decimal(0), "Damaged": Decimal(0), "Lost": Decimal(0)}
+				),
+				"batch": defaultdict(
+					lambda: {"Returned": Decimal(0), "Damaged": Decimal(0), "Lost": Decimal(0)}
+				),
+				"serial": defaultdict(lambda: {"Returned": set(), "Damaged": set(), "Lost": set()}),
+			}
+			for name in loan_names
+		}
+	else:
+		result = {
+			name: defaultdict(
+				lambda: {"Returned": set(), "Damaged": set(), "Lost": set()}
+				if by_serial
+				else {"Returned": Decimal(0), "Damaged": Decimal(0), "Lost": Decimal(0)}
+			)
+			for name in loan_names
+		}
 	for row in rows:
 		balances = result[row.loan_name]
-		if by_serial:
+		if views:
+			if row.outcome not in balances["quantity"][row.original_line]:
+				continue
+			balances["quantity"][row.original_line][row.outcome] += Decimal(str(row.transfer_qty))
+			for batch, quantity in batch_quantities(row).items():
+				balances["batch"][(row.original_line, batch)][row.outcome] += quantity
+			for serial in _row_serials(row):
+				balances["serial"][row.original_line].setdefault(row.outcome, set()).add(serial)
+		elif by_serial:
 			for serial in _row_serials(row):
 				balances[row.original_line].setdefault(row.outcome, set()).add(serial)
 		elif by_batch:
