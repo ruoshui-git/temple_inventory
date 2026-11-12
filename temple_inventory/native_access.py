@@ -2,6 +2,8 @@
 
 # ruff: noqa: RUF001 — Chinese UI punctuation is intentional.
 
+import random
+import time
 from contextvars import ContextVar
 from functools import wraps
 
@@ -11,6 +13,18 @@ from frappe.utils import get_datetime
 NATIVE_DOCTYPES = {"Stock Entry", "Stock Reconciliation"}
 NO_INVENTORY_ROLE = "当前账户尚未分配物资管理角色，请联系管理员"
 _request_write_depth = ContextVar("inventory_request_write_depth", default=0)
+
+
+def retry_native_job(function, *, attempts=3):
+	"""Retry one background transaction after MariaDB rejects its snapshot."""
+	for attempt in range(attempts):
+		try:
+			return function()
+		except frappe.QueryDeadlockError:
+			frappe.db.rollback()
+			if attempt + 1 == attempts:
+				raise
+			time.sleep(random.uniform(0.05, 0.5))
 
 
 def retry_native_request(function):

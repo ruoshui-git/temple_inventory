@@ -116,6 +116,7 @@ This document owns user-visible behavior, interaction and language. [DESIGN_SYST
 
 ## Changelog
 
+- 2026-11-12: a large 盘点 or an import that collides with another person's write now retries by itself in the background (up to three times) before reporting a failure; reminders are skipped, never the stock record, when the job queue is backed up.
 - 2026-11-11: reliability audit — area-limited accounts can browse and see only their own locations; out-of-range or over-precise quantities are refused with a message (per row in 期初库存导入 preview); a stuck 排队 import can be retried; an import whose 期初库存 was cancelled fails with a re-upload hint; a large 盘点 whose background confirmation collides with another operation says so and asks to confirm again instead of showing a traceback.
 - 2026-11-11: browse search matches only displayed fields; 返回 falls back to the page's list when opened directly; card thumbnails square again; Item 说明 holds stable facts only.
 - 2026-11-10: a read-only 期初库存 record shows its 盘点备注 and attachments.

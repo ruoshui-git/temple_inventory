@@ -34,6 +34,14 @@ from temple_inventory.tests.test_native_documents import NativeDocumentTests
 
 
 class AdversarialTests(NativeDocumentTests):
+	def setUp(self):
+		super().setUp()
+		frappe.clear_cache(doctype="Temple Inventory Settings")
+		frappe.local.user_perms = None
+		frappe.local.role_permissions = {}
+		frappe.local.inventory_cache_revision_touched = False
+		frappe.local.inventory_cache_dirty_scheduled = False
+
 	def _restricted_operator(self, include_system=False, role=None, suffix=""):
 		from temple_inventory.roles import OPERATOR, ensure_roles
 
@@ -72,6 +80,382 @@ class AdversarialTests(NativeDocumentTests):
 				).insert(ignore_permissions=True)
 		frappe.clear_cache(user=user.name)
 		return user.name
+
+	def test_adv_retry_native_job_retries_only_snapshot_conflicts(self):
+		from temple_inventory.native_access import retry_native_job
+
+		calls = []
+		with patch.object(frappe.db, "rollback") as rollback:
+
+			def once():
+				calls.append(1)
+				if len(calls) == 1:
+					raise frappe.QueryDeadlockError("snapshot conflict")
+				return "ok"
+
+			self.assertEqual(retry_native_job(once), "ok")
+		self.assertEqual(len(calls), 2)
+		rollback.assert_called_once()
+		with patch.object(frappe.db, "rollback") as rollback:
+			with self.assertRaises(frappe.QueryDeadlockError):
+				retry_native_job(lambda: (_ for _ in ()).throw(frappe.QueryDeadlockError("again")))
+		self.assertEqual(rollback.call_count, 3)
+		calls.clear()
+
+		def ordinary_error():
+			calls.append(1)
+			raise ValueError("ordinary")
+
+		with self.assertRaisesRegex(ValueError, "ordinary"):
+			retry_native_job(ordinary_error)
+		self.assertEqual(len(calls), 1)
+
+	def test_adv_queued_count_submit_retries_conflict_after_enqueue(self):
+		from frappe.utils import background_jobs
+
+		from temple_inventory import read_cache
+
+		self.receipt(10)
+		draft = counts.save_count(str(uuid4()), self.count_data(8, "Reviewed"))
+		# A prior rollback-only run may have left the filesystem lock for a rolled-back name.
+		from frappe.utils.file_lock import delete_lock
+
+		document = frappe.get_doc("Stock Reconciliation", draft.name)
+		delete_lock(document.get_signature())
+		self.addCleanup(lambda: delete_lock(document.get_signature()))
+		with (
+			patch.object(native_api, "QUEUED_ROW_THRESHOLD", 0),
+			patch.object(background_jobs, "enqueue", return_value=None) as enqueue,
+		):
+			queued = native_api.submit_document("Stock Reconciliation", draft.name, draft.version)
+		self.assertTrue(queued.queued)
+		self.assertEqual(enqueue.call_args.args[0], "temple_inventory.native_api.run_queued_action")
+		with self.assertRaises(frappe.DocumentLockedError):
+			native_api.submit_document("Stock Reconciliation", draft.name, draft.version)
+		original = read_cache._bump_durable_revision
+		calls = []
+
+		def conflict_once():
+			calls.append(1)
+			if len(calls) == 1:
+				raise frappe.QueryDeadlockError("Record has changed since last read")
+			return original()
+
+		frappe.db.savepoint("queued_action_attempt")
+		original_rollback = frappe.db.rollback
+		with (
+			patch.object(read_cache, "_bump_durable_revision", side_effect=conflict_once),
+			patch.object(
+				frappe.db,
+				"rollback",
+				side_effect=lambda: original_rollback(save_point="queued_action_attempt"),
+			),
+		):
+			native_api.run_queued_action("Stock Reconciliation", draft.name, "submit", frappe.session.user)
+		self.assertEqual(frappe.db.get_value("Stock Reconciliation", draft.name, "docstatus"), 1)
+		self.assertEqual(len(calls), 2)
+		self.assertFalse(
+			frappe.db.exists(
+				"Comment",
+				{
+					"reference_doctype": "Stock Reconciliation",
+					"reference_name": draft.name,
+					"content": ["like", "%Action Failed%"],
+				},
+			)
+		)
+
+	def test_adv_item_import_retries_conflict_without_duplicate_items(self):
+		from temple_inventory import read_cache
+
+		request = self._queued_item_import()
+		original_bump = read_cache._bump_durable_revision
+		original_rollback = frappe.db.rollback
+		calls = []
+
+		def conflict_once():
+			calls.append(1)
+			if len(calls) == 1:
+				raise frappe.QueryDeadlockError("Record has changed since last read")
+			return original_bump()
+
+		frappe.db.savepoint("item_import_attempt")
+		with (
+			patch.object(frappe.db, "commit", side_effect=lambda: frappe.db.savepoint("item_import_attempt")),
+			patch.object(
+				frappe.db,
+				"rollback",
+				side_effect=lambda: original_rollback(save_point="item_import_attempt"),
+			),
+			patch.object(read_cache, "_bump_durable_revision", side_effect=conflict_once),
+		):
+			imports.run_import(request.name, "Administrator")
+		result = frappe.get_doc("Inventory Import", request.name)
+		created = frappe.parse_json(result.created_documents or "[]")
+		self.assertEqual(result.status, "Completed")
+		self.assertEqual(len(calls), 2)
+		self.assertEqual(len(created), 1)
+		self.assertEqual(frappe.db.count("Item", {"name": created[0]}), 1)
+
+	def test_adv_opening_import_retry_reuses_committed_draft(self):
+		from temple_inventory import read_cache
+
+		self._configure_opening_account()
+		request = self._queued_opening()
+		request_key = hashlib.sha256(request.name.encode()).hexdigest()
+		planned = frappe.parse_json(request.preview_json)
+		self.assertTrue(any(row["action"] == "NEW" for row in planned), planned)
+		original_bump = read_cache._bump_durable_revision
+		original_rollback = frappe.db.rollback
+		calls = []
+
+		def conflict_once():
+			calls.append(1)
+			if len(calls) == 1:
+				raise frappe.QueryDeadlockError("Record has changed since last read")
+			return original_bump()
+
+		frappe.db.savepoint("opening_import_attempt")
+		with (
+			patch.object(
+				frappe.db,
+				"commit",
+				side_effect=lambda: frappe.db.savepoint("opening_import_attempt"),
+			),
+			patch.object(
+				frappe.db,
+				"rollback",
+				side_effect=lambda: original_rollback(save_point="opening_import_attempt"),
+			),
+			patch.object(read_cache, "_bump_durable_revision", side_effect=conflict_once),
+			patch.object(imports, "_opening_plan", return_value=(planned, request.plan_hash)),
+		):
+			imports.run_opening_import(request.name, "Administrator")
+		documents = frappe.get_all(
+			"Stock Reconciliation", filters={"ti_request_key": request_key}, fields=["name", "docstatus"]
+		)
+		self.assertEqual(frappe.get_value("Inventory Import", request.name, "status"), "Completed")
+		self.assertEqual(len(calls), 2)
+		self.assertEqual(len(documents), 1)
+		self.assertEqual(documents[0].docstatus, 1)
+
+	def test_adv_queued_count_cancel_retries_conflict(self):
+		from frappe.utils import background_jobs
+
+		from temple_inventory import read_cache
+
+		self.receipt(10)
+		draft = counts.save_count(str(uuid4()), self.count_data(8, "Reviewed"))
+		submitted = native_api.submit_document("Stock Reconciliation", draft.name, draft.version)
+		with (
+			patch.object(native_api, "QUEUED_ROW_THRESHOLD", 0),
+			patch.object(background_jobs, "enqueue", return_value=None),
+		):
+			queued = native_api.cancel_document("Stock Reconciliation", draft.name, submitted.version)
+		self.assertTrue(queued.queued)
+		original_bump = read_cache._bump_durable_revision
+		original_rollback = frappe.db.rollback
+		calls = []
+
+		def conflict_once():
+			calls.append(1)
+			if len(calls) == 1:
+				raise frappe.QueryDeadlockError("Record has changed since last read")
+			return original_bump()
+
+		frappe.db.savepoint("queued_cancel_attempt")
+		with (
+			patch.object(read_cache, "_bump_durable_revision", side_effect=conflict_once),
+			patch.object(
+				frappe.db,
+				"rollback",
+				side_effect=lambda: original_rollback(save_point="queued_cancel_attempt"),
+			),
+		):
+			native_api.run_queued_action("Stock Reconciliation", draft.name, "cancel", frappe.session.user)
+		self.assertEqual(frappe.db.get_value("Stock Reconciliation", draft.name, "docstatus"), 2)
+		self.assertEqual(len(calls), 2)
+
+	def test_adv_queued_cancel_exhaustion_keeps_submitted_count(self):
+		from frappe.utils import background_jobs
+
+		from temple_inventory import read_cache
+
+		self.receipt(10)
+		draft = counts.save_count(str(uuid4()), self.count_data(8, "Reviewed"))
+		submitted = native_api.submit_document("Stock Reconciliation", draft.name, draft.version)
+		with (
+			patch.object(native_api, "QUEUED_ROW_THRESHOLD", 0),
+			patch.object(background_jobs, "enqueue", return_value=None),
+		):
+			native_api.cancel_document("Stock Reconciliation", draft.name, submitted.version)
+		original_rollback = frappe.db.rollback
+		frappe.db.savepoint("queued_cancel_exhaustion")
+		with (
+			patch.object(
+				read_cache,
+				"_bump_durable_revision",
+				side_effect=frappe.QueryDeadlockError("Record has changed since last read"),
+			),
+			patch.object(
+				frappe.db,
+				"rollback",
+				side_effect=lambda: original_rollback(save_point="queued_cancel_exhaustion"),
+			),
+		):
+			native_api.run_queued_action("Stock Reconciliation", draft.name, "cancel", frappe.session.user)
+		self.assertEqual(frappe.db.get_value("Stock Reconciliation", draft.name, "docstatus"), 1)
+		comments = frappe.get_all(
+			"Comment",
+			filters={"reference_doctype": "Stock Reconciliation", "reference_name": draft.name},
+			fields=["content"],
+		)
+		self.assertEqual(len(comments), 1)
+		self.assertIn("Action Failed", comments[0].content)
+
+	def test_adv_queued_submit_exhaustion_keeps_draft_and_maps_error(self):
+		from frappe.utils import background_jobs
+
+		from temple_inventory import read_cache
+
+		self.receipt(10)
+		draft = counts.save_count(str(uuid4()), self.count_data(8, "Reviewed"))
+		doc = frappe.get_doc("Stock Reconciliation", draft.name)
+		from frappe.utils.file_lock import delete_lock
+
+		delete_lock(doc.get_signature())
+		self.addCleanup(lambda: delete_lock(doc.get_signature()))
+		with (
+			patch.object(native_api, "QUEUED_ROW_THRESHOLD", 0),
+			patch.object(background_jobs, "enqueue", return_value=None),
+		):
+			native_api.submit_document("Stock Reconciliation", draft.name, draft.version)
+		original_rollback = frappe.db.rollback
+		frappe.db.savepoint("queued_submit_exhaustion")
+		with (
+			patch.object(
+				read_cache,
+				"_bump_durable_revision",
+				side_effect=frappe.QueryDeadlockError("Record has changed since last read"),
+			),
+			patch.object(
+				frappe.db,
+				"rollback",
+				side_effect=lambda: original_rollback(save_point="queued_submit_exhaustion"),
+			),
+		):
+			native_api.run_queued_action("Stock Reconciliation", draft.name, "submit", frappe.session.user)
+		self.assertEqual(frappe.db.get_value("Stock Reconciliation", draft.name, "docstatus"), 0)
+		self.assertFalse(frappe.get_doc("Stock Reconciliation", draft.name).is_locked)
+		comments = frappe.get_all(
+			"Comment",
+			filters={"reference_doctype": "Stock Reconciliation", "reference_name": draft.name},
+			fields=["content"],
+		)
+		self.assertEqual(len(comments), 1)
+		self.assertIn("Action Failed", comments[0].content)
+		with patch.object(native_api, "QUEUED_ROW_THRESHOLD", 0):
+			self.assertIn(
+				"冲突", native_api.serialize(frappe.get_doc("Stock Reconciliation", draft.name)).queue_error
+			)
+
+	def test_adv_item_import_exhausted_conflicts_marks_failed_without_items(self):
+		from temple_inventory import read_cache
+
+		request = self._queued_item_import()
+		original_rollback = frappe.db.rollback
+		frappe.db.savepoint("item_import_exhaustion")
+		with (
+			patch.object(
+				frappe.db, "commit", side_effect=lambda: frappe.db.savepoint("item_import_exhaustion")
+			),
+			patch.object(
+				frappe.db,
+				"rollback",
+				side_effect=lambda: original_rollback(save_point="item_import_exhaustion"),
+			),
+			patch.object(
+				read_cache,
+				"_bump_durable_revision",
+				side_effect=frappe.QueryDeadlockError("Record has changed since last read"),
+			),
+		):
+			imports.run_import(request.name, "Administrator")
+		result = frappe.get_doc("Inventory Import", request.name)
+		self.assertEqual(result.status, "Failed")
+		self.assertIn("Record has changed since last read", result.error)
+		self.assertEqual(frappe.db.count("Item", {"item_name": f"AUDIT queued {self.token}"}), 0)
+
+	def test_adv_opening_import_exhausted_conflicts_keeps_single_draft(self):
+		from temple_inventory import read_cache
+
+		self._configure_opening_account()
+		request = self._queued_opening()
+		request_key = hashlib.sha256(request.name.encode()).hexdigest()
+		planned = frappe.parse_json(request.preview_json)
+		self.assertTrue(any(row["action"] == "NEW" for row in planned), planned)
+		original_rollback = frappe.db.rollback
+		frappe.db.savepoint("opening_import_exhaustion")
+		with (
+			patch.object(
+				frappe.db,
+				"commit",
+				side_effect=lambda: frappe.db.savepoint("opening_import_exhaustion"),
+			),
+			patch.object(
+				frappe.db,
+				"rollback",
+				side_effect=lambda: original_rollback(save_point="opening_import_exhaustion"),
+			),
+			patch.object(
+				read_cache,
+				"_bump_durable_revision",
+				side_effect=frappe.QueryDeadlockError("Record has changed since last read"),
+			),
+			patch.object(imports, "_opening_plan", return_value=(planned, request.plan_hash)),
+		):
+			imports.run_opening_import(request.name, "Administrator")
+		documents = frappe.get_all(
+			"Stock Reconciliation", filters={"ti_request_key": request_key}, fields=["name", "docstatus"]
+		)
+		self.assertEqual(frappe.get_value("Inventory Import", request.name, "status"), "Failed")
+		self.assertEqual(len(documents), 1, frappe.get_value("Inventory Import", request.name, "error"))
+		self.assertEqual(documents[0].docstatus, 0)
+		self.assertIn(documents[0].name, frappe.get_value("Inventory Import", request.name, "error"))
+
+	def test_adv_queued_job_rechecks_submit_permission(self):
+		from temple_inventory.roles import VIEWER
+
+		self.receipt(10)
+		draft = counts.save_count(str(uuid4()), self.count_data(8, "Reviewed"))
+		user = self._restricted_operator(role=VIEWER)
+		original_rollback = frappe.db.rollback
+		frappe.db.savepoint("queued_permission")
+		with patch.object(
+			frappe.db,
+			"rollback",
+			side_effect=lambda: original_rollback(save_point="queued_permission"),
+		):
+			native_api.run_queued_action("Stock Reconciliation", draft.name, "submit", user)
+		self.assertEqual(frappe.db.get_value("Stock Reconciliation", draft.name, "docstatus"), 0)
+
+	def test_adv_notification_enqueue_skips_a_busy_queue(self):
+		from frappe.utils import background_jobs
+
+		from temple_inventory import notifications
+
+		queue = frappe._dict(count=10000)
+		with (
+			patch.object(background_jobs, "get_queue", return_value=queue),
+			patch.object(background_jobs, "enqueue") as enqueue,
+			patch.object(notifications.frappe, "logger") as logger,
+		):
+			doc = self.receipt(1)
+		self.assertEqual(frappe.db.get_value("Stock Entry", doc.name, "docstatus"), 1)
+		enqueue.assert_not_called()
+		logger.return_value.warning.assert_called()
+		frappe.local.inventory_cache_revision_touched = False
+		frappe.local.inventory_cache_dirty_scheduled = False
 
 	def _switch_to(self, user):
 		frappe.set_user(user)
@@ -177,6 +561,17 @@ class AdversarialTests(NativeDocumentTests):
 		from temple_inventory.tests.test_opening_import import OpeningStockImportTests
 
 		return OpeningStockImportTests.workbook(self, rows)
+
+	def _configure_opening_account(self):
+		import erpnext
+
+		if erpnext.is_perpetual_inventory_enabled(self.company):
+			account = frappe.db.get_value(
+				"Account", {"company": self.company, "account_type": "Stock", "is_group": 0}, "name"
+			)
+			if account:
+				frappe.db.sql("update `tabWarehouse` set account=%s where name=%s", (account, self.a))
+				frappe.flags.warehouse_account_map = {}
 
 	def test_adv_number_untrusted_values(self):
 		for value in (
@@ -799,27 +1194,12 @@ class AdversarialTests(NativeDocumentTests):
 		with self.assertRaises(frappe.PermissionError):
 			browse.inventory_page(query)
 		self._switch_to(operator.name)
-		user_roles = set(frappe.get_roles(operator.name))
-		permissions = frappe.get_all(
-			"DocPerm",
-			filters={"parent": "Temple Inventory Settings"},
-			fields=["name", "role"],
-			limit_page_length=0,
-		)
-		for permission in permissions:
-			if permission.role in user_roles:
-				permission_doc = frappe.get_doc("DocPerm", permission.name)
-				permission_doc.read = 0
-				permission_doc.save(ignore_permissions=True)
-		frappe.clear_cache(user=operator.name)
-		frappe.clear_cache(doctype="Temple Inventory Settings")
-		frappe.local.role_permissions = {}
-		self.assertFalse(
-			frappe.permissions.get_role_permissions("Temple Inventory Settings", user=operator.name).get(
-				"read"
-			)
-		)
-		with self.assertRaises(frappe.PermissionError):
+		# Patch the role grant instead of editing DocPerm: clearing the shared Redis metadata
+		# cache from a rollback-only test makes the live dev server refuse real accounts.
+		with (
+			patch("temple_inventory.report_sources.get_role_permissions", return_value={"read": 0}),
+			self.assertRaises(frappe.PermissionError),
+		):
 			projections.report_page(query)
 
 	def test_adv_restricted_manager_can_count_in_area_a(self):

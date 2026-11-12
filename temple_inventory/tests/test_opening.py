@@ -228,8 +228,8 @@ class OpeningStockTests(NativeDocumentTests):
 			flags=frappe._dict(),
 		)
 		doc.check_permission = lambda _permission: None
-		doc.submit = lambda: setattr(doc, "queued_submit_called", True)
 		with (
+			patch("temple_inventory.native_api._enqueue_queued_action") as enqueue_action,
 			patch.object(frappe, "get_doc", return_value=doc),
 			patch("temple_inventory.native_api.check_document_scope"),
 			patch("temple_inventory.native_api.check_version"),
@@ -238,7 +238,8 @@ class OpeningStockTests(NativeDocumentTests):
 		):
 			result = native_api.submit_document("Stock Reconciliation", doc.name, "version-1")
 		self.assertTrue(result["queued"])
-		self.assertTrue(doc.queued_submit_called)
+		# The app queues its own retrying job; the values must be persisted before it runs.
+		enqueue_action.assert_called_once_with(doc, "submit", frappe.session.user)
 		set_value.assert_called_once_with(
 			"Stock Reconciliation",
 			doc.name,

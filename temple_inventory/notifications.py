@@ -196,11 +196,29 @@ def _create(user, type_name, subject, doctype, name, url, structured=None, read=
 	)
 
 
+def _default_queue_is_long():
+	"""Best-effort check; an unreadable queue never blocks a notification."""
+	try:
+		from frappe.utils import cint
+		from frappe.utils.background_jobs import MAX_QUEUED_JOBS, get_queue
+
+		limit = cint(frappe.conf.max_queued_jobs) or MAX_QUEUED_JOBS
+		return get_queue("default").count > limit / 2
+	except Exception:
+		return False
+
+
 def enqueue(method, **kwargs):
 	"""Queue notification work without ever failing the stock document that triggered it."""
 	if frappe.flags.ti_suppress_notifications:
 		return
 	try:
+		# Frappe refuses every new job once a queue is full; notifications yield first.
+		if _default_queue_is_long():
+			frappe.logger("temple_inventory.notifications").warning(
+				"Skipped notification job %s because the default queue exceeds half its limit", method
+			)
+			return
 		frappe.enqueue(method, enqueue_after_commit=True, **kwargs)
 	except Exception:
 		frappe.log_error(title="Inventory notification not queued", message=frappe.get_traceback())

@@ -14,6 +14,7 @@ from temple_inventory.native_access import (
 	check_version,
 	load_locked,
 	require_app,
+	retry_native_job,
 	retry_native_request,
 )
 from temple_inventory.native_balances import entry_bundle, reconciliation_allocations
@@ -407,7 +408,7 @@ def submit_document(doctype, name, version):
 		current = frappe.utils.now_datetime()
 		doc.posting_date, doc.posting_time = current.date(), current.time()
 		doc.set_posting_time = 1
-	if len(doc.get("items") or []) > 100 and doc.doctype == "Stock Reconciliation":
+	if len(doc.get("items") or []) > QUEUED_ROW_THRESHOLD and doc.doctype == "Stock Reconciliation":
 		frappe.db.set_value(
 			doc.doctype,
 			doc.name,
@@ -419,8 +420,66 @@ def submit_document(doctype, name, version):
 			},
 			update_modified=False,
 		)
+	if doc.doctype == "Stock Reconciliation" and len(doc.get("items") or []) > QUEUED_ROW_THRESHOLD:
+		_enqueue_queued_action(doc, "submit", frappe.session.user)
+		return serialize(doc)
 	doc.submit()
 	return serialize(doc)
+
+
+def _enqueue_queued_action(doc, action, user):
+	from frappe.model.document import Document
+	from frappe.utils.background_jobs import enqueue
+
+	timeout = 4600 if action == "submit" else 2000
+	doc.check_if_locked()
+	Document.lock(doc)
+	return enqueue(
+		"temple_inventory.native_api.run_queued_action",
+		doctype=doc.doctype,
+		name=doc.name,
+		action=action,
+		queued_by=user,
+		timeout=timeout,
+		enqueue_after_commit=True,
+	)
+
+
+def run_queued_action(doctype, name, action, queued_by):
+	"""Run a queued count action as its initiating user, retrying fresh documents."""
+	if doctype != "Stock Reconciliation" or action not in ("submit", "cancel"):
+		frappe.throw("不支持的后台操作")
+	previous_user = frappe.session.user
+	frappe.set_user(queued_by)
+	frappe.local.user_perms = None
+	frappe.local.role_permissions = {}
+	from frappe.model.document import Document
+
+	doc = frappe.get_doc(doctype, name)
+	Document.unlock(doc)
+	try:
+
+		def attempt():
+			frappe.local.inventory_cache_revision_touched = False
+			document = frappe.get_doc(doctype, name)
+			document.check_permission(action)
+			getattr(document, f"_{action}")()
+			return document
+
+		doc = retry_native_job(attempt)
+	except Exception:
+		frappe.db.rollback()
+		if frappe.message_log:
+			message = frappe.message_log[-1].get("message")
+		else:
+			message = "<pre><code>" + frappe.get_traceback() + "</pre></code>"
+		doc.add_comment("Comment", frappe._("Action Failed") + "<br><br>" + message)
+	finally:
+		doc.notify_update()
+		frappe.local.inventory_cache_revision_touched = False
+		frappe.set_user(previous_user)
+		frappe.local.user_perms = None
+		frappe.local.role_permissions = {}
 
 
 @frappe.whitelist(methods=["POST"])
@@ -445,6 +504,9 @@ def cancel_document(doctype, name, version):
 	_require_supported_edit(doc)
 	if doc.docstatus != 1:
 		frappe.throw("只能取消已提交记录")
+	if doc.doctype == "Stock Reconciliation" and len(doc.get("items") or []) > QUEUED_ROW_THRESHOLD:
+		_enqueue_queued_action(doc, "cancel", frappe.session.user)
+		return serialize(doc)
 	doc.cancel()
 	return serialize(doc)
 

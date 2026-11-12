@@ -17,7 +17,7 @@ from frappe.utils import cint
 
 from temple_inventory import catalog, read_cache
 from temple_inventory.item_code import allocate_item_code
-from temple_inventory.native_access import require_app, retry_native_request
+from temple_inventory.native_access import require_app, retry_native_job, retry_native_request
 
 DOCTYPE = "Inventory Import"
 service_write = ContextVar("inventory_import_service_write", default=False)
@@ -1442,7 +1442,7 @@ def item_catalog():
 	_xlsx_response("catalog", [("物品导入", HEADERS, values)], "物品目录.xlsx")
 
 
-def run_import(import_name, owner):
+def _run_import_attempt(import_name, owner, failure_state):
 	"""Replan, allocate names briefly, then write all Item documents atomically."""
 	previous_user = frappe.session.user
 	current_row = 0
@@ -1481,6 +1481,7 @@ def run_import(import_name, owner):
 		results = []
 		for index, row in enumerate(planned, 1):
 			current_row = row["row"]
+			failure_state["current_row"] = current_row
 			frappe.cache.set_value(
 				f"ti-import-progress:{doc.name}",
 				{
@@ -1551,6 +1552,8 @@ def run_import(import_name, owner):
 		frappe.local.inventory_cache_revision_touched = True
 		read_cache._bump_durable_revision()
 		frappe.db.commit()
+	except frappe.QueryDeadlockError:
+		raise
 	except Exception as exc:
 		frappe.db.rollback()
 		doc = frappe.get_doc(DOCTYPE, import_name)
@@ -1565,7 +1568,29 @@ def run_import(import_name, owner):
 		read_cache.invalidate_now()
 
 
-def run_opening_import(import_name, owner):
+def run_import(import_name, owner):
+	"""Retry item writes without converting a transient snapshot conflict into Failed."""
+	failure_state = {}
+	try:
+		return retry_native_job(lambda: _run_import_attempt(import_name, owner, failure_state))
+	except frappe.QueryDeadlockError as exc:
+		previous_user = frappe.session.user
+		frappe.set_user(owner)
+		try:
+			frappe.db.rollback()
+			doc = frappe.get_doc(DOCTYPE, import_name)
+			current_row = failure_state.get("current_row", 0)
+			message = f"第 {current_row} 行：{exc}" if current_row else str(exc)
+			doc.status, doc.error = "Failed", message[:2000]
+			_save(doc)
+			frappe.db.commit()
+		finally:
+			frappe.set_user(previous_user)
+			frappe.local.inventory_cache_revision_touched = False
+			read_cache.invalidate_now()
+
+
+def _run_opening_import_attempt(import_name, owner):
 	"""Create one draft in a committed transaction, then submit it in the worker."""
 	from temple_inventory.opening import set_difference_account
 
@@ -1716,6 +1741,8 @@ def run_opening_import(import_name, owner):
 		frappe.local.inventory_cache_revision_touched = True
 		read_cache._bump_durable_revision()
 		frappe.db.commit()
+	except frappe.QueryDeadlockError:
+		raise
 	except Exception as exc:
 		frappe.db.rollback()
 		doc = frappe.get_doc(DOCTYPE, import_name)
@@ -1739,6 +1766,34 @@ def run_opening_import(import_name, owner):
 		frappe.set_user(previous_user)
 		frappe.local.inventory_cache_revision_touched = False
 		read_cache.invalidate_now()
+
+
+def run_opening_import(import_name, owner):
+	"""Retry submission of the same request-keyed opening draft after snapshot conflicts."""
+	try:
+		return retry_native_job(lambda: _run_opening_import_attempt(import_name, owner))
+	except frappe.QueryDeadlockError as exc:
+		previous_user = frappe.session.user
+		frappe.set_user(owner)
+		try:
+			frappe.db.rollback()
+			doc = frappe.get_doc(DOCTYPE, import_name)
+			request_key = hashlib.sha256(doc.name.encode()).hexdigest()
+			draft_name = frappe.db.get_value(
+				"Stock Reconciliation", {"ti_request_key": request_key, "docstatus": 0}, "name"
+			)
+			message = (
+				f"提交失败；期初库存草稿 {draft_name} 已保留，可打开原生单据修正或删除：{exc}"
+				if draft_name
+				else f"导入失败，未创建期初库存草稿：{exc}"
+			)
+			doc.status, doc.error = "Failed", message[:2000]
+			_save(doc)
+			frappe.db.commit()
+		finally:
+			frappe.set_user(previous_user)
+			frappe.local.inventory_cache_revision_touched = False
+			read_cache.invalidate_now()
 
 
 # Phase 4 adds its own definition here and reuses the source, status and report machinery.
