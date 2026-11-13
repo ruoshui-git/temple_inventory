@@ -148,6 +148,26 @@ describe("browse navigation memory", () => {
     expect(expiredFresh).not.toHaveBeenCalled();
   });
 
+  it("keeps remembered rows when a lightbox reads an Item's attachments", async () => {
+    const entry = "site:user:/stock:1";
+    const source = services(),
+      memory = createBrowseMemory(() => entry),
+      wrapped = memory.wrap(source);
+    await wrapped.call("browse.inventory_page", { query: { search: "A" } });
+    await wrapped.call("native_files.attachments", {
+      doctype: "Item",
+      name: "A",
+    });
+    const fresh = vi.fn();
+    await wrapped.callBrowse!(
+      "browse.inventory_page",
+      { query: { search: "A" } },
+      undefined,
+      { onRefresh: fresh },
+    );
+    await vi.waitFor(() => expect(fresh).toHaveBeenCalled());
+  });
+
   it("scopes browse-group snapshots to each browser history entry", () => {
     let entry = "site:manager:/loans?view=items:1";
     const memory = createBrowseMemory(() => entry);

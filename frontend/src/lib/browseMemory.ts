@@ -108,7 +108,7 @@ export function createBrowseMemory(context: () => string) {
       entry.responses.delete(entry.responses.keys().next().value!);
   }
   function isRead(endpoint: string) {
-    return /(^browse\.|\.get_|\.load_|\.list_|\.tree$|\.detail$|\.status$|\.info$|\.preview$|\.validate_|\.search$|\.options$|\.choices$|\.history$|\.analysis$|\.page$|\.count$|\.summary$|\.unread_count$|\.public_key$|\.my_devices$|\.inbox$|\.bootstrap$|\.units$|\.borrowers$)/.test(
+    return /(^browse\.|\.get_|\.load_|\.list_|\.tree$|\.detail$|\.status$|\.info$|\.preview$|\.validate_|\.search$|\.options$|\.choices$|\.history$|\.analysis$|\.page$|\.count$|\.summary$|\.unread_count$|\.public_key$|\.my_devices$|\.inbox$|\.bootstrap$|\.units$|\.borrowers$|\.attachments$)/.test(
       endpoint,
     );
   }

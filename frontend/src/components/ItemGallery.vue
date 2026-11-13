@@ -2,22 +2,25 @@
 import { computed, ref } from "vue";
 import type { StockItem } from "../lib/stockPresentation";
 import type { AttachmentEntry } from "../features/attachments/useAttachments";
+import { galleryImages, thumbnailUrl } from "../lib/itemImages";
 import AsyncImage from "./ui/AsyncImage.vue";
-import Overlay from "./ui/Overlay.vue";
+import ItemLightbox from "./ItemLightbox.vue";
 import ItemImage from "./ItemImage.vue";
 
 const props = defineProps<{ item: StockItem; attachments: AttachmentEntry[] }>();
-const primary = computed(() => props.item.image || "");
-const images = computed(() => [
-	...(primary.value
-		? [{ key: "primary", url: primary.value, label: "主图", primary: true }]
-		: []),
-	...props.attachments
-		.filter(
-			(file) => file.type.startsWith("image/") && file.state === "ready" && !file.primary,
-		)
-		.map((file) => ({ key: file.id, url: file.url || "", label: file.name, primary: false })),
-]);
+const images = computed(() =>
+	galleryImages(
+		props.item,
+		props.attachments
+			.filter((file) => file.state === "ready")
+			.map((file) => ({
+				key: file.id,
+				label: file.name,
+				type: file.type,
+				url: file.url || "",
+			})),
+	),
+);
 const selected = ref(0);
 const lightbox = ref(false);
 let pointerX = 0;
@@ -75,26 +78,7 @@ function displayUrl(index: number, size: number) {
 	const image = images.value[index];
 	if (!image) return "";
 	if (!image.primary) return image.url;
-	if (image.url.startsWith("data:image/")) return image.url;
-	const derivativeSize =
-		size * (typeof window === "undefined" ? 1 : window.devicePixelRatio || 1) > 160
-			? 640
-			: 160;
-	return `/api/method/temple_inventory.item_images.thumbnail?item=${encodeURIComponent(props.item.code)}&size=${derivativeSize}&v=${imageVersion(image.url)}`;
-}
-function imageVersion(url: string) {
-	let hash = 2166136261;
-	for (const byte of new TextEncoder().encode(url))
-		hash = Math.imul(hash ^ byte, 16777619) >>> 0;
-	return hash.toString(16).padStart(8, "0");
-}
-function originalUrl(index: number) {
-	const image = images.value[index];
-	if (!image) return "";
-	if (image.url.startsWith("data:image/")) return image.url;
-	return image.primary
-		? `/api/method/temple_inventory.item_images.original?item=${encodeURIComponent(props.item.code)}&v=${imageVersion(image.url)}`
-		: image.url;
+	return thumbnailUrl(props.item.code, image.url, size);
 }
 </script>
 
@@ -146,39 +130,13 @@ function originalUrl(index: number) {
 				/>
 			</button>
 		</div>
-		<Overlay
+		<ItemLightbox
 			v-if="lightbox && images.length"
-			:title="`${item.name} · 图片`"
+			:item="item"
+			:images="images"
+			v-model:index="selected"
 			@close="lightbox = false"
-		>
-			<div class="item-gallery-lightbox">
-				<button
-					v-if="images.length > 1"
-					type="button"
-					aria-label="上一张"
-					@click="move(-1)"
-				>
-					‹
-				</button>
-				<AsyncImage
-					natural
-					:src="originalUrl(selected)"
-					:alt="item.name"
-					fit="contain"
-					width="100%"
-					height="100%"
-				/>
-				<button
-					v-if="images.length > 1"
-					type="button"
-					aria-label="下一张"
-					@click="move(1)"
-				>
-					›
-				</button>
-			</div>
-			<p>{{ selected + 1 }} / {{ images.length }}</p>
-		</Overlay>
+		/>
 	</div>
 </template>
 
@@ -221,20 +179,5 @@ function originalUrl(index: number) {
 .item-gallery-thumbs button.selected {
 	outline: 2px solid var(--p-accent);
 	outline-offset: 1px;
-}
-.item-gallery-lightbox {
-	display: flex;
-	align-items: center;
-	gap: var(--p-control-gap);
-	height: min(70vh, 680px);
-}
-.item-gallery-lightbox > :deep(.async-image) {
-	flex: 1;
-	min-width: 0;
-	height: 100%;
-}
-.item-gallery-lightbox button {
-	min-width: 44px;
-	min-height: 44px;
 }
 </style>

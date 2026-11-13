@@ -94,8 +94,12 @@ describe("ItemGallery", () => {
     document.body
       .querySelector<HTMLButtonElement>('button[aria-label="下一张"]')
       ?.click();
-    expect(
-      document.body.querySelector(".item-gallery-lightbox")?.textContent,
-    ).toContain("›");
+    await flushPromises();
+    expect(document.body.textContent).toContain("1 / 2");
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
+    );
+    await flushPromises();
+    expect(document.body.textContent).toContain("2 / 2");
   });
 });

@@ -55,6 +55,28 @@ test("desktop stock and expiry table thumbnails keep the lightbox open", async (
       body: '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="teal"/></svg>',
     }),
   );
+  await page.route("**/files/lightbox-regression-2.svg", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><circle cx="40" cy="40" r="35" fill="teal"/></svg>',
+    }),
+  );
+  await page.route(
+    "**/api/method/temple_inventory.native_files.attachments",
+    (route) =>
+      route.fulfill({
+        json: {
+          message: [
+            {
+              name: "LIGHTBOX-ATTACHMENT",
+              file_name: "第二张.svg",
+              file_type: "image/svg+xml",
+              file_url: "/files/lightbox-regression-2.svg",
+            },
+          ],
+        },
+      }),
+  );
 
   for (const [path, filename] of [
     ["/inventory/stock", "stock-thumbnail.png"],
@@ -69,6 +91,11 @@ test("desktop stock and expiry table thumbnails keep the lightbox open", async (
     await thumbnail.click();
     const lightbox = page.getByRole("dialog").last();
     await expect(lightbox).toBeVisible();
+    const caption = lightbox.locator(".item-lightbox-caption");
+    await expect(caption).toContainText("1 / 2");
+    await expect(caption).toContainText(itemCode);
+    await lightbox.getByRole("button", { name: "下一张" }).click();
+    await expect(caption).toContainText("2 / 2");
     await page.waitForTimeout(500);
     await expect(lightbox).toBeVisible();
     await page.screenshot({ path: info.outputPath(filename), fullPage: true });

@@ -2,8 +2,9 @@
 import { computed, inject, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from "vue";
 import { useItemArtwork } from "../services/itemArtwork";
 import { browseSelectingKey } from "../composables/useBrowseSelection";
+import { thumbnailUrl } from "../lib/itemImages";
 import AsyncImage from "./ui/AsyncImage.vue";
-import Overlay from "./ui/Overlay.vue";
+import ItemLightbox from "./ItemLightbox.vue";
 import InventoryIcon from "./InventoryIcon.vue";
 import type { StockItem } from "../lib/stockPresentation";
 const props = withDefaults(
@@ -23,6 +24,7 @@ const artwork = useItemArtwork();
 const selecting = inject(browseSelectingKey, null);
 const hasArtwork = computed(() => props.hasArtwork || artwork?.has(props.item.code));
 const open = ref(false);
+const lightboxIndex = ref(0);
 const source = computed(() => props.item.image || "");
 const displayHost = ref<HTMLElement>();
 const renderedWidth = ref(0);
@@ -30,25 +32,17 @@ const pixelRatio = ref(1);
 const hostMeasured = ref(false);
 let resizeObserver: ResizeObserver | undefined;
 const updateRatio = () => (pixelRatio.value = window.devicePixelRatio || 1);
-function imageVersion(url: string) {
-	let hash = 2166136261;
-	for (const byte of new TextEncoder().encode(url))
-		hash = Math.imul(hash ^ byte, 16777619) >>> 0;
-	return hash.toString(16).padStart(8, "0");
-}
 const derivativeSource = computed(() => {
 	if (!source.value || !hostMeasured.value) return "";
 	const cssWidth = renderedWidth.value || props.targetSize || props.thumbnailSize || 160;
-	const size = cssWidth * pixelRatio.value > 160 ? 640 : 160;
-	return `/api/method/temple_inventory.item_images.thumbnail?item=${encodeURIComponent(props.item.code)}&size=${size}&v=${imageVersion(source.value)}`;
+	return thumbnailUrl(props.item.code, source.value, cssWidth, pixelRatio.value);
 });
-const originalSource = computed(() => {
-	if (!source.value) return "";
-	if (source.value.startsWith("data:image/")) return source.value;
-	return `/api/method/temple_inventory.item_images.original?item=${encodeURIComponent(props.item.code)}&v=${imageVersion(source.value)}`;
-});
+function showLightbox() {
+	lightboxIndex.value = 0;
+	open.value = true;
+}
 onMounted(() => {
-	pixelRatio.value = window.devicePixelRatio || 1;
+	updateRatio();
 	renderedWidth.value =
 		displayHost.value?.getBoundingClientRect().width ||
 		props.targetSize ||
@@ -126,7 +120,7 @@ onDeactivated(() => {
 			class="item-image-enlarge"
 			:aria-label="`放大查看${item.name}图片`"
 			title="查看大图"
-			@click.stop="open = true"
+			@click.stop="showLightbox"
 		>
 			<InventoryIcon name="expand" />
 		</button>
@@ -143,7 +137,7 @@ onDeactivated(() => {
 		:aria-label="`放大查看${item.name}图片`"
 		title="查看大图"
 		:style="targetSize ? { width: `${targetSize}px`, height: `${targetSize}px` } : undefined"
-		@click.stop="open = true"
+		@click.stop="showLightbox"
 	>
 		<slot v-if="hasArtwork && !source" name="artwork"
 			><component v-if="artwork" :is="artwork.component" :code="item.code" /></slot
@@ -171,23 +165,19 @@ onDeactivated(() => {
 		:width="thumbnailSize || '100%'"
 		:height="thumbnailSize || '100%'"
 	/>
-	<Overlay v-if="open" :title="`${item.name} · 图片`" @close="open = false"
-		><div class="lightbox-image">
-			<slot v-if="hasArtwork && !source" name="artwork"
-				><component v-if="artwork" :is="artwork.component" :code="item.code" /></slot
-			><AsyncImage
-				natural
-				v-else
-				:src="originalSource"
-				:alt="item.name"
-				fit="contain"
-				width="100%"
-				height="100%"
-				><template #fallback>图片加载失败，请稍后重试</template></AsyncImage
-			>
-		</div>
-		<p class="muted">{{ item.code }}</p></Overlay
+	<ItemLightbox
+		v-if="open"
+		:item="item"
+		v-model:index="lightboxIndex"
+		:has-artwork="hasArtwork && !source"
+		@close="open = false"
 	>
+		<template #artwork>
+			<slot v-if="hasArtwork && !source" name="artwork">
+				<component v-if="artwork" :is="artwork.component" :code="item.code" />
+			</slot>
+		</template>
+	</ItemLightbox>
 </template>
 
 <style scoped>
@@ -236,14 +226,5 @@ onDeactivated(() => {
 	height: 100%;
 	aspect-ratio: auto;
 	object-fit: contain;
-}
-.lightbox-image :deep(.async-image) {
-	width: 100%;
-	height: 100%;
-	max-height: none;
-}
-.lightbox-image {
-	height: min(70dvh, 720px);
-	min-height: 160px;
 }
 </style>
