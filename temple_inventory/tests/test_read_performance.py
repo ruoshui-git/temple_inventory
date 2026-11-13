@@ -155,6 +155,20 @@ class ReadPerformanceTests(unittest.TestCase):
 				endpoint()
 				self.assertLessEqual(sql.call_count, ceiling, f"{name}: {sql.call_count}")
 
+	def test_native_document_load_has_bounded_queries_for_operator(self):
+		user = self._operator("document-load")
+		loan = self.loan(5, f"Read Performance {self.token}")
+		frappe.set_user(user)
+		native_api.load_document("Stock Entry", loan.name)
+		with (
+			patch.object(frappe.db, "transaction_writes", 0),
+			patch.object(frappe.db, "sql", wraps=frappe.db.sql) as sql,
+		):
+			self._reset_read_state()
+			frappe.set_user(user)
+			native_api.load_document("Stock Entry", loan.name)
+			self.assertLessEqual(sql.call_count, 80, f"load_document operator: {sql.call_count}")
+
 	def test_outstanding_loan_groups_query_count_is_bounded_for_operator(self):
 		user = self._operator("loan-groups")
 		endpoint = native_api.outstanding_loan_groups

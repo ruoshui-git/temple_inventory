@@ -98,6 +98,51 @@ def _doctype_needs_document_check(doctype):
 	)
 
 
+def _serialize_readable_names(doctype, names):
+	"""Check linked read access in batches while retaining custom document checks."""
+	from temple_inventory.native_topology import request_memo
+
+	names = set(names)
+	if not names:
+		return set()
+	needs_document_check = _doctype_needs_document_check(doctype)
+	if needs_document_check:
+		readable = set()
+		for name in names:
+			try:
+				frappe.get_doc(doctype, name).check_permission("read")
+			except frappe.PermissionError:
+				continue
+			readable.add(name)
+		return readable
+
+	memo = request_memo("native_document_read_permissions")
+	key = (doctype, frappe.session.user)
+	if memo is None:
+		return set(
+			frappe.get_list(
+				doctype,
+				filters={"name": ["in", sorted(names)]},
+				pluck="name",
+				limit_page_length=0,
+			)
+		)
+
+	permissions = memo.setdefault(key, {})
+	missing = names - permissions.keys()
+	if missing:
+		allowed = set(
+			frappe.get_list(
+				doctype,
+				filters={"name": ["in", sorted(missing)]},
+				pluck="name",
+				limit_page_length=0,
+			)
+		)
+		permissions.update({name: name in allowed for name in missing})
+	return {name for name in names if permissions[name]}
+
+
 def _stock_entry_needs_document_check():
 	return _doctype_needs_document_check("Stock Entry") or bool(
 		frappe.permissions.get_user_permissions(frappe.session.user).get("Warehouse")
@@ -114,36 +159,35 @@ def _serialize_bundle_caches(rows):
 		for field in ("serial_and_batch_bundle", "current_serial_and_batch_bundle")
 		if row.get(field)
 	}
-	if not names:
-		return {}, {}
-	if _doctype_needs_document_check("Serial and Batch Bundle"):
-		return {}, {}
-	meta = frappe.get_meta("Serial and Batch Bundle")
-	entries_field = meta.get_field("entries")
-	child_doctype = entries_field.options if entries_field else None
-	bundles = frappe.get_list(
-		"Serial and Batch Bundle",
-		filters={"name": ["in", sorted(names)]},
-		fields=["*"],
-		limit_page_length=0,
-	)
-	bundle_names = {row.name for row in bundles}
 	entries = defaultdict(list)
-	if child_doctype and bundle_names:
-		for row in frappe.get_all(
-			child_doctype,
-			filters={
-				"parent": ["in", sorted(bundle_names)],
-				"parenttype": "Serial and Batch Bundle",
-				"parentfield": "entries",
-			},
+	bundles = []
+	if names and not _doctype_needs_document_check("Serial and Batch Bundle"):
+		meta = frappe.get_meta("Serial and Batch Bundle")
+		entries_field = meta.get_field("entries")
+		child_doctype = entries_field.options if entries_field else None
+		bundles = frappe.get_list(
+			"Serial and Batch Bundle",
+			filters={"name": ["in", sorted(names)]},
 			fields=["*"],
-			order_by="parent asc, idx asc",
 			limit_page_length=0,
-		):
-			entries[row.parent].append(frappe._dict({**dict(row), "doctype": child_doctype}))
+		)
+		bundle_names = {row.name for row in bundles}
+		if child_doctype and bundle_names:
+			for row in frappe.get_all(
+				child_doctype,
+				filters={
+					"parent": ["in", sorted(bundle_names)],
+					"parenttype": "Serial and Batch Bundle",
+					"parentfield": "entries",
+				},
+				fields=["*"],
+				order_by="parent asc, idx asc",
+				limit_page_length=0,
+			):
+				entries[row.parent].append(frappe._dict({**dict(row), "doctype": child_doctype}))
 	batch_names = sorted(
 		{entry.batch_no for rows in entries.values() for entry in rows if entry.get("batch_no")}
+		| {row.get("batch_no") for row in rows if row.get("batch_no")}
 	)
 	batch_docs = {}
 	if batch_names and not _doctype_needs_document_check("Batch"):
@@ -165,6 +209,70 @@ def _serialize_bundle_caches(rows):
 		)
 		bundle_docs[row.name] = bundle
 	return bundle_docs, batch_docs
+
+
+def _serialize_item_display_summaries(item_codes):
+	"""Batch Item and private cover reads without repeating the File share lookup per row."""
+	from temple_inventory.native_files import FILE_PERMISSION_FIELDS, can_read, readable_parents
+	from temple_inventory.native_topology import request_memo
+	from temple_inventory.report_sources import _file_needs_document_check
+
+	items = frappe.get_list(
+		"Item",
+		filters={"name": ["in", sorted(item_codes) or [""]]},
+		fields=[
+			"name",
+			"item_name",
+			"image",
+			"has_batch_no",
+			"has_expiry_date",
+			"has_serial_no",
+			"serial_no_series",
+		],
+		limit_page_length=0,
+	)
+	memo = request_memo("native_document_read_permissions")
+	if memo is not None:
+		permissions = memo.setdefault(("Item", frappe.session.user), {})
+		readable_names = {row.name for row in items}
+		permissions.update({name: name in readable_names for name in item_codes})
+	images = {(row.name, row.image) for row in items if row.image}
+	files = frappe.get_list(
+		"File",
+		filters={
+			"attached_to_doctype": "Item",
+			"attached_to_name": ["in", sorted({name for name, _ in images}) or [""]],
+			"is_private": 1,
+			"file_url": ["in", sorted({image for _, image in images}) or [""]],
+		},
+		fields=list(FILE_PERMISSION_FIELDS),
+		order_by="creation asc, name asc",
+		limit_page_length=0,
+	)
+	readable_images = set()
+	document_check = _file_needs_document_check()
+	with readable_parents("Item", [row.name for row in items]):
+		for row in files:
+			if (row.attached_to_name, row.file_url) not in images:
+				continue
+			if document_check:
+				file_doc = frappe.get_doc({"doctype": "File", **dict(row)})
+				allowed = file_doc.has_permission("read") and can_read(file_doc)
+			else:
+				allowed = can_read(row)
+			if allowed:
+				readable_images.add((row.attached_to_name, row.file_url))
+		return {
+			row.name: {
+				"item_name": row.item_name,
+				"image": row.image if (row.name, row.image) in readable_images else "",
+				"has_batch_no": bool(row.has_batch_no),
+				"has_serial_no": bool(row.has_serial_no),
+				"has_expiry_date": bool(row.has_expiry_date),
+				"serial_no_series": row.serial_no_series or "",
+			}
+			for row in items
+		}
 
 
 def _require_supported_edit(doc):
@@ -275,29 +383,61 @@ def serialize(doc):
 	batch_permissions = {}
 	rows = [*(doc.get("items") or []), *(doc.get("ti_count_review") or [])]
 	bundle_docs, batch_docs = _serialize_bundle_caches(rows)
+	item_names = {row.get("item_code") for row in rows if row.get("item_code")}
+	display_document = (
+		doc.doctype in ("Stock Entry", "Stock Reconciliation") and not frappe.flags.ti_sample_seeding
+	)
+	if _doctype_needs_document_check("Item"):
+		readable_items = _serialize_readable_names("Item", item_names)
+	else:
+		readable_items = None
+	warehouse_names = {
+		row.get(field)
+		for row in rows
+		for field in ("warehouse", "s_warehouse", "t_warehouse")
+		if row.get(field)
+	}
+	from temple_inventory.native_stock import warehouse_scopes
+
+	visible_warehouses = warehouse_scopes()[1]
+	readable_warehouses = _serialize_readable_names("Warehouse", warehouse_names)
+	readable_warehouses.intersection_update(visible_warehouses)
+
+	def check_item(name):
+		return True if readable_items is not None and name in readable_items else None
+
+	def check_warehouse(name):
+		if name not in readable_warehouses:
+			frappe.throw("记录包含无权查看的位置", frappe.PermissionError)
 
 	def check_batch(name):
 		if name not in batch_permissions:
 			batch = batch_docs.get(name)
 			if not batch:
 				batch = frappe.get_doc("Batch", name)
-				batch.check_permission("read")
+				try:
+					batch.check_permission("read")
+				except frappe.PermissionError:
+					batch_permissions[name] = None
+					raise
 			batch_permissions[name] = batch
+		if batch_permissions[name] is None:
+			frappe.throw("记录包含无权查看的Batch", frappe.PermissionError)
 		return batch_permissions[name]
 
 	def load_bundle(name):
 		return bundle_docs.get(name)
 
-	from temple_inventory.native_stock import warehouse_scopes
-
-	visible_warehouses = warehouse_scopes()[1]
 	check_document_scope(
 		doc,
 		visible_warehouses=visible_warehouses,
+		item_checker=check_item if readable_items is not None else None,
 		batch_checker=check_batch,
+		warehouse_checker=check_warehouse,
 		bundle_cache=bundle_cache,
 		bundle_loader=load_bundle,
 	)
+	item_metadata = _serialize_item_display_summaries(sorted(item_names)) if display_document else {}
 	if doc.doctype == "Stock Entry":
 		kind = doc.get("ti_movement_kind") or {
 			"Material Receipt": "Receive",
@@ -316,14 +456,10 @@ def serialize(doc):
 				bundle_loader=load_bundle,
 			)
 	# The sample seeder discards responses, so it skips their display lookups.
-	if doc.doctype in ("Stock Entry", "Stock Reconciliation") and not frappe.flags.ti_sample_seeding:
+	if display_document:
 		display_rows = list(data.get("items", []))
 		if doc.doctype == "Stock Reconciliation":
 			display_rows += list(data.get("ti_count_review", []))
-		item_codes = sorted({line.get("item_code") for line in display_rows if line.get("item_code")})
-		from temple_inventory.catalog import item_display_summaries
-
-		item_metadata = item_display_summaries(item_codes)
 		batch_metadata = {}
 
 		def get_batch(name):

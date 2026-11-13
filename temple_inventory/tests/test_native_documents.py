@@ -375,6 +375,119 @@ class NativeDocumentTests(unittest.TestCase):
 		self.assertEqual(updated["items"][0].name, row_id)
 		self.assertEqual(frappe.get_doc("Stock Entry", draft.name).ti_source_text, "Frontend source")
 
+	def test_docshare_read_grants_native_document_access(self):
+		draft = self.create(self.movement())
+		user = frappe.get_doc(
+			{
+				"doctype": "User",
+				"email": f"docshare-{self.token}@example.test",
+				"first_name": "DocShare Reader",
+				"user_type": "System User",
+				"enabled": 1,
+				"send_welcome_email": 0,
+				"roles": [{"role": "Inventory Operator"}],
+			}
+		).insert(ignore_permissions=True)
+		frappe.share.add("Stock Entry", draft.name, user.name, read=1)
+		frappe.clear_cache(user=user.name)
+		frappe.set_user(user.name)
+		loaded = native_api.load_document("Stock Entry", draft.name)
+		self.assertEqual(loaded.identity, {"doctype": "Stock Entry", "name": draft.name})
+
+	def test_custom_item_and_batch_permissions_are_checked_per_linked_document(self):
+		for doctype in ("Item", "Batch"):
+			with self.subTest(doctype=doctype):
+
+				def load(_doctype, name):
+					def check_permission(permission):
+						if name == "refused" and permission == "read":
+							raise frappe.PermissionError
+
+					return SimpleNamespace(check_permission=check_permission)
+
+				with (
+					patch.object(native_api, "_doctype_needs_document_check", return_value=True),
+					patch.object(frappe, "get_doc", side_effect=load),
+				):
+					self.assertEqual(
+						native_api._serialize_readable_names(doctype, {"allowed", "refused"}),
+						{"allowed"},
+					)
+
+	def test_refused_linked_item_or_batch_keeps_document_scope_denial(self):
+		from temple_inventory.native_access import check_document_scope
+
+		for field, checker_name in (("item_code", "item_checker"), ("batch_no", "batch_checker")):
+			with self.subTest(field=field):
+				doc = frappe._dict(
+					doctype="Stock Entry",
+					company=self.company,
+					docstatus=1,
+					items=[
+						frappe._dict(**{field: "allowed"}),
+						frappe._dict(**{field: "refused"}),
+					],
+					ti_count_review=[],
+				)
+				kwargs = {
+					"company_checker": lambda _doc: None,
+					"visible_warehouses": set(),
+				}
+				if checker_name == "item_checker":
+					kwargs[checker_name] = lambda name: None if name == "refused" else True
+				else:
+
+					def check_batch(name):
+						if name == "refused":
+							frappe.throw("refused", frappe.PermissionError)
+						return True
+
+					kwargs[checker_name] = check_batch
+				with self.assertRaises(frappe.PermissionError):
+					check_document_scope(doc, **kwargs)
+
+	def test_refused_custom_file_hides_only_its_item_image(self):
+		items = [
+			frappe._dict(
+				name=f"item-{suffix}",
+				item_name=f"Item {suffix}",
+				image=f"/private/files/{suffix}.png",
+				has_batch_no=0,
+				has_serial_no=0,
+				has_expiry_date=0,
+				serial_no_series="",
+			)
+			for suffix in ("allowed", "refused")
+		]
+		files = [
+			frappe._dict(
+				name=f"file-{suffix}",
+				owner="Administrator",
+				is_private=1,
+				file_url=f"/private/files/{suffix}.png",
+				attached_to_doctype="Item",
+				attached_to_name=f"item-{suffix}",
+				attached_to_field="image",
+			)
+			for suffix in ("allowed", "refused")
+		]
+
+		def list_documents(doctype, **kwargs):
+			return items if doctype == "Item" else files
+
+		def get_file_doc(value):
+			return SimpleNamespace(has_permission=lambda permission: value["name"] == "file-allowed")
+
+		with (
+			patch.object(frappe, "get_list", side_effect=list_documents),
+			patch.object(frappe, "get_doc", side_effect=get_file_doc),
+			patch("temple_inventory.native_files.can_read", return_value=True),
+			patch("temple_inventory.report_sources._file_needs_document_check", return_value=True),
+		):
+			result = native_api._serialize_item_display_summaries(["item-allowed", "item-refused"])
+		self.assertEqual(result["item-allowed"]["image"], "/private/files/allowed.png")
+		self.assertEqual(result["item-refused"]["image"], "")
+
 	def test_stale_delete_submit_and_cancel_are_rejected(self):
 		draft = self.create(self.movement())
 		updated = native_api.save_document(
