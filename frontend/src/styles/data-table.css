@@ -29,7 +29,7 @@
 }
 .data-table-settings-outlet .data-table-column-trigger {
 	border: 0;
-	border-radius: 50%;
+	border-radius: var(--p-radius-pill);
 	background: transparent;
 	box-shadow: none;
 }
@@ -181,7 +181,7 @@
 	min-height: 28px;
 	padding: 0;
 	border: 1px solid var(--p-border);
-	border-radius: 50%;
+	border-radius: var(--p-radius-pill);
 	background: var(--p-surface);
 	color: var(--p-ink);
 	box-shadow: 0 2px 8px var(--p-shadow-color);
@@ -211,7 +211,7 @@
 		min-width: 44px;
 		min-height: 44px;
 		border: 0;
-		border-radius: 50%;
+		border-radius: var(--p-radius-pill);
 		background: transparent;
 		box-shadow: none;
 	}
@@ -442,7 +442,7 @@
 		position: absolute;
 		inset: 20% 3px;
 		content: "";
-		border-radius: 2px;
+		border-radius: var(--p-radius-xs);
 		background: var(--p-accent);
 	}
 }

@@ -198,6 +198,7 @@ watch(
 	border-radius: var(--p-radius-control);
 	background: var(--p-surface);
 	color: var(--p-ink);
+	/* Optical arrow glyph size. */
 	font-size: 1.75rem;
 }
 .item-lightbox-caption {

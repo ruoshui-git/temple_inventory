@@ -644,7 +644,7 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 		justify-self: start;
 		padding: var(--p-space-1) 9px;
 		border: 1px solid var(--p-border);
-		border-radius: 999px;
+		border-radius: var(--p-radius-pill);
 		background: var(--p-surface);
 		color: var(--p-ink);
 	}

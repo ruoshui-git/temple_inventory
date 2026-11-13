@@ -5,6 +5,7 @@ This document owns tokens, geometry and shared visual contracts. [UI_UX_DECISION
 ## Foundations
 
 - Shared semantic `--p-*` tokens own palette, status, spacing, density, type, shape, shadows, scrims and layer scale. Themes use `data-ti-theme`; artwork, photos, camera content and theme swatches retain their intended colors. Every `var(--p-*)` used must be defined in `foundation.css`; reuse an existing token (ink, small, soft, control radius, menu shadow/layer) rather than adding a synonym.
+- Themes change colours only; radius and type are the same in every theme (theme-specific sizing would be its own change). Shape tokens: `--p-radius-pill` (999px), `--p-radius-xs` (3px marks and bars), `--p-radius-sm` (6px chips, badges, tooltips), `--p-radius-inner` (8px inner controls), `--p-radius-control` (12px), `--p-radius-card` (18px), `--p-radius-none`. Type tokens, all scaled by `--p-text-scale`: `--p-micro` 11, `--p-small` 12, `--p-label` 13 (navigation, labels, metadata), `--p-body` 14, `--p-section` 18, `--p-heading` 24; inputs use `--p-input-text` (at least 16px so iOS does not zoom). No radius or font-size literal outside `foundation.css` token definitions, except optical glyph sizes with a comment.
 - Jade, bronze and blue are the app palettes. Non-production environment badge colors are sample amber `#8a4b08`, staging violet `#593d8c`, development blue `#245b9e`, all with white text. Production uses jade `#28684e` chrome and no badge.
 - AppFrame owns navigation and measured mobile obstruction. ApplicationShell supplies route/account context and registry breadcrumbs. Shared breakpoint is 1024px; coordinators mount one surface at a time.
 - Text scale is independent of density, including teleported content. Use semantic HTML, explicit labels, visible focus, reduced motion and 44px mobile/coarse-pointer targets.
@@ -80,6 +81,7 @@ Before visual browser inspection, run the browser under `scripts/ui-visual-prefl
 
 ## Changelog
 
+- 2026-11-13: radius and type are fixed tokens shared by every theme (bronze and blue lose their own radii); every radius and font-size literal moved onto `--p-radius-*` and `--p-micro`/`--p-small`/`--p-label`/`--p-body`/`--p-section`/`--p-heading`/`--p-input-text`, so rem-based text now follows the text-size setting too.
 - 2026-11-11: ItemCard thumbnails square again at every density (the 2026-11-09 fixed-height override is gone).
 - 2026-11-09: four-stop density scale with 超紧凑; `--p-cell-control`, `--p-table-line`, `--p-list-thumbnail`; split-button segments share one height.
 - 2026-11-04: sticky table layers, `--browse-sticky-bottom`, 40px group rows with a fine pointer.

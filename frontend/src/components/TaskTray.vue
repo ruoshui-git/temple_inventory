@@ -189,7 +189,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", keydown));
 	max-width: 100%;
 	padding-inline: var(--p-control-gap);
 	border: 1px solid var(--p-border);
-	border-radius: 999px;
+	border-radius: var(--p-radius-pill);
 	background: var(--p-surface);
 	color: var(--p-ink);
 	box-shadow: var(--p-shadow-raised);
@@ -205,7 +205,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", keydown));
 	width: 48px;
 	height: 4px;
 	overflow: hidden;
-	border-radius: 2px;
+	border-radius: var(--p-radius-xs);
 	background: var(--p-border-soft);
 }
 .task-tray-meter > span {
@@ -219,13 +219,13 @@ onBeforeUnmount(() => document.removeEventListener("keydown", keydown));
 	overflow: auto;
 	padding: var(--p-card-inner-pad);
 	border: 1px solid var(--p-border);
-	border-radius: var(--p-radius-card, 12px);
+	border-radius: var(--p-radius-card);
 	background: var(--p-surface);
 	box-shadow: var(--p-shadow-raised);
 }
 .task-tray-title {
 	margin: 0 0 var(--p-space-2, var(--p-space-2));
-	font-size: 1rem;
+	font-size: var(--p-body);
 }
 .task-tray-list {
 	display: grid;
@@ -248,7 +248,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", keydown));
 .task-tray-stage,
 .task-tray-error {
 	margin: var(--p-space-1) 0;
-	font-size: 0.875rem;
+	font-size: var(--p-body);
 }
 .task-tray-error {
 	color: var(--p-danger);
@@ -258,7 +258,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", keydown));
 	display: block;
 	height: 4px;
 	overflow: hidden;
-	border-radius: 2px;
+	border-radius: var(--p-radius-xs);
 	background: var(--p-border-soft);
 }
 .task-tray-progress > span {

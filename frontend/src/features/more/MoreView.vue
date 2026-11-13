@@ -129,7 +129,7 @@ const displayGroups = computed(() =>
 		row-gap: var(--p-field-gap);
 		padding: var(--p-control-pad-y) var(--p-control-gap) !important;
 		border: 0 !important;
-		border-radius: 0 !important;
+		border-radius: var(--p-radius-none) !important;
 		box-shadow: none !important;
 		border-bottom: 1px solid var(--p-border) !important;
 	}
@@ -149,11 +149,11 @@ const displayGroups = computed(() =>
 	}
 	.more-card > strong {
 		align-self: end;
-		font-size: 0.95rem;
+		font-size: var(--p-body);
 	}
 	.more-card > small {
 		align-self: start;
-		font-size: 0.78rem;
+		font-size: var(--p-small);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -164,7 +164,7 @@ const displayGroups = computed(() =>
 		content: "›";
 		justify-self: end;
 		color: var(--p-muted);
-		font-size: 1.3rem;
+		font-size: var(--p-section);
 	}
 	.account-card {
 		grid-template-columns: minmax(0, 1fr) auto;

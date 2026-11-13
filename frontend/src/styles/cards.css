@@ -58,7 +58,7 @@
 	margin-inline-start: auto;
 	padding-block: 0.65rem;
 	color: var(--p-muted);
-	font-size: 0.875em;
+	font-size: var(--p-small);
 }
 .stock-card-group-actions {
 	margin-block: 0.5rem;
@@ -136,7 +136,7 @@
 	width: 100%;
 	height: auto;
 	aspect-ratio: 1;
-	border-radius: 0;
+	border-radius: var(--p-radius-none);
 	background: var(--p-surface);
 }
 .browse-card-item--row
@@ -232,7 +232,7 @@
 	display: grid;
 	place-items: center;
 	background: var(--p-surface);
-	border-radius: 5px;
+	border-radius: var(--p-radius-sm);
 	width: 44px;
 	height: 44px;
 }
@@ -252,7 +252,7 @@
 	padding: var(--p-card-pad);
 }
 .item-card-content .eyebrow {
-	font-size: calc(10px * var(--p-text-scale, 1));
+	font-size: var(--p-micro);
 	margin-bottom: 6px;
 }
 .stock-number {
@@ -263,7 +263,7 @@
 	color: var(--p-muted);
 }
 .stock-number strong {
-	font-size: calc(28px * var(--p-text-scale, 1));
+	font-size: var(--p-heading);
 	color: var(--p-ink);
 	font-weight: 550;
 	letter-spacing: -0.03em;
@@ -278,7 +278,7 @@
 .item-card-content > small {
 	display: block;
 	margin-top: 6px;
-	font-size: calc(11px * var(--p-text-scale, 1));
+	font-size: var(--p-micro);
 }
 .stock-list {
 	display: grid;
@@ -308,7 +308,7 @@
 	width: 64px;
 	height: 64px;
 	min-width: 64px;
-	border-radius: 8px;
+	border-radius: var(--p-radius-inner);
 	overflow: hidden;
 }
 .stock-list-identity {
@@ -367,7 +367,7 @@
 	display: flex;
 	gap: 6px;
 	color: var(--p-muted);
-	font-size: calc(10px * var(--p-text-scale, 1));
+	font-size: var(--p-micro);
 }
 .stock-list-checkbox {
 	display: grid;
@@ -404,10 +404,10 @@
 }
 @media (max-width: 640px) {
 	.item-card-content .eyebrow {
-		font-size: calc(12px * var(--p-text-scale, 1));
+		font-size: var(--p-small);
 	}
 	.item-card-content > small {
-		font-size: calc(12px * var(--p-text-scale, 1));
+		font-size: var(--p-small);
 	}
 }
 

@@ -26,7 +26,7 @@ const { visible, style, thumbStyle, spacerWidth, fromProxy } = useFloatingScroll
 	height: 18px;
 	z-index: var(--p-z-sticky);
 	border: 1px solid var(--p-border);
-	border-radius: 999px;
+	border-radius: var(--p-radius-pill);
 	background: color-mix(in srgb, var(--p-surface) 96%, var(--p-ink));
 	box-shadow: var(--p-shadow-subtle);
 	pointer-events: none;
@@ -45,16 +45,16 @@ const { visible, style, thumbStyle, spacerWidth, fromProxy } = useFloatingScroll
 .floating-table-scrollbar::-webkit-scrollbar {
 	height: 12px;
 	background: var(--p-soft);
-	border-radius: 999px;
+	border-radius: var(--p-radius-pill);
 }
 .floating-table-scrollbar::-webkit-scrollbar-track {
 	background: var(--p-soft);
-	border-radius: 999px;
+	border-radius: var(--p-radius-pill);
 }
 .floating-table-scrollbar::-webkit-scrollbar-thumb {
 	background: var(--p-accent-strong);
 	border: 2px solid var(--p-soft);
-	border-radius: 999px;
+	border-radius: var(--p-radius-pill);
 }
 @media (hover: hover) {
 	.floating-table-scrollbar::-webkit-scrollbar-thumb:hover {
@@ -65,7 +65,7 @@ const { visible, style, thumbStyle, spacerWidth, fromProxy } = useFloatingScroll
 	position: absolute;
 	top: 3px;
 	height: 10px;
-	border-radius: 999px;
+	border-radius: var(--p-radius-pill);
 	background: var(--p-accent-strong);
 	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--p-surface) 35%, transparent);
 	pointer-events: none;

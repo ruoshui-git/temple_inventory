@@ -420,7 +420,7 @@ defineExpose({
 	padding: var(--p-control-pad-y) var(--p-control-gap);
 	background: var(--p-surface);
 	border: 1px solid var(--p-border);
-	border-radius: 10px;
+	border-radius: var(--p-radius-inner);
 	box-shadow: var(--p-shadow-raised);
 }
 .search-select-menu.has-virtual-list {
@@ -446,7 +446,7 @@ li,
 	justify-content: center;
 	padding: var(--p-control-pad-y) var(--p-control-gap);
 	cursor: pointer;
-	border-radius: 6px;
+	border-radius: var(--p-radius-sm);
 }
 li.active,
 .virtual-option.active {

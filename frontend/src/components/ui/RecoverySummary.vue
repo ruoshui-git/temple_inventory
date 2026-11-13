@@ -383,7 +383,7 @@ async function copy() {
 .recovery-copy-fallback {
 	width: 100%;
 	min-height: 12rem;
-	font: 12px/1.5 monospace;
+	font: var(--p-small)/1.5 monospace;
 }
 .recovery-summary-table td {
 	vertical-align: top;

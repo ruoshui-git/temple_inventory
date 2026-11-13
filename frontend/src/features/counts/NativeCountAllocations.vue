@@ -79,7 +79,7 @@ const serialAllocations = computed(
 	max-width: 100%;
 	white-space: normal;
 	overflow-wrap: anywhere;
-	font-size: 0.78rem;
+	font-size: var(--p-small);
 }
 .count-serial-detail p {
 	margin: var(--p-field-gap) 0;

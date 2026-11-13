@@ -1189,7 +1189,7 @@ function openDetailsRow() {
 	min-height: 0;
 	padding: 0;
 	color: var(--p-accent-strong);
-	font-size: 0.92rem;
+	font-size: var(--p-body);
 	font-weight: 650;
 }
 .draft-entry-meta > span {
@@ -1225,7 +1225,7 @@ function openDetailsRow() {
 	align-items: center;
 	gap: var(--p-field-gap);
 	padding: var(--p-control-pad-y) var(--p-control-gap);
-	border-radius: 999px;
+	border-radius: var(--p-radius-pill);
 	background: var(--p-soft);
 	font-size: var(--p-small);
 }
@@ -1244,7 +1244,7 @@ function openDetailsRow() {
 	.drafts-explainer {
 		margin-top: var(--p-space-2);
 		color: var(--p-muted);
-		font-size: 0.84rem;
+		font-size: var(--p-label);
 	}
 	.draft-entry {
 		grid-template-columns: minmax(0, 1fr) auto;
@@ -1276,11 +1276,11 @@ function openDetailsRow() {
 		white-space: nowrap;
 	}
 	.draft-entry-heading strong {
-		font-size: 0.92rem;
+		font-size: var(--p-body);
 	}
 	.draft-entry-meta {
 		color: var(--p-muted);
-		font-size: 0.78rem;
+		font-size: var(--p-small);
 	}
 	.draft-entry .browse-row-actions {
 		grid-column: 2;
@@ -1295,7 +1295,7 @@ function openDetailsRow() {
 	.draft-entry .browse-row-actions :deep(.ui-button) {
 		min-height: 44px;
 		padding-inline: var(--p-space-2);
-		font-size: 0.78rem;
+		font-size: var(--p-small);
 	}
 }
 </style>

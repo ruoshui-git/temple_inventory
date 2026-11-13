@@ -55,7 +55,7 @@ body:has(.browse-page) {
 	padding: var(--p-space-2) 0;
 	border: 0;
 	border-bottom: 1px solid var(--p-border);
-	border-radius: 0;
+	border-radius: var(--p-radius-none);
 	text-align: left;
 }
 .browse-rank-row {
@@ -153,7 +153,7 @@ body:has(.browse-page) {
 	min-height: 28px;
 	align-items: center;
 	padding: 2px 9px;
-	border-radius: 99px;
+	border-radius: var(--p-radius-pill);
 	background: var(--p-info-bg);
 	color: var(--p-info);
 	font-size: var(--p-small);
@@ -182,7 +182,8 @@ body:has(.browse-page) {
 }
 .browse-tabs button {
 	min-height: 42px;
-	border-radius: var(--p-radius-control) var(--p-radius-control) 0 0;
+	border-radius: var(--p-radius-control) var(--p-radius-control) var(--p-radius-none)
+		var(--p-radius-none);
 	color: var(--p-muted);
 }
 .browse-tabs button[aria-current="page"] {
@@ -204,7 +205,7 @@ body:has(.browse-page) {
 	width: 46px;
 	height: 46px;
 	place-items: center;
-	border-radius: 50%;
+	border-radius: var(--p-radius-pill);
 	background: var(--p-soft);
 	color: var(--p-muted);
 }
@@ -298,7 +299,7 @@ body:has(.browse-page) {
 	.browse-summary-copy {
 		flex: 1 1 0;
 		gap: 3px;
-		font-size: 12px;
+		font-size: var(--p-small);
 		white-space: nowrap;
 	}
 	.browse-summary-controls {
@@ -320,7 +321,7 @@ body:has(.browse-page) {
 		min-height: 44px;
 		padding-block: 2px;
 		gap: 2px;
-		font-size: 10px;
+		font-size: var(--p-micro);
 	}
 }
 :root:not([data-ti-text-scale="100"]) .browse-summary-line,
@@ -452,7 +453,7 @@ body:has(.browse-page) {
 }
 .ti-disclosure-section-body h3 {
 	margin: var(--p-space-3) 0 var(--p-space-2);
-	font-size: 0.9375rem;
+	font-size: var(--p-body);
 	font-weight: 600;
 	line-height: 1.3;
 }
@@ -536,7 +537,7 @@ body:has(.browse-page) {
 	padding: var(--p-control-pad-y) var(--p-space-3);
 	border: 1px solid var(--p-border);
 	background: var(--p-surface);
-	border-radius: 10px;
+	border-radius: var(--p-radius-inner);
 	text-align: left;
 }
 .period-trigger strong {
@@ -623,7 +624,7 @@ body:has(.browse-page) {
 	flex-direction: column;
 	gap: var(--p-space-2);
 	border-inline-end: 1px solid var(--p-border);
-	border-radius: 0;
+	border-radius: var(--p-radius-none);
 	margin-inline-end: calc(-1 * var(--p-gap));
 }
 .filter-rail-edge-icon {
@@ -638,7 +639,7 @@ body:has(.browse-page) {
 	right: 4px;
 	width: 6px;
 	height: 6px;
-	border-radius: 50%;
+	border-radius: var(--p-radius-pill);
 	background: var(--p-accent);
 }
 .filter-rail-collapse:focus-visible,
@@ -657,7 +658,7 @@ body:has(.browse-page) {
 	}
 }
 .browse-filter-rail {
-	border-radius: 0;
+	border-radius: var(--p-radius-none);
 	background: transparent;
 	max-height: calc(
 		100dvh - var(--app-desktop-nav-height, 0px) - var(--browse-toolbar-height, 0px) -
@@ -814,7 +815,7 @@ body:has(.browse-page) {
 	min-height: var(--p-control);
 	background: var(--p-soft);
 	text-align: left;
-	border-radius: 10px;
+	border-radius: var(--p-radius-inner);
 }
 .expiry-grid .is-expired {
 	border-bottom: 2px solid var(--p-danger);
@@ -832,7 +833,7 @@ body:has(.browse-page) {
 	display: block;
 	background: var(--p-soft);
 	height: 14px;
-	border-radius: 4px;
+	border-radius: var(--p-radius-sm);
 	overflow: hidden;
 }
 .chart-bar-track > span {
@@ -1058,7 +1059,7 @@ body:has(.browse-page) {
 	.browse-filter-dense .hierarchy-facet .facet-chips::-webkit-scrollbar-thumb,
 	.browse-filter-dense .hierarchy-facet .facet-suggestions::-webkit-scrollbar-thumb {
 		border: 2px solid var(--p-surface);
-		border-radius: 999px;
+		border-radius: var(--p-radius-pill);
 		background: var(--p-control-border);
 	}
 }
@@ -1078,7 +1079,7 @@ body:has(.browse-page) {
 	height: var(--p-card-image-size);
 	flex-shrink: 0;
 	overflow: hidden;
-	border-radius: 8px;
+	border-radius: var(--p-radius-inner);
 }
 .browse-group-thumbnail .item-image-button {
 	width: 100%;
@@ -1166,7 +1167,7 @@ body:has(.browse-page) {
 	padding: var(--p-space-2) 0;
 	border: 0;
 	border-bottom: 1px solid var(--p-border);
-	border-radius: 0;
+	border-radius: var(--p-radius-none);
 	background: transparent;
 	box-shadow: none;
 }
@@ -1462,7 +1463,7 @@ body:has(.browse-page) {
 .dashboard .dashboard-segmented button {
 	min-height: 30px;
 	padding: var(--p-space-1) 9px;
-	border-radius: calc(var(--p-radius-control) - 2px);
+	border-radius: var(--p-radius-sm);
 }
 .dashboard .dashboard-segmented button[aria-selected="true"] {
 	color: var(--p-accent-strong);
@@ -1600,7 +1601,7 @@ body:has(.browse-page) {
 	margin: 0;
 	padding: 2px var(--p-space-1);
 	border: 0;
-	border-radius: 0;
+	border-radius: var(--p-radius-none);
 	background: transparent !important;
 	color: var(--p-accent-strong);
 	font-size: var(--p-small);
@@ -2054,7 +2055,8 @@ body:has(.browse-page) {
 	min-height: var(--p-control);
 	border: 1px solid var(--p-accent-strong);
 	border-inline-start-color: color-mix(in srgb, var(--p-surface) 38%, var(--p-accent));
-	border-radius: 0 var(--p-radius-control) var(--p-radius-control) 0;
+	border-radius: var(--p-radius-none) var(--p-radius-control) var(--p-radius-control)
+		var(--p-radius-none);
 	background: var(--p-accent);
 	color: var(--p-on-accent);
 	cursor: pointer;
@@ -2075,7 +2077,8 @@ body:has(.browse-page) {
 	color: var(--p-ink);
 }
 .browse-split-button .popup-menu-trigger {
-	border-radius: 0 var(--p-radius-control) var(--p-radius-control) 0;
+	border-radius: var(--p-radius-none) var(--p-radius-control) var(--p-radius-control)
+		var(--p-radius-none);
 }
 @media (pointer: coarse) {
 	.browse-split-button {
@@ -2353,7 +2356,7 @@ body:has(.browse-page) {
 	max-width: 100%;
 	max-width: min(20rem, 100%);
 	border: 1px solid var(--p-border);
-	border-radius: 999px;
+	border-radius: var(--p-radius-pill);
 	background: var(--p-soft);
 	color: var(--p-ink);
 	font-size: var(--p-small);
@@ -2383,6 +2386,7 @@ body:has(.browse-page) {
 	flex: 0 0 30px;
 	width: 30px;
 	padding: 0;
+	/* Optical remove glyph size. */
 	font-size: 18px;
 	line-height: 1;
 }
@@ -2396,7 +2400,7 @@ body:has(.browse-page) {
 	max-width: min(20rem, 100%);
 	padding: var(--p-space-1) 9px;
 	border: 1px solid var(--p-border);
-	border-radius: 999px;
+	border-radius: var(--p-radius-pill);
 	background: var(--p-soft);
 	color: var(--p-ink);
 	font-size: var(--p-small);
@@ -2491,7 +2495,7 @@ body:has(.browse-page) {
 	min-height: 36px;
 	padding: var(--p-space-1) 10px;
 	border: 1px solid var(--p-border);
-	border-radius: 999px;
+	border-radius: var(--p-radius-pill);
 	background: var(--p-surface);
 	color: var(--p-ink);
 	font-size: var(--p-small);
@@ -2519,7 +2523,7 @@ body:has(.browse-page) {
 	min-height: 40px;
 	padding: 6px 10px;
 	border: 0;
-	border-radius: 6px;
+	border-radius: var(--p-radius-sm);
 	background: transparent;
 	color: var(--p-ink);
 	text-align: start;
@@ -2924,19 +2928,21 @@ body:has(.browse-page) {
 		height: 48px;
 		box-sizing: border-box;
 		padding-inline: 14px;
-		border-radius: 999px 0 0 999px;
+		border-radius: var(--p-radius-pill) var(--p-radius-none) var(--p-radius-none)
+			var(--p-radius-pill);
 		background: var(--p-accent);
 		color: var(--p-on-accent);
 	}
 	.browse-split-button > .ui-button:only-child {
 		padding-inline: 18px;
-		border-radius: 999px;
+		border-radius: var(--p-radius-pill);
 	}
 	.browse-split-button .popup-menu-trigger {
 		min-width: 44px;
 		min-height: 48px;
 		height: 48px;
-		border-radius: 0 999px 999px 0;
+		border-radius: var(--p-radius-none) var(--p-radius-pill) var(--p-radius-pill)
+			var(--p-radius-none);
 		background: var(--p-accent);
 		color: var(--p-on-accent);
 		border-inline-start: 1px solid color-mix(in srgb, var(--p-surface) 38%, var(--p-accent));
@@ -2970,7 +2976,7 @@ body:has(.browse-page) {
 		min-height: 44px;
 		padding: 0;
 		border: 0;
-		border-radius: 50%;
+		border-radius: var(--p-radius-pill);
 		background: transparent;
 		box-shadow: none;
 	}
@@ -3000,7 +3006,7 @@ body:has(.browse-page) {
 	width: 44px;
 	min-height: 44px;
 	border: 1px solid var(--p-border);
-	border-radius: 50%;
+	border-radius: var(--p-radius-pill);
 	background: var(--p-surface);
 	color: var(--p-ink);
 	cursor: pointer;
@@ -3614,7 +3620,7 @@ body:has(.browse-page) {
 	margin: 0;
 	padding: 2px var(--p-space-1);
 	border: 0;
-	border-radius: 0;
+	border-radius: var(--p-radius-none);
 	background: transparent;
 	color: var(--p-accent-strong);
 	font-size: var(--p-small);

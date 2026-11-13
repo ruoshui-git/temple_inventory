@@ -88,12 +88,12 @@ watch([c.unreadOnly, c.notificationType], () => void c.refresh());
 	.notification-page-list :deep(.notification-rows li.is-export .notification-subject) {
 		word-break: normal;
 		overflow-wrap: break-word;
-		font-size: 0.9rem;
+		font-size: var(--p-body);
 	}
 	.notification-page-list :deep(.notification-rows li.is-export .ui-button) {
 		min-height: 32px;
 		padding-inline: 7px;
-		font-size: 0.78rem;
+		font-size: var(--p-small);
 	}
 }
 </style>

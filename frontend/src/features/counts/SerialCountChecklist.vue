@@ -215,19 +215,19 @@ async function addFound() {
 }
 .serial-count-group > strong {
 	color: var(--p-muted);
-	font-size: 0.78rem;
+	font-size: var(--p-small);
 }
 .serial-count-chip {
 	min-height: var(--p-cell-control);
 	max-width: 100%;
 	box-sizing: border-box;
 	border: 1px solid var(--p-border);
-	border-radius: 999px;
+	border-radius: var(--p-radius-pill);
 	padding: var(--p-control-pad-y) var(--p-field-gap);
 	color: var(--p-ink);
 	background: var(--p-surface);
 	font: inherit;
-	font-size: 0.8rem;
+	font-size: var(--p-label);
 	overflow-wrap: anywhere;
 }
 .serial-count-chip.is-present {
@@ -253,12 +253,12 @@ async function addFound() {
 .serial-count-error {
 	margin: 0;
 	color: var(--p-danger);
-	font-size: 0.8rem;
+	font-size: var(--p-label);
 }
 .serial-count-pending,
 .serial-count-empty {
 	color: var(--p-muted);
-	font-size: 0.78rem;
+	font-size: var(--p-small);
 }
 @media (max-width: 1023px) {
 	.serial-count-toolbar {

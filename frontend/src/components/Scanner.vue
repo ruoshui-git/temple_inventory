@@ -531,7 +531,7 @@ defineExpose({
 	aspect-ratio: 1;
 	transform: translate(-50%, -50%);
 	box-sizing: border-box;
-	box-shadow: 0 0 0 999px color-mix(in srgb, var(--p-ink) 42%, transparent);
+	box-shadow: 0 0 0 var(--p-radius-pill) color-mix(in srgb, var(--p-ink) 42%, transparent);
 	color: var(--p-surface);
 	pointer-events: none;
 	transition:

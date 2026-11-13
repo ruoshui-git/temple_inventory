@@ -1171,8 +1171,9 @@ async function selectExisting(code: string, warehouse: string) {
 	height: 22px;
 	place-items: center;
 	border: 1px solid var(--p-control-border);
-	border-radius: 5px;
+	border-radius: var(--p-radius-sm);
 	color: white;
+	/* Optical checkmark glyph size. */
 	font-size: 15px;
 }
 .picker-phone-row.selected .picker-phone-checkmark {

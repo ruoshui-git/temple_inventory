@@ -105,7 +105,7 @@ withDefaults(
 	width: 64px;
 	height: 64px;
 	margin: 0;
-	border-radius: 8px;
+	border-radius: var(--p-radius-inner);
 	flex: none;
 }
 .skeleton-block__stock-copy {
@@ -129,7 +129,7 @@ withDefaults(
 	height: 18px;
 	margin-inline: 13px;
 	border: 1px solid var(--p-control-border);
-	border-radius: 3px;
+	border-radius: var(--p-radius-xs);
 }
 .skeleton-block__card-image {
 	aspect-ratio: 1;
@@ -149,7 +149,7 @@ withDefaults(
 .skeleton-block--card .skeleton-block__card-image {
 	margin: calc(0px - var(--p-card-pad)) calc(0px - var(--p-card-pad)) 0;
 	width: calc(100% + var(--p-card-pad) + var(--p-card-pad));
-	border-radius: 0;
+	border-radius: var(--p-radius-none);
 }
 .skeleton-block__detail-grid {
 	display: grid;

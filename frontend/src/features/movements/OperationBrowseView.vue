@@ -2482,7 +2482,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 }
 .drafts-entry-link .menu-item-meta {
 	padding: 1px 5px;
-	border-radius: 999px;
+	border-radius: var(--p-radius-pill);
 	background: var(--p-soft);
 	text-align: center;
 	font-size: var(--p-small);

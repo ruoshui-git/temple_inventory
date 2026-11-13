@@ -236,7 +236,7 @@ const {
 }
 .category-kind {
 	color: var(--p-muted);
-	font-size: 0.8rem;
+	font-size: var(--p-label);
 }
 .category-expand,
 .category-expand-spacer {
@@ -267,7 +267,7 @@ const {
 }
 .category-recovery h2 {
 	margin-block: 0 6px;
-	font-size: 1rem;
+	font-size: var(--p-body);
 }
 @media (max-width: 1023px) {
 	.category-management > :deep(.app-page-header) {

@@ -947,7 +947,7 @@ function datasetChanged(dataset: ReportDataset) {
 		padding: var(--p-control-pad-y) var(--p-control-gap);
 		flex-direction: column;
 		gap: var(--p-field-gap);
-		font-size: 0.78rem;
+		font-size: var(--p-small);
 	}
 	.dashboard-quick-actions > :deep(.ui-button svg) {
 		width: 20px;
@@ -968,7 +968,7 @@ function datasetChanged(dataset: ReportDataset) {
 		background: transparent;
 		box-shadow: none;
 		color: var(--p-muted);
-		font-size: 0.84rem;
+		font-size: var(--p-label);
 	}
 	.dashboard-inventory :deep(.browse-card-heading) {
 		justify-content: flex-start;

@@ -61,7 +61,7 @@ input[list]::-webkit-calendar-picker-indicator {
 }
 .form-page .form-record-tag {
 	padding: 6px 10px;
-	border-radius: 999px;
+	border-radius: var(--p-radius-pill);
 	background: var(--p-soft);
 	color: var(--p-accent-strong);
 	white-space: normal;
@@ -478,12 +478,12 @@ input[list]::-webkit-calendar-picker-indicator {
 .operation-row-stock-total,
 .operation-row-stock-total-empty {
 	align-self: center;
-	font-size: 0.75rem;
+	font-size: var(--p-small);
 	white-space: nowrap;
 }
 .operation-row-existing {
 	min-width: 0;
-	font-size: 0.7rem;
+	font-size: var(--p-micro);
 	line-height: 1.2;
 	white-space: normal;
 }
@@ -555,11 +555,11 @@ input[list]::-webkit-calendar-picker-indicator {
 	-webkit-box-orient: vertical;
 	-webkit-line-clamp: 2;
 	overflow: hidden;
-	font-size: 0.875rem;
+	font-size: var(--p-body);
 }
 .operation-compact-identity small {
 	color: var(--p-muted);
-	font-size: 0.7rem;
+	font-size: var(--p-micro);
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	overflow: hidden;
@@ -592,7 +592,7 @@ input[list]::-webkit-calendar-picker-indicator {
 .operation-row-cell > .utility-error {
 	margin: 0;
 	padding: var(--p-space-1) 6px;
-	font-size: 0.72rem;
+	font-size: var(--p-micro);
 	line-height: 1.2;
 }
 .operation-row-cell input,
@@ -603,7 +603,7 @@ input[list]::-webkit-calendar-picker-indicator {
 .operation-row-cell input {
 	min-height: var(--p-control);
 	padding: var(--p-control-pad-y) var(--p-table-cell-x);
-	font-size: 0.82rem;
+	font-size: var(--p-label);
 }
 .operation-row-cell input[type="date"] {
 	padding-inline: var(--p-space-1);
@@ -614,7 +614,7 @@ input[list]::-webkit-calendar-picker-indicator {
 .operation-row-cell .search-select .search-select-input input {
 	min-height: var(--p-control);
 	padding: var(--p-control-pad-y) 28px var(--p-control-pad-y) var(--p-table-cell-x);
-	font-size: 0.82rem;
+	font-size: var(--p-label);
 }
 .operation-phone-field-label {
 	display: none;
@@ -624,7 +624,7 @@ input[list]::-webkit-calendar-picker-indicator {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	font-size: 0.82rem;
+	font-size: var(--p-label);
 }
 .operation-row-quantity {
 	width: 88px;
@@ -724,7 +724,7 @@ input[list]::-webkit-calendar-picker-indicator {
 		min-width: 40px;
 		min-height: 40px;
 		padding: 0;
-		font-size: 1.35rem;
+		font-size: var(--p-heading);
 	}
 	.operation-add-item-desktop,
 	.operation-column-headings {
@@ -781,7 +781,7 @@ input[list]::-webkit-calendar-picker-indicator {
 	.operation-phone-field-label {
 		display: block;
 		color: var(--p-muted);
-		font-size: 0.68rem;
+		font-size: var(--p-micro);
 		line-height: 1.1;
 	}
 	.operation-compact-row:not(.is-batch-tracked) .operation-row-batch {
@@ -827,10 +827,10 @@ input[list]::-webkit-calendar-picker-indicator {
 		max-width: 100%;
 		min-height: 44px;
 		padding-inline: var(--p-space-1);
-		font-size: 16px;
+		font-size: var(--p-input-text);
 	}
 	.operation-row-batch input[data-field="batch"]::placeholder {
-		font-size: 0.66rem;
+		font-size: var(--p-micro);
 	}
 	.operation-row-cell input,
 	.operation-row-cell .search-select .search-select-input input {
@@ -866,13 +866,13 @@ input[list]::-webkit-calendar-picker-indicator {
 	}
 	.operation-page-title-row h1 {
 		flex: 1 1 auto;
-		font-size: clamp(1.15rem, 5vw, var(--p-heading));
+		font-size: clamp(var(--p-section), 5vw, var(--p-heading));
 	}
 	.ui-overlay .ui-drawer {
 		width: 100%;
 		height: 100dvh;
 		max-height: 100dvh;
-		border-radius: 0;
+		border-radius: var(--p-radius-none);
 	}
 }
 .workspace-expanded .form-page-heading,
@@ -922,7 +922,8 @@ input[list]::-webkit-calendar-picker-indicator {
 }
 .workspace-expanded {
 	padding-bottom: calc(
-		var(--form-review-height, 180px) + var(--app-nav-height, 0px) + var(--p-space-6) + env(safe-area-inset-bottom, 0px)
+		var(--form-review-height, 180px) + var(--app-nav-height, 0px) + var(--p-space-6) +
+			env(safe-area-inset-bottom, 0px)
 	);
 }
 @media (max-width: 1023px) {
@@ -954,7 +955,7 @@ input[list]::-webkit-calendar-picker-indicator {
 		margin: 0;
 		padding: 6px var(--p-space-2);
 		border: 1px solid var(--p-border);
-		border-radius: 14px;
+		border-radius: var(--p-radius-card);
 		white-space: nowrap;
 	}
 	.document-actions > p {
@@ -1099,7 +1100,7 @@ input[list]::-webkit-calendar-picker-indicator {
 	max-height: 32px;
 	padding-inline: var(--p-space-2);
 	border: 1px solid var(--p-border);
-	border-radius: 999px;
+	border-radius: var(--p-radius-pill);
 	background: var(--p-soft);
 	color: var(--p-ink);
 	cursor: pointer;

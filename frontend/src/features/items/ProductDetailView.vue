@@ -552,7 +552,7 @@ const productExportColumns = computed(() => {
 .item-detail-top > .browse-detail-image {
 	width: 100%;
 	flex: initial;
-	border-radius: 0;
+	border-radius: var(--p-radius-none);
 	overflow: visible;
 }
 .item-facts-grid {
@@ -569,11 +569,11 @@ const productExportColumns = computed(() => {
 }
 .item-disabled-badge {
 	display: inline-flex;
-	border-radius: 999px;
+	border-radius: var(--p-radius-pill);
 	padding: 2px var(--p-space-2);
 	color: var(--p-warning);
 	background: var(--p-warning-bg);
-	font-size: 0.8rem;
+	font-size: var(--p-label);
 }
 @media (max-width: 1023px) {
 	.item-detail-top {

@@ -130,20 +130,16 @@ describe("shared production design system", () => {
     );
   });
 
-  it("preserves exact approved theme values and radius differences at the document root", () => {
+  it("keeps theme colors distinct and geometry fixed at the document root", () => {
     const expected = {
-      jade: ["#F4F6F3", "#24332D", "#28684E", "12px", "18px"],
-      blue: ["#F5F7FA", "#202938", "#245DB5", "6px", "8px"],
-      bronze: ["#F7F5F0", "#292622", "#895024", "10px", "14px"],
+      jade: ["#F4F6F3", "#24332D", "#28684E"],
+      blue: ["#F5F7FA", "#202938", "#245DB5"],
+      bronze: ["#F7F5F0", "#292622", "#895024"],
     };
     for (const theme of themes) {
-      expect([
-        theme.canvas,
-        theme.ink,
-        theme.accent,
-        theme.radius,
-        theme.cardRadius,
-      ]).toEqual(expected[theme.id]);
+      expect([theme.canvas, theme.ink, theme.accent]).toEqual(
+        expected[theme.id],
+      );
       applyDisplayPreferences({
         theme: theme.id,
         density: "balanced",
@@ -158,7 +154,18 @@ describe("shared production design system", () => {
       expect(themeTokens.get("--p-canvas")).toBe(theme.canvas.toLowerCase());
       expect(themeTokens.get("--p-ink")).toBe(theme.ink.toLowerCase());
       expect(themeTokens.get("--p-accent")).toBe(theme.accent.toLowerCase());
-      expect(themeTokens.get("--p-radius-card")).toBe(theme.cardRadius);
+      expect(themeTokens.get("--p-radius-control")).toBe("12px");
+      expect(themeTokens.get("--p-radius-card")).toBe("18px");
+      expect(
+        declarations(`:root[data-ti-theme="${theme.id}"]`).has(
+          "--p-radius-control",
+        ),
+      ).toBe(false);
+      expect(
+        declarations(`:root[data-ti-theme="${theme.id}"]`).has(
+          "--p-radius-card",
+        ),
+      ).toBe(false);
       expect(style.getPropertyValue("--p-canvas")).toBe("");
       expect(style.getPropertyValue("--p-text-scale")).toBe("1.75");
       expect(document.documentElement.dataset.tiTheme).toBe(theme.id);
@@ -279,7 +286,8 @@ describe("shared production design system", () => {
     expect(
       mobileControls.every((value) => Number.parseFloat(value) >= 44),
     ).toBe(true);
-    expect(mobileInputs).toContain("max(16px, var(--p-body))");
+    expect(mobileInputs).toContain("var(--p-input-text)");
+    expect(tokens.get("--p-input-text")).toBe("max(16px, var(--p-body))");
     expect(tokens.get("--p-body")).toContain("--p-text-scale");
     expect(tokens.get("--p-table-thumbnail")).toBe("32px");
     expect(

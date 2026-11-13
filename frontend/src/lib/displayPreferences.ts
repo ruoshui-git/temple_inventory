@@ -10,8 +10,6 @@ export const themes = [
     border: "#938A7D",
     soft: "#EEE4D6",
     strong: "#683A18",
-    radius: "10px",
-    cardRadius: "14px",
     description: "温润、有序，延续原有界面的熟悉感。",
   },
   {
@@ -25,8 +23,6 @@ export const themes = [
     border: "#7D8B9C",
     soft: "#E8EFFA",
     strong: "#194587",
-    radius: "6px",
-    cardRadius: "8px",
     description: "清晰、利落，让操作与数据更突出。",
   },
   {
@@ -40,8 +36,6 @@ export const themes = [
     border: "#829288",
     soft: "#E5EEE7",
     strong: "#194C37",
-    radius: "12px",
-    cardRadius: "18px",
     description: "安静、柔和，为日常协作留一点呼吸。",
   },
 ] as const;

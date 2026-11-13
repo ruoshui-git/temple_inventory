@@ -1222,7 +1222,7 @@ async function back() {
 .native-count-card-counts span,
 .native-count-card-entry {
 	color: var(--p-muted);
-	font-size: 0.78rem;
+	font-size: var(--p-small);
 }
 .native-count-card-input {
 	box-sizing: border-box;

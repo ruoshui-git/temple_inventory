@@ -600,7 +600,7 @@ h1 {
 	color: var(--p-ink);
 }
 .import-tile strong {
-	font-size: 1.4rem;
+	font-size: var(--p-heading);
 }
 .import-tile.is-success {
 	color: var(--p-success);
@@ -686,7 +686,7 @@ h1 {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 	.import-steps {
-		font-size: 0.84rem;
+		font-size: var(--p-label);
 		gap: var(--p-field-gap);
 	}
 	.import-actions > * {

@@ -995,7 +995,7 @@ function itemImage(row: CountRow) {
 .count-toolbar {
 	flex-wrap: wrap;
 	color: var(--p-muted);
-	font-size: 0.88rem;
+	font-size: var(--p-body);
 }
 .count-table {
 	min-width: 990px;
@@ -1039,7 +1039,7 @@ function itemImage(row: CountRow) {
 	align-items: center;
 	gap: var(--p-space-1);
 	color: var(--p-muted);
-	font-size: 0.72rem;
+	font-size: var(--p-micro);
 }
 .count-baseline-warning button {
 	min-height: 28px;
@@ -1150,7 +1150,7 @@ function itemImage(row: CountRow) {
 .count-card-entry label,
 .count-card-pending {
 	color: var(--p-muted);
-	font-size: 0.78rem;
+	font-size: var(--p-small);
 }
 .count-card-input {
 	box-sizing: border-box;
@@ -1160,7 +1160,7 @@ function itemImage(row: CountRow) {
 	padding: var(--p-space-1) var(--p-space-2);
 }
 .count-card-difference {
-	font-size: 0.78rem;
+	font-size: var(--p-small);
 	font-weight: 650;
 }
 .count-card-actions {

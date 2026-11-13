@@ -65,7 +65,7 @@
 }
 .form-field > label,
 .search-select > label {
-	font-size: 0.875rem;
+	font-size: var(--p-body);
 	font-weight: 500;
 	line-height: 1.4;
 }
@@ -80,7 +80,7 @@
 	margin: 0;
 	padding: 0;
 	background: none;
-	font-size: 0.875em;
+	font-size: var(--p-small);
 	line-height: 1.4;
 }
 /* At most three cards per row, so every group keeps the same card width. */
@@ -186,10 +186,10 @@
 	display: grid;
 	place-items: center;
 	padding-inline: var(--p-space-1);
-	border-radius: 999px;
+	border-radius: var(--p-radius-pill);
 	background: var(--p-danger);
 	color: var(--p-on-danger, white);
-	font-size: 11px;
+	font-size: var(--p-micro);
 	font-weight: 700;
 }
 .notification-progress-ring {
@@ -198,7 +198,7 @@
 	border: 2px solid transparent;
 	border-top-color: var(--p-accent);
 	border-right-color: var(--p-accent);
-	border-radius: 50%;
+	border-radius: var(--p-radius-pill);
 	animation: notification-ring-spin 1s linear infinite;
 }
 @keyframes notification-ring-spin {
@@ -318,12 +318,12 @@
 .notification-copy time,
 .notification-unavailable {
 	color: var(--p-muted);
-	font-size: 0.85em;
+	font-size: var(--p-small);
 }
 .notification-unread-dot {
 	width: 8px;
 	height: 8px;
-	border-radius: 50%;
+	border-radius: var(--p-radius-pill);
 	background: var(--p-accent);
 }
 .notification-empty {
@@ -374,7 +374,7 @@
 	height: 26px;
 	margin: 0;
 	border: 1px solid var(--p-switch-off);
-	border-radius: 999px;
+	border-radius: var(--p-radius-pill);
 	background: var(--p-switch-off);
 	cursor: pointer;
 	transition:
@@ -388,7 +388,7 @@
 	left: 3px;
 	width: 18px;
 	height: 18px;
-	border-radius: 50%;
+	border-radius: var(--p-radius-pill);
 	background: var(--p-surface);
 	box-shadow: var(--p-shadow-subtle);
 	transition: transform var(--p-motion) var(--p-motion-ease);

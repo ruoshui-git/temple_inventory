@@ -639,7 +639,7 @@ function itemFor(row: Record<string, unknown>) {
 }
 .allocation-phone-chevron {
 	flex: none;
-	font-size: 1.2rem;
+	font-size: var(--p-section);
 }
 .allocation-phone-rows {
 	display: grid;

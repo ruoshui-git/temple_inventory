@@ -2530,7 +2530,7 @@ function receiveBatchChanged(line: AllocationLine) {
 	}
 	.operation-serial-field input {
 		min-height: 44px;
-		font-size: 16px;
+		font-size: var(--p-input-text);
 	}
 }
 
