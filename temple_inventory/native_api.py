@@ -99,7 +99,9 @@ def _doctype_needs_document_check(doctype):
 
 
 def _stock_entry_needs_document_check():
-	return _doctype_needs_document_check("Stock Entry")
+	return _doctype_needs_document_check("Stock Entry") or bool(
+		frappe.permissions.get_user_permissions(frappe.session.user).get("Warehouse")
+	)
 
 
 def _serialize_bundle_caches(rows):
@@ -855,7 +857,8 @@ def outstanding_loan_groups(search="", start=0, page_length=30):
 		order_by="posting_date desc, modified desc",
 		limit_page_length=0,
 	)
-	loan_rows = [row for row in loan_rows if frappe.has_permission("Stock Entry", "read", doc=row.name)]
+	if _stock_entry_needs_document_check():
+		loan_rows = [row for row in loan_rows if frappe.has_permission("Stock Entry", "read", doc=row.name)]
 	if not loan_rows:
 		return {"rows": [], "next": None}
 	loan_names = [row.name for row in loan_rows]

@@ -51,6 +51,54 @@ class NativeReportsLoansTests(NativeReportTestCase):
 			data["items"].append(line)
 		return data
 
+	def test_movement_card_keeps_custom_item_document_permission_checks(self):
+		self.receipt(3)
+		item_class = type(frappe.get_doc("Item", self.item))
+		check_permission = item_class.check_permission
+		checked = []
+
+		def custom_item_permission(doc, permission="read", *args, **kwargs):
+			if permission == "read":
+				checked.append(doc.name)
+				if doc.name == self.item:
+					raise frappe.PermissionError("Item read denied")
+			return check_permission(doc, permission, *args, **kwargs)
+
+		with patch.object(item_class, "check_permission", custom_item_permission):
+			result = browse.dashboard_card(
+				"movement", movement_period={"key": "all", "from": "", "to": ""}, refresh=True
+			)
+
+		self.assertIn(self.item, checked)
+		self.assertFalse(any(self.item in row.get("item_codes", []) for row in result["rows"]))
+
+	def test_outstanding_loan_groups_keeps_custom_stock_entry_permission_hooks(self):
+		borrower = f"Hook filtered {self.token}"
+		loan = self.loan(2, borrower)
+		get_hooks = frappe.get_hooks
+
+		def custom_hooks(hook=None, *args, **kwargs):
+			result = get_hooks(hook, *args, **kwargs)
+			if hook == "has_permission":
+				result = dict(result)
+				result["Stock Entry"] = ["test.custom_stock_entry_permission"]
+			return result
+
+		check_permission = frappe.has_permission
+
+		def custom_permission(doctype, ptype="read", *args, **kwargs):
+			if doctype == "Stock Entry" and kwargs.get("doc") == loan.name:
+				return False
+			return check_permission(doctype, ptype, *args, **kwargs)
+
+		with (
+			patch("temple_inventory.native_api.frappe.get_hooks", side_effect=custom_hooks),
+			patch("temple_inventory.native_api.frappe.has_permission", side_effect=custom_permission),
+		):
+			result = native_api.outstanding_loan_groups(search=borrower)
+
+		self.assertEqual(result["rows"], [])
+
 	def test_one_loan_status_filter_is_shared_by_items_and_records(self):
 		self.receipt(10)
 		open_loan = self.submit(

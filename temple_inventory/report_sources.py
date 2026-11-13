@@ -1466,7 +1466,12 @@ def movement_rows(
 		)
 		context.preload_bundles(lines)
 		context.preload_batches(line.get("batch_no") for line in lines)
-		context.preload_items(line.item_code for doc in parents for line in doc.get("items") or [])
+		context.preload_items(
+			line.item_code
+			for doc in parents
+			for field in ("items", "ti_count_review")
+			for line in doc.get(field) or []
+		)
 		context.preload_activities(
 			(
 				{doc.get("ti_activity") for doc in parents}

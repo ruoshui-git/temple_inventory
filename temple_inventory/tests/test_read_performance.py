@@ -123,6 +123,13 @@ class ReadPerformanceTests(unittest.TestCase):
 		borrower = f"Read Performance {self.token}"
 		loan = self.loan(5, borrower)
 		cases = (
+			(
+				"movement_dashboard_card",
+				lambda: browse.dashboard_card(
+					"movement", movement_period={"key": "all", "from": "", "to": ""}, refresh=True
+				),
+				100,
+			),
 			("load_document", lambda: native_api.load_document("Stock Entry", loan.name), 70),
 			("loan_detail", lambda: native_api.loan_detail(loan.name), 80),
 			(
@@ -147,3 +154,17 @@ class ReadPerformanceTests(unittest.TestCase):
 				frappe.set_user("Administrator")
 				endpoint()
 				self.assertLessEqual(sql.call_count, ceiling, f"{name}: {sql.call_count}")
+
+	def test_outstanding_loan_groups_query_count_is_bounded_for_operator(self):
+		user = self._operator("loan-groups")
+		endpoint = native_api.outstanding_loan_groups
+		frappe.set_user(user)
+		endpoint()
+		with (
+			patch.object(frappe.db, "transaction_writes", 0),
+			patch.object(frappe.db, "sql", wraps=frappe.db.sql) as sql,
+		):
+			self._reset_read_state()
+			frappe.set_user(user)
+			endpoint()
+			self.assertLessEqual(sql.call_count, 90, f"outstanding_loan_groups: {sql.call_count}")
