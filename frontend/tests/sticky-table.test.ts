@@ -92,7 +92,7 @@ describe("browse toolbar sticky offset", () => {
 
   function mountToolbar(desktop: boolean) {
     vi.stubGlobal("matchMedia", (query: string) => ({
-      matches: query === "(max-width: 600px)" ? !desktop : false,
+      matches: query === "(max-width: 599px)" ? !desktop : false,
       addEventListener() {},
       removeEventListener() {},
     }));

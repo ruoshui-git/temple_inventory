@@ -181,7 +181,7 @@ function measureHeader() {
 	);
 	// Phones stick only the persistent search bar; desktop and tablets stick the whole chrome.
 	const phone =
-		typeof window.matchMedia === "function" && window.matchMedia("(max-width: 600px)").matches;
+		typeof window.matchMedia === "function" && window.matchMedia("(max-width: 599px)").matches;
 	const sticking = phone
 		? element.querySelector<HTMLElement>(".browse-persistent-bar")
 		: element;

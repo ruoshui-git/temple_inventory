@@ -25,6 +25,7 @@ const emit = defineEmits<{ click: [] }>();
 	white-space: nowrap;
 }
 @media (max-width: 520px) {
+	/* Hide the label only when the narrow header cannot fit the full action text. */
 	.back-button span {
 		display: none;
 	}

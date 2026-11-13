@@ -173,6 +173,7 @@ input[list]::-webkit-calendar-picker-indicator {
 		margin-top: var(--p-field-gap);
 	}
 }
+/* Operation forms stack fields through 620px to preserve usable field widths. */
 @media (max-width: 620px) {
 	.form-page .form-page-heading {
 		align-items: flex-start;
@@ -204,8 +205,6 @@ input[list]::-webkit-calendar-picker-indicator {
 		max-height: 180px;
 		overflow: auto;
 	}
-}
-@media (max-width: 620px) {
 }
 
 /* Shared with the canonical receiving example; secondary required fields reveal through Details. */
@@ -1226,7 +1225,7 @@ input[list]::-webkit-calendar-picker-indicator {
 .related-loan-remarks p {
 	margin: var(--p-space-1) 0 0;
 }
-@media (max-width: 600px) {
+@media (max-width: 599px) {
 	.ti-fields {
 		grid-template-columns: minmax(0, 1fr);
 	}

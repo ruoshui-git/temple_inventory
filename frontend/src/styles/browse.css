@@ -246,7 +246,7 @@ body:has(.browse-page) {
 	}
 }
 
-@media (max-width: 600px) {
+@media (max-width: 599px) {
 	.app-page-title-row,
 	.browse-title-tools,
 	.browse-persistent-bar,
@@ -458,6 +458,7 @@ body:has(.browse-page) {
 	line-height: 1.3;
 }
 
+/* Item detail switches to a single column before its paired facts become cramped. */
 @media (max-width: 620px) {
 	.browse-item-detail-head {
 		flex-wrap: wrap;
@@ -874,6 +875,7 @@ body:has(.browse-page) {
 		}
 	}
 }
+/* Two-column expiry summaries keep their labels readable on narrow tablets. */
 @media (max-width: 767px) {
 	.expiry-grid,
 	.movement-summary {
@@ -1315,6 +1317,7 @@ body:has(.browse-page) {
 		min-width: 44px;
 	}
 }
+/* Detail actions span a row early so the identity block keeps room on compact screens. */
 @media (max-width: 620px) {
 	.browse-item-detail-head {
 		display: grid;
@@ -1645,7 +1648,7 @@ body:has(.browse-page) {
 .dashboard .dashboard-expiry .browse-rank-row > b {
 	margin-inline-end: 0;
 }
-@media (max-width: 600px) {
+@media (max-width: 599px) {
 	.dashboard-expiry-line {
 		flex-wrap: wrap;
 		column-gap: var(--p-space-2);
@@ -1682,7 +1685,7 @@ body:has(.browse-page) {
 .dashboard-result.is-stale button {
 	color: var(--p-muted);
 }
-@media (max-width: 600px) {
+@media (max-width: 599px) {
 	.dashboard .browse-rank-row > b {
 		margin-inline-end: 52px;
 	}
@@ -1721,7 +1724,8 @@ body:has(.browse-page) {
 	width: 48%;
 }
 
-@media (max-width: 640px) {
+/* Skeleton cards use three columns only when six placeholders no longer fit. */
+@media (max-width: 599px) {
 	.report-initial-skeleton-row {
 		grid-template-columns: repeat(3, minmax(72px, 1fr));
 	}
@@ -1907,7 +1911,7 @@ body:has(.browse-page) {
 }
 /* Desktop stuck toolbar condenses to one line: the title text hides, chips scroll sideways
    like the phone bar, and the switch and actions stay. Target: 56px or less. */
-@media (min-width: 601px) {
+@media (min-width: 600px) {
 	.browse-chrome.browse-chrome.is-stuck {
 		padding-block: 0;
 		row-gap: 0;
@@ -2304,8 +2308,6 @@ body:has(.browse-page) {
 	display: grid;
 	gap: var(--p-space-2);
 }
-@media (max-width: 520px) {
-}
 .browse-persistent-chips {
 	display: flex;
 	align-items: center;
@@ -2445,7 +2447,7 @@ body:has(.browse-page) {
 .browse-chrome.is-compact h1 {
 	font-size: var(--p-section);
 }
-@media (max-width: 600px) {
+@media (max-width: 599px) {
 	.browse-persistent-search {
 		flex-basis: clamp(min(9rem, 100%), 48vw, 12rem);
 		min-width: min(9rem, 100%);
@@ -2621,7 +2623,7 @@ body:has(.browse-page) {
 	white-space: nowrap;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 599px) {
 	:root[data-ti-density="xcompact"][data-ti-text-scale="150"]
 		.browse-search-container.has-chips {
 		width: 100%;
@@ -3448,7 +3450,7 @@ body:has(.browse-page) {
 .dashboard-unit-disclosure .ti-disclosure-icon {
 	transition: transform var(--p-motion) var(--p-motion-ease);
 }
-@media (max-width: 600px) {
+@media (max-width: 599px) {
 	.dashboard-inventory-metrics {
 		grid-template-columns: minmax(0, 1fr);
 	}

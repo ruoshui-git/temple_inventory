@@ -672,6 +672,7 @@ h1 {
 	min-height: 44px;
 	align-items: center;
 }
+/* Import summary and action grids simplify below 768px to prevent crowded steps. */
 @media (max-width: 767px) {
 	.import-heading {
 		align-items: flex-start;

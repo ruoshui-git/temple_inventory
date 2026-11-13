@@ -245,7 +245,7 @@ watch([field, warehouse], () => c.clearPreview());
 		min-height: 44px;
 	}
 }
-@media (max-width: 600px) {
+@media (max-width: 599px) {
 	.configuration-pointers {
 		grid-template-columns: 1fr;
 		gap: var(--p-field-gap);

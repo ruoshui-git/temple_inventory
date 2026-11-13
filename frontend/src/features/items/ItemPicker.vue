@@ -1054,11 +1054,12 @@ async function selectExisting(code: string, warehouse: string) {
 		display: none;
 	}
 }
-@media (min-width: 641px) {
+@media (min-width: 600px) {
 	.picker-return-short {
 		display: none;
 	}
 }
+/* Picker footer actions stack below 641px so the full-width return action fits. */
 @media (max-width: 640px) {
 	.picker-return-full {
 		display: none;
@@ -1211,6 +1212,7 @@ async function selectExisting(code: string, warehouse: string) {
 		width: 164px;
 	}
 }
+/* Picker thumbnails grow below 768px to preserve tap targets in dense rows. */
 @media (max-width: 767px) {
 	.picker-image-cell {
 		width: 44px;

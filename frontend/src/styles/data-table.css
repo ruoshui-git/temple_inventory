@@ -315,7 +315,7 @@
 	}
 }
 
-@media (max-width: 600px) {
+@media (max-width: 599px) {
 	.data-table-scroll.is-sticky-header {
 		--data-table-sticky-top: calc(
 			var(--browse-sticky-bottom, var(--app-desktop-nav-height, 0px)) +
@@ -1423,17 +1423,17 @@
 .warehouse-stock-table .warehouse-item-name {
 	padding-inline: 0;
 }
-@media (min-width: 601px) {
+@media (min-width: 600px) {
 	.warehouse-stock-cards {
 		display: none !important;
 	}
 }
-@media (max-width: 600px) {
+@media (max-width: 599px) {
 	.browse-results .native-record-kind-status {
 		display: none;
 	}
 }
-@media (max-width: 600px) {
+@media (max-width: 599px) {
 	.native-record-mobile-status {
 		display: inline-flex;
 		margin-inline-start: var(--p-space-1);

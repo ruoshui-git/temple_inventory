@@ -1291,7 +1291,7 @@ function openDetailsRow() {
 		gap: var(--p-space-1);
 	}
 }
-@media (max-width: 600px) {
+@media (max-width: 599px) {
 	.draft-entry .browse-row-actions :deep(.ui-button) {
 		min-height: 44px;
 		padding-inline: var(--p-space-2);

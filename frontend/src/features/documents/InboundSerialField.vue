@@ -121,6 +121,7 @@ const emit = defineEmits<{
 		font-size: var(--p-input-text);
 	}
 }
+/* Wide touch targets also apply on small tablets where the serial chips stay dense. */
 @media (max-width: 700px) {
 	.has-large-targets .inbound-serial-chip button {
 		min-width: 44px;

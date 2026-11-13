@@ -127,7 +127,7 @@ function closeFailure() {
 .push-prompt p {
 	flex-basis: 100%;
 }
-@media (max-width: 600px) {
+@media (max-width: 599px) {
 	.push-prompt {
 		flex-wrap: wrap;
 	}

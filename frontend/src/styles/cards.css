@@ -402,7 +402,7 @@
 		background: transparent;
 	}
 }
-@media (max-width: 640px) {
+@media (max-width: 599px) {
 	.item-card-content .eyebrow {
 		font-size: var(--p-small);
 	}

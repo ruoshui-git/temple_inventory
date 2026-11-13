@@ -1070,8 +1070,6 @@ strong {
 	text-align: right;
 	font-variant-numeric: tabular-nums;
 }
-@media (max-width: 640px) {
-}
 .data-table tr.selected {
 	background: var(--p-soft);
 }
@@ -1415,6 +1413,7 @@ strong {
 		max(var(--p-space-4), env(safe-area-inset-right, 0px));
 	border-top: 1px solid var(--p-border);
 }
+/* Crop actions need a vertical stack while their labels and controls crowd at 640px. */
 @media (max-width: 640px) {
 	.image-crop-dialog > .dialog-footer {
 		display: grid;
@@ -1820,6 +1819,7 @@ strong {
 		place-items: center;
 	}
 }
+/* Theme choices stack at 640px so the previews and labels remain readable. */
 @media (max-width: 640px) {
 	.theme-options {
 		gap: var(--p-space-2);
@@ -2922,7 +2922,7 @@ button {
 	text-decoration: underline;
 	text-underline-offset: 0.2em;
 }
-@media (max-width: 600px) {
+@media (max-width: 599px) {
 	.app-mobile-nav {
 		display: grid;
 		grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -2931,7 +2931,7 @@ button {
 		overflow: hidden;
 	}
 }
-@media (max-width: 600px) {
+@media (max-width: 599px) {
 	.app-mobile-nav button {
 		min-width: 0;
 		flex: initial;
@@ -2939,7 +2939,7 @@ button {
 		font-size: var(--p-micro);
 	}
 }
-@media (max-width: 600px) {
+@media (max-width: 599px) {
 	.app-mobile-nav button span {
 		white-space: nowrap;
 	}

@@ -423,7 +423,7 @@ describe("shared production design system", () => {
     expect(chipDeclarations.get("overflow")).toBe("auto");
     const mobileSearch = new Map<string, string>();
     browse.walkAtRules("media", (media) => {
-      if (media.params !== "(max-width: 600px)") return;
+      if (media.params !== "(max-width: 599px)") return;
       media.walkRules(".browse-persistent-search", (rule) =>
         rule.walkDecls((declaration) =>
           mobileSearch.set(declaration.prop, declaration.value),

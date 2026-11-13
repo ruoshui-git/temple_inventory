@@ -2578,6 +2578,7 @@ function receiveBatchChanged(line: AllocationLine) {
 	}
 }
 
+/* The line toolbar needs its compact spacing through 620px to avoid wrapping. */
 @media (max-width: 620px) {
 	.line-toolbar {
 		gap: 6px;

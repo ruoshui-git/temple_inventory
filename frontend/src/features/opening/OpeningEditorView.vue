@@ -695,6 +695,7 @@ async function lifecycle(kind: "cancel" | "amend") {
 	padding: var(--p-card-inner-pad);
 	background: var(--p-soft);
 }
+/* Opening rows become two-column cards at 700px and below to keep controls usable. */
 @media (max-width: 700px) {
 	.opening-header {
 		grid-template-columns: 1fr 1fr;
