@@ -1,12 +1,16 @@
 # Validation and development data
 
+## Backend test site
+
+The rollback runner locks the Administrator row and clears caches, which disturbs anyone using the dev site, so it runs on the disposable `tests.localhost` (own Redis cache database 1, full sample data). Create or refresh it with `apps/temple_inventory/scripts/dx apps/temple_inventory/scripts/heavy apps/temple_inventory/scripts/test-site`; after app DocType changes run `apps/temple_inventory/scripts/dx bench --site tests.localhost migrate`. The script only ever touches `tests.localhost`. `development.localhost` still works as a fallback when nobody is using it.
+
 ## Focused iteration
 
 Use the backend runner’s `--kwargs` to select scenarios, for example:
 
 ```sh
 apps/temple_inventory/scripts/dx apps/temple_inventory/scripts/heavy \
-  bench --site development.localhost execute temple_inventory.tests.test_native_inventory.run \
+  bench --site tests.localhost execute temple_inventory.tests.test_native_inventory.run \
   --kwargs "{'test_name': ['test_a', 'test_b']}"
 ```
 
@@ -36,5 +40,5 @@ Run one backend scenario or one Vitest file while iterating, then run the releva
 2. Serve it on its own port. `bench serve` without `--site` always serves the default site: `bench --site audit.localhost serve --port 8001 --noreload`.
 3. From `sites/`, under `scripts/heavy`: `python -m temple_inventory.tests.adversarial.run --base http://127.0.0.1:8001 --site audit.localhost [--only R4] [--iterations 20]`, then `--cleanup-only`.
 
-The audit site shares the Redis job queue and worker with `development.localhost`. The harness removes its own notification jobs after each iteration; if a run is interrupted, clear queued `audit.localhost` jobs before other work, or dev-site actions fail with `QueueOverloaded`. R8 (count over 100 rows) is sensitive to queue load; confirm its result in the ledger. Drop the site when finished: `bench drop-site audit.localhost --no-backup`.
+The audit site shares the Redis job queue and worker with `development.localhost`. The harness removes its own notification jobs after each iteration; if a run is interrupted, clear queued `audit.localhost` jobs before other work, or dev-site actions fail with `QueueOverloaded`. R8 (count over 100 rows) is sensitive to queue load; confirm its result in the ledger. R8 tops up depleted stock at site time before its count, so repeat iterations (`--only R8 --iterations 5`) must all pass with 101 rows each. Drop the site when finished: `bench drop-site audit.localhost --no-backup`.
 

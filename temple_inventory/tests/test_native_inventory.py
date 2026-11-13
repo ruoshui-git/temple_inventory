@@ -1,6 +1,6 @@
 """Rollback-only native integration runner.
 
-Run with bench --site development.localhost execute
+Run with bench --site SITE execute
 temple_inventory.tests.test_native_inventory.run. No reset or sample install occurs.
 """
 

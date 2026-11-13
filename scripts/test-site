@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+usage() {
+	cat <<'USAGE'
+Usage: scripts/test-site [--help]
+
+Create or refresh the disposable tests.localhost site with the full development
+sample dataset. The backend runner is:
+	bench --site tests.localhost execute temple_inventory.tests.test_native_inventory.run
+
+Whenever app DocTypes change, update the schema with:
+	bench --site tests.localhost migrate
+
+Only tests.localhost is created, refreshed, or modified. development.localhost
+is never reset or modified by this script.
+USAGE
+}
+
+if [[ ${1:-} == -h || ${1:-} == --help ]]; then
+	usage
+	exit 0
+fi
+if (($#)); then
+	printf 'Unknown option: %s\n' "$1" >&2
+	usage >&2
+	exit 2
+fi
+
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+app=$(cd -- "$script_dir/.." && pwd)
+bench_root=$(cd -- "$app/../.." && pwd)
+cd -- "$bench_root"
+site=tests.localhost
+config="$bench_root/sites/$site/site_config.json"
+root_user=${MARIADB_ROOT_USERNAME:-root}
+root_password=${MARIADB_ROOT_PASSWORD:-123}
+admin_password=${TEST_SITE_ADMIN_PASSWORD:-admin}
+bench="$bench_root/bench"
+
+if [[ ! -x $bench ]]; then
+	bench=$(command -v bench || true)
+fi
+if [[ -z $bench || ! -x $bench ]]; then
+	printf '%s\n' 'Missing Bench executable in the Bench environment.' >&2
+	exit 2
+fi
+
+if [[ -f $config ]]; then
+	# The dedicated disposable site may be recreated; no other site is accepted.
+	PYTHONUNBUFFERED=1 "$bench" --site "$site" set-config redis_cache redis://redis-cache:6379/1
+	PYTHONUNBUFFERED=1 "$bench" --site "$site" reinstall --yes \
+		--db-root-username "$root_user" --db-root-password "$root_password" \
+		--admin-password "$admin_password"
+else
+	# Override the cache URL for the initial Frappe install as well. The new-site
+	# command creates its site config and installs Frappe in one process.
+	FRAPPE_REDIS_CACHE=redis://redis-cache:6379/1 PYTHONUNBUFFERED=1 "$bench" new-site "$site" \
+		--db-root-username "$root_user" --db-root-password "$root_password" \
+		--admin-password "$admin_password" --install-app temple_inventory
+fi
+
+# Frappe prefixes ordinary cache keys by db_name and supports a per-site Redis
+# URL. A separate logical Redis database also isolates shared keys and any
+# flushdb calls from the development site's cache database (0).
+PYTHONUNBUFFERED=1 "$bench" --site "$site" set-config redis_cache redis://redis-cache:6379/1
+PYTHONUNBUFFERED=1 "$bench" --site "$site" set-config temple_inventory_sample_site 1
+
+kwargs='{"company":"Org","abbr":"O","country":"United States","currency":"USD","chart_of_accounts":"Standard","allow_non_developer":1,"data":"full"}'
+PYTHONUNBUFFERED=1 "$bench" --site "$site" execute \
+	temple_inventory.sample_install.prepare_development_sample_site --kwargs "$kwargs"
+PYTHONUNBUFFERED=1 "$bench" --site "$site" execute \
+	temple_inventory.sample_install.verify_development_sample --kwargs '{"data":"full"}'
+
+printf 'Ready: %s (Redis cache database 1)\n' "$site"

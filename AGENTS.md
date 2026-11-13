@@ -64,7 +64,7 @@ Use `scripts/dx`; serialize heavy commands via `scripts/heavy`. Run frontend che
 | Types | `../scripts/dx pnpm type-check` | Frontend changes |
 | Build | `../scripts/dx ../scripts/heavy pnpm build` | Frontend changes; before browser suite |
 | Browser | `../scripts/dx env NATIVE_UI_PORT=8081 ../scripts/heavy pnpm test:browser` | Browser/visual changes; local 8080 is occupied |
-| Backend | `apps/temple_inventory/scripts/dx apps/temple_inventory/scripts/heavy bench --site development.localhost execute temple_inventory.tests.test_native_inventory.run` | Native inventory changes; from bench root |
+| Backend | `apps/temple_inventory/scripts/dx apps/temple_inventory/scripts/heavy bench --site tests.localhost execute temple_inventory.tests.test_native_inventory.run` | Native inventory changes; from bench root; create/refresh the site with `scripts/test-site`, migrate it after DocType changes |
 | Ruff (app root, ordered) | `scripts/dx uvx ruff@0.14.10 check --select=I --fix`; `scripts/dx uvx ruff@0.14.10 format`; `scripts/dx uvx ruff@0.14.10 check` | Touched Python |
 | Live acceptance (`frontend/`) | `../scripts/dx env NATIVE_ADMIN_PASSWORD=admin NATIVE_BASE_URL=http://127.0.0.1:8000 ../scripts/heavy ../scripts/ui-visual-preflight pnpm exec playwright test -c playwright.native.config.ts` | API/write changes; web + worker required |
 
