@@ -13,7 +13,7 @@ export default defineConfig({
   use: {
     baseURL: process.env.NATIVE_BASE_URL || "http://127.0.0.1:8101",
     viewport: { width: 1440, height: 1000 },
-    trace: "off",
+    trace: process.env.CI ? "retain-on-failure" : "off",
     screenshot: "only-on-failure",
     launchOptions: {
       executablePath:

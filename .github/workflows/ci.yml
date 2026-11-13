@@ -175,3 +175,142 @@ jobs:
       - name: Native inventory tests
         working-directory: /home/runner/frappe-bench
         run: bench --site ci.localhost execute temple_inventory.tests.test_native_inventory.run
+
+  native-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      mariadb:
+        image: mariadb:11.8
+        env:
+          MARIADB_ROOT_PASSWORD: root
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+      redis-cache:
+        image: redis:alpine
+        ports: ["13000:6379"]
+      redis-queue:
+        image: redis:alpine
+        ports: ["11000:6379"]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: temple_inventory
+      - name: Load framework versions
+        run: grep -v '^#' temple_inventory/deploy/versions.env >>"$GITHUB_ENV"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Install system packages
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mariadb-client redis-tools fonts-noto-cjk
+      - name: Install bench
+        run: |
+          corepack enable pnpm
+          npm install -g yarn
+          pip install frappe-bench
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('temple_inventory/frontend/pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('temple_inventory/frontend/pnpm-lock.yaml') }}
+      - name: Install Playwright Chromium
+        working-directory: temple_inventory/frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
+      - name: Create bench
+        run: |
+          bench init --frappe-branch "$FRAPPE_VERSION" --skip-redis-config-generation --skip-assets \
+            --no-procfile --no-backups ~/frappe-bench
+          cd ~/frappe-bench
+          bench get-app --branch "$ERPNEXT_VERSION" --skip-assets erpnext https://github.com/frappe/erpnext
+          bench get-app --skip-assets temple_inventory "$GITHUB_WORKSPACE/temple_inventory"
+          bench set-config -g db_host 127.0.0.1
+          bench set-config -g redis_cache redis://127.0.0.1:13000
+          bench set-config -g redis_queue redis://127.0.0.1:11000
+          bench set-config -g redis_socketio redis://127.0.0.1:11000
+          mkdir -p sites/assets && echo '{}' > sites/assets/assets.json
+      - name: Build the app frontend
+        # vite writes into the app's public/ and www/, so it runs inside the bench copy.
+        working-directory: /home/runner/frappe-bench/apps/temple_inventory/frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+      - name: Create site
+        working-directory: /home/runner/frappe-bench
+        run: |
+          bench new-site ci.localhost --db-root-password root --admin-password admin \
+            --mariadb-user-host-login-scope=%
+          bench --site ci.localhost set-config developer_mode 1
+          bench --site ci.localhost set-config temple_inventory_sample_site 1
+      - name: Sample snapshot key
+        id: snapshot
+        working-directory: /home/runner/frappe-bench
+        run: echo "key=$(apps/temple_inventory/scripts/sample-snapshot key)" >>"$GITHUB_OUTPUT"
+      - uses: actions/cache/restore@v4
+        with:
+          path: ~/sample-snapshot
+          key: sample-snapshot-${{ steps.snapshot.outputs.key }}-${{ github.run_id }}
+          restore-keys: sample-snapshot-${{ steps.snapshot.outputs.key }}-
+      - name: Install apps and sample data
+        id: seed
+        working-directory: /home/runner/frappe-bench
+        env:
+          MARIADB_ROOT_PASSWORD: root
+        run: |
+          snapshot=apps/temple_inventory/scripts/sample-snapshot
+          if $snapshot fresh ~/sample-snapshot; then
+            $snapshot restore ci.localhost ~/sample-snapshot
+          else
+            bench --site ci.localhost install-app erpnext temple_inventory
+            bench --site ci.localhost execute temple_inventory.sample_install.prepare_development_sample_site
+            $snapshot save ci.localhost ~/sample-snapshot
+            echo "saved=1" >>"$GITHUB_OUTPUT"
+          fi
+      - uses: actions/cache/save@v4
+        if: steps.seed.outputs.saved == '1'
+        with:
+          path: ~/sample-snapshot
+          key: sample-snapshot-${{ steps.snapshot.outputs.key }}-${{ github.run_id }}
+      - name: Start web and worker
+        working-directory: /home/runner/frappe-bench
+        run: |
+          nohup bench --site ci.localhost serve --port 8000 --noreload > /tmp/bench-web.log 2>&1 &
+          nohup bench worker > /tmp/bench-worker.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:8000/api/method/ping | grep -q pong; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/bench-web.log
+          exit 1
+      - name: Run live acceptance
+        working-directory: temple_inventory/frontend
+        env:
+          CI: true
+          NATIVE_ADMIN_PASSWORD: admin
+          NATIVE_BASE_URL: http://127.0.0.1:8000
+          NATIVE_RESULTS: test-results/native-acceptance
+        run: pnpm exec playwright test -c playwright.native.config.ts
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-native-acceptance
+          path: |
+            temple_inventory/frontend/test-results/native-acceptance/
+            /tmp/bench-web.log
+            /tmp/bench-worker.log
+          if-no-files-found: ignore
+          retention-days: 7
