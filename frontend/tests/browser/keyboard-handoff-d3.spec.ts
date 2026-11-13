@@ -432,7 +432,13 @@ test("D3 keyboard, date, resize, motion, and handoff evidence", async ({
     { path: "/inventory/counts/new", kind: "count" },
   ];
   for (const route of editorRoutes) {
-    await page.goto(route.path);
+    // The previous editor may still be routing after its submit; a navigation that lands
+    // mid-route is aborted by the browser, so retry it once.
+    await page.goto(route.path).catch(async (error: Error) => {
+      if (!String(error.message).includes("ERR_ABORTED")) throw error;
+      await page.waitForLoadState();
+      await page.goto(route.path);
+    });
     await expect(page.locator(".form-actions.document-actions")).toBeVisible();
     const isCount = route.kind === "count";
     if (isCount) {
