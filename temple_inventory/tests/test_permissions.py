@@ -196,6 +196,22 @@ class PermissionTests(NativeDocumentTests):
 		self.assertIn(ADMINISTRATOR, frappe.get_roles(profile_user))
 		self.assertEqual(before_other, set(frappe.permissions.get_roles(other, with_standard=False)))
 
+	def test_only_the_administrator_profile_carries_system_manager(self):
+		# Owner decision (2026-11-13): administrators must be able to repair system,
+		# database and inventory settings and change the app, so 物资管理员 keeps
+		# System Manager; the other three profiles never get it.
+		ensure_roles()
+		for role, profile in ROLE_PROFILES.items():
+			roles = set(
+				frappe.get_all(
+					"Has Role",
+					filters={"parent": profile, "parenttype": "Role Profile"},
+					pluck="role",
+				)
+			)
+			self.assertIn(role, roles)
+			self.assertEqual("System Manager" in roles, role == ADMINISTRATOR, profile)
+
 	def test_roleless_system_manager_and_stock_user_are_denied(self):
 		user = self._user("System Manager", "no-inventory-role")
 		frappe.set_user(user)

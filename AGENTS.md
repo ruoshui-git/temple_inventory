@@ -38,7 +38,7 @@ Reuse shared helpers instead of re-implementing them: frontend `lib/formatQuanti
 - `frontend/src/styles/app.css` is the only stylesheet entry; use `--p-*` tokens/shared components before local styles.
 - `useResponsiveLayout.ts` coordinates 1024px. One surface mounts while its controller retains rows, filters, selection, dialogs, errors and scroll on resize. Presenters receive typed state/emit intent; controllers own requests/routes/persistence.
 - UI visibility/JSON never authorizes. Server enforces auth, DocType/company/User Permissions, Item/Warehouse access, native ownership, File privacy, immutability and submit validation. Use Frappe exceptions; never expose raw server HTML.
-- Frontend accounts hold one of four native roles (`roles.py`: Inventory Viewer/Operator/Manager/Administrator) or are Administrator; ordinary users never need System Manager. Capabilities come from `frappe.has_permission` through `session.info` and per-document `actions`, never from role names. The UI uses them to choose what to show; every endpoint still enforces natively. A new whitelisted endpoint must be classified in `tests/test_permissions.py`.
+- Frontend accounts hold one of four native roles (`roles.py`: Inventory Viewer/Operator/Manager/Administrator) or are Administrator; ordinary users never need System Manager (only the 物资管理员 profile adds it, by design). Capabilities come from `frappe.has_permission` through `session.info` and per-document `actions`, never from role names. The UI uses them to choose what to show; every endpoint still enforces natively. A new whitelisted endpoint must be classified in `tests/test_permissions.py`.
 
 ## Development environment
 
