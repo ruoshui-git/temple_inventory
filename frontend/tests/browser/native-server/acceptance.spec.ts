@@ -632,7 +632,9 @@ test("native seed, clean schema, private originals and the real built app", asyn
   browser,
 }) => {
   const bootstrap = await call(page.request, "browse.bootstrap");
-  expect(bootstrap.site).toBe("development.localhost");
+  expect(bootstrap.site).toBe(
+    process.env.NATIVE_SITE || "development.localhost",
+  );
   expect(bootstrap.physical_leaves.length).toBeGreaterThanOrEqual(4);
   const locations = bootstrap.warehouses;
   const physical = locations.filter(

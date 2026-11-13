@@ -89,7 +89,7 @@ test("manager imports Opening Stock as one native document through the wizard", 
   const file = join(workdir, `opening-${tag}.xlsx`);
   execFileSync(
     // The bench virtualenv has openpyxl; CI sets its own bench path.
-    process.env.NATIVE_BENCH_PYTHON ||
+    process.env.NATIVE_PYTHON ||
       "/workspace/development/frappe-bench/env/bin/python",
     [
       "-c",

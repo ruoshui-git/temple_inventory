@@ -598,7 +598,8 @@ test("manager imports a generated Item workbook over HTTP; Operator is refused",
     "sys.stdout.buffer.write(out.getvalue())",
   ].join("\n");
   const openingBytes = execFileSync(
-    resolve(process.cwd(), "../../../env/bin/python"),
+    process.env.NATIVE_PYTHON ||
+      resolve(process.cwd(), "../../../env/bin/python"),
     ["-c", workbookScript, result.rows[0].item_code, location.label],
   );
   const openingForm = new FormData();
