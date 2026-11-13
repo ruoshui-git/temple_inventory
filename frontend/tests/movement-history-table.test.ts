@@ -27,6 +27,44 @@ const row = {
   borrower: "",
 };
 describe("typed movement history table", () => {
+  it("omits item identity columns and keeps a separate one-item handling preference", async () => {
+    const reference = createReferenceData();
+    Object.assign(reference, { user: "test", site: "test.localhost" });
+    const call = vi.fn(async () => null);
+    const Host = defineComponent({
+      setup() {
+        provideInventoryServices(
+          { call, report: vi.fn(), upload: vi.fn() },
+          reference,
+        );
+        return () =>
+          h(MovementHistoryTable, {
+            rows: [row],
+            total: 1,
+            initialized: true,
+            mode: "handling",
+            includeItem: false,
+          });
+      },
+    });
+    const wrapper = mount(Host, { global: { stubs: { RouterLink: true } } });
+    await flushPromises();
+    const headers = wrapper.findAll("th").map((cell) => cell.text());
+    expect(headers).not.toContain("图片");
+    expect(headers).not.toContain("物品名称");
+    expect(headers).not.toContain("物品编码");
+    expect(call).not.toHaveBeenCalledWith(
+      "table_preferences.get_column_preferences",
+      { table_id: "history.handling" },
+    );
+    expect(call).toHaveBeenCalledWith(
+      "table_preferences.get_column_preferences",
+      {
+        table_id: "history.handling-single-item",
+      },
+    );
+  });
+
   it("shows image and status first with optional available change hidden", async () => {
     const reference = createReferenceData();
     Object.assign(reference, { user: "test" });
@@ -49,6 +87,8 @@ describe("typed movement history table", () => {
     await flushPromises();
     const headers = wrapper.findAll("th").map((cell) => cell.text());
     expect(headers[0]).toBe("图片");
+    expect(headers).toContain("物品名称");
+    expect(headers).toContain("物品编码");
     expect(headers).toContain("状态");
     expect(headers).not.toContain("可用变化");
   });

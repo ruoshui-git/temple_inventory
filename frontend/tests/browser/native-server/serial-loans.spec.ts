@@ -139,6 +139,13 @@ test("serial loan detail and prefills the Return editor at desktop and phone siz
     await page.setViewportSize({ width, height });
     await page.goto("/inventory/loans/LOAN-SERIAL");
     await expect(page.getByRole("heading", { name: "借用详情" })).toBeVisible();
+    if (width === 1440) {
+      const history = page.locator(".loan-history-section");
+      await history.locator("summary").click();
+      await expect(history.locator("thead")).not.toContainText("图片");
+      await expect(history.locator("thead")).not.toContainText("物品名称");
+      await expect(history.locator("thead")).not.toContainText("物品编码");
+    }
     await page.getByText("序列号", { exact: true }).click();
     await expect(
       page.getByText("LAMP-SN-001 · LAMP-SN-002 · LAMP-SN-003 +2"),

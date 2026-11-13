@@ -474,7 +474,7 @@ function itemImage(row: CountRow) {
 		<p v-if="showError && issues.length" role="alert" class="notice-bar danger">
 			{{ issues.length }} 行实点数量需要修正。
 		</p>
-		<CountSummary :rows="rows" />
+		<CountSummary :rows="rows" :mobile="isMobile" />
 		<section v-if="removed.length" class="notice-bar warning count-removed">
 			<div>
 				<strong>已移出账面范围的原输入</strong>

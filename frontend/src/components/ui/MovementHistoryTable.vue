@@ -62,6 +62,12 @@ const emit = defineEmits<{
 }>();
 const reference = useReferenceData();
 const services = useOptionalInventoryServices();
+// A one-item loan omits item columns, so it keeps its own column preference and never
+// reconciles the multi-item handling preference against the smaller column set.
+const preferenceKey =
+	props.mode === "handling" && !props.includeItem
+		? "history.handling-single-item"
+		: `history.${props.mode}`;
 const slots = useSlots();
 const hasActions = computed(() => Boolean(slots.actions && props.rows.some(canSettle)));
 const loadingMore = computed(() => props.loading && props.initialized && !props.stale);
@@ -122,7 +128,7 @@ const columns = computed<DataColumn[]>(() => {
 	return result;
 });
 const columnPreferences = services
-	? useColumnPreferences(`history.${props.mode}`, columns, reference, services)
+	? useColumnPreferences(preferenceKey, columns, reference, services)
 	: undefined;
 const rows = computed<DataTableRecord[]>(() =>
 	props.rows.map((row) => ({ kind: "record", id: row.id, value: row })),

@@ -920,7 +920,7 @@ async function back() {
 		</div>
 		<section v-if="state.server && !writable" class="count-readonly surface">
 			<TransactionContext :draft="context" :activity-label="activityLabel" mode="display" />
-			<CountSummary :rows="readOnlySummaryRows" />
+			<CountSummary :rows="readOnlySummaryRows" :mobile="isMobile" />
 			<p v-if="unchangedReviewedCount" class="muted count-readonly-unchanged">
 				另有 {{ unchangedReviewedCount }} 个物品核对无变化
 			</p>
@@ -980,7 +980,7 @@ async function back() {
 			</DataTable>
 		</section>
 		<Overlay v-if="reviewOpen" title="核对并确认盘点" @close="!busy && (reviewOpen = false)"
-			><CountSummary v-if="!deskOrigin" :rows="rows" />
+			><CountSummary v-if="!deskOrigin" :rows="rows" :mobile="isMobile" />
 			<p v-if="!deskOrigin" class="count-confirmation-note">
 				未核对的行仍保留在本次范围中，但不会进入盘点调整。
 			</p>

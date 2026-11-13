@@ -203,6 +203,27 @@ test("fixture count editor and detail render the review layouts at desktop and p
       "location",
     );
     await expect(page.locator(".form-actions.document-actions")).toBeVisible();
+    if (width === 390) {
+      const summaryLine = page.locator(".count-summary-disclosure > summary");
+      await expect(summaryLine).toContainText("已核对 0/3 · 未核对 3 · 差异 0");
+      const firstRow = rows.first();
+      const rowBox = await firstRow.boundingBox();
+      expect(rowBox?.y).toBeLessThan(height);
+      await page.screenshot({
+        path: test.info().outputPath("count-summary-collapsed-390x844.png"),
+      });
+      await summaryLine.click();
+      await expect(page.locator(".count-summary-disclosure")).toHaveAttribute(
+        "open",
+        "",
+      );
+      await expect(
+        page.locator(".count-summary-disclosure .count-summary-strip .metric"),
+      ).toHaveCount(6);
+      await page.screenshot({
+        path: test.info().outputPath("count-summary-expanded-390x844.png"),
+      });
+    }
     await page.screenshot({
       path: test.info().outputPath(`count-editor-${width}x${height}.png`),
     });

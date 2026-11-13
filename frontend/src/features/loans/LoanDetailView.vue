@@ -301,7 +301,7 @@ function serialRemainder(serials: string[]) {
 				<MovementHistoryTable
 					:show-status="false"
 					mode="handling"
-					include-item
+					:include-item="loan.items.length > 1"
 					:rows="c.history.result.rows"
 					:total="c.history.result.total"
 					:next="c.history.result.next"
