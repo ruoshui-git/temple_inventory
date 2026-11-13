@@ -728,7 +728,7 @@ class Projection(AbstractContextManager):
 		self.load_item_children = load_item_children
 		from temple_inventory.read_cache import capture_cache_context
 
-		self.cache_context = None if refresh else capture_cache_context()
+		self.cache_context = None if refresh else capture_cache_context(self.query)
 		self.calculation_started = (
 			getattr(frappe.local, "inventory_cache_request_started", None) if self.cache_context else None
 		) or str(now_datetime())

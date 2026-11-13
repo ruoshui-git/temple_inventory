@@ -552,15 +552,7 @@ class NativeReportsProjectionsTests(NativeReportTestCase):
 	def test_source_document_event_advances_revision_inside_its_transaction(self):
 		from temple_inventory import read_cache
 
-		def get_revision():
-			rows = frappe.db.sql(
-				"select value from tabSingles where doctype=%s and field='ti_read_generation'",
-				("Temple Inventory Settings",),
-				as_dict=True,
-			)
-			return int(rows[0].value) if rows else 0
-
-		before = get_revision()
+		before = read_cache.durable_revisions({"catalog"})["catalog"]
 		frappe.db.savepoint("ti_source_cache_hook")
 		after_commit = frappe.db.after_commit
 		after_rollback = frappe.db.after_rollback
@@ -572,10 +564,10 @@ class NativeReportsProjectionsTests(NativeReportTestCase):
 			frappe.local.inventory_cache_dirty_scheduled = False
 			frappe.local.inventory_cache_revision_touched = False
 			read_cache.invalidate_after_commit(frappe._dict(doctype="Item"), "on_update")
-			self.assertEqual(get_revision(), before + 1)
+			self.assertNotEqual(read_cache.durable_revisions({"catalog"})["catalog"], before)
 			self.assertEqual(len(after_commit._functions), len(commit_callbacks) + 1)
 			frappe.db.rollback(save_point="ti_source_cache_hook")
-			self.assertEqual(get_revision(), before)
+			self.assertEqual(read_cache.durable_revisions({"catalog"})["catalog"], before)
 		finally:
 			after_commit._functions.clear()
 			after_commit._functions.extend(commit_callbacks)

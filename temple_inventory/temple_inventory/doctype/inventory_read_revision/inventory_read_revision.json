@@ -1,0 +1,21 @@
+{
+  "doctype": "DocType",
+  "name": "Inventory Read Revision",
+  "module": "Temple Inventory",
+  "autoname": "autoincrement",
+  "in_create": 1,
+  "read_only": 1,
+  "fields": [
+    {
+      "fieldname": "dataset",
+      "fieldtype": "Data",
+      "label": "Dataset",
+      "reqd": 1,
+      "search_index": 1
+    }
+  ],
+  "field_order": ["dataset"],
+  "permissions": [],
+  "sort_field": "name",
+  "sort_order": "DESC"
+}

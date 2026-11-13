@@ -15,7 +15,7 @@ from frappe.utils import now_datetime
 CACHE_TTL = 300
 MAX_ENTRY_BYTES = 64 * 1024 * 1024
 MAX_PROJECTION_BYTES = 256 * 1024 * 1024
-IMPLEMENTATION_VERSION = "browse-v9"
+IMPLEMENTATION_VERSION = "browse-v10"
 GENERATION_KEY = "temple_inventory:browse:generation"
 LOCK_WAIT_SECONDS = 3
 CACHEABLE_METHODS = {
@@ -35,6 +35,7 @@ CACHEABLE_METHODS = {
 
 READ_DOCTYPES = (
 	"Batch",
+	"Bin",
 	"Company",
 	"Custom DocPerm",
 	"DocShare",
@@ -56,6 +57,7 @@ READ_DOCTYPES = (
 	"Sales Invoice",
 	"Serial and Batch Bundle",
 	"Serial and Batch Entry",
+	"Serial No",
 	"Stock Entry",
 	"Stock Ledger Entry",
 	"Stock Reconciliation",
@@ -64,8 +66,80 @@ READ_DOCTYPES = (
 	"Temple Inventory Settings",
 	"User",
 	"User Permission",
+	"UOM",
 	"Warehouse",
 )
+
+DATASETS = ("access", "catalog", "counts", "entries", "ledger")
+ALL_DATASETS = frozenset(DATASETS)
+_REVISION_TABLE_READY_SITES = set()
+
+# Every native DocType whose changes can alter a cached response is classified.
+# Unknown DocTypes fail closed in datasets_for_doctype().
+DOCTYPE_DATASETS = {
+	"Batch": {"catalog", "ledger"},
+	"Bin": {"ledger"},
+	"Company": {"catalog"},
+	"Custom DocPerm": {"access"},
+	"DocShare": {"access"},
+	"DocPerm": {"access"},
+	"DocType": {"access"},
+	"Delivery Note": {"entries", "ledger"},
+	"File": {"catalog"},
+	"Inventory Activity": {"catalog"},
+	"Inventory Activity Type": {"catalog"},
+	"Inventory Configuration": {"catalog"},
+	"Item": {"catalog"},
+	"Item Group": {"catalog"},
+	"POS Invoice": {"entries", "ledger"},
+	"Purchase Invoice": {"entries", "ledger"},
+	"Purchase Receipt": {"entries", "ledger"},
+	"Repost Item Valuation": {"ledger"},
+	"Role": {"access"},
+	"Role Profile": {"access"},
+	"Sales Invoice": {"entries", "ledger"},
+	"Serial and Batch Bundle": {"ledger"},
+	"Serial and Batch Entry": {"ledger"},
+	"Serial No": {"catalog", "ledger"},
+	"Stock Entry": {"entries", "ledger"},
+	"Stock Ledger Entry": {"ledger"},
+	"Stock Reconciliation": {"counts", "ledger"},
+	"Subcontracting Receipt": {"entries", "ledger"},
+	"Has Role": {"access"},
+	"Temple Inventory Settings": {"catalog"},
+	"User": {"access"},
+	"User Permission": {"access"},
+	"UOM": {"catalog"},
+	"Warehouse": {"catalog"},
+}
+
+# Projection dataset declarations. These are intentionally explicit for each
+# cacheable endpoint; generic report projections additionally resolve by query dataset.
+CACHE_METHOD_DATASETS = {
+	"temple_inventory.activities.load_activity": ALL_DATASETS,
+	"temple_inventory.projections.report_page": ALL_DATASETS,
+	"temple_inventory.projections.group_page": ALL_DATASETS,
+	"temple_inventory.browse.dashboard_card": ALL_DATASETS,
+	"temple_inventory.browse.expiry_page": {"catalog", "access", "ledger"},
+	"temple_inventory.browse.inventory_page": {"catalog", "access", "ledger"},
+	"temple_inventory.browse.movement_history": {"catalog", "access", "entries", "counts", "ledger"},
+	"temple_inventory.browse.operation_analysis": {"catalog", "access", "entries", "counts", "ledger"},
+	"temple_inventory.browse.operation_contributions": {"catalog", "access", "entries", "counts", "ledger"},
+	"temple_inventory.browse.operation_page": {"catalog", "access", "entries", "counts", "ledger"},
+	"temple_inventory.browse.counts_page": {"catalog", "access", "counts"},
+	"temple_inventory.browse.native_drafts": {"catalog", "access", "entries", "counts"},
+}
+
+PROJECTION_DATASETS = {
+	"inventory": {"catalog", "access", "ledger"},
+	# Movements, loans and drafts list count adjustments and count drafts as well.
+	"movements": {"catalog", "access", "entries", "counts", "ledger"},
+	"loans": {"catalog", "access", "entries", "counts", "ledger"},
+	"counts": {"catalog", "access", "counts"},
+	"expiry": {"catalog", "access", "ledger"},
+	# Activity detail aggregates the linked operations and counts.
+	"activities": ALL_DATASETS,
+}
 
 
 def _redis():
@@ -76,17 +150,27 @@ def _redis_key(raw, key):
 	return raw.make_key(key)
 
 
-def data_generation():
+def _generation_key(dataset):
+	return f"{GENERATION_KEY}:{dataset}"
+
+
+def data_generation(datasets=None):
+	"""Return the Redis generation snapshot for the requested datasets."""
 	raw = _redis()
-	value = raw.get(_redis_key(raw, GENERATION_KEY))
-	return value.decode() if isinstance(value, bytes) else str(value or "0")
+	datasets = tuple(sorted(datasets or ALL_DATASETS))
+	values = {}
+	for dataset in datasets:
+		value = raw.get(_redis_key(raw, _generation_key(dataset)))
+		values[dataset] = value.decode() if isinstance(value, bytes) else str(value or "0")
+	return values
 
 
-def invalidate_now():
-	"""Advance the global generation; existing immutable entries age out naturally."""
+def invalidate_now(datasets=None):
+	"""Advance Redis generations after commit; existing entries age out naturally."""
 	try:
 		raw = _redis()
-		raw.incr(_redis_key(raw, GENERATION_KEY))
+		for dataset in sorted(datasets or ALL_DATASETS):
+			raw.incr(_redis_key(raw, _generation_key(dataset)))
 	except redis.exceptions.RedisError, OSError:
 		# A cache outage must never make the source transaction fail.
 		return False
@@ -108,25 +192,27 @@ def invalidate_after_commit(doc=None, *_args, **_kwargs):
 			doc.has_value_changed(field) for field in ("enabled", "user_type", "role_profile_name")
 		):
 			return
-	if (
-		doc
-		and doc.doctype != "Temple Inventory Settings"
-		and not getattr(frappe.local, "inventory_cache_revision_touched", False)
-	):
-		_bump_durable_revision()
-		frappe.local.inventory_cache_revision_touched = True
+	datasets = datasets_for_doctype(doc.doctype) if doc else set(ALL_DATASETS)
+	_mark_durable_revisions(datasets)
+	pending = getattr(frappe.local, "inventory_cache_revision_datasets", None)
+	if pending is None:
+		pending = frappe.local.inventory_cache_revision_datasets = set()
+	pending.update(datasets)
 	if getattr(frappe.local, "inventory_cache_dirty_scheduled", False):
 		return
 	frappe.local.inventory_cache_dirty_scheduled = True
 
 	def publish():
+		changed = set(getattr(frappe.local, "inventory_cache_revision_datasets", ()))
 		frappe.local.inventory_cache_dirty_scheduled = False
-		frappe.local.inventory_cache_revision_touched = False
-		invalidate_now()
+		frappe.local.inventory_cache_revision_touched = set()
+		frappe.local.inventory_cache_revision_datasets = set()
+		invalidate_now(changed)
 
 	def rolled_back():
 		frappe.local.inventory_cache_dirty_scheduled = False
-		frappe.local.inventory_cache_revision_touched = False
+		frappe.local.inventory_cache_revision_touched = set()
+		frappe.local.inventory_cache_revision_datasets = set()
 
 	frappe.db.after_commit.add(publish)
 	frappe.db.after_rollback.add(rolled_back)
@@ -134,9 +220,6 @@ def invalidate_after_commit(doc=None, *_args, **_kwargs):
 
 def invalidate_after_clear_cache():
 	"""Durably invalidate projections when Frappe clears app-wide metadata/auth caches."""
-	if not getattr(frappe.local, "inventory_cache_revision_touched", False):
-		_bump_durable_revision()
-		frappe.local.inventory_cache_revision_touched = True
 	invalidate_after_commit()
 
 
@@ -152,13 +235,13 @@ def after_job(method=None, **_kwargs):
 	name = str(method or "").casefold()
 	if "repost" in name or "stock_ledger" in name or "stock ledger" in name:
 		try:
-			_bump_durable_revision()
+			_mark_durable_revisions(ALL_DATASETS)
 			frappe.db.commit()
 		except Exception:
 			# The job already committed its native writes. Redis generation still
 			# invalidates when available; never report a successful repost as failed.
 			frappe.logger().exception("Could not persist inventory cache revision after stock repost")
-		invalidate_now()
+		invalidate_now(ALL_DATASETS)
 
 
 def after_rename(*_args, **_kwargs):
@@ -314,59 +397,72 @@ def _configuration_signature():
 
 def _configuration_signature_uncached():
 	settings = frappe.db.sql(
-		"select field, value from tabSingles where doctype=%s and field in ('company', 'modified', 'ti_read_generation')",
+		"select field, value from tabSingles where doctype=%s and field in ('company', 'modified')",
 		("Temple Inventory Settings",),
 		as_dict=True,
 	)
 	values = {row.field: row.value for row in settings}
-	values.setdefault("ti_read_generation", "0")
-	repost = frappe.db.sql(
-		"select modified from `tabRepost Item Valuation` order by modified desc limit 1", as_dict=True
-	)
-	values["latest_repost_modified"] = repost[0].modified if repost else ""
 	return _digest(values)
 
 
-def _bump_durable_revision():
-	"""Advance the app-owned revision in the source transaction.
+def datasets_for_doctype(doctype):
+	"""Return the explicit cache datasets affected by a native DocType write."""
+	return set(DOCTYPE_DATASETS.get(doctype, ALL_DATASETS))
 
-	Frappe's ``tabSingles`` index on ``(doctype, field)`` is not unique, so an
-	upsert would insert duplicate generation rows. Locking reads provide the
-	current committed row under MariaDB repeatable-read; the UPDATE itself is
-	atomic and participates in the source transaction.
-	"""
-	doctype = "Temple Inventory Settings"
-	rows = frappe.db.sql(
-		"select value from tabSingles where doctype=%s and field='ti_read_generation' for update",
-		(doctype,),
-		as_dict=True,
-	)
-	if rows:
+
+def _bump_durable_revisions(datasets):
+	"""Append one revision row per newly touched dataset in the source transaction."""
+	for dataset in sorted(datasets):
+		name = frappe.db.get_next_sequence_val("Inventory Read Revision")
 		frappe.db.sql(
-			"update tabSingles set value=cast(coalesce(value, '0') as unsigned) + 1 where doctype=%s and field='ti_read_generation'",
-			(doctype,),
+			"insert into `tabInventory Read Revision` (name, dataset) values (%s, %s)",
+			(name, dataset),
 		)
+
+
+def _mark_durable_revisions(datasets):
+	if not _revision_table_exists():
 		return
+	touched = getattr(frappe.local, "inventory_cache_revision_touched", None)
+	if not isinstance(touched, set):
+		touched = frappe.local.inventory_cache_revision_touched = set()
+	new_datasets = set(datasets) - touched
+	if new_datasets:
+		_bump_durable_revisions(new_datasets)
+		touched.update(new_datasets)
 
-	# The field is not materialized until the singleton has been saved on older
-	# installations. Serialize this one-time creation on its DocType metadata
-	# row, then recheck with a locking/current read before inserting.
-	frappe.db.sql("select name from tabDocType where name=%s for update", (doctype,), as_dict=True)
+
+def _revision_table_exists():
+	"""Cache positive schema readiness per site and process, without caching pre-migrate misses."""
+	site = getattr(frappe.local, "site", None) or frappe.conf.db_name
+	if site in _REVISION_TABLE_READY_SITES:
+		return True
+	if frappe.db.table_exists("Inventory Read Revision"):
+		_REVISION_TABLE_READY_SITES.add(site)
+		return True
+	return False
+
+
+def durable_revisions(datasets=None):
+	"""Read the latest append-only revision for each dataset in one grouped query."""
+	datasets = tuple(sorted(datasets or ALL_DATASETS))
 	rows = frappe.db.sql(
-		"select value from tabSingles where doctype=%s and field='ti_read_generation' for update",
-		(doctype,),
+		"select dataset, max(name) as revision from `tabInventory Read Revision` "
+		"where dataset in %(datasets)s group by dataset",
+		{"datasets": datasets},
 		as_dict=True,
 	)
-	if rows:
-		frappe.db.sql(
-			"update tabSingles set value=cast(coalesce(value, '0') as unsigned) + 1 where doctype=%s and field='ti_read_generation'",
-			(doctype,),
-		)
-	else:
-		frappe.db.sql(
-			"insert into tabSingles (doctype, field, value) values (%s, 'ti_read_generation', '1')",
-			(doctype,),
-		)
+	values = {row.dataset: row.revision for row in rows}
+	return {dataset: str(values.get(dataset) or "0") for dataset in datasets}
+
+
+def prune_durable_revisions():
+	"""Keep only the current maximum revision per dataset without changing maxima."""
+	frappe.db.sql(
+		"delete from `tabInventory Read Revision` where name not in ("
+		"select latest from (select max(name) as latest from `tabInventory Read Revision` group by dataset) "
+		"current_revisions)"
+	)
 
 
 def _digest(value):
@@ -382,7 +478,9 @@ def _request_cacheable():
 		return False
 	if getattr(frappe.flags, "disable_inventory_read_cache", False):
 		return False
-	if not getattr(frappe.local, "inventory_cache_request_generation", None):
+	if not _revision_table_exists():
+		return False
+	if not getattr(frappe.local, "inventory_cache_request_revisions", None):
 		return False
 	if getattr(frappe.db, "transaction_writes", 0):
 		return False
@@ -410,8 +508,10 @@ def begin_read_request():
 		method = method.removeprefix("/api/method/")
 	if method not in CACHEABLE_METHODS:
 		return
-	frappe.local.inventory_cache_request_generation = None
+	frappe.local.inventory_cache_request_revisions = None
 	database = frappe.db
+	if not _revision_table_exists():
+		return
 	callbacks = (
 		database.before_commit,
 		database.after_commit,
@@ -428,10 +528,10 @@ def begin_read_request():
 		# HTTPRequest may have opened a repeatable-read snapshot while loading auth.
 		# End it only after proving there are no writes or deferred transaction callbacks.
 		database.commit()
-		frappe.local.inventory_cache_request_generation = data_generation()
+		frappe.local.inventory_cache_request_revisions = _revision_snapshot(ALL_DATASETS)
 		frappe.local.inventory_cache_request_started = str(now_datetime())
 	except redis.exceptions.RedisError, OSError, ValueError, TypeError, RuntimeError:
-		frappe.local.inventory_cache_request_generation = None
+		frappe.local.inventory_cache_request_revisions = None
 
 
 def restart_owned_read_snapshot():
@@ -537,13 +637,35 @@ def _projection_identity(projection, generation, permission, configuration):
 	)
 
 
-def capture_cache_context():
+def _projection_datasets(query):
+	if not isinstance(query, dict):
+		return set(ALL_DATASETS)
+	return set(PROJECTION_DATASETS.get(query.get("dataset"), ALL_DATASETS))
+
+
+def _revision_snapshot(datasets):
+	datasets = set(datasets or ALL_DATASETS)
+	return {
+		"datasets": sorted(datasets),
+		"durable": durable_revisions(datasets),
+		"redis": data_generation(datasets),
+	}
+
+
+def capture_cache_context(query=None):
 	"""Capture authorization and source generation before a projection reads its snapshot."""
 	if not _request_cacheable():
 		return None
 	try:
+		datasets = _projection_datasets(query)
+		request_revisions = frappe.local.inventory_cache_request_revisions
 		return {
-			"generation": frappe.local.inventory_cache_request_generation,
+			"generation": {
+				"datasets": sorted(datasets),
+				"durable": {key: request_revisions["durable"][key] for key in sorted(datasets)},
+				"redis": {key: request_revisions["redis"][key] for key in sorted(datasets)},
+			},
+			"datasets": sorted(datasets),
 			"permission": _permission_signature(frappe.session.user),
 			"configuration": _configuration_signature(),
 			"user": frappe.session.user,
@@ -557,7 +679,7 @@ def cache_context_current(context):
 		return False
 	try:
 		return (
-			data_generation() == context["generation"]
+			_revision_snapshot(context["datasets"]) == context["generation"]
 			and _permission_signature(frappe.session.user) == context["permission"]
 			and _configuration_signature() == context["configuration"]
 		)
@@ -639,7 +761,7 @@ def restore_projection(projection):
 			metadata = json.loads(metadata[0])
 		finally:
 			connection.close()
-		if data_generation() != generation:
+		if _revision_snapshot(captured["datasets"]) != generation:
 			return False
 		if (
 			_permission_signature(frappe.session.user) != permission
@@ -700,7 +822,7 @@ def store_projection(projection):
 		database = backup_path.read_bytes()
 		if not _fresh(projection.context.snapshot):
 			return
-		if data_generation() != generation:
+		if _revision_snapshot(captured["datasets"]) != generation:
 			return
 		if (
 			_permission_signature(frappe.session.user) != permission

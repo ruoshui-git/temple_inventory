@@ -340,7 +340,12 @@ permission_query_conditions = {
 	"Inventory Push Subscription": "temple_inventory.push.subscription_query",
 }
 
-scheduler_events = {"daily": ["temple_inventory.notifications.daily_expiry_digest"]}
+scheduler_events = {
+	"daily": [
+		"temple_inventory.notifications.daily_expiry_digest",
+		"temple_inventory.read_cache.prune_durable_revisions",
+	]
+}
 
 extend_doctype_class = {
 	"File": ["temple_inventory.file.InventoryFileMixin"],

@@ -34,6 +34,7 @@ class SchemaAuditTests(unittest.TestCase):
 					"Inventory Count Review",
 					"Inventory Export Request",
 					"Inventory Import",
+					"Inventory Read Revision",
 					"Inventory Push Subscription",
 					"Temple Inventory Allowed Warehouse",
 					"Temple Inventory Settings",
@@ -44,7 +45,17 @@ class SchemaAuditTests(unittest.TestCase):
 		self.assertFalse(manifest["hooks"]["contains_retired_names"])
 		self.assertTrue(manifest["setup"]["seeds_activity_types"])
 		self.assertFalse(manifest["setup"]["contains_retired_names"])
-		self.assertIn("ti_read_generation", manifest["settings_fields"])
+		revision_path = (
+			schema_audit.APP_ROOT
+			/ "temple_inventory"
+			/ "doctype"
+			/ "inventory_read_revision"
+			/ "inventory_read_revision.json"
+		)
+		import json
+
+		fields = {field["fieldname"] for field in json.loads(revision_path.read_text())["fields"]}
+		self.assertEqual(fields, {"dataset"})
 
 	def test_inventory_import_and_item_reference_schema_is_pinned(self):
 		manifest = schema_audit._source_manifest()

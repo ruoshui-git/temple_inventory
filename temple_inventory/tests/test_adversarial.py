@@ -132,19 +132,19 @@ class AdversarialTests(NativeDocumentTests):
 		self.assertEqual(enqueue.call_args.args[0], "temple_inventory.native_api.run_queued_action")
 		with self.assertRaises(frappe.DocumentLockedError):
 			native_api.submit_document("Stock Reconciliation", draft.name, draft.version)
-		original = read_cache._bump_durable_revision
+		original = read_cache._bump_durable_revisions
 		calls = []
 
-		def conflict_once():
+		def conflict_once(datasets):
 			calls.append(1)
 			if len(calls) == 1:
 				raise frappe.QueryDeadlockError("Record has changed since last read")
-			return original()
+			return original(datasets)
 
 		frappe.db.savepoint("queued_action_attempt")
 		original_rollback = frappe.db.rollback
 		with (
-			patch.object(read_cache, "_bump_durable_revision", side_effect=conflict_once),
+			patch.object(read_cache, "_bump_durable_revisions", side_effect=conflict_once),
 			patch.object(
 				frappe.db,
 				"rollback",
@@ -169,15 +169,18 @@ class AdversarialTests(NativeDocumentTests):
 		from temple_inventory import read_cache
 
 		request = self._queued_item_import()
-		original_bump = read_cache._bump_durable_revision
+		original_bump = read_cache._bump_durable_revisions
 		original_rollback = frappe.db.rollback
-		calls = []
+		catalog_conflicts = []
+		catalog_retries = []
 
-		def conflict_once():
-			calls.append(1)
-			if len(calls) == 1:
-				raise frappe.QueryDeadlockError("Record has changed since last read")
-			return original_bump()
+		def conflict_once(datasets):
+			if "catalog" in datasets:
+				if not catalog_conflicts:
+					catalog_conflicts.append(set(datasets))
+					raise frappe.QueryDeadlockError("Record has changed since last read")
+				catalog_retries.append(set(datasets))
+			return original_bump(datasets)
 
 		frappe.db.savepoint("item_import_attempt")
 		with (
@@ -187,13 +190,14 @@ class AdversarialTests(NativeDocumentTests):
 				"rollback",
 				side_effect=lambda: original_rollback(save_point="item_import_attempt"),
 			),
-			patch.object(read_cache, "_bump_durable_revision", side_effect=conflict_once),
+			patch.object(read_cache, "_bump_durable_revisions", side_effect=conflict_once),
 		):
 			imports.run_import(request.name, "Administrator")
 		result = frappe.get_doc("Inventory Import", request.name)
 		created = frappe.parse_json(result.created_documents or "[]")
 		self.assertEqual(result.status, "Completed")
-		self.assertEqual(len(calls), 2)
+		self.assertEqual(len(catalog_conflicts), 1)
+		self.assertTrue(catalog_retries)
 		self.assertEqual(len(created), 1)
 		self.assertEqual(frappe.db.count("Item", {"name": created[0]}), 1)
 
@@ -205,15 +209,18 @@ class AdversarialTests(NativeDocumentTests):
 		request_key = hashlib.sha256(request.name.encode()).hexdigest()
 		planned = frappe.parse_json(request.preview_json)
 		self.assertTrue(any(row["action"] == "NEW" for row in planned), planned)
-		original_bump = read_cache._bump_durable_revision
+		original_bump = read_cache._bump_durable_revisions
 		original_rollback = frappe.db.rollback
-		calls = []
+		ledger_conflicts = []
+		ledger_retries = []
 
-		def conflict_once():
-			calls.append(1)
-			if len(calls) == 1:
-				raise frappe.QueryDeadlockError("Record has changed since last read")
-			return original_bump()
+		def conflict_once(datasets):
+			if "ledger" in datasets:
+				if not ledger_conflicts:
+					ledger_conflicts.append(set(datasets))
+					raise frappe.QueryDeadlockError("Record has changed since last read")
+				ledger_retries.append(set(datasets))
+			return original_bump(datasets)
 
 		frappe.db.savepoint("opening_import_attempt")
 		with (
@@ -227,7 +234,7 @@ class AdversarialTests(NativeDocumentTests):
 				"rollback",
 				side_effect=lambda: original_rollback(save_point="opening_import_attempt"),
 			),
-			patch.object(read_cache, "_bump_durable_revision", side_effect=conflict_once),
+			patch.object(read_cache, "_bump_durable_revisions", side_effect=conflict_once),
 			patch.object(imports, "_opening_plan", return_value=(planned, request.plan_hash)),
 		):
 			imports.run_opening_import(request.name, "Administrator")
@@ -235,7 +242,8 @@ class AdversarialTests(NativeDocumentTests):
 			"Stock Reconciliation", filters={"ti_request_key": request_key}, fields=["name", "docstatus"]
 		)
 		self.assertEqual(frappe.get_value("Inventory Import", request.name, "status"), "Completed")
-		self.assertEqual(len(calls), 2)
+		self.assertEqual(len(ledger_conflicts), 1)
+		self.assertTrue(ledger_retries)
 		self.assertEqual(len(documents), 1)
 		self.assertEqual(documents[0].docstatus, 1)
 
@@ -253,19 +261,20 @@ class AdversarialTests(NativeDocumentTests):
 		):
 			queued = native_api.cancel_document("Stock Reconciliation", draft.name, submitted.version)
 		self.assertTrue(queued.queued)
-		original_bump = read_cache._bump_durable_revision
+		original_bump = read_cache._bump_durable_revisions
 		original_rollback = frappe.db.rollback
-		calls = []
+		count_calls = []
 
-		def conflict_once():
-			calls.append(1)
-			if len(calls) == 1:
-				raise frappe.QueryDeadlockError("Record has changed since last read")
-			return original_bump()
+		def conflict_once(datasets):
+			if "counts" in datasets:
+				count_calls.append(1)
+				if len(count_calls) == 1:
+					raise frappe.QueryDeadlockError("Record has changed since last read")
+			return original_bump(datasets)
 
 		frappe.db.savepoint("queued_cancel_attempt")
 		with (
-			patch.object(read_cache, "_bump_durable_revision", side_effect=conflict_once),
+			patch.object(read_cache, "_bump_durable_revisions", side_effect=conflict_once),
 			patch.object(
 				frappe.db,
 				"rollback",
@@ -274,7 +283,7 @@ class AdversarialTests(NativeDocumentTests):
 		):
 			native_api.run_queued_action("Stock Reconciliation", draft.name, "cancel", frappe.session.user)
 		self.assertEqual(frappe.db.get_value("Stock Reconciliation", draft.name, "docstatus"), 2)
-		self.assertEqual(len(calls), 2)
+		self.assertEqual(len(count_calls), 2)
 
 	def test_adv_queued_cancel_exhaustion_keeps_submitted_count(self):
 		from frappe.utils import background_jobs
@@ -294,7 +303,7 @@ class AdversarialTests(NativeDocumentTests):
 		with (
 			patch.object(
 				read_cache,
-				"_bump_durable_revision",
+				"_bump_durable_revisions",
 				side_effect=frappe.QueryDeadlockError("Record has changed since last read"),
 			),
 			patch.object(
@@ -335,7 +344,7 @@ class AdversarialTests(NativeDocumentTests):
 		with (
 			patch.object(
 				read_cache,
-				"_bump_durable_revision",
+				"_bump_durable_revisions",
 				side_effect=frappe.QueryDeadlockError("Record has changed since last read"),
 			),
 			patch.object(
@@ -376,7 +385,7 @@ class AdversarialTests(NativeDocumentTests):
 			),
 			patch.object(
 				read_cache,
-				"_bump_durable_revision",
+				"_bump_durable_revisions",
 				side_effect=frappe.QueryDeadlockError("Record has changed since last read"),
 			),
 		):
@@ -395,7 +404,17 @@ class AdversarialTests(NativeDocumentTests):
 		planned = frappe.parse_json(request.preview_json)
 		self.assertTrue(any(row["action"] == "NEW" for row in planned), planned)
 		original_rollback = frappe.db.rollback
+		original_bump = read_cache._bump_durable_revisions
+		ledger_calls = []
 		frappe.db.savepoint("opening_import_exhaustion")
+
+		def fail_ledger_revision(datasets):
+			if "ledger" in datasets:
+				ledger_calls.append(1)
+				if len(ledger_calls) > 1:
+					raise frappe.QueryDeadlockError("Record has changed since last read")
+			return original_bump(datasets)
+
 		with (
 			patch.object(
 				frappe.db,
@@ -409,8 +428,8 @@ class AdversarialTests(NativeDocumentTests):
 			),
 			patch.object(
 				read_cache,
-				"_bump_durable_revision",
-				side_effect=frappe.QueryDeadlockError("Record has changed since last read"),
+				"_bump_durable_revisions",
+				side_effect=fail_ledger_revision,
 			),
 			patch.object(imports, "_opening_plan", return_value=(planned, request.plan_hash)),
 		):
@@ -419,6 +438,7 @@ class AdversarialTests(NativeDocumentTests):
 			"Stock Reconciliation", filters={"ti_request_key": request_key}, fields=["name", "docstatus"]
 		)
 		self.assertEqual(frappe.get_value("Inventory Import", request.name, "status"), "Failed")
+		self.assertTrue(ledger_calls)
 		self.assertEqual(len(documents), 1, frappe.get_value("Inventory Import", request.name, "error"))
 		self.assertEqual(documents[0].docstatus, 0)
 		self.assertIn(documents[0].name, frappe.get_value("Inventory Import", request.name, "error"))
@@ -965,6 +985,101 @@ class AdversarialTests(NativeDocumentTests):
 		self.submit(self.create(later))
 		with self.assertRaises((frappe.ValidationError, frappe.TimestampMismatchError)):
 			counts.save_count(str(uuid4()), data, name, draft["version"])
+
+	def test_adv_count_movement_interleavings_respect_count_timestamp(self):
+		from datetime import timedelta
+
+		from erpnext.stock.utils import get_stock_balance
+		from frappe.utils import get_datetime
+
+		self.receipt(10)
+
+		def count_at(timestamp, actual=8, item=None, warehouse=None):
+			baseline = counts.count_baseline(str(timestamp))
+			rows = baseline["rows"]
+			for row in rows:
+				if row["item_code"] == (item or self.item) and row["warehouse"] == (warehouse or self.a):
+					row.update(actual_qty=actual, review_state="Reviewed", reason="race verification")
+			data = {
+				"company": self.company,
+				"posting_date": timestamp.date(),
+				"posting_time": timestamp.time(),
+				"ti_time_mode": "Historical",
+				"ti_notes": "count versus movement interleaving",
+				"ti_count_review": rows,
+			}
+			return counts.save_count(str(uuid4()), data)
+
+		stale_time = get_datetime(frappe.utils.now_datetime())
+		stale_draft = count_at(stale_time)
+		stale_movement = self.movement(quantity=2, posting_date=stale_time.date(), posting_time="00:00:01")
+		self.submit(self.create(stale_movement))
+		with self.assertRaisesRegex(frappe.ValidationError, "基准已变化的盘点行") as stale_error:
+			native_api.submit_document("Stock Reconciliation", stale_draft["name"], stale_draft["version"])
+		self.assertIn("Native test item", str(stale_error.exception))
+		self.assertIn("Native Test A Room", str(stale_error.exception))
+		self.assertEqual(frappe.db.count("Stock Ledger Entry", {"voucher_no": stale_draft["name"]}), 0)
+
+		# Count at site now, after the receipt and the stale movement (baseline 12); the later
+		# movement one second after the count stays inside the 60-second future tolerance.
+		future_count_time = get_datetime(frappe.utils.now_datetime())
+		accepted_draft = count_at(future_count_time)
+		later = self.movement(quantity=3, posting_date=future_count_time.date())
+		later["posting_date"] = future_count_time.date()
+		later["posting_time"] = (future_count_time + timedelta(seconds=1)).strftime("%H:%M:%S")
+		completed = native_api.submit_document(
+			"Stock Reconciliation", accepted_draft["name"], accepted_draft["version"]
+		)
+		self.assertEqual(completed.docstatus, 1)
+		later_doc = self.submit(self.create(later))
+		after_later = future_count_time + timedelta(seconds=2)
+		self.assertEqual(
+			get_stock_balance(
+				self.item,
+				self.a,
+				posting_date=after_later.date(),
+				posting_time=after_later.strftime("%H:%M:%S"),
+			),
+			11,
+		)
+		self.assertEqual(
+			frappe.db.get_value("Bin", {"item_code": self.item, "warehouse": self.a}, "actual_qty"), 11
+		)
+		count_ledger = frappe.get_all(
+			"Stock Ledger Entry",
+			filters={"voucher_no": accepted_draft["name"]},
+			fields=["qty_after_transaction"],
+		)
+		# ERPNext records a reconciliation as the resulting quantity (actual_qty stays 0).
+		self.assertEqual(count_ledger, [{"qty_after_transaction": 8}])
+		movement_ledger = frappe.get_all(
+			"Stock Ledger Entry",
+			filters={"voucher_no": later_doc.name},
+			fields=["actual_qty", "qty_after_transaction"],
+		)
+		self.assertEqual(movement_ledger, [{"actual_qty": 3, "qty_after_transaction": 11}])
+
+		other_item = frappe.get_doc(
+			{
+				"doctype": "Item",
+				"item_code": f"TI-OUTSIDE-{self.token}",
+				"item_name": "Outside count item",
+				"stock_uom": "Nos",
+				"item_group": "All Item Groups",
+				"is_stock_item": 1,
+			}
+		).insert()
+		# 5 differs from the book quantity whether or not the later movement is visible yet
+		# (8 or 11), so this count always creates an adjustment.
+		outside_draft = count_at(get_datetime(frappe.utils.now_datetime()), actual=5)
+		outside = self.movement(quantity=1, posting_date=frappe.utils.nowdate())
+		outside["items"][0]["item_code"] = other_item.name
+		outside["items"][0]["t_warehouse"] = self.b
+		self.submit(self.create(outside))
+		outside_count = native_api.submit_document(
+			"Stock Reconciliation", outside_draft["name"], outside_draft["version"]
+		)
+		self.assertEqual(outside_count.docstatus, 1)
 
 	def test_adv_version_requires_exact_timestamp(self):
 		doc = self.create(self.movement())

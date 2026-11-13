@@ -1451,7 +1451,7 @@ def _run_import_attempt(import_name, owner, failure_state):
 	previous_user = frappe.session.user
 	current_row = 0
 	frappe.set_user(owner)
-	frappe.local.inventory_cache_revision_touched = True
+	frappe.local.inventory_cache_revision_touched = set()
 	try:
 		doc = frappe.get_doc(DOCTYPE, import_name, for_update=True)
 		if doc.status not in ("Queued", "Running"):
@@ -1474,14 +1474,13 @@ def _run_import_attempt(import_name, owner, failure_state):
 			return
 		if any(row["action"] == "REJECTED" for row in planned) and not doc.skip_rejected:
 			frappe.throw("请先处理无法导入的行，或明确选择跳过")
-		# Allocate codes in a short transaction, before Item writes can lock the global read generation.
+		# Allocate codes in a short transaction before writing Item records.
 		for row in planned:
 			if row["action"] == "NEW":
 				row["allocated_code"] = allocate_item_code()
 		frappe.db.commit()
-		# Each commit clears this flag. Keep it set so Item writes do not take the global
-		# read-generation lock, which would block every other writer for the whole job.
-		frappe.local.inventory_cache_revision_touched = True
+		# The dataset set coalesces repeated Item hooks within each transaction.
+		frappe.local.inventory_cache_revision_touched = set()
 		results = []
 		for index, row in enumerate(planned, 1):
 			current_row = row["row"]
@@ -1553,8 +1552,7 @@ def _run_import_attempt(import_name, owner, failure_state):
 			[row["item_code"] for row in results if row["final_action"] == "NEW"], ensure_ascii=False
 		)
 		_save(doc)
-		frappe.local.inventory_cache_revision_touched = True
-		read_cache._bump_durable_revision()
+		read_cache._mark_durable_revisions({"catalog"})
 		frappe.db.commit()
 	except frappe.QueryDeadlockError:
 		raise
@@ -1568,8 +1566,8 @@ def _run_import_attempt(import_name, owner, failure_state):
 		frappe.db.commit()
 	finally:
 		frappe.set_user(previous_user)
-		frappe.local.inventory_cache_revision_touched = False
-		read_cache.invalidate_now()
+		frappe.local.inventory_cache_revision_touched = set()
+		read_cache.invalidate_now({"catalog"})
 
 
 def run_import(import_name, owner):
@@ -1590,8 +1588,8 @@ def run_import(import_name, owner):
 			frappe.db.commit()
 		finally:
 			frappe.set_user(previous_user)
-			frappe.local.inventory_cache_revision_touched = False
-			read_cache.invalidate_now()
+			frappe.local.inventory_cache_revision_touched = set()
+			read_cache.invalidate_now({"catalog"})
 
 
 def _run_opening_import_attempt(import_name, owner):
@@ -1600,7 +1598,7 @@ def _run_opening_import_attempt(import_name, owner):
 
 	previous_user = frappe.session.user
 	frappe.set_user(owner)
-	frappe.local.inventory_cache_revision_touched = True
+	frappe.local.inventory_cache_revision_touched = set()
 	doc = None
 	try:
 		doc = frappe.get_doc(DOCTYPE, import_name, for_update=True)
@@ -1713,7 +1711,7 @@ def _run_opening_import_attempt(import_name, owner):
 				)
 			native.insert()
 			frappe.db.commit()
-			frappe.local.inventory_cache_revision_touched = True
+			frappe.local.inventory_cache_revision_touched = set()
 		if native.docstatus == 0:
 			if warehouses:
 				frappe.db.sql(
@@ -1742,8 +1740,7 @@ def _run_opening_import_attempt(import_name, owner):
 			{"percent": 100, "heartbeat": frappe.utils.now_datetime().isoformat()},
 			expires_in_sec=3600,
 		)
-		frappe.local.inventory_cache_revision_touched = True
-		read_cache._bump_durable_revision()
+		read_cache._mark_durable_revisions({"counts", "ledger"})
 		frappe.db.commit()
 	except frappe.QueryDeadlockError:
 		raise
@@ -1768,8 +1765,8 @@ def _run_opening_import_attempt(import_name, owner):
 		frappe.db.commit()
 	finally:
 		frappe.set_user(previous_user)
-		frappe.local.inventory_cache_revision_touched = False
-		read_cache.invalidate_now()
+		frappe.local.inventory_cache_revision_touched = set()
+		read_cache.invalidate_now({"counts", "ledger"})
 
 
 def run_opening_import(import_name, owner):
@@ -1796,8 +1793,8 @@ def run_opening_import(import_name, owner):
 			frappe.db.commit()
 		finally:
 			frappe.set_user(previous_user)
-			frappe.local.inventory_cache_revision_touched = False
-			read_cache.invalidate_now()
+			frappe.local.inventory_cache_revision_touched = set()
+			read_cache.invalidate_now({"counts", "ledger"})
 
 
 # Phase 4 adds its own definition here and reuses the source, status and report machinery.

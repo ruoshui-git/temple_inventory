@@ -435,7 +435,7 @@ class ItemImportTests(NativeDocumentTests):
 		events = []
 		original_save = frappe.model.document.Document.save
 		original_allocate = imports.allocate_item_code
-		original_bump = read_cache._bump_durable_revision
+		original_bump = read_cache._bump_durable_revisions
 
 		def save(document, *args, **kwargs):
 			if document.doctype == "Item":
@@ -446,9 +446,9 @@ class ItemImportTests(NativeDocumentTests):
 			events.append(("allocate", None))
 			return original_allocate()
 
-		def bump():
-			events.append(("bump", frappe.local.inventory_cache_revision_touched))
-			return original_bump()
+		def bump(datasets):
+			events.append(("bump", set(datasets)))
+			return original_bump(datasets)
 
 		def commit():
 			# A real commit runs read_cache's publish callback, which clears this flag.
@@ -459,7 +459,7 @@ class ItemImportTests(NativeDocumentTests):
 			patch.object(frappe.db, "commit", side_effect=commit),
 			patch.object(frappe.model.document.Document, "save", new=save),
 			patch.object(imports, "allocate_item_code", side_effect=allocate),
-			patch.object(read_cache, "_bump_durable_revision", side_effect=bump),
+			patch.object(read_cache, "_bump_durable_revisions", side_effect=bump),
 		):
 			imports.run_import(doc.name, frappe.session.user)
 
@@ -471,10 +471,10 @@ class ItemImportTests(NativeDocumentTests):
 		self.assertLess(max(allocation_positions), min(item_positions))
 		self.assertTrue(any(max(allocation_positions) < i < min(item_positions) for i in commit_positions))
 		self.assertFalse(any(item_positions[0] < i < item_positions[-1] for i in commit_positions))
-		self.assertLess(item_positions[-1], bump_position)
+		self.assertLess(item_positions[0], bump_position)
 		self.assertLess(bump_position, max(commit_positions))
-		self.assertTrue(all(events[i][1] for i in item_positions))
-		self.assertTrue(events[bump_position][1])
+		self.assertTrue(all("catalog" in events[i][1] for i in item_positions))
+		self.assertEqual(events[bump_position][1], {"catalog"})
 
 	def test_job_plan_conflict_writes_no_item(self):
 		item = frappe.get_doc("Item", self.item)
