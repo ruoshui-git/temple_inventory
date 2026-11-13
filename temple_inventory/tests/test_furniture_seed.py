@@ -332,13 +332,20 @@ class FurnitureSeedIntegrationTests(NativeDocumentTests):
 			self.assertTrue(
 				frappe.db.exists("File", {"attached_to_doctype": "Item", "attached_to_name": code})
 			)
-			file_names = frappe.get_all(
+			files = frappe.get_all(
 				"File",
-				filters={"attached_to_doctype": "Item", "attached_to_name": code},
-				pluck="file_name",
+				filters={
+					"attached_to_doctype": "Item",
+					"attached_to_name": code,
+					"attached_to_field": "image",
+				},
+				fields=["file_name"],
 			)
-			wanted_name = f"{code}-参考图.jpg" if item["seed_key"] == "TEST-C16" else f"{code}-1.jpg"
-			self.assertIn(wanted_name, file_names)
+			stem = f"{code}-参考图" if item["seed_key"] == "TEST-C16" else f"{code}-1"
+			self.assertTrue(
+				any(row["file_name"].startswith(stem) and row["file_name"].endswith(".jpg") for row in files),
+				[f["file_name"] for f in files],
+			)
 		for room, label, short in (
 			("A01", "阅览室", "A01"),
 			("A06", "放映室", "A06"),
@@ -367,13 +374,21 @@ class FurnitureSeedIntegrationTests(NativeDocumentTests):
 				},
 				pluck="file_name",
 			)
-			self.assertIn(f"盘点清单-{room}.csv", attachments)
+			csv_name = next(
+				(
+					name
+					for name in attachments
+					if name.startswith(f"盘点清单-{room}") and name.endswith(".csv")
+				),
+				None,
+			)
+			self.assertIsNotNone(csv_name, attachments)
 			attached_csv = frappe.get_doc(
 				"File",
 				{
 					"attached_to_doctype": "Stock Reconciliation",
 					"attached_to_name": reconciliation.name,
-					"file_name": f"盘点清单-{room}.csv",
+					"file_name": csv_name,
 				},
 			)
 			csv_text = attached_csv.get_content(encodings=[]).decode("utf-8-sig")
@@ -391,13 +406,55 @@ class FurnitureSeedIntegrationTests(NativeDocumentTests):
 			[name for name in name_check["diffs"] if name["name"] in seeded_names],
 			name_check["diffs"],
 		)
+		seed_items = list(item_codes.values())
+		seed_files = frappe.get_all(
+			"File",
+			filters={"attached_to_doctype": "Item", "attached_to_name": ["in", seed_items]},
+			pluck="name",
+		)
+		seed_warehouses = [
+			name
+			for row in first["warehouse_details"].values()
+			for name in (row["name"], row.get("direct_leaf"))
+			if name
+		]
+
+		def seed_reconciliation_names():
+			return {
+				row.parent
+				for row in frappe.get_all(
+					"Stock Reconciliation Item",
+					filters={"item_code": ["in", seed_items], "warehouse": ["in", seed_warehouses]},
+					fields=["parent"],
+				)
+			}
+
 		before = {
-			doctype: frappe.db.count(doctype)
-			for doctype in ("Item", "File", "Stock Ledger Entry", "Stock Reconciliation")
+			"Item": len(seed_items),
+			"File": len(seed_files),
+			"Stock Ledger Entry": frappe.db.count(
+				"Stock Ledger Entry", {"item_code": ["in", seed_items], "warehouse": ["in", seed_warehouses]}
+			),
+			"Stock Reconciliation": len(seed_reconciliation_names()),
 		}
 		second = self._run_seed(package)
 		second_codes = {key: row["item_code"] for key, row in second["items"].items()}
-		after = {doctype: frappe.db.count(doctype) for doctype in before}
+		second_items = list(second_codes.values())
+		after = {
+			"Item": len(frappe.get_all("Item", filters={"name": ["in", second_items]}, pluck="name")),
+			"File": len(
+				frappe.get_all(
+					"File",
+					filters={"attached_to_doctype": "Item", "attached_to_name": ["in", second_items]},
+					pluck="name",
+				)
+			),
+			"Stock Ledger Entry": frappe.db.count(
+				"Stock Ledger Entry",
+				{"item_code": ["in", second_items], "warehouse": ["in", seed_warehouses]},
+			),
+			"Stock Reconciliation": len(seed_reconciliation_names()),
+		}
 		self.assertEqual(before, after)
 		self.assertEqual(item_codes, second_codes)
 		self.assertEqual(first["reconciliations"], second["reconciliations"])

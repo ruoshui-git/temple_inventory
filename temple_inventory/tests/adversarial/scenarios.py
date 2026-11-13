@@ -1647,14 +1647,17 @@ def _ensure_r8_stock(audit):
 	for item in items:
 		if balances.get(item, 0) > 0:
 			continue
+		# Stamp with site time; R8 waits two seconds before stamping its count so
+		# this receipt is included in that count even when the host clock is UTC.
+		site_now = audit.direct(lambda frappe: frappe.utils.now_datetime())
 		opened = _create(
 			audit,
 			"R8-SETUP",
 			0,
 			item,
 			1,
-			when=(datetime.now().date() - timedelta(days=1)).isoformat(),
-			posting_time="12:00:00",
+			when=site_now.date().isoformat(),
+			posting_time=site_now.strftime("%H:%M:%S"),
 		)
 		if not _name(audit, opened):
 			raise RuntimeError(
