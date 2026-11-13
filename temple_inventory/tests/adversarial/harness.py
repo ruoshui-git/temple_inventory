@@ -649,7 +649,23 @@ class Audit:
 		label = "Operator A"
 		email = ROLE_USERS[label]
 		if not frappe.db.exists("User", email):
-			raise RuntimeError(f"Cannot verify HTTP site: missing probe user {email}")
+			# A freshly created audit site has no harness users yet; create the probe user so the
+			# HTTP identity check can run before setup creates the rest.
+			from temple_inventory import roles
+
+			roles.ensure_roles()
+			frappe.get_doc(
+				{
+					"doctype": "User",
+					"email": email,
+					"first_name": f"AUDIT {label}",
+					"enabled": 1,
+					"user_type": "System User",
+					"role_profile_name": roles.ROLE_PROFILES[roles.OPERATOR],
+					"send_welcome_email": 0,
+				}
+			).insert(ignore_permissions=True)
+			frappe.db.commit()
 		doc = frappe.get_doc("User", email)
 		old_first_name = doc.first_name
 		marker = f"AUDIT HTTP Probe {uuid.uuid4().hex}"
@@ -673,6 +689,9 @@ class Audit:
 					f"marker={last['observed_marker']!r})"
 				)
 		finally:
+			# The HTTP login updated this User row after our snapshot began; start a fresh
+			# transaction so the restore does not fail with 1020.
+			frappe.db.rollback()
 			restore = frappe.get_doc("User", email)
 			restore.first_name = old_first_name
 			restore.save(ignore_permissions=True)
@@ -685,6 +704,9 @@ class Audit:
 		frappe.set_user("Administrator")
 		manifest = self._read_manifest()
 		if manifest.get("site") != self.site:
+			manifest = {}
+		elif manifest.get("AUDIT-AREA") and not frappe.db.exists("Warehouse", manifest["AUDIT-AREA"]):
+			# The audit site was recreated since this manifest was written; its fixtures are gone.
 			manifest = {}
 		self.manifest = manifest
 		self._verify_http_site(frappe, manifest)
