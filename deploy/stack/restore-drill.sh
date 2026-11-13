@@ -55,6 +55,7 @@ bench_with "$backup_image" new-site "$drill_site" --mariadb-user-host-login-scop
 restore_host_backup "$backup_dir" "$backup_image"
 
 ping_result=$(bench_with "$backup_image" --site "$drill_site" execute frappe.ping)
+# shellcheck disable=SC2016 # SQL identifiers are literal backticks.
 counts=$(bench_with "$backup_image" --site "$drill_site" execute frappe.db.sql \
 	--args '["SELECT (SELECT COUNT(*) FROM `tabItem`), (SELECT COUNT(*) FROM `tabStock Ledger Entry`), (SELECT COUNT(*) FROM `tabUser`)"]')
 python3 - "$counts" <<'PY'

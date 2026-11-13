@@ -1,4 +1,4 @@
-# shellcheck shell=bash disable=SC2154
+# shellcheck shell=bash disable=SC2154,SC2030,SC2031 # functions with ( ) bodies keep traps and locals private
 # Variables come from the guarded common.sh and entry point.
 # Internal functions; common.sh guards and the deployment lock must be held.
 backup_remote=b2:temple-inventory-backups
@@ -11,14 +11,15 @@ backup_is_encrypted() {
 
 decrypt_backup_members() {
 	local source=$1 destination=$2 identity=$3 file
-	mkdir -m 700 -p -- "$destination"
+	mkdir -p -- "$destination"
+	chmod 700 -- "$destination"
 	for file in "${backup_files[@]}" SHA256SUMS; do
 		age -d -i "$identity" -o "$destination/$file" "$source/$file.age"
 	done
 }
 
 backup_image() (
-	local dir=$1 image tmp= identity=${BACKUP_AGE_IDENTITY:-}
+	local dir=$1 image tmp="" identity=${BACKUP_AGE_IDENTITY:-}
 	trap '[[ -z ${tmp:-} ]] || rm -rf -- "$tmp"' EXIT
 	if backup_is_encrypted "$dir"; then
 		[[ -n $identity && -f $identity && ! -L $identity ]] || die "BACKUP_AGE_IDENTITY must name the offline age private key"

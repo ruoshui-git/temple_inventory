@@ -2,8 +2,8 @@ import { expect, test } from "@playwright/test";
 import { mkdirSync, copyFileSync } from "node:fs";
 import { nativeUiSession } from "./fixtures/nativeUi";
 
-const evidence =
-  "/workspace/development/frappe-bench/apps/temple_inventory/notes/evidence/2026-11-13-d3";
+// Set D3_EVIDENCE_DIR (e.g. notes/evidence/2026-11-13-d3) to keep a copy of the evidence.
+const evidence = process.env.D3_EVIDENCE_DIR;
 
 async function capture(
   page: import("@playwright/test").Page,
@@ -11,6 +11,7 @@ async function capture(
 ) {
   const path = test.info().outputPath(filename);
   await page.screenshot({ path });
+  if (!evidence) return;
   mkdirSync(evidence, { recursive: true });
   copyFileSync(path, `${evidence}/${filename}`);
 }

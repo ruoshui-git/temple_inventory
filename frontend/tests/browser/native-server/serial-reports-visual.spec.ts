@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 
-const shots = "/workspace/tmp/codex-runs/serial-reports-shots";
+const shots = "/tmp/codex-runs/serial-reports-shots";
 mkdirSync(shots, { recursive: true });
 
 test("serial tracking browse and item tab visual evidence", async ({

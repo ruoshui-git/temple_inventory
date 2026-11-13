@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC1091,SC2154,SC2317 # sources the copied stack; the age stub is called by the code under test
 set -Eeuo pipefail
 source_dir=$(dirname -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")")
 test_root=$(mktemp -d)
@@ -20,7 +21,7 @@ printf 'offline-key\n' >"$test_root/identity"
 source "$test_root/sample/common.sh"
 source "$root/backup-common.sh"
 age() {
-	local decrypt=0 input= output= arg
+	local decrypt=0 input="" output="" arg
 	while (($#)); do
 		arg=$1
 		case $arg in
@@ -37,7 +38,10 @@ age() {
 	fi
 }
 validate_backup "$test_root/plain"
-! backup_is_encrypted "$test_root/plain"
+if backup_is_encrypted "$test_root/plain"; then
+	echo 'FAIL: a plaintext backup set reads as encrypted' >&2
+	exit 1
+fi
 # A failing age must leave the verified plaintext set in place and no partial output.
 mkdir -p "$test_root/failing"
 cp "$test_root/plain/"* "$test_root/failing/"

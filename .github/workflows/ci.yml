@@ -303,6 +303,7 @@ jobs:
           NATIVE_ADMIN_PASSWORD: admin
           NATIVE_BASE_URL: http://127.0.0.1:8000
           NATIVE_RESULTS: test-results/native-acceptance
+          NATIVE_BENCH_PYTHON: /home/runner/frappe-bench/env/bin/python
         run: pnpm exec playwright test -c playwright.native.config.ts
       - uses: actions/upload-artifact@v4
         if: failure()

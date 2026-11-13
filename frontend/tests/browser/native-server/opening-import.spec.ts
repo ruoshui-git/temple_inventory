@@ -87,16 +87,21 @@ test("manager imports Opening Stock as one native document through the wizard", 
     [stocked || plain.item_code, label(leaves[0]), "3", "", "", "", "", ""],
   ]);
   const file = join(workdir, `opening-${tag}.xlsx`);
-  execFileSync("/workspace/development/frappe-bench/env/bin/python", [
-    "-c",
-    `import json,sys,openpyxl
+  execFileSync(
+    // The bench virtualenv has openpyxl; CI sets its own bench path.
+    process.env.NATIVE_BENCH_PYTHON ||
+      "/workspace/development/frappe-bench/env/bin/python",
+    [
+      "-c",
+      `import json,sys,openpyxl
 H=["物品编号*","位置*","数量*","估值单价","批次编号","生产日期","到期日期","序列号"]
 b=openpyxl.Workbook(); s=b.active; s.title="期初库存"; s.append(H)
 [s.append(r) for r in json.loads(sys.argv[2])]
 b.save(sys.argv[1])`,
-    file,
-    rows,
-  ]);
+      file,
+      rows,
+    ],
+  );
   const ledgerBefore = await call("catalog.operation_items", {
     item_codes: [plain.item_code],
   });
