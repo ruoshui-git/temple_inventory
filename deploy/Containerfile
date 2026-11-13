@@ -72,6 +72,12 @@ USER root
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends fonts-noto-cjk \
 	&& rm -rf /var/lib/apt/lists/*
+# Nginx can serve a static maintenance response while backend/websocket are stopped.
+COPY deploy/image/maintenance.html /usr/share/nginx/html/maintenance.html
+RUN sed -i '/server {/a\    error_page 502 503 504 /maintenance.html;' \
+	/templates/nginx/frappe.conf.template \
+	&& sed -i '/server {/a\    location = /maintenance.html { root /usr/share/nginx/html; internal; }' \
+		/templates/nginx/frappe.conf.template
 # Debian's /usr/bin/chromium-headless-shell is a shell wrapper; Frappe terminates the
 # process it starts, which killed only the wrapper and leaked one browser per PDF.
 # Point the configured path straight at the binary.

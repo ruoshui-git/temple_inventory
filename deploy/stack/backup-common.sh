@@ -5,13 +5,41 @@ backup_remote=b2:temple-inventory-backups
 backup_volume=/home/frappe/frappe-bench/sites/.deploy-backups
 backup_files=(database.sql.gz public-files.tgz private-files.tgz site_config.json image.txt)
 
-validate_backup() {
+backup_is_encrypted() {
+	[[ -f $1/SHA256SUMS.age ]]
+}
+
+decrypt_backup_members() {
+	local source=$1 destination=$2 identity=$3 file
+	mkdir -m 700 -p -- "$destination"
+	for file in "${backup_files[@]}" SHA256SUMS; do
+		age -d -i "$identity" -o "$destination/$file" "$source/$file.age"
+	done
+}
+
+backup_image() (
+	local dir=$1 image tmp= identity=${BACKUP_AGE_IDENTITY:-}
+	trap '[[ -z ${tmp:-} ]] || rm -rf -- "$tmp"' EXIT
+	if backup_is_encrypted "$dir"; then
+		[[ -n $identity && -f $identity && ! -L $identity ]] || die "BACKUP_AGE_IDENTITY must name the offline age private key"
+		identity=$(realpath -e -- "$identity")
+		validate_backup "$dir"
+		tmp=$(mktemp -d)
+		age -d -i "$identity" -o "$tmp/image.txt" "$dir/image.txt.age"
+		image=$(cat "$tmp/image.txt")
+	else
+		image=$(cat "$dir/image.txt")
+	fi
+	[[ $image =~ $image_pattern ]] || die "invalid backup image metadata"
+	printf '%s\n' "$image"
+)
+
+validate_plain_backup() {
 	local dir=$1 file
 	for file in "${backup_files[@]}" SHA256SUMS; do
 		[[ -f $dir/$file && ! -L $dir/$file && -s $dir/$file ]] || die "incomplete backup: $file"
 	done
-	# Do not accept arbitrary paths from a downloaded checksum manifest.
-	python3 - "$dir" <<'PY'
+python3 - "$dir" <<'PY' || return $?
 import hashlib
 import pathlib
 import sys
@@ -32,6 +60,67 @@ for line in lines:
 PY
 	[[ $(cat "$dir/image.txt") =~ $image_pattern ]] || die "invalid backup image metadata"
 }
+
+validate_backup() (
+	local dir=$1 file identity tmp
+	trap '[[ -z ${tmp:-} ]] || rm -rf -- "$tmp"' EXIT
+	if backup_is_encrypted "$dir"; then
+		for file in "${backup_files[@]}" SHA256SUMS; do
+			[[ -f $dir/$file.age && ! -L $dir/$file.age && -s $dir/$file.age ]] || die "incomplete encrypted backup: $file.age"
+		done
+python3 - "$dir" <<'PY' || return $?
+import pathlib
+import sys
+root = pathlib.Path(sys.argv[1])
+expected = {"database.sql.gz.age", "public-files.tgz.age", "private-files.tgz.age", "site_config.json.age", "image.txt.age", "SHA256SUMS.age"}
+actual = {path.name for path in root.iterdir()}
+if actual != expected:
+	raise SystemExit("invalid encrypted backup file set")
+for name in expected:
+	with (root / name).open("rb") as stream:
+		if not stream.read(20).startswith(b"age-encryption.org/"):
+			raise SystemExit("invalid age backup member")
+PY
+		identity=${BACKUP_AGE_IDENTITY:-}
+		if [[ -n $identity ]]; then
+			identity=$(realpath -e -- "$identity")
+			[[ -f $identity ]] || die "BACKUP_AGE_IDENTITY must name the offline age private key"
+			tmp=$(mktemp -d)
+			mkdir -p "$tmp/plain"
+			decrypt_backup_members "$dir" "$tmp/plain" "$identity"
+			validate_plain_backup "$tmp/plain" || return $?
+			rm -rf -- "$tmp"
+			tmp=
+		fi
+	else
+		validate_plain_backup "$dir" || return $?
+	fi
+)
+
+encrypt_backup_set() (
+	local dir=$1 recipient=$2 file
+	# On failure drop only partial encrypted output; the verified plaintext set stays
+	# so a broken age setup can never leave the host without a backup.
+	trap 'for file in "${backup_files[@]}" SHA256SUMS; do rm -f -- "$dir/$file.age"; done' EXIT
+	[[ -n $recipient ]] || die "age recipient is empty"
+	validate_plain_backup "$dir"
+	for file in "${backup_files[@]}" SHA256SUMS; do age -r "$recipient" -o "$dir/$file.age" "$dir/$file"; done
+	for file in "${backup_files[@]}" SHA256SUMS; do
+		[[ -f $dir/$file.age && -s $dir/$file.age ]] || die "age produced an empty backup member: $file.age"
+	done
+	python3 - "$dir" <<'PY' || return $?
+import pathlib
+import sys
+root = pathlib.Path(sys.argv[1])
+for name in ("database.sql.gz", "public-files.tgz", "private-files.tgz", "site_config.json", "image.txt", "SHA256SUMS"):
+	with (root / f"{name}.age").open("rb") as stream:
+		if not stream.read(20).startswith(b"age-encryption.org/"):
+			raise SystemExit(f"invalid age output: {name}.age")
+PY
+	for file in "${backup_files[@]}" SHA256SUMS; do rm -f -- "$dir/$file"; done
+	trap - EXIT
+	validate_backup "$dir"
+)
 
 create_backup() {
 	local image=$1 ts volume_dir file local_dir
@@ -64,9 +153,20 @@ create_backup() {
 	printf '%s\n' "$image" >"$local_dir/image.txt"
 	(cd "$local_dir" && sha256sum "${backup_files[@]}" >SHA256SUMS)
 	validate_backup "$local_dir"
+	if [[ -n ${BACKUP_AGE_RECIPIENT:-} ]]; then
+		log "encrypt backup with age recipient"
+		encrypt_backup_set "$local_dir" "$BACKUP_AGE_RECIPIENT"
+	else
+		log "WARNING: BACKUP_AGE_RECIPIENT is unset; backup is not encrypted"
+	fi
 	# Upload marker last: a partial upload can never be selected by refresh.
-	rclone copy "$local_dir/" "$backup_remote/$ENVIRONMENT/$ts/" --exclude SHA256SUMS
-	rclone copyto "$local_dir/SHA256SUMS" "$backup_remote/$ENVIRONMENT/$ts/SHA256SUMS"
+	if backup_is_encrypted "$local_dir"; then
+		rclone copy "$local_dir/" "$backup_remote/$ENVIRONMENT/$ts/" --exclude SHA256SUMS.age
+		rclone copyto "$local_dir/SHA256SUMS.age" "$backup_remote/$ENVIRONMENT/$ts/SHA256SUMS.age"
+	else
+		rclone copy "$local_dir/" "$backup_remote/$ENVIRONMENT/$ts/" --exclude SHA256SUMS
+		rclone copyto "$local_dir/SHA256SUMS" "$backup_remote/$ENVIRONMENT/$ts/SHA256SUMS"
+	fi
 	# The durable copies now live on the host and B2; the sites-volume staging
 	# directory would otherwise accumulate duplicate archives every day.
 	compose exec -T backend rm -rf -- "$volume_dir"
@@ -80,7 +180,7 @@ prune_backup_sets() {
 	cutoff=$(date -u -d '35 days ago' +%Y%m%dT%H%M%SZ)
 	# Only timestamp directories owned by this backup scheme are eligible.
 	while IFS= read -r name; do
-		[[ $name =~ ^[0-9]{8}T[0-9]{6}Z$ && -s $root/backups/$name/SHA256SUMS ]] || continue
+		[[ $name =~ ^[0-9]{8}T[0-9]{6}Z$ && ( -s $root/backups/$name/SHA256SUMS || -s $root/backups/$name/SHA256SUMS.age ) ]] || continue
 		count=$((count + 1))
 		((count <= 3)) || rm -rf -- "$root/backups/$name"
 	done < <(find "$root/backups" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort -r)
@@ -102,7 +202,7 @@ fetch_production_backup() {
 		name=${name%/}
 		[[ $name =~ ^[0-9]{8}T[0-9]{6}Z$ ]] || continue
 		files=$(rclone lsf "$backup_remote/production/$name/" --files-only)
-		grep -qxF SHA256SUMS <<<"$files" || continue
+		grep -Eq '^(SHA256SUMS|SHA256SUMS\.age)$' <<<"$files" || continue
 		destination=$root/backups/production-$name
 		mkdir -p "$destination"
 		rclone copy "$backup_remote/production/$name/" "$destination/"
@@ -113,8 +213,18 @@ fetch_production_backup() {
 	die "no complete production backup found"
 }
 
-restore_host_backup() {
-	local dir=$1 image=$2
+restore_host_backup() (
+	local dir=$1 image=$2 tmp="" identity file
+	trap '[[ -z ${tmp:-} ]] || rm -rf -- "$tmp"' EXIT
+	if backup_is_encrypted "$dir"; then
+		identity=${BACKUP_AGE_IDENTITY:-}
+		[[ -n $identity && -f $identity && ! -L $identity ]] || die "BACKUP_AGE_IDENTITY must name the offline age private key"
+		identity=$(realpath -e -- "$identity")
+		tmp=$(mktemp -d)
+		mkdir -m 700 "$tmp/plain"
+		decrypt_backup_members "$dir" "$tmp/plain" "$identity"
+		dir=$tmp/plain
+	fi
 	validate_backup "$dir"
 	# cp works with a stopped service. Configurator establishes volume ownership.
 	IMAGE=$image compose create backend
@@ -159,12 +269,13 @@ target.write_text(json.dumps(config))
 			--args '["DELETE FROM `__Auth` WHERE doctype IN (\u0027Email Account\u0027, \u0027Email Domain\u0027, \u0027Temple Inventory Settings\u0027)"]'
 		# bench execute commits successful calls; outbound credentials are removed.
 	fi
-}
+	if [[ -n $tmp ]]; then rm -rf -- "$tmp"; tmp=; fi
+)
 
 prune_refresh_backups() {
 	local name count=0
 	while IFS= read -r name; do
-		[[ $name =~ ^production-[0-9]{8}T[0-9]{6}Z$ && -s $root/backups/$name/SHA256SUMS ]] || continue
+		[[ $name =~ ^production-[0-9]{8}T[0-9]{6}Z$ && ( -s $root/backups/$name/SHA256SUMS || -s $root/backups/$name/SHA256SUMS.age ) ]] || continue
 		count=$((count + 1))
 		((count <= 3)) || rm -rf -- "$root/backups/$name"
 	done < <(find "$root/backups" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort -r)

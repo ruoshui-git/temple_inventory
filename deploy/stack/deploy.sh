@@ -25,6 +25,7 @@ recover() {
 	log "FAILED: restoring $dir with $previous"
 	maintenance "$previous" on
 	stop_jobs
+	stop_web
 	# Both containers use the same sites volume; don't start any web/jobs until
 	# the database and files have been restored together.
 	# shellcheck disable=SC2016
@@ -46,6 +47,7 @@ recover() {
 	else
 		maintenance "$previous" on || compose stop frontend backend
 		stop_jobs || compose kill scheduler queue-short queue-long
+		stop_web || compose stop backend websocket
 		log "RECOVERY INCOMPLETE: restore=$restored; maintenance enabled; inspect deploy.sh status"
 	fi
 	printf '%s failed %s\n' "$(date -u +%FT%TZ)" "$failed" >>state/history
@@ -58,6 +60,7 @@ production_failure() {
 	set +e
 	maintenance "$previous" on || compose stop frontend backend
 	stop_jobs || compose kill scheduler queue-short queue-long
+	stop_web || compose stop backend websocket
 	printf '%s failed %s\n' "$(date -u +%FT%TZ)" "$failed" >>state/history
 	log "OPERATION FAILED ($ENVIRONMENT); maintenance stays on. No automatic restore was attempted."
 	printf 'Previous image: %s\nBackup directory: %s\n' "$previous" "$dir" >&2
@@ -200,7 +203,7 @@ sync_stack() {
 		rm -rf -- "$next"
 		die "stack update refused: could not remove extraction container"
 	fi
-	for file in common.sh backup-common.sh deploy.sh backup.sh bootstrap.sh compose.yaml; do
+	for file in common.sh backup-common.sh deploy.sh backup.sh bootstrap.sh restore-drill.sh compose.yaml; do
 		source=$next/$file
 		[[ -s $source ]] || { rm -rf -- "$next"; die "stack update refused: missing or empty $file"; }
 		if [[ $file == *.sh ]]; then bash -n "$source" || { rm -rf -- "$next"; die "stack update refused: invalid shell syntax in $file"; }; fi
@@ -210,7 +213,7 @@ sync_stack() {
 		rm -rf -- "$next"
 		die "stack update refused: docker compose rejected compose.yaml"
 	fi
-	for file in common.sh backup-common.sh deploy.sh backup.sh bootstrap.sh compose.yaml; do
+	for file in common.sh backup-common.sh deploy.sh backup.sh bootstrap.sh restore-drill.sh compose.yaml; do
 		installed=$root/$file
 		if [[ ! -f $installed ]] || ! cmp -s "$next/$file" "$installed"; then changed=1; fi
 	done
@@ -218,7 +221,7 @@ sync_stack() {
 	stamp=$(date -u +%Y%m%dT%H%M%SZ)
 	backup_path=$root/stack-backup/$stamp
 	mkdir -p -- "$backup_path"
-	for file in common.sh backup-common.sh deploy.sh backup.sh bootstrap.sh compose.yaml; do
+	for file in common.sh backup-common.sh deploy.sh backup.sh bootstrap.sh restore-drill.sh compose.yaml; do
 		installed=$root/$file
 		if [[ ! -f $installed ]] || ! cmp -s "$next/$file" "$installed"; then
 			if [[ -f $installed ]]; then cp -p -- "$installed" "$backup_path/$file"; fi
@@ -267,12 +270,14 @@ deploy() {
 		trap 'production_failure "$current" "$dir" "$new"' ERR
 		maintenance "$current" on
 		stop_jobs
+		stop_web
 	else
 		dir=$backup_volume/$ts
 		volume_backup "$dir"
 		trap 'recover "$current" "$dir" "$new"' ERR
 		maintenance "$current" on
 		stop_jobs
+		stop_web
 	fi
 	if [[ $ENVIRONMENT == sample ]]; then
 		reseed_sample "$new"
@@ -323,6 +328,7 @@ reinstall() {
 	fi
 	maintenance "$current" on
 	stop_jobs
+	stop_web
 	log "reinstall empty site"
 	bench_with "$new" --site "$SITE_NAME" reinstall --yes \
 		--db-root-username root --db-root-password "$DB_ROOT_PASSWORD" --admin-password "$ADMIN_PASSWORD"
@@ -373,7 +379,7 @@ restore() {
 	[[ $1 == /* ]] || die "restore requires an absolute host backup directory"
 	dir=$(realpath -e -- "$1")
 	validate_backup "$dir"
-	image=$(cat "$dir/image.txt")
+	image=$(backup_image "$dir")
 	previous=$(current_image)
 	docker pull -q "$image" >/dev/null
 	trap 'production_failure "$previous" "$dir" "$image"' ERR

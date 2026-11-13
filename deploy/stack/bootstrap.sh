@@ -24,7 +24,7 @@ if [[ $ENVIRONMENT == staging ]]; then
 	# Restore with the image recorded in the backup to avoid schema downgrades.
 	fetch_production_backup
 	backup_dir=$(cat state/refresh-backup)
-	image=$(cat "$backup_dir/image.txt")
+	image=$(backup_image "$backup_dir")
 fi
 log "pull $image"
 docker pull -q "$image" >/dev/null

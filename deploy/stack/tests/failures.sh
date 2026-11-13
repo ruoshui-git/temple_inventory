@@ -120,6 +120,9 @@ if scenario != "backup":
 	maintenance = [line for line in commands if "set-maintenance-mode" in line]
 	assert maintenance[-1].endswith(" on"), maintenance
 	assert any("stop scheduler queue-short queue-long" in line for line in commands)
+	assert any("stop backend websocket" in line for line in commands)
+if scenario == "recovery":
+	assert any("up -d --remove-orphans db redis-cache redis-queue backend websocket frontend" in line for line in commands)
 PY
 done
 # Full production backup failure must stop before destructive work as well.

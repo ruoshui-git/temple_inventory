@@ -71,6 +71,7 @@ maintenance() { bench_with "$1" --site "$SITE_NAME" set-maintenance-mode "$2"; }
 start_web() { IMAGE=$1 compose up -d --remove-orphans db redis-cache redis-queue backend websocket frontend; }
 start_jobs() { IMAGE=$1 compose up -d scheduler queue-short queue-long; }
 stop_jobs() { compose stop scheduler queue-short queue-long; }
+stop_web() { compose stop backend websocket; }
 site_policy() {
 	local image=$1
 	bench_with "$image" --site "$SITE_NAME" set-config host_name "https://$SITE_NAME"

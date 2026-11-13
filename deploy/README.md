@@ -37,7 +37,7 @@ uses the same files from `deploy/stack/`, installed separately:
   bin/dispatch                      SSH forced-command dispatcher
   edge/{compose.yaml,nonprod.yaml,production.yaml,.env}
   <env>/compose.yaml                 project kufang-<env>
-  <env>/{common,backup-common,deploy,bootstrap,backup}.sh
+  <env>/{common,backup-common,deploy,bootstrap,backup,restore-drill}.sh
   <env>/.env                        SITE_NAME, DB_ROOT_PASSWORD, ADMIN_PASSWORD; mode 0600
   <env>/ENVIRONMENT                 exactly sample, staging or production
   <env>/image.env                   IMAGE=<immutable digest>
@@ -237,7 +237,7 @@ site. It does not create fresh sample data.
 
 The first install of each `/srv/kufang/<env>` stack remains a one-time manual
 install from `deploy/stack/`, including `compose.yaml`. After that, every
-`deploy IMAGE` extracts and validates those six environment files from the
+`deploy IMAGE` extracts and validates those seven stack files from the
 selected image, backs up changed copies under `stack-backup/`, and installs
 them atomically before continuing. Deploying an older digest restores the
 scripts from that image; operators can also copy files back from a timestamped
@@ -354,7 +354,30 @@ b2:temple-inventory-backups/<env>/<UTC timestamp>/
 Each host set includes the database, public/private files, site configuration,
 image digest and checksums. The completion marker is uploaded last; staging
 ignores incomplete uploads. Backup data contains credentials/encryption keys
-and production business data. Keep three local sets and delete remote sets
+and production business data. Enable client-side age encryption by setting
+`BACKUP_AGE_RECIPIENT` in the stack `.env` to an age public recipient. All six
+members, including `site_config.json` and `SHA256SUMS`, become `.age` files
+before upload; plaintext files are removed from the host backup directory.
+Install the Ubuntu `age` package on each backup host before enabling this
+setting (`sudo apt-get install age`). The stack calls the host binary so backup
+and restore work even while the running application image is older. Backups
+without a recipient retain the existing plaintext format and emit a warning.
+
+Generate the key pair on an operator-controlled workstation and put only the
+recipient in the host `.env` (mode 0600). Keep the private identity offline,
+with a separate protected recovery copy; never put it in the stack `.env`, on
+the deployment host, or in the backup bucket. To restore an encrypted set,
+temporarily make the identity readable to `kufang-deploy` and set
+`BACKUP_AGE_IDENTITY=/path/to/identity` for the restore command. Decryption
+uses a private temporary directory and verifies checksums before restoring.
+Remove the temporary identity copy after use. A staging refresh restores the newest production set, so once production is encrypted every refresh is such a controlled restore: without `BACKUP_AGE_IDENTITY` it stops with a clear error before touching staging. A recipient change affects only
+new backup sets, so retain the identity for every retained encrypted set.
+For example, on the offline workstation run `age-keygen -o backup-identity.txt`
+and copy the printed `age1...` recipient into `BACKUP_AGE_RECIPIENT` on the
+host. Do not copy `backup-identity.txt` to that host except for a controlled
+restore or drill.
+
+Keep three local sets and delete remote sets
 older than 35 days. The backup log is `/srv/kufang/<env>/logs/backup.log`.
 Retention applies to the environment prefix and leaves legacy `inventory/`
 backups alone. Temporary volume copies are removed after a successful upload;
@@ -382,15 +405,20 @@ and can be run manually in other environments. Before relying on it,
 verify upload/list/delete permissions with an actual authorized production
 backup and confirm the next timer time. Do not enable the staging instance.
 
-Run a restore drill on staging, as `kufang-deploy`, before production launch:
+Run the restore drill using a separate Compose project and disposable site. It
+does not replace the live site and removes its scratch volumes on exit. Use the
+offline identity for encrypted sets:
 
 ```sh
-/srv/kufang/staging/deploy.sh refresh
-/srv/kufang/staging/deploy.sh status
-# Inspect application data and representative public/private attachments.
-# Verify mail is muted and scheduler disabled before allowing test users in.
-/srv/kufang/staging/deploy.sh stop
+cd /srv/kufang/production
+BACKUP_AGE_IDENTITY=/run/secrets/backup-age-identity \
+  ./restore-drill.sh /srv/kufang/production/backups/REPLACE_WITH_UTC_TIMESTAMP
 ```
+
+The drill checks `frappe.ping`, nonzero Item, Stock Ledger Entry and User row
+counts, and the `Org` company for sample and production sets. Run it regularly
+and retain the summary with the backup review. For sample or staging backups, run the command
+from that environment's stack directory.
 
 For a downloaded host backup set, use the matching image recorded in
 `image.txt`; `restore` verifies the set and uses its recorded image:
@@ -419,10 +447,13 @@ actual backups regularly; Compose and offline guard tests cannot prove database 
 ## Deployment failures and recovery
 
 Deployments validate and pull the exact digest, back up the site, enable
-maintenance mode, stop workers/scheduler, migrate with the new image (Sample
+maintenance mode, stop workers/scheduler and stop the old backend/websocket,
+migrate with the new image (Sample
 reinstalls and reseeds instead), recreate
 services and check the image, Traefik HTTPS ping (using `curl --resolve`) and a
-database query. While maintenance is on, visitors see the app's Chinese 系统正在更新 page
+database query. During the backend stop, the frontend serves a static 502/503
+page reading 系统维护中，请稍后再试. When the backend is up with maintenance
+enabled, visitors see the app's Chinese 系统正在更新 page
 (`temple_inventory/maintenance.py`), which retries every 30 seconds.
 Only a healthy deployment records a successful history entry.
 Images are pruned while retaining current and previous images, including those

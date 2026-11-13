@@ -147,6 +147,7 @@ commands = (root / "calls").read_text().splitlines()
 def first(fragment):
 	return next(i for i, line in enumerate(commands) if fragment in line)
 assert not any(" migrate" in line for line in commands)
+assert first("set-maintenance-mode on") < first("stop scheduler queue-short queue-long") < first("stop backend websocket") < first(" reinstall --yes")
 assert first("set-maintenance-mode on") < first("find public/files private/files") < first(" reinstall --yes")
 assert first(" reinstall --yes") < first("purge-jobs") < first("prepare_development_sample_site")
 assert first("prepare_development_sample_site") < first("set-password demo@example.com admin")
@@ -211,8 +212,20 @@ printf '%s\n' "$TEST_IMAGE" >"$test_root/production/state/current"
 printf 'old unit\n' >"$test_root/drift/systemd/kufang-backup@.service"
 export KUFANG_SYSTEMD_PATH=$test_root/drift/systemd
 unset LOCK_PROBE
+: >"$test_root/calls"
 PRODUCTION_NEXT=ghcr.io/ruoshui-git/temple_inventory@sha256:$(printf '%064d' 5)
 TEST_IMAGE=$PRODUCTION_NEXT bash "$test_root/production/deploy.sh" deploy "$PRODUCTION_NEXT" >"$test_root/production-output"
 grep -q "stack drift: $test_root/drift/systemd/kufang-backup@.service differs" "$test_root/production-output"
 [[ $(cat "$test_root/production/state/current") == "$PRODUCTION_NEXT" ]]
+python3 - "$test_root/calls" <<'PY'
+import pathlib
+import sys
+commands = pathlib.Path(sys.argv[1]).read_text().splitlines()
+def first(fragment):
+	return next(i for i, line in enumerate(commands) if fragment in line)
+assert first("set-maintenance-mode on") < first("stop scheduler queue-short queue-long")
+assert first("stop scheduler queue-short queue-long") < first("stop backend websocket")
+assert first("stop backend websocket") < first("migrate")
+PY
 printf 'PASS: stopped staging refresh order, mail policy, backup ownership, same-digest promotion history, production bootstrap zero-count verification, sample reseed, older-image rollback, backup pruning, stack drift, and same-day snapshot\n'
+bash "$source_dir/tests/backup-security.sh"
