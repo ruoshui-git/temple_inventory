@@ -241,12 +241,13 @@ jobs:
           bench set-config -g redis_queue redis://127.0.0.1:11000
           bench set-config -g redis_socketio redis://127.0.0.1:11000
           mkdir -p sites/assets && echo '{}' > sites/assets/assets.json
-      - name: Build the app frontend
-        # vite writes into the app's public/ and www/, so it runs inside the bench copy.
-        working-directory: /home/runner/frappe-bench/apps/temple_inventory/frontend
+      - name: Build assets
+        # Same as the image build: the app's build hook runs the frontend (vite) build, and
+        # bench build links every app's public/ into sites/assets, including Desk.
+        working-directory: /home/runner/frappe-bench
         run: |
-          pnpm install --frozen-lockfile
-          pnpm build
+          (cd apps/temple_inventory/frontend && pnpm install --frozen-lockfile)
+          bench build --production
       - name: Create site
         working-directory: /home/runner/frappe-bench
         run: |
@@ -288,7 +289,7 @@ jobs:
         run: |
           nohup bench --site ci.localhost serve --port 8000 --noreload > /tmp/bench-web.log 2>&1 &
           nohup bench worker > /tmp/bench-worker.log 2>&1 &
-          for attempt in $(seq 1 60); do
+          for _ in $(seq 1 60); do
             if curl --fail --silent http://127.0.0.1:8000/api/method/ping | grep -q pong; then
               exit 0
             fi
