@@ -7,7 +7,7 @@ from unittest.mock import patch
 from uuid import uuid4
 
 import frappe
-from frappe.utils import nowdate
+from frappe.utils import add_days, nowdate
 
 from temple_inventory import activities, catalog, counts, native_api, preferences
 from temple_inventory.periods import resolve_period
@@ -423,8 +423,13 @@ class NativeReportsFiltersTests(NativeReportTestCase):
 			preferences.delete_named_view(view["id"], view["revision"])
 
 	def test_date_sort_uses_native_posting_time_before_identity_on_the_same_day(self):
-		late = self.submit(self.create(self.movement(quantity=1, posting_time="12:00:00.123456")))
-		early = self.submit(self.create(self.movement(quantity=1, posting_time="08:00:00.654321")))
+		posting_date = add_days(nowdate(), -1)
+		late = self.submit(
+			self.create(self.movement(quantity=1, posting_date=posting_date, posting_time="12:00:00.123456"))
+		)
+		early = self.submit(
+			self.create(self.movement(quantity=1, posting_date=posting_date, posting_time="08:00:00.654321"))
+		)
 		query = self.query("movements", "records", sortBy="date", sort="asc")
 		rows = report_page(query)["rows"]
 		self.assertEqual([row["document"] for row in rows], [early.name, late.name])

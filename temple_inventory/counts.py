@@ -383,6 +383,7 @@ def _hydrate_serial_reviews(reviews, items):
 @retry_native_request
 def save_count(request_id, data, name=None, version=None):
 	from temple_inventory import native_api
+	from temple_inventory.posting_time import reject_future_posting
 
 	require_app()
 	data = frappe.parse_json(data)
@@ -397,6 +398,14 @@ def save_count(request_id, data, name=None, version=None):
 			frappe.throw("盘点记录已完成或取消，请保留输入并重新载入")
 	else:
 		frappe.has_permission("Stock Reconciliation", "create", throw=True)
+	reject_future_posting(
+		frappe._dict(
+			set_posting_time=1,
+			posting_date=data.get("posting_date"),
+			posting_time=data.get("posting_time"),
+		),
+		"盘点时间不能晚于当前时间。",
+	)
 	# Matching counts must use the same current baseline and authorization checks
 	# as adjustments. They still create no document.
 	reviews = data.get("ti_count_review") or []
@@ -476,6 +485,8 @@ def _native_values(doc):
 
 
 def before_validate(doc, method=None):
+	from temple_inventory.posting_time import reject_future_posting
+
 	lock_stock_locations(doc)
 	validate_request_identity(doc)
 	validate_assignment(doc)
@@ -483,6 +494,8 @@ def before_validate(doc, method=None):
 		from temple_inventory.opening import validate_opening
 
 		validate_opening(doc)
+	else:
+		reject_future_posting(doc, "盘点时间不能晚于当前时间。")
 	if not doc.get("ti_count_review"):
 		return
 	_lock_count_locations()

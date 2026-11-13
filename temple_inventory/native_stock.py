@@ -314,10 +314,12 @@ def validate_settlement_metadata(doc):
 
 def before_validate(doc, method=None):
 	from temple_inventory.native_balances import lock_stock_locations
+	from temple_inventory.posting_time import reject_future_posting
 
 	lock_stock_locations(doc)
 	validate_request_identity(doc)
 	kind = doc.get("ti_movement_kind")
+	reject_future_posting(doc, "指定时间不能晚于当前时间。")
 	validate_settlement_metadata(doc)
 	if not kind:
 		validate_assignment(doc)

@@ -10,6 +10,15 @@ from temple_inventory.tests.test_native_documents import NativeDocumentTests
 
 
 class OpeningStockTests(NativeDocumentTests):
+	def test_future_opening_keeps_the_existing_validation_message(self):
+		from datetime import timedelta
+
+		future = frappe.utils.now_datetime() + timedelta(minutes=5)
+		data = self.opening_values()
+		data.update(posting_date=future.date(), posting_time=future.strftime("%H:%M:%S"))
+		with self.assertRaisesRegex(frappe.ValidationError, "期初日期和时间不能晚于当前时间。"):
+			native_api.create_document("Stock Reconciliation", str(uuid4()), data)
+
 	def _user(self, role):
 		email = f"ti-opening-{self.token}-{role.lower().replace(' ', '-')}@example.test"
 		return (

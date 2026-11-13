@@ -7,6 +7,7 @@ Each case uses a savepoint and rolls back stock, settings, users and metadata.
 
 import copy
 import unittest
+from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
 from uuid import uuid4
@@ -1042,6 +1043,83 @@ class NativeDocumentTests(unittest.TestCase):
 		self.assertEqual(str(completed.posting_time).zfill(8), "08:00:25")
 		self.assertEqual(completed["items"][0].ti_allocation_note, "原生分配备注")
 		self.assertEqual(self.submit(draft).name, completed.name)
+
+	def test_future_manual_stock_entry_is_rejected_on_create_save_and_submit(self):
+		future = now_datetime() + timedelta(minutes=5)
+		values = self.movement(ti_time_mode="Manual", set_posting_time=1)
+		values.update(posting_date=str(future.date()), posting_time=future.strftime("%H:%M:%S"))
+		with self.assertRaisesRegex(frappe.ValidationError, "指定时间不能晚于当前时间。"):
+			self.create(values)
+		draft = self.create(self.movement(ti_time_mode="Manual", set_posting_time=1))
+		future = now_datetime() + timedelta(minutes=5)
+		with self.assertRaisesRegex(frappe.ValidationError, "指定时间不能晚于当前时间。"):
+			native_api.save_document(
+				"Stock Entry",
+				draft.name,
+				draft.version,
+				{
+					"posting_date": str(future.date()),
+					"posting_time": future.strftime("%H:%M:%S"),
+				},
+			)
+		frappe.db.set_value(
+			"Stock Entry",
+			draft.name,
+			{"posting_date": future.date(), "posting_time": future.time(), "set_posting_time": 1},
+			update_modified=False,
+		)
+		with self.assertRaisesRegex(frappe.ValidationError, "指定时间不能晚于当前时间。"):
+			self.submit(native_api.serialize(frappe.get_doc("Stock Entry", draft.name)))
+
+	def test_future_manual_stock_entry_is_rejected_through_desk_insert(self):
+		future = now_datetime() + timedelta(minutes=5)
+		values = self.movement(ti_time_mode="Manual", set_posting_time=1)
+		values.update(posting_date=str(future.date()), posting_time=future.strftime("%H:%M:%S"))
+		with self.assertRaisesRegex(frappe.ValidationError, "指定时间不能晚于当前时间。"):
+			frappe.get_doc({"doctype": "Stock Entry", **values}).insert()
+
+	def test_future_manual_count_is_rejected_on_save_and_submit_and_near_future_is_allowed(self):
+		self.receipt(10)
+		future = now_datetime() + timedelta(minutes=5)
+		data = self.count_data(8, "Reviewed")
+		data.update(posting_date=str(future.date()), posting_time=future.strftime("%H:%M:%S"))
+		with self.assertRaisesRegex(frappe.ValidationError, "盘点时间不能晚于当前时间。"):
+			counts.save_count(str(uuid4()), data)
+		with self.assertRaisesRegex(frappe.ValidationError, "盘点时间不能晚于当前时间。"):
+			frappe.get_doc(
+				{
+					"doctype": "Stock Reconciliation",
+					"company": self.company,
+					"purpose": "Stock Reconciliation",
+					"posting_date": str(future.date()),
+					"posting_time": future.strftime("%H:%M:%S"),
+					"set_posting_time": 1,
+					"items": [{"item_code": self.item, "warehouse": self.a, "qty": 8}],
+				}
+			).insert()
+		draft = counts.save_count(str(uuid4()), self.count_data(8, "Reviewed"))
+		frappe.db.set_value(
+			"Stock Reconciliation",
+			draft.name,
+			{"posting_date": future.date(), "posting_time": future.time(), "set_posting_time": 1},
+			update_modified=False,
+		)
+		with self.assertRaisesRegex(frappe.ValidationError, "盘点时间不能晚于当前时间。"):
+			native_api.submit_document("Stock Reconciliation", draft.name, draft.version)
+		clock = now_datetime()
+		near = clock + timedelta(seconds=30)
+		with patch("frappe.utils.now_datetime", return_value=clock):
+			near_data = self.count_data(8, "Reviewed")
+			near_data.update(posting_date=str(near.date()), posting_time=near.strftime("%H:%M:%S"))
+			accepted = counts.save_count(str(uuid4()), near_data)
+		self.assertTrue(accepted["editable"])
+
+	def test_amending_cancelled_past_stock_entry_is_not_blocked(self):
+		past = self.movement(posting_date=add_days(nowdate(), -1), posting_time="12:00:00")
+		cancelled = self.submit(self.create(past))
+		cancelled = native_api.cancel_document("Stock Entry", cancelled.name, cancelled.version)
+		amended = native_api.amend_document("Stock Entry", cancelled.name, cancelled.version, str(uuid4()))
+		self.assertEqual(amended.amended_from, cancelled.name)
 
 	def test_app_availability_does_not_depend_on_core_negative_stock_preference(self):
 		from unittest.mock import patch

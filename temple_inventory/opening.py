@@ -3,7 +3,7 @@
 # ruff: noqa: RUF001 — Chinese UI punctuation is intentional.
 
 import frappe
-from frappe.utils import cint, flt, get_datetime, getdate, now_datetime
+from frappe.utils import cint, flt, getdate
 
 from temple_inventory.native_access import check_company, require_app
 from temple_inventory.native_stock import number, validate_precision, warehouse_scopes
@@ -141,14 +141,15 @@ def opening_pair_blockers(pairs, *, exclude_name="", include_drafts=False):
 
 def validate_opening(doc):
 	"""Apply opening-only scope and eligibility checks for both Desk and API saves."""
+	from temple_inventory.posting_time import reject_future_posting
+
 	check_company(doc)
 	# The declared date is the point of an opening; submit must not replace it with now.
 	doc.ti_time_mode = "Historical"
 	doc.set_posting_time = 1
 	if not doc.get("expense_account"):
 		set_difference_account(doc)
-	if get_datetime(f"{doc.posting_date} {doc.posting_time}") > now_datetime():
-		frappe.throw("期初日期和时间不能晚于当前时间。")
+	reject_future_posting(doc, "期初日期和时间不能晚于当前时间。")
 	_settings, _visible, physical, _leased, _damaged = warehouse_scopes()
 	warehouse_names = {row.warehouse for row in doc.items if row.warehouse}
 	if warehouse_names - set(physical):

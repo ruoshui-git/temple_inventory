@@ -15,7 +15,7 @@ from decimal import Decimal
 
 import frappe
 from erpnext.stock.utils import get_stock_balance
-from frappe.utils import getdate, nowdate
+from frappe.utils import get_datetime, getdate, nowdate
 
 from temple_inventory import (
 	activities,
@@ -938,12 +938,16 @@ def _entry(
 	if actor:
 		frappe.set_user(actor)
 	try:
+		posting_date = _date(days)
+		if get_datetime(f"{posting_date} {posting_time}") > frappe.utils.now_datetime():
+			current = frappe.utils.now_datetime() - timedelta(minutes=2)
+			posting_date, posting_time = str(current.date()), current.strftime("%H:%M:%S")
 		draft = native_api.create_document(
 			"Stock Entry",
 			REQUEST_PREFIX + key,
 			{
 				"company": company,
-				"posting_date": _date(days),
+				"posting_date": posting_date,
 				"posting_time": posting_time,
 				"ti_time_mode": "Manual",
 				"ti_movement_kind": kind,

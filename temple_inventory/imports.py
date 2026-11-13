@@ -184,17 +184,21 @@ def _opening_workbook(raw, filename):
 
 
 def _opening_context_date(posting_date, posting_time):
-	from frappe.utils import get_datetime, getdate, now_datetime
+	from frappe.utils import get_datetime, getdate
 
 	if not posting_date or not posting_time:
 		frappe.throw("请填写期初日期和时间")
 	try:
 		day = getdate(posting_date)
-		datetime_value = get_datetime(f"{day} {posting_time}")
+		get_datetime(f"{day} {posting_time}")
 	except Exception:
 		frappe.throw("请填写有效的期初日期和时间")
-	if datetime_value > now_datetime():
-		frappe.throw("期初日期和时间不能晚于当前时间")
+	from temple_inventory.posting_time import reject_future_posting
+
+	reject_future_posting(
+		frappe._dict(set_posting_time=1, posting_date=day, posting_time=posting_time),
+		"期初日期和时间不能晚于当前时间。",
+	)
 	settings = frappe.get_single("Temple Inventory Settings")
 	from erpnext.accounts.utils import get_fiscal_year
 

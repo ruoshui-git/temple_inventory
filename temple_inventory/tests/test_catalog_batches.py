@@ -1,5 +1,6 @@
 """Native supporting records, full-dataset search and dashboard integration."""
 
+from datetime import timedelta
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -319,7 +320,8 @@ class CatalogBatchesTests(NativeDocumentTests):
 		second["items"][0].update({"batch_no": batches[0], "use_serial_batch_fields": 1})
 		self.submit(self.create(second))
 		data = self.movement("Return", 3, self.loan_leaf, self.b, ti_borrower="Batch Borrower")
-		data["posting_date"] = add_days(nowdate(), 1)
+		posting = now_datetime() + timedelta(seconds=30)
+		data.update(posting_date=posting.date(), posting_time=posting.strftime("%H:%M:%S"))
 		data["items"][0].update(
 			{
 				"batch_no": batches[0],

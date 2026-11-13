@@ -189,14 +189,23 @@ class CatalogItemsTests(NativeDocumentTests):
 		self.assertEqual(restricted["rows"], [])
 
 	def test_item_history_uses_only_effective_damage_and_loss_events_after_cancellation(self):
-		receipt = self.movement(quantity=4)
+		posting_date = add_days(nowdate(), -1)
+		receipt = self.movement(quantity=4, posting_date=posting_date)
 		receipt.update({"posting_time": "08:00:00", "ti_time_mode": "Manual"})
 		self.submit(self.create(receipt))
-		loan_data = self.movement("Loan", 4, self.a, self.loan_leaf, ti_borrower="History")
+		loan_data = self.movement(
+			"Loan", 4, self.a, self.loan_leaf, ti_borrower="History", posting_date=posting_date
+		)
 		loan_data.update({"posting_time": "09:00:00", "ti_time_mode": "Manual"})
 		loan = self.submit(self.create(loan_data))
 		damage_data = self.movement(
-			"Damage", 1, self.loan_leaf, self.damaged, ti_borrower="History", posting_time="12:00:00"
+			"Damage",
+			1,
+			self.loan_leaf,
+			self.damaged,
+			ti_borrower="History",
+			posting_date=posting_date,
+			posting_time="12:00:00",
 		)
 		damage_data["ti_time_mode"] = "Manual"
 		damage_data["items"][0].update(
@@ -208,7 +217,13 @@ class CatalogItemsTests(NativeDocumentTests):
 		)
 		damage = self.submit(self.create(damage_data))
 		loss_data = self.movement(
-			"Loss", 1, self.loan_leaf, None, ti_borrower="History", posting_time="10:00:00"
+			"Loss",
+			1,
+			self.loan_leaf,
+			None,
+			ti_borrower="History",
+			posting_date=posting_date,
+			posting_time="10:00:00",
 		)
 		loss_data["ti_time_mode"] = "Manual"
 		loss_data["items"][0].update(
@@ -242,10 +257,12 @@ class CatalogItemsTests(NativeDocumentTests):
 		self.assertEqual(balance_effects[loan.name], 4.0)
 		self.assertEqual(balance_effects[damage.name], -1.0)
 		self.assertEqual(balance_effects[loss.name], 0.0)
-		available_data = self.movement(quantity=1)
+		available_data = self.movement(quantity=1, posting_date=posting_date)
 		available_data.update({"posting_time": "11:00:00", "ti_time_mode": "Manual"})
 		self.submit(self.create(available_data))
-		later_data = self.movement("Loan", 1, self.a, self.loan_leaf, ti_borrower="History")
+		later_data = self.movement(
+			"Loan", 1, self.a, self.loan_leaf, ti_borrower="History", posting_date=posting_date
+		)
 		later_data.update({"posting_time": "12:00:00", "ti_time_mode": "Manual"})
 		later = self.submit(self.create(later_data))
 		item_history_query = {"dataset": "loans", "view": "records", "statuses": [1]}
