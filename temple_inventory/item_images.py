@@ -1,4 +1,7 @@
-"""Private WebP derivatives for Item primary images."""
+"""Private WebP derivatives for Item primary images.
+
+Derivatives keep the source aspect ratio: 160/640 feed square thumbnail frames, 2048 the lightbox.
+"""
 
 from __future__ import annotations
 
@@ -10,7 +13,7 @@ from PIL import Image, ImageOps
 from werkzeug.utils import send_file
 
 VARIANT_FIELD = "ti_image_variant"
-VARIANT_SIZES = (160, 640)
+VARIANT_SIZES = (160, 640, 2048)
 QUALITY = 80
 
 
@@ -158,37 +161,6 @@ def thumbnail(item, size, v):
 		selected.get_full_path(),
 		environ=request.environ if request else {},
 		mimetype=content_type,
-		as_attachment=False,
-		conditional=bool(request),
-		max_age=31536000,
-	)
-	response.headers["Cache-Control"] = "private,max-age=31536000,immutable"
-	response.headers["Vary"] = "Cookie"
-	response.headers["X-Content-Type-Options"] = "nosniff"
-	response.headers["Content-Security-Policy"] = "sandbox; default-src 'none'; style-src 'unsafe-inline'"
-	return response
-
-
-@frappe.whitelist()
-def original(item, v):
-	"""Serve the authorized, unchanged original for an Item lightbox."""
-	from temple_inventory.native_access import check_item, require_app
-	from temple_inventory.native_files import is_private_original
-
-	require_app()
-	doc = check_item(item)
-	if image_version(doc.image) != str(v):
-		frappe.throw("图片版本已更改", frappe.DoesNotExistError)
-	selected = _authorized_original(doc)
-	if not selected:
-		frappe.throw("物品主图不存在", frappe.DoesNotExistError)
-	if not is_private_original(selected):
-		frappe.throw("物品主图必须是私有文件", frappe.PermissionError)
-	request = getattr(frappe.local, "request", None)
-	response = send_file(
-		selected.get_full_path(),
-		environ=request.environ if request else {},
-		mimetype=mimetypes.guess_type(selected.file_name)[0] or "application/octet-stream",
 		as_attachment=False,
 		conditional=bool(request),
 		max_age=31536000,

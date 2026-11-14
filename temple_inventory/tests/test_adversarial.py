@@ -1631,8 +1631,8 @@ class AdversarialTests(NativeDocumentTests):
 			return
 		version = item_images.image_version(frappe.get_value("Item", self.item, "image"))
 		responses = (
-			item_images.original(self.item, version),
 			item_images.thumbnail(self.item, 160, version),
+			item_images.thumbnail(self.item, 2048, version),
 		)
 		unsafe = [
 			(dict(response.headers), response.mimetype)

@@ -513,7 +513,7 @@ for (const width of [390, 1440]) {
       path: info.outputPath("whole-record-and-loans.png"),
     });
   });
-  test(`adjacent expiry tabs and square crop ${width}`, async ({
+  test(`adjacent expiry tabs and uncropped main image ${width}`, async ({
     page,
   }, info) => {
     await page.setViewportSize({ width, height: 1000 });
@@ -559,63 +559,8 @@ for (const width of [390, 1440]) {
       mimeType: "image/png",
       buffer: png,
     });
-    await expect(
-      page.getByRole("dialog", { name: "裁剪图片", exact: true }),
-    ).toBeVisible();
-    await expect(page.locator("cropper-selection")).toBeVisible();
-    const selectionNode = page.locator("cropper-selection");
-    const cropImage = page.locator("cropper-image");
-    const initialSelection = await selectionNode.boundingBox();
-    const imageBox = await cropImage.boundingBox();
-    expect(initialSelection).not.toBeNull();
-    expect(imageBox).not.toBeNull();
-    const moveHandle = selectionNode.locator('cropper-handle[action="move"]');
-    const moveBox = await moveHandle.boundingBox();
-    expect(moveBox).not.toBeNull();
-    const startX = moveBox!.x + moveBox!.width / 2;
-    const startY = moveBox!.y + moveBox!.height / 2;
-    await page.mouse.move(startX, startY);
-    await page.mouse.down();
-    await page.mouse.move(startX, imageBox!.y + imageBox!.height + 60, {
-      steps: 8,
-    });
-    const movedSelection = await selectionNode.boundingBox();
-    expect(movedSelection!.y).toBeGreaterThan(initialSelection!.y);
-    expect(movedSelection!.y + movedSelection!.height).toBeLessThanOrEqual(
-      imageBox!.y + imageBox!.height + 1,
-    );
-    await page.mouse.move(startX, imageBox!.y + imageBox!.height + 100, {
-      steps: 4,
-    });
-    const continuedSelection = await selectionNode.boundingBox();
-    expect(continuedSelection!.y).toBeGreaterThanOrEqual(movedSelection!.y);
-    if (width === 390 || width === 1440)
-      await page.screenshot({
-        path: test.info().outputPath(`crop-mid-drag-${width}.png`),
-      });
-    await page.mouse.up();
-    const cropSelection = await page
-      .locator("cropper-selection")
-      .evaluate((node) => {
-        const rect = node.getBoundingClientRect();
-        return { width: rect.width, height: rect.height };
-      });
-    expect(Math.abs(cropSelection.width - cropSelection.height)).toBeLessThan(
-      1,
-    );
-    await expect(page.getByLabel("另存原图为附件")).not.toBeChecked();
-    await page.screenshot({
-      path: test
-        .info()
-        .outputPath(
-          `item-thumbnail-cropper-${width < 1024 ? "phone" : "desktop"}.png`,
-        ),
-      fullPage: true,
-    });
-    await page.screenshot({ path: info.outputPath("crop-choices.png") });
-    await page
-      .getByRole("button", { name: "使用原图作为主图", exact: true })
-      .click();
+    // Main images are stored whole: picking one never opens a crop step.
+    await expect(page.locator("cropper-selection")).toHaveCount(0);
     const image = page.locator(".attachments .async-image").first();
     await expect(image).toBeVisible();
     await image.scrollIntoViewIfNeeded();

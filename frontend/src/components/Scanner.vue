@@ -493,7 +493,6 @@ defineExpose({
 		<ImageCrop
 			v-if="imageForCrop && imageError.startsWith('未识别到条码')"
 			:file="imageForCrop"
-			free-aspect
 			@choose="retryCroppedImage"
 			@cancel="imageForCrop = undefined"
 		/>

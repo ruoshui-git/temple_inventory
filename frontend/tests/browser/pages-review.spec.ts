@@ -225,23 +225,15 @@ test("dashboard inventory overview labels empty totals after loading", async ({
   });
 });
 
-test("lightbox shows its skeleton while the private original loads", async ({
+test("lightbox shows its skeleton while the display image loads", async ({
   page,
 }, info) => {
   await warehouseFixture(page);
   await page.route(
     "**/api/method/temple_inventory.item_images.thumbnail**",
-    (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: "image/svg+xml",
-        body: imageSvg,
-      }),
-  );
-  await page.route(
-    "**/api/method/temple_inventory.item_images.original**",
     async (route) => {
-      await new Promise((resolve) => setTimeout(resolve, 1800));
+      if (route.request().url().includes("size=2048"))
+        await new Promise((resolve) => setTimeout(resolve, 1800));
       await route.fulfill({
         status: 200,
         contentType: "image/svg+xml",

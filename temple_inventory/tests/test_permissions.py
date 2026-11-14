@@ -840,7 +840,6 @@ def _endpoint_policies():
 		"exports.mark_watched": "SELF",
 		"exports.request_export": "SELF",
 		"exports.retry_export": "SELF",
-		"item_images.original": "READ",
 		"item_images.thumbnail": "READ",
 		"loans.outstanding_lines": "READ",
 		"native_api.amend_document": "WRITE",

@@ -25,9 +25,10 @@ export function imageVersion(url: string) {
   return hash.toString(16).padStart(8, "0");
 }
 
-export function originalUrl(code: string, url: string) {
+/** Whole primary image, scaled to at most 2048px on its long edge, for the lightbox. */
+export function displayUrl(code: string, url: string) {
   if (!url || url.startsWith("data:image/")) return url;
-  return `/api/method/temple_inventory.item_images.original?item=${encodeURIComponent(code)}&v=${imageVersion(url)}`;
+  return `/api/method/temple_inventory.item_images.thumbnail?item=${encodeURIComponent(code)}&size=2048&v=${imageVersion(url)}`;
 }
 
 export function thumbnailUrl(

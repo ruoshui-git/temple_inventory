@@ -13,7 +13,15 @@ from erpnext.stock.utils import get_stock_balance
 from frappe.utils import getdate, nowdate
 from PIL import Image
 
-from temple_inventory import configuration, counts, native_files, native_samples, sample_install, sample_media
+from temple_inventory import (
+	configuration,
+	counts,
+	item_images,
+	native_files,
+	native_samples,
+	sample_install,
+	sample_media,
+)
 from temple_inventory.native_api import _request_key
 from temple_inventory.native_balances import batch_balances
 from temple_inventory.native_stock import MOVEMENT_PURPOSES
@@ -170,18 +178,23 @@ class NativeSampleAttachmentTests(NativeDocumentTests):
 			},
 			fields=["name", "file_name", "is_private"],
 		)
-		self.assertEqual(len(variants), 2)
+		self.assertEqual(len(variants), len(item_images.VARIANT_SIZES))
 		self.assertTrue(all(row.is_private for row in variants))
 		self.assertEqual(
-			{size for size in (160, 640) if any(f"-{size}-" in row.file_name for row in variants)},
-			{160, 640},
+			{
+				size
+				for size in item_images.VARIANT_SIZES
+				if any(f"-{size}-" in row.file_name for row in variants)
+			},
+			set(item_images.VARIANT_SIZES),
 		)
 		self.assertEqual({entry.name for entry in native_files.attachments("Item", self.item)}, {file.name})
 		paths = {Path(file.get_full_path()).resolve()}
 		paths.update(Path(frappe.get_doc("File", row.name).get_full_path()).resolve() for row in variants)
 		self.assertEqual(set(root.iterdir()) - before, paths)
 		self.assertEqual(
-			frappe.db.count("File", {"attached_to_doctype": "Item", "attached_to_name": self.item}), 3
+			frappe.db.count("File", {"attached_to_doctype": "Item", "attached_to_name": self.item}),
+			1 + len(item_images.VARIANT_SIZES),
 		)
 		entry = self.create(self.movement())
 		receipt = native_samples._attach_file(

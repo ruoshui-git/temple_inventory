@@ -55,7 +55,7 @@ describe("shared native Item artwork", () => {
     expect(dialog).not.toBeNull();
     expect(dialog.textContent).toContain(item.name);
     expect(dialog.querySelector("img")?.getAttribute("src")).toMatch(
-      /^\/api\/method\/temple_inventory\.item_images\.original\?item=ITEM-1&v=/,
+      /^\/api\/method\/temple_inventory\.item_images\.thumbnail\?item=ITEM-1&size=2048&v=/,
     );
     expect(
       dialog.querySelector(".async-image--loading .async-image__skeleton"),

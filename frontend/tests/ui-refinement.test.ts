@@ -331,7 +331,7 @@ it("stacks a child overlay above its parent and restores its trigger", async () 
   expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
   expect(document.activeElement?.textContent).toBe("裁剪");
 });
-describe("square crop choices", () => {
+describe("barcode region retry", () => {
   async function crop() {
     vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:crop-test");
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
@@ -352,55 +352,21 @@ describe("square crop choices", () => {
     await flushPromises();
     return { wrapper, original };
   }
-  it.each([false, true])(
-    "retains an original only when explicitly selected (%s)",
-    async (retain) => {
-      const { wrapper } = await crop();
-      const checkbox = document.querySelector<HTMLInputElement>(
-        'input[type="checkbox"]',
-      )!;
-      expect(checkbox.checked).toBe(false);
-      checkbox.checked = retain;
-      checkbox.dispatchEvent(new Event("change", { bubbles: true }));
-      click("使用裁剪后的图片");
-      await flushPromises();
-      const files = wrapper.emitted("choose")![0]![0] as File[];
-      expect(files.map((file) => file.name)).toEqual(
-        retain ? ["photo-裁剪.webp", "原图-photo.jpg"] : ["photo-裁剪.webp"],
-      );
-      expect(files[0]!.type).toBe("image/webp");
-    },
-  );
-  it("keeps crop output at native source resolution when the selected source is small", async () => {
-    cropperMocks.image.$image.naturalWidth = 300;
-    cropperMocks.image.$image.naturalHeight = 260;
+  it("emits only the selected region at its own aspect, never a square", async () => {
     cropperMocks.selection.width = 900;
-    cropperMocks.selection.height = 900;
+    cropperMocks.selection.height = 300;
+    cropperMocks.selection.aspectRatio = 1;
     const { wrapper } = await crop();
-    click("使用裁剪后的图片");
+    expect(cropperMocks.selection.aspectRatio).toBeNaN();
+    expect(document.querySelector('input[type="checkbox"]')).toBeNull();
+    click("框选后重试");
     await flushPromises();
-    expect(cropperMocks.selection.$toCanvas).toHaveBeenLastCalledWith({
-      width: 260,
-      height: 260,
-    });
-    wrapper.unmount();
-    cropperMocks.image.$image.naturalWidth = 1600;
-    cropperMocks.image.$image.naturalHeight = 1200;
+    const files = wrapper.emitted("choose")![0]![0] as File[];
+    expect(files.map((file) => file.name)).toEqual(["photo-裁剪.webp"]);
+    const call = cropperMocks.selection.$toCanvas.mock.lastCall![0];
+    expect(call.width / call.height).toBeCloseTo(3, 1);
     cropperMocks.selection.width = 1000;
     cropperMocks.selection.height = 1000;
-  });
-  it("uses the original alone or cancels without finalizing any file", async () => {
-    const { wrapper, original } = await crop();
-    click("使用原图作为主图");
-    await flushPromises();
-    expect(wrapper.emitted("choose")![0]![0]).toEqual([original]);
-    wrapper.unmount();
-    wrappers.splice(wrappers.indexOf(wrapper), 1);
-    const other = await crop();
-    click("取消此图片");
-    await flushPromises();
-    expect(other.wrapper.emitted("choose")).toBeUndefined();
-    expect(other.wrapper.emitted("cancel")).toHaveLength(1);
   });
 });
 it("discards late related-loan responses after close and guards account changes", async () => {

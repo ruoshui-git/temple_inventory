@@ -12,9 +12,9 @@ from temple_inventory.tests.test_native_documents import NativeDocumentTests
 
 
 class ItemImageTests(NativeDocumentTests):
-	def _source_file(self, color):
+	def _source_file(self, color, size=(320, 200)):
 		buffer = BytesIO()
-		Image.new("RGB", (320, 200), color).save(buffer, "PNG")
+		Image.new("RGB", size, color).save(buffer, "PNG")
 		return frappe.get_doc(
 			{
 				"doctype": "File",
@@ -27,8 +27,8 @@ class ItemImageTests(NativeDocumentTests):
 			}
 		).insert()
 
-	def _set_image(self, color):
-		file = self._source_file(color)
+	def _set_image(self, color, size=(320, 200)):
+		file = self._source_file(color, size)
 		item = frappe.get_doc("Item", self.item)
 		item.image = file.file_url
 		item.save()
@@ -53,6 +53,7 @@ class ItemImageTests(NativeDocumentTests):
 			[row.file_name for row in variants],
 			[
 				f"{self.item}-160-{item_images.image_version(original.file_url)}.webp",
+				f"{self.item}-2048-{item_images.image_version(original.file_url)}.webp",
 				f"{self.item}-640-{item_images.image_version(original.file_url)}.webp",
 			],
 		)
@@ -68,7 +69,9 @@ class ItemImageTests(NativeDocumentTests):
 				for file in native_files.attachments("Item", self.item)
 			)
 		)
-		self.assertEqual(len(item_images._variant_files(frappe.get_doc("Item", self.item))), 2)
+		self.assertEqual(
+			len(item_images._variant_files(frappe.get_doc("Item", self.item))), len(item_images.VARIANT_SIZES)
+		)
 
 	def test_app_primary_image_action_preserves_original_bytes_and_creates_derivatives(self):
 		original = self._source_file("purple")
@@ -79,7 +82,7 @@ class ItemImageTests(NativeDocumentTests):
 			frappe.get_doc("File", original.name).get_content(encodings=[]),
 			original.get_content(encodings=[]),
 		)
-		self.assertEqual(len(self._variants()), 2)
+		self.assertEqual(len(self._variants()), len(item_images.VARIANT_SIZES))
 
 	def test_replacing_or_removing_primary_image_deletes_stale_derivatives(self):
 		_first, _item = self._set_image("red")
@@ -87,7 +90,7 @@ class ItemImageTests(NativeDocumentTests):
 		second, item = self._set_image("blue")
 		second_names = {row.name for row in self._variants()}
 		self.assertTrue(first_names.isdisjoint(second_names))
-		self.assertEqual(len(second_names), 2)
+		self.assertEqual(len(second_names), len(item_images.VARIANT_SIZES))
 		self.assertTrue(
 			all(item_images.image_version(second.file_url) in row.file_name for row in self._variants())
 		)
@@ -113,16 +116,22 @@ class ItemImageTests(NativeDocumentTests):
 		with self.assertRaises(frappe.DoesNotExistError):
 			item_images.thumbnail(self.item, 160, "stale-version")
 
-	def test_lightbox_original_uses_authorized_private_file_and_version(self):
-		original, _item = self._set_image("green")
+	def test_derivatives_keep_aspect_and_never_upscale(self):
+		original, _item = self._set_image("blue", (3000, 1000))
 		version = item_images.image_version(original.file_url)
-		response = item_images.original(self.item, version)
-		self.assertEqual(response.mimetype, "image/png")
-		self.assertEqual(response.headers["Cache-Control"], "private,max-age=31536000,immutable")
+		sizes = {}
+		for size in item_images.VARIANT_SIZES:
+			response = item_images.thumbnail(self.item, size, version)
+			self.assertEqual(response.mimetype, "image/webp")
+			response.direct_passthrough = False
+			with Image.open(BytesIO(response.get_data())) as image:
+				sizes[size] = image.size
+		self.assertEqual(sizes, {160: (160, 53), 640: (640, 213), 2048: (2048, 683)})
+		small, _item = self._set_image("teal")
+		response = item_images.thumbnail(self.item, 2048, item_images.image_version(small.file_url))
 		response.direct_passthrough = False
-		self.assertEqual(response.get_data(), original.get_content(encodings=[]))
-		with self.assertRaises(frappe.DoesNotExistError):
-			item_images.original(self.item, "stale-version")
+		with Image.open(BytesIO(response.get_data())) as image:
+			self.assertEqual(image.size, (320, 200))
 
 	def test_derivative_failure_does_not_block_item_save(self):
 		file = self._source_file("yellow")

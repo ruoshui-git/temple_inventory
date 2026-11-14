@@ -145,13 +145,11 @@ describe("native-parent attachments", () => {
       ],
     });
     await input.trigger("change");
-    expect(c.files).toHaveLength(0);
-    const original = Array.from(document.querySelectorAll("button")).find(
-      (button) => button.textContent === "使用原图作为主图",
-    )!;
-    original.click();
     await flushPromises();
-    expect(c.files.map((file) => file.name)).toEqual(["photo.jpg"]);
+    expect(wrapper.findComponent({ name: "ImageCrop" }).exists()).toBe(false);
+    expect(c.files.map((file) => [file.name, file.primary])).toEqual([
+      ["photo.jpg", true],
+    ]);
   });
   it("keeps an image attachment byte-for-byte without mounting the cropper", async () => {
     const { wrapper, c, parent, upload } = setup({ imageRole: "attachments" });
@@ -309,7 +307,7 @@ describe("native-parent attachments", () => {
   });
 });
 
-it("finalizes the selected crop and retained original once, then retries primary metadata without reuploading", async () => {
+it("finalizes a main image and an extra image once, then retries primary metadata without reuploading", async () => {
   const { c, parent, upload, primary } = setup({
     imagesOnly: true,
     imageRole: "main",
@@ -325,8 +323,8 @@ it("finalizes the selected crop and retained original once, then retries primary
     .mockResolvedValue(undefined);
   c.add(
     [
-      new File(["crop"], "crop.png", { type: "image/png" }),
-      new File(["original"], "原图-photo.jpg", { type: "image/jpeg" }),
+      new File(["main"], "main.png", { type: "image/png" }),
+      new File(["extra"], "extra.jpg", { type: "image/jpeg" }),
     ],
     true,
   );
@@ -338,7 +336,7 @@ it("finalizes the selected crop and retained original once, then retries primary
   expect(c.error.value).toBe("主图保存失败");
   await c.finalize();
   expect(upload).toHaveBeenCalledTimes(2);
-  expect(primary).toHaveBeenLastCalledWith("FILE-crop.png");
+  expect(primary).toHaveBeenLastCalledWith("FILE-main.png");
   await c.finalize();
   expect(primary).toHaveBeenCalledTimes(2);
 });

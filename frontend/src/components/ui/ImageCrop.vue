@@ -1,25 +1,22 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { createCropper, type Cropper } from "cropperjs";
 import Overlay from "./Overlay.vue";
 import UiButton from "./UiButton.vue";
 import {
-	clampSquareSelection,
 	clampSelectionToBounds,
 	fitImageAspect,
 	imageBoundsInCanvas,
-	largestCenteredSquare,
 } from "../../lib/imageCropBounds";
 
-const props = defineProps<{ file: File; index?: number; total?: number; freeAspect?: boolean }>();
+/** Free-aspect region picker for retrying barcode decoding on part of an image. */
+const props = defineProps<{ file: File }>();
 const emit = defineEmits<{ choose: [files: File[]]; cancel: [] }>();
 const host = ref<HTMLElement>();
 const image = ref<HTMLImageElement>();
 const ready = ref(false);
 const stageSize = ref({ width: 512, height: 448 });
 const busy = ref(false);
-const pendingAction = ref<"cancel" | "original" | "">("");
-const retain = ref(false);
 const error = ref("");
 let cropper: Cropper | undefined;
 let cropImageElement: HTMLElement | undefined;
@@ -28,18 +25,7 @@ let transformListener: (() => void) | undefined;
 let selectionChangeListener: ((event: Event) => void) | undefined;
 let objectUrl = "";
 let disposed = false;
-let initialSelection = { x: 0, y: 0, width: 0, height: 0 };
 let initialSelectionSet = false;
-
-const title = computed(
-	() => `裁剪图片${props.total && props.total > 1 ? `（${props.index} / ${props.total}）` : ""}`,
-);
-function chooseAction(action: "cancel" | "original") {
-	if (busy.value) return;
-	pendingAction.value = action;
-	if (action === "cancel") emit("cancel");
-	else emit("choose", [props.file]);
-}
 
 onMounted(async () => {
 	try {
@@ -49,8 +35,8 @@ onMounted(async () => {
 		const cropImage = cropper.getCropperImage();
 		const selection = cropper.getCropperSelection();
 		if (!cropImage || !selection) throw new Error("cropper elements unavailable");
-		selection.aspectRatio = props.freeAspect ? NaN : 1;
-		selection.initialAspectRatio = props.freeAspect ? NaN : 1;
+		selection.aspectRatio = NaN;
+		selection.initialAspectRatio = NaN;
 		selection.initialCoverage = 1;
 		selection.keyboard = true;
 		await cropImage.$ready();
@@ -82,45 +68,32 @@ onMounted(async () => {
 					return;
 				const bounds = imageBoundsInCanvas(imageRect, canvasRect);
 				if (!initialSelectionSet) {
-					const initial = props.freeAspect
-						? {
-								x: bounds.left + (bounds.right - bounds.left) * 0.05,
-								y: bounds.top + (bounds.bottom - bounds.top) * 0.05,
-								width: (bounds.right - bounds.left) * 0.9,
-								height: (bounds.bottom - bounds.top) * 0.9,
-							}
-						: largestCenteredSquare(bounds);
+					const initial = {
+						x: bounds.left + (bounds.right - bounds.left) * 0.05,
+						y: bounds.top + (bounds.bottom - bounds.top) * 0.05,
+						width: (bounds.right - bounds.left) * 0.9,
+						height: (bounds.bottom - bounds.top) * 0.9,
+					};
 					if (initial.width)
 						selection.$change(
 							initial.x,
 							initial.y,
 							initial.width,
 							initial.height,
-							props.freeAspect ? NaN : 1,
+							NaN,
 							true,
 						);
-					initialSelection = { ...initial };
 					initialSelectionSet = Boolean(initial.width && initial.height);
 				}
-				const bounded = props.freeAspect
-					? clampSelectionToBounds(
-							{
-								x: selection.x,
-								y: selection.y,
-								width: selection.width,
-								height: selection.height,
-							},
-							bounds,
-						)
-					: clampSquareSelection(
-							{
-								x: selection.x,
-								y: selection.y,
-								width: selection.width,
-								height: selection.height,
-							},
-							bounds,
-						);
+				const bounded = clampSelectionToBounds(
+					{
+						x: selection.x,
+						y: selection.y,
+						width: selection.width,
+						height: selection.height,
+					},
+					bounds,
+				);
 				if (
 					Math.abs(bounded.x - selection.x) > 0.01 ||
 					Math.abs(bounded.y - selection.y) > 0.01 ||
@@ -132,7 +105,7 @@ onMounted(async () => {
 						bounded.y,
 						bounded.width,
 						bounded.height,
-						props.freeAspect ? NaN : 1,
+						NaN,
 						true,
 					);
 			};
@@ -155,9 +128,7 @@ onMounted(async () => {
 					width: detail.width,
 					height: detail.height,
 				};
-				const bounded = props.freeAspect
-					? clampSelectionToBounds(proposed, bounds)
-					: clampSquareSelection(proposed, bounds);
+				const bounded = clampSelectionToBounds(proposed, bounds);
 				if (
 					Object.keys(bounded).some(
 						(key) =>
@@ -174,7 +145,7 @@ onMounted(async () => {
 						bounded.y,
 						bounded.width,
 						bounded.height,
-						props.freeAspect ? NaN : 1,
+						NaN,
 						true,
 					);
 					correctingSelection = false;
@@ -214,7 +185,7 @@ onMounted(async () => {
 			ready.value = true;
 		}
 	} catch {
-		if (!disposed) error.value = "无法预览此图片格式。可使用原图，或取消后选择其它图片。";
+		if (!disposed) error.value = "无法预览此图片格式，请换一张图片。";
 	}
 });
 
@@ -236,13 +207,8 @@ async function crop() {
 		const sourceWidth = Math.min(selection.width / scale, sourceImage.naturalWidth);
 		const sourceHeight = Math.min(selection.height / scale, sourceImage.naturalHeight);
 		const outputScale = Math.min(1, 800 / Math.max(sourceWidth, sourceHeight));
-		const sourceSquare = Math.floor(Math.min(sourceWidth, sourceHeight));
-		const outputWidth = props.freeAspect
-			? Math.max(1, Math.round(sourceWidth * outputScale))
-			: Math.min(800, sourceSquare);
-		const outputHeight = props.freeAspect
-			? Math.max(1, Math.round(sourceHeight * outputScale))
-			: outputWidth;
+		const outputWidth = Math.max(1, Math.round(sourceWidth * outputScale));
+		const outputHeight = Math.max(1, Math.round(sourceHeight * outputScale));
 		const selectedCanvas = await selection.$toCanvas({
 			width: outputWidth,
 			height: outputHeight,
@@ -268,36 +234,16 @@ async function crop() {
 			props.file.name.replace(/\.[^.]+$/, "") + (webp ? "-裁剪.webp" : "-裁剪.png"),
 			{ type: webp ? "image/webp" : "image/png" },
 		);
-		const original = new File([props.file], `原图-${props.file.name}`, {
-			type: props.file.type,
-			lastModified: props.file.lastModified,
-		});
-		emit("choose", retain.value ? [cropped, original] : [cropped]);
+		emit("choose", [cropped]);
 	} catch {
-		if (!disposed) error.value = "裁剪失败，原文件仍保留，请重试或使用原图。";
+		if (!disposed) error.value = "框选失败，请重试或换一张图片。";
 	} finally {
 		busy.value = false;
 	}
 }
 
-function reset() {
-	const selection = cropper?.getCropperSelection();
-	if (selection && initialSelection.width)
-		selection.$change(
-			initialSelection.x,
-			initialSelection.y,
-			initialSelection.width,
-			initialSelection.height,
-			props.freeAspect ? NaN : 1,
-			true,
-		);
-	cropper?.getCropperImage()?.$center();
-}
 function rotate() {
 	cropper?.getCropperImage()?.$rotate(90);
-}
-function zoom(factor: number) {
-	cropper?.getCropperImage()?.$zoom(factor);
 }
 
 onBeforeUnmount(() => {
@@ -317,66 +263,26 @@ onBeforeUnmount(() => {
 
 <template>
 	<Overlay
-		:title="title"
+		title="裁剪图片"
 		panel-class="image-crop-dialog"
 		adaptive-creation
 		@close="emit('cancel')"
 	>
-		<p>
-			{{ file.name }} ·
-			{{
-				freeAspect ? "拖动选区框定条码区域。" : "拖动方形选区调整范围；方向键可微调位置。"
-			}}
-		</p>
-		<p v-if="freeAspect">未识别到条码。请框选条码区域、旋转或换一张更清晰的图片。</p>
+		<p>{{ file.name }} · 拖动选区框定条码区域。</p>
+		<p>未识别到条码。请框选条码区域、旋转或换一张更清晰的图片。</p>
 		<p v-if="!ready && !error" role="status">正在读取图片方向与尺寸…</p>
 		<p v-if="error" role="alert">{{ error }}</p>
 		<div
 			ref="host"
 			class="cropper-host"
-			:class="{ 'cropper-host--free': freeAspect }"
 			:style="{ width: `${stageSize.width}px`, height: `${stageSize.height}px` }"
 		>
 			<img ref="image" :alt="file.name" />
 		</div>
-		<div v-if="ready" class="form-grid">
-			<template v-if="!freeAspect">
-				<UiButton @click="zoom(-0.1)">缩小图片</UiButton>
-				<UiButton @click="zoom(0.1)">放大图片</UiButton>
-				<label class="form-choice-label">
-					<input v-model="retain" type="checkbox" />另存原图为附件
-				</label>
-			</template>
-		</div>
 		<template #footer>
-			<UiButton v-if="freeAspect" @click="rotate">旋转 90°</UiButton>
-			<UiButton
-				v-if="!freeAspect"
-				:disabled="busy || (!!pendingAction && pendingAction !== 'cancel')"
-				:loading="pendingAction === 'cancel'"
-				loading-label="正在取消…"
-				@click="chooseAction('cancel')"
-				>取消此图片</UiButton
-			>
-			<UiButton
-				v-if="!freeAspect"
-				:disabled="busy || (!!pendingAction && pendingAction !== 'original')"
-				:loading="pendingAction === 'original'"
-				loading-label="正在使用原图…"
-				@click="chooseAction('original')"
-				>使用原图作为主图</UiButton
-			>
-			<UiButton
-				v-if="!freeAspect"
-				:disabled="!ready || busy || !!pendingAction"
-				@click="reset"
-				>重置裁剪</UiButton
-			>
-			<UiButton v-if="freeAspect" :disabled="!ready || busy" :loading="busy" @click="crop"
+			<UiButton @click="rotate">旋转 90°</UiButton>
+			<UiButton :disabled="!ready || busy" :loading="busy" @click="crop"
 				>框选后重试</UiButton
-			>
-			<UiButton v-else variant="primary" :disabled="!ready" :loading="busy" @click="crop"
-				>使用裁剪后的图片</UiButton
 			>
 		</template>
 	</Overlay>
@@ -390,18 +296,8 @@ onBeforeUnmount(() => {
 	background: var(--p-soft);
 }
 
-.form-grid {
-	display: flex;
-	flex-wrap: wrap;
-	gap: var(--p-control-gap);
-}
-
 .cropper-host :deep(cropper-canvas) {
 	width: 100%;
 	height: 100%;
-}
-
-.cropper-host:not(.cropper-host--free) :deep(cropper-selection) {
-	aspect-ratio: 1;
 }
 </style>

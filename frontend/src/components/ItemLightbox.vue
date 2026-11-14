@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { fileMime, type NativeFile } from "../lib/catalogPresentation";
-import { galleryImages, originalUrl, type ItemGalleryImage } from "../lib/itemImages";
+import { displayUrl, galleryImages, type ItemGalleryImage } from "../lib/itemImages";
 import { useOptionalInventoryServices } from "../services/contracts";
 import AsyncImage from "./ui/AsyncImage.vue";
 import Overlay from "./ui/Overlay.vue";
@@ -96,8 +96,8 @@ onBeforeUnmount(() => {
 	request?.abort();
 	document.removeEventListener("keydown", keydown);
 });
-function original(image: ItemGalleryImage) {
-	return image.primary ? originalUrl(props.item.code, image.url) : image.url;
+function source(image: ItemGalleryImage) {
+	return image.primary ? displayUrl(props.item.code, image.url) : image.url;
 }
 watch(
 	() => [visibleImages.value, selected.value] as const,
@@ -107,7 +107,7 @@ watch(
 			images[(index - 1 + images.length) % images.length],
 			images[(index + 1) % images.length],
 		]) {
-			if (neighbour) new Image().src = original(neighbour);
+			if (neighbour) new Image().src = source(neighbour);
 		}
 	},
 	{ immediate: true },
@@ -136,7 +136,7 @@ watch(
 					<AsyncImage
 						v-else
 						natural
-						:src="current ? original(current) : ''"
+						:src="current ? source(current) : ''"
 						:alt="item.name"
 						fit="contain"
 						width="100%"

@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import ImageCrop from "./ui/ImageCrop.vue";
 import AsyncImage from "./ui/AsyncImage.vue";
 import { computed, ref } from "vue";
 import UiButton from "./ui/UiButton.vue";
@@ -22,30 +21,18 @@ const picker = ref<HTMLInputElement>();
 function openPicker() {
 	picker.value?.click();
 }
-const cropQueue = ref<File[]>([]);
-const cropIndex = ref(0),
-	cropTotal = ref(0);
 function choose(event: Event) {
 	const input = event.target as HTMLInputElement;
 	const values = Array.from(input.files || []).filter(
 		(file) => !props.imagesOnly || file.type.startsWith("image/"),
 	);
-	const images = values.filter((file) => file.type.startsWith("image/"));
 	if (props.imageRole === "main") {
-		cropQueue.value.push(...images);
-		cropTotal.value += images.length;
+		// Main images keep their original bytes and aspect; thumbnails frame them square.
+		const images = values.filter((file) => file.type.startsWith("image/"));
+		if (images.length && !props.disabled && props.canAdd === true && props.mode !== "display")
+			props.controller.add(images, !!props.imagesOnly);
 	} else if (values.length && props.canAdd === true) props.controller.add(values);
 	input.value = "";
-}
-function finishCrop(values: File[] = []) {
-	if (!props.disabled && props.canAdd === true && props.mode !== "display")
-		props.controller.add(values, !!props.imagesOnly);
-	cropQueue.value.shift();
-	cropIndex.value++;
-	if (!cropQueue.value.length) {
-		cropTotal.value = 0;
-		cropIndex.value = 0;
-	}
 }
 function reselect(entry: AttachmentEntry, event: Event) {
 	const input = event.target as HTMLInputElement;
@@ -250,15 +237,6 @@ const selectedSize = computed(() => {
 		>
 			暂无附件
 		</p>
-		<ImageCrop
-			v-if="cropQueue[0]"
-			:key="cropIndex"
-			:file="cropQueue[0]"
-			:index="cropIndex + 1"
-			:total="cropTotal"
-			@choose="finishCrop"
-			@cancel="finishCrop()"
-		/>
 		<Overlay
 			v-if="selected"
 			:title="selected.name"
