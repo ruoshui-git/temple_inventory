@@ -369,9 +369,8 @@ test("real Item editor creates, uploads privately, edits and removes its own ima
         "base64",
       ),
     });
-    await page
-      .getByRole("button", { name: "使用原图作为主图", exact: true })
-      .click();
+    // The picked main image is stored whole; no crop step stands in between.
+    await expect(page.locator("cropper-selection")).toHaveCount(0);
     await expect(
       page.locator("small").filter({ hasText: /^主图$/ }),
     ).toBeVisible();
