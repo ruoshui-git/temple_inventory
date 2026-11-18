@@ -581,17 +581,20 @@ def _document_card(query, refresh=False):
 			identity = (row["doctype"], row["document"])
 			current = rows_by_document.get(identity)
 			if current is None:
-				current = {**row, "quantities": []}
+				current = {**row, "quantities": {}}
 				rows_by_document[identity] = current
-			current["quantities"].append(
-				{
-					"qty": row.get("outstanding", row["stock_qty"]),
-					"uom": row["stock_uom"],
-					"effect": row.get("available_effect", 0),
-				}
+			# Record rows are per line; a preview shows one quantity per unit and stock direction,
+			# so a count that raises some lines and lowers others never nets to a misleading 0.
+			effect = float(row.get("available_effect") or 0)
+			direction = (effect > 0) - (effect < 0)
+			quantity = current["quantities"].setdefault(
+				(row["stock_uom"], direction), {"qty": 0, "uom": row["stock_uom"], "effect": 0}
 			)
+			quantity["qty"] += row.get("outstanding", row["stock_qty"]) or 0
+			quantity["effect"] += effect
 		rows = list(rows_by_document.values())
 		for row in rows:
+			row["quantities"] = list(row["quantities"].values())
 			row.pop("document_count", None)
 			row.pop("row_count", None)
 			row.pop("loan_status", None)

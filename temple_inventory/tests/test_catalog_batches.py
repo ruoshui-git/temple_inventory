@@ -284,6 +284,16 @@ class CatalogBatchesTests(NativeDocumentTests):
 			self.assertTrue(bootstrap["operations"]["Return"])
 			self.assertNotIn("stock_entry_submit", bootstrap["operation_requirements"]["Return"])
 
+	def test_dashboard_recent_record_shows_each_unit_once(self):
+		data = self.movement(quantity=4)
+		data["items"].append({**data["items"][0], "qty": 6, "t_warehouse": self.b})
+		self.submit(self.create(data))
+		recent = browse.dashboard_card("movement", {"warehouses": [self.root]}, refresh=True)["rows"][0]
+		self.assertEqual(len(recent["quantities"]), 1)
+		quantity = recent["quantities"][0]
+		self.assertEqual((quantity["uom"], quantity["qty"]), ("Nos", 10))
+		self.assertGreater(quantity["effect"], 0)
+
 	def test_multi_batch_native_loan_keeps_original_line_and_per_batch_outcomes(self):
 		from temple_inventory.projections import report_page
 
