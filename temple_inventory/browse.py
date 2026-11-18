@@ -527,6 +527,7 @@ def _document_card(query, refresh=False):
 		(
 			scope.get("item"),
 			scope.get("categories"),
+			scope.get("units"),
 			scope.get("uncategorized"),
 			scope.get("warehouses"),
 			scope.get("sources"),

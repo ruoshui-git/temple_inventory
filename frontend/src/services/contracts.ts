@@ -268,6 +268,8 @@ export interface ReferenceData {
     whole: boolean;
     category?: string | null;
     enabled?: boolean;
+    /** Some Item uses it as its stock unit, so the browse 单位 filter offers it. */
+    stockUnit?: boolean;
   }[];
   operations: Record<string, boolean>;
   settings: Record<string, unknown>;
@@ -375,6 +377,7 @@ export interface BootstrapData {
     must_be_whole_number: boolean;
     category: string | null;
     enabled: boolean;
+    stock_unit?: boolean;
   }[];
   activity_types: { name: string; label: string; enabled: boolean | number }[];
   operations: ReferenceData["operations"];
@@ -411,6 +414,7 @@ export function hydrateReferenceData(
       whole: Boolean(row.must_be_whole_number),
       category: row.category,
       enabled: Boolean(row.enabled),
+      stockUnit: Boolean(row.stock_unit),
     })),
     activityTypes: result.activity_types.map((row) => ({
       value: row.name,

@@ -1497,20 +1497,27 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						<h3>筛选{{ family === "movements" ? "货物流动" : "借用" }}</h3>
 						<FilterRailEdge
 							:open="true"
-							:active="scope.categories.length + scope.warehouses.length > 0"
+							:active="
+								scope.categories.length +
+									scope.units.length +
+									scope.warehouses.length >
+								0
+							"
 							@toggle="toggleFilters"
 						/>
 					</div>
 					<BrowseFilters
 						v-model="scope"
-						:fields="['categories', 'warehouses']"
+						:fields="['categories', 'units', 'warehouses']"
 						:records="records"
 					/>
 				</aside>
 				<FilterRailEdge
 					v-if="!filtersOpen && !isMobile"
 					:open="false"
-					:active="scope.categories.length + scope.warehouses.length > 0"
+					:active="
+						scope.categories.length + scope.units.length + scope.warehouses.length > 0
+					"
 					@toggle="toggleFilters"
 				/>
 				<div class="browse-results">

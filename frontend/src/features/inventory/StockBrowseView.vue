@@ -421,7 +421,7 @@ function acceptBrowseLocation(name: string) {
 						<BrowseFilters
 							v-model="scope"
 							disclosure-mode
-							:fields="['item', 'categories', 'tracking', 'warehouses']"
+							:fields="['item', 'categories', 'units', 'tracking', 'warehouses']"
 							:hierarchy-in-rail="filtersOpen && !isMobile"
 							hide-activity
 						/>
@@ -598,14 +598,19 @@ function acceptBrowseLocation(name: string) {
 						<h3>筛选库存</h3>
 						<FilterRailEdge
 							:open="true"
-							:active="scope.categories.length + scope.warehouses.length > 0"
+							:active="
+								scope.categories.length +
+									scope.units.length +
+									scope.warehouses.length >
+								0
+							"
 							@toggle="toggleFilters"
 						/>
 					</div>
 					<div class="browse-filter-dense">
 						<BrowseFilters
 							v-model="scope"
-							:fields="['categories', 'warehouses']"
+							:fields="['categories', 'units', 'warehouses']"
 							hide-activity
 						/>
 					</div>
@@ -613,7 +618,9 @@ function acceptBrowseLocation(name: string) {
 				<FilterRailEdge
 					v-if="!filtersOpen && !isMobile"
 					:open="false"
-					:active="scope.categories.length + scope.warehouses.length > 0"
+					:active="
+						scope.categories.length + scope.units.length + scope.warehouses.length > 0
+					"
 					@toggle="toggleFilters"
 				/>
 				<div

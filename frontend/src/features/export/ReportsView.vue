@@ -86,8 +86,8 @@ const {
 } = props.controller;
 const availableGroups = computed(() => groupsForView(dataset.value, query.value.view));
 const categoriesAvailable = computed(() => supportsCategoryScope(dataset.value, query.value.view));
-const locationFields = computed<Array<"categories" | "warehouses">>(() =>
-	categoriesAvailable.value ? ["categories", "warehouses"] : ["warehouses"],
+const locationFields = computed<Array<"categories" | "units" | "warehouses">>(() =>
+	categoriesAvailable.value ? ["categories", "units", "warehouses"] : ["units", "warehouses"],
 );
 watch(
 	() => [dataset.value, query.value.view],
@@ -714,7 +714,12 @@ function setGroup(index: number, value: string) {
 					<h3>{{ categoriesAvailable ? "类别与仓库" : "仓库" }}</h3>
 					<FilterRailEdge
 						:open="true"
-						:active="query.scope.categories.length + query.scope.warehouses.length > 0"
+						:active="
+							query.scope.categories.length +
+								query.scope.units.length +
+								query.scope.warehouses.length >
+							0
+						"
 						@toggle="toggleSidebar"
 					/>
 				</div>
@@ -723,7 +728,12 @@ function setGroup(index: number, value: string) {
 			<FilterRailEdge
 				v-if="!sidebarOpen && sidebarAvailable && !isMobile"
 				:open="false"
-				:active="query.scope.categories.length + query.scope.warehouses.length > 0"
+				:active="
+					query.scope.categories.length +
+						query.scope.units.length +
+						query.scope.warehouses.length >
+					0
+				"
 				@toggle="toggleSidebar"
 			/>
 			<section class="browse-results surface form-section">

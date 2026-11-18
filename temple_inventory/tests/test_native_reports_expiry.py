@@ -13,6 +13,70 @@ from temple_inventory.tests.helpers import NativeReportTestCase
 
 
 class NativeReportsExpiryTests(NativeReportTestCase):
+	def test_stock_unit_scope_filters_item_based_reports_and_empty_scope_is_unrestricted(self):
+		item = frappe.get_doc("Item", self.item)
+		item.has_batch_no = 1
+		item.has_expiry_date = 1
+		item.save()
+		unit = item.stock_uom
+		batch = catalog.create_batch(
+			self.item,
+			"TI-UNIT-SCOPE-" + self.token,
+			expiry_date=frappe.utils.add_days(frappe.utils.nowdate(), 14),
+		)
+		data = self.movement(quantity=5, ti_activity=self.activity.name)
+		data["items"][0].update({"batch_no": batch["name"], "use_serial_batch_fields": 1})
+		self.submit(self.create(data))
+		count = counts.save_count(str(uuid4()), self.count_data(3, "Reviewed"))
+		native_api.submit_document("Stock Reconciliation", count.name, count.version)
+
+		for dataset, view in (
+			("inventory", "summary"),
+			("movements", "lines"),
+			("expiry", "batches"),
+			("counts", "lines"),
+			("activities", "metadata"),
+		):
+			unfiltered = report_page(self.query(dataset, view))
+			empty_units = report_page(
+				self.query(
+					dataset,
+					view,
+					scope={"item": self.item, "warehouses": [self.root], "units": []},
+				)
+			)
+			self.assertEqual(empty_units["matched_count"], unfiltered["matched_count"], dataset)
+			self.assertEqual(
+				[row["id"] for row in empty_units["rows"]],
+				[row["id"] for row in unfiltered["rows"]],
+				dataset,
+			)
+			filtered = report_page(
+				self.query(
+					dataset,
+					view,
+					scope={"item": self.item, "warehouses": [self.root], "units": [unit]},
+				)
+			)
+			self.assertTrue(unfiltered["rows"], dataset)
+			self.assertTrue(filtered["rows"], dataset)
+			if dataset == "activities":
+				self.assertGreater(filtered["rows"][0]["document_count"], 0)
+			else:
+				self.assertTrue(all(row.get("stock_uom") == unit for row in filtered["rows"]), dataset)
+			no_match = report_page(
+				self.query(
+					dataset,
+					view,
+					scope={
+						"item": self.item,
+						"warehouses": [self.root],
+						"units": ["__unmatched_uom__"],
+					},
+				)
+			)
+			self.assertEqual(no_match["rows"], [], dataset)
+
 	def test_dashboard_expiry_images_do_not_poison_unfiltered_expiry_page_cache(self):
 		item = frappe.get_doc("Item", self.item)
 		item.has_batch_no = 1

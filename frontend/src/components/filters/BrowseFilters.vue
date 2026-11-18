@@ -14,6 +14,7 @@ import { movementLabels } from "../../lib/presentationLabels";
 import { type BrowseScope } from "../../lib/browseQuery";
 import { onCategoryRenamed } from "../../lib/categoryRename";
 import { browseHierarchyEditKey } from "../../lib/filterPanelSession";
+import { unitLabel } from "../../lib/units";
 const props = withDefaults(
 	defineProps<{
 		modelValue: BrowseScope;
@@ -27,6 +28,7 @@ const props = withDefaults(
 			| "item"
 			| "activity"
 			| "categories"
+			| "units"
 			| "tracking"
 			| "warehouses"
 			| "kinds"
@@ -73,6 +75,19 @@ function toggleKind(kind: string) {
 			: [...scope.value.kinds, kind],
 	);
 }
+function toggleUnit(unit: string) {
+	update(
+		"units",
+		scope.value.units.includes(unit)
+			? scope.value.units.filter((value) => value !== unit)
+			: [...scope.value.units, unit],
+	);
+}
+const unitOptions = computed(() =>
+	reference.units
+		.filter((unit) => unit.stockUnit || scope.value.units.includes(unit.name))
+		.map((unit) => ({ name: unit.name, label: unitLabel(unit) })),
+);
 function selectedSummary(values: string[], options: HierarchyFilterNode[]) {
 	return values
 		.map((value) => options.find((option) => option.name === value)?.label || value)
@@ -164,6 +179,26 @@ function selectedSummary(values: string[], options: HierarchyFilterNode[]) {
 						"
 					/>无分类
 				</label>
+			</fieldset>
+		</FilterDisclosure>
+		<FilterDisclosure
+			v-if="shows('units')"
+			label="单位"
+			field="units"
+			:disclosure="disclosureMode"
+			:summary="scope.units.map((value) => unitLabel(value)).join('、') || '不限'"
+		>
+			<fieldset tabindex="-1">
+				<label
+					v-for="unit in unitOptions"
+					:key="unit.name"
+					class="form-choice-label form-check"
+					><input
+						type="checkbox"
+						:checked="scope.units.includes(unit.name)"
+						@change="toggleUnit(unit.name)"
+					/>{{ unit.label }}</label
+				>
 			</fieldset>
 		</FilterDisclosure>
 		<FilterDisclosure

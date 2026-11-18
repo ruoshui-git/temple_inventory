@@ -633,20 +633,27 @@ function canExpiryAction() {
 					<h3>筛选批次</h3>
 					<FilterRailEdge
 						:open="true"
-						:active="scope.categories.length + scope.warehouses.length > 0"
+						:active="
+							scope.categories.length +
+								scope.units.length +
+								scope.warehouses.length >
+							0
+						"
 						@toggle="toggleFilter"
 					/>
 				</div>
 				<BrowseFilters
 					v-model="scope"
-					:fields="['categories', 'warehouses']"
+					:fields="['categories', 'units', 'warehouses']"
 					hide-activity
 				/>
 			</aside>
 			<FilterRailEdge
 				v-if="!filterOpen && !isMobile"
 				:open="false"
-				:active="scope.categories.length + scope.warehouses.length > 0"
+				:active="
+					scope.categories.length + scope.units.length + scope.warehouses.length > 0
+				"
 				@toggle="toggleFilter"
 			/>
 			<div id="expiry-results-panel" role="tabpanel" class="browse-results">

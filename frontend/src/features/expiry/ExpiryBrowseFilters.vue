@@ -20,7 +20,7 @@ const periodSummary = () =>
 		<BrowseFilters
 			v-model="scope"
 			:disclosure-mode="disclosureMode"
-			:fields="['item', 'categories', 'tracking', 'warehouses']"
+			:fields="['item', 'categories', 'units', 'tracking', 'warehouses']"
 			expiry-only
 			:hierarchy-in-rail="hierarchyInRail"
 			hide-activity

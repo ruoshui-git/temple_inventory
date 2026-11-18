@@ -267,6 +267,10 @@ export function normalizeBrowseQueryPayload(
       scope.categories = [];
       scope.uncategorized = false;
     }
+    if (record(scope) && Array.isArray(scope.units))
+      scope.units = [
+        ...new Set(scope.units.filter((unit) => typeof unit === "string")),
+      ];
     if (dataset === "inventory" && view !== "historical")
       filters.includeZero = false;
     return JSON.stringify({ ...defaults, ...filters, scope, dataset, view });
@@ -305,6 +309,7 @@ export function normalizeReportQuery(source: ReportQuery): ReportQuery {
   }
   if (dataset !== "expiry" && target.scope.tracking === "batch_only")
     target.scope.tracking = "all";
+  target.scope.units = [...new Set(target.scope.units)];
   if (!supportsCategoryScope(dataset, view)) {
     target.scope.categories = [];
     target.scope.uncategorized = false;

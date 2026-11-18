@@ -323,6 +323,7 @@ SCOPE_DEFAULT = {
 	"period": PERIOD_DEFAULT,
 	"warehouses": [],
 	"categories": [],
+	"units": [],
 	"uncategorized": False,
 	"item": "",
 	"activity": "",

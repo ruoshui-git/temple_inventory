@@ -76,6 +76,16 @@ watch(
 					disclosure-mode
 					:movement="family === 'movements'"
 					:records="records"
+					:fields="[
+						'item',
+						'categories',
+						'units',
+						'tracking',
+						'warehouses',
+						'kinds',
+						'sources',
+						'destinations',
+					]"
 					:hierarchy-in-rail="hierarchyInRail"
 				/>
 				<FilterDisclosure

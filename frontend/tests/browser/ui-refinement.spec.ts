@@ -1135,7 +1135,9 @@ test("touching 完成 in the phone filter sheet does not activate 更多", async
     await expect(sheet).toHaveCount(0);
     await expect(page).toHaveURL(/\/inventory\/stock$/);
     await expect(
-      page.getByRole("link", { name: "库存", exact: true }),
+      page
+        .getByRole("navigation", { name: "应用主导航" })
+        .getByRole("link", { name: "库存", exact: true }),
     ).toHaveAttribute("aria-current", "page");
   } finally {
     await context.close();

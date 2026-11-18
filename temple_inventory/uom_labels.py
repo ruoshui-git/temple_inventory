@@ -106,6 +106,8 @@ def ranked_uoms():
 		) as used where uom is not null and uom!='' group by uom"""
 		)
 	)
+	# The browse 单位 filter matches Item.stock_uom, so it offers only units some Item stocks in.
+	stock_units = set(frappe.get_all("Item", distinct=True, pluck="stock_uom"))
 	rows = list(
 		paged(
 			"UOM",
@@ -124,7 +126,12 @@ def ranked_uoms():
 		return (3, str(row.category or "").casefold(), name.casefold())
 
 	return [
-		{**dict(row), "label": row.ti_label or row.name, "enabled": bool(row.enabled)}
+		{
+			**dict(row),
+			"label": row.ti_label or row.name,
+			"enabled": bool(row.enabled),
+			"stock_unit": row.name in stock_units,
+		}
 		for row in sorted(rows, key=rank)
 	]
 

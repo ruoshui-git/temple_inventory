@@ -275,7 +275,7 @@ watch([() => props.active, isMobile], () => {
 				<BrowseFilters
 					v-model="scope"
 					disclosure-mode
-					:fields="['item', 'categories', 'tracking', 'warehouses']"
+					:fields="['item', 'categories', 'units', 'tracking', 'warehouses']"
 					:hierarchy-in-rail="filterOpen && !isMobile"
 					hide-activity
 				/>
@@ -372,15 +372,17 @@ watch([() => props.active, isMobile], () => {
 					<FilterRailEdge
 						:open="true"
 						:active="
-							scope.categories.length + scope.warehouses.length > 0 ||
-							scope.tracking !== 'all'
+							scope.categories.length +
+								scope.units.length +
+								scope.warehouses.length >
+								0 || scope.tracking !== 'all'
 						"
 						@toggle="toggleFilter"
 					/>
 				</div>
 				<BrowseFilters
 					v-model="scope"
-					:fields="['categories', 'tracking', 'warehouses']"
+					:fields="['categories', 'units', 'tracking', 'warehouses']"
 					hide-activity
 				/>
 			</aside>
@@ -388,7 +390,7 @@ watch([() => props.active, isMobile], () => {
 				v-if="!filterOpen && !isMobile"
 				:open="false"
 				:active="
-					scope.categories.length + scope.warehouses.length > 0 ||
+					scope.categories.length + scope.units.length + scope.warehouses.length > 0 ||
 					scope.tracking !== 'all'
 				"
 				@toggle="toggleFilter"

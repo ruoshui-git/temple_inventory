@@ -58,6 +58,12 @@ const groupBy = ref<"location" | "item" | "none">("location");
 const collapsedGroups = ref(new Set<string>());
 const serialDetailExpansion = ref(new Map<string, boolean>());
 const selectedLocations = ref<string[]>(c.warehouseFilter ? [c.warehouseFilter] : []);
+const selectedUnits = ref<string[]>([]);
+const countUnitOptions = computed(() =>
+	reference.units
+		.filter((unit) => rows.value.some((row) => row.stock_uom === unit.name))
+		.map((unit) => ({ name: unit.name, label: unitLabel(unit.name) })),
+);
 const sortBy = ref<"location" | "item_name" | "item_code" | "batch">("location");
 const sortDirection = ref<1 | -1>(1);
 const pageSize = 100;
@@ -113,6 +119,8 @@ const filteredRows = computed(() => {
 	const term = searchTerm.value.trim().toLocaleLowerCase();
 	return rows.value.filter((row) => {
 		if (!leafScope(row)) return false;
+		if (selectedUnits.value.length && !selectedUnits.value.includes(row.stock_uom))
+			return false;
 		if (reviewFilter.value === "unreviewed" && row.review_state !== "Unreviewed") return false;
 		if (
 			reviewFilter.value === "difference" &&
@@ -299,7 +307,7 @@ function hasCountInput(row: CountRow): row is CountRow & { actual_qty: number } 
 		row.actual_qty !== null && (row.review_state === "Reviewed" || row.needs_review === true)
 	);
 }
-watch([selectedLocations, search, reviewFilter, groupBy], () => {
+watch([selectedLocations, selectedUnits, search, reviewFilter, groupBy], () => {
 	visiblePage.value = 1;
 });
 watch(pageCount, (count) => {
@@ -427,6 +435,19 @@ function itemImage(row: CountRow) {
 					embedded
 					initial-expansion="branching-leaves"
 				/>
+			</FilterPanel>
+			<FilterPanel label="单位" :count="selectedUnits.length" context="count-unit">
+				<fieldset tabindex="-1">
+					<label
+						v-for="unit in countUnitOptions"
+						:key="unit.name"
+						class="form-choice-label form-check"
+					>
+						<input v-model="selectedUnits" type="checkbox" :value="unit.name" />{{
+							unit.label
+						}}
+					</label>
+				</fieldset>
 			</FilterPanel>
 			<SearchField
 				class="count-search"

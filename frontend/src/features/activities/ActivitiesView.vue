@@ -343,6 +343,7 @@ function openDetailsRow() {
 						label="活动日期"
 						embedded
 					/>
+					<BrowseFilters v-model="report.scope" :fields="['units']" hide-activity />
 					<small
 						>按活动起止日期与所选范围重叠筛选；未填写开始或结束日期视为持续活动。</small
 					>

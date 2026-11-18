@@ -64,6 +64,10 @@ class CatalogUnitsTests(NativeDocumentTests):
 			)
 		self.assertTrue(all("category" in row for row in rows))
 		self.assertTrue(all("label" in row for row in rows))
+		# The browse 单位 filter offers exactly the units some Item stocks in.
+		stock_units = set(frappe.get_all("Item", distinct=True, pluck="stock_uom"))
+		self.assertEqual({row["name"] for row in rows if row["stock_unit"]}, stock_units & set(names))
+		self.assertFalse(next(row for row in rows if row["name"] == enabled_name)["stock_unit"])
 		self.assertEqual(rows, uom_labels.ranked_uoms())
 
 	def test_uom_labels_seed_blank_only_and_skip_clashes(self):

@@ -5,6 +5,7 @@ import type { ReferenceData } from "../services/contracts";
 import { movementIcon } from "./kindIcons";
 import { movementLabels } from "./presentationLabels";
 import { sitePeriodSummary } from "./sitePeriod";
+import { unitLabel } from "./units";
 export type ScopeFilterField = Exclude<
   keyof BrowseScope,
   "period" | "uncategorized"
@@ -13,6 +14,7 @@ const scopeFilterLabels: Record<ScopeFilterField, string> = {
   item: "物品",
   activity: "活动",
   categories: "物品类别",
+  units: "单位",
   warehouses: "仓库 / 位置",
   kinds: "流动类型",
   sources: "来源位置",
@@ -35,6 +37,11 @@ export function scopeValueLabel(
   if (field === "categories")
     return (
       reference.categories.find((row) => row.name === value)?.label || value
+    );
+  if (field === "units")
+    return (
+      reference.units.find((unit) => unit.name === value)?.label ||
+      unitLabel(value)
     );
   if (field === "tracking")
     return (

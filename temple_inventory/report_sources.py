@@ -680,6 +680,8 @@ class ReportContext:
 		item = self.item(code)
 		if not item:
 			return False
+		if self.scope["units"] and item.stock_uom not in self.scope["units"]:
+			return False
 		tracking = self.scope.get("tracking", "all")
 		if tracking == "batch" and not item.has_batch_no:
 			return False
@@ -1786,6 +1788,7 @@ def linked_settlement_rows(context):
 			"period": {"key": "all", "from": "", "to": ""},
 			"warehouses": [],
 			"categories": [],
+			"units": [],
 			"sources": [],
 			"destinations": [],
 			"kinds": [],
@@ -2376,9 +2379,15 @@ def activity_rows(context, *, metadata=True):
 		):
 			continue
 		has_relations = next(activity_relations(context, activity.name), None) is not None
+		unit_document_ids = defaultdict(set)
+		if context.scope["units"]:
+			for row in activity_relations(context, activity.name):
+				if context.matches_item(row.get("item_code")):
+					unit_document_ids[row["kind"]].add(row["document_id"])
 		related_scope = (
 			context.scope["item"]
 			or context.scope["categories"]
+			or context.scope["units"]
 			or context.scope["uncategorized"]
 			or context.scope["sources"]
 			or context.scope["destinations"]
@@ -2391,6 +2400,8 @@ def activity_rows(context, *, metadata=True):
 			or query["loan"]
 		)
 		if related_scope and not has_relations:
+			continue
+		if context.scope["units"] and not unit_document_ids:
 			continue
 		outstanding = False
 		# Native documents and their allocations are yielded contiguously; each
@@ -2410,6 +2421,8 @@ def activity_rows(context, *, metadata=True):
 		for source in (context._activity_direct_counts, context._activity_settlement_counts):
 			for kind, count in source.get(activity.name, {}).items():
 				counts[kind] += count
+		if context.scope["units"]:
+			counts = defaultdict(int, {kind: len(documents) for kind, documents in unit_document_ids.items()})
 		document_count = sum(counts.values())
 		if query["activityKind"] and not counts.get(query["activityKind"]):
 			continue

@@ -7,6 +7,7 @@ import {
 import { newReportQuery } from "../src/lib/reportContract";
 import { reportFilterChips } from "../src/lib/reportFilters";
 import { createReferenceData } from "../src/services/contracts";
+import { scopeFilterFieldChips } from "../src/lib/filterPresentation";
 
 describe("browse filter contracts", () => {
   it("drops category scope for whole-document views while keeping item views", () => {
@@ -57,5 +58,31 @@ describe("browse filter contracts", () => {
     expect(chip?.label).toBe("库存状态：无可用");
     // Removing a stock-state chip lifts the restriction to 全部, not the page default.
     expect(chip?.reset.stockState).toBe("all");
+  });
+
+  it("normalizes, serializes and restores multi-select stock units", () => {
+    const query = newReportQuery("inventory");
+    query.scope.units = ["Each", "Box", "Each"];
+    const payload = normalizeBrowseQueryPayload(query, "inventory", "summary");
+    expect(JSON.parse(payload!).scope.units).toEqual(["Each", "Box"]);
+    expect(decodeReportQuery(payload).query.scope.units).toEqual([
+      "Each",
+      "Box",
+    ]);
+    expect(normalizeReportQuery(query).scope.units).toEqual(["Each", "Box"]);
+    const reference = createReferenceData();
+    reference.units = [
+      { name: "Each", label: "件", whole: true },
+      { name: "Box", label: "箱", whole: true },
+    ];
+    // Pages combine scope chips with report chips; 单位 must appear exactly once.
+    const labels = [
+      ...scopeFilterFieldChips(query.scope, reference),
+      ...reportFilterChips(query, reference),
+    ]
+      .map((chip) => chip.label)
+      .filter((label) => label.includes("单位"));
+    expect(labels).toHaveLength(1);
+    expect(labels[0]).toContain("件、箱");
   });
 });

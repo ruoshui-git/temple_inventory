@@ -772,6 +772,65 @@ it("labels the active tracking scope in its editable toolbar chip", () => {
   });
 });
 
+it("labels and clears selected stock units", () => {
+  const scope = { ...emptyScope(), units: ["Each", "Box"] };
+  const reference = createReferenceData();
+  reference.units = [
+    { name: "Each", label: "件", whole: true },
+    { name: "Box", label: "箱", whole: true },
+  ];
+  expect(scopeFilterFieldChips(scope, reference)).toContainEqual({
+    key: "field:units",
+    field: "units",
+    label: "单位：件、箱",
+  });
+  clearScopeField(scope, "units");
+  expect(scope.units).toEqual([]);
+});
+
+it("offers only Item stock units as a multi-select browse filter", async () => {
+  const reference = reactive(createReferenceData());
+  reference.units = [
+    { name: "Each", label: "件", whole: true, enabled: true, stockUnit: true },
+    // Enabled but no Item stocks in it: it could never match a row.
+    { name: "Old", label: "旧单位", whole: true, enabled: true },
+  ];
+  const services = {
+    call: vi.fn(async () => []),
+    report: vi.fn(),
+    upload: vi.fn(),
+  } as unknown as import("../src/services/contracts").InventoryServices;
+  const wrapper = mount(
+    defineComponent({
+      setup() {
+        provideInventoryServices(services, reference);
+        return () =>
+          h(BrowseFilters, {
+            modelValue: emptyScope(),
+            fields: ["units"],
+            disclosureMode: true,
+            "onUpdate:modelValue": (value) => value,
+          });
+      },
+    }),
+  );
+  expect(wrapper.text()).toContain("单位");
+  await wrapper.get("summary").trigger("click");
+  expect(wrapper.text()).toContain("件");
+  expect(wrapper.text()).not.toContain("旧单位");
+  const checkbox = wrapper.get('input[type="checkbox"]');
+  await checkbox.setValue();
+  expect(
+    wrapper
+      .findComponent(BrowseFilters)
+      .emitted("update:modelValue")
+      ?.at(-1)?.[0],
+  ).toMatchObject({
+    units: ["Each"],
+  });
+  wrapper.unmount();
+});
+
 it("shows active date scopes as removable field chips", () => {
   const scope = {
     period: { key: "last_quarter" as const, from: "", to: "" },

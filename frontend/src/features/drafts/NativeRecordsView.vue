@@ -911,13 +911,18 @@ function openDetailsRow() {
 						<h3>仓库</h3>
 						<FilterRailEdge
 							:open="true"
-							:active="scope.categories.length + scope.warehouses.length > 0"
+							:active="
+								scope.categories.length +
+									scope.units.length +
+									scope.warehouses.length >
+								0
+							"
 							@toggle="toggleSidebar"
 						/>
 					</div>
 					<BrowseFilters
 						v-model="scope"
-						:fields="['warehouses']"
+						:fields="['units', 'warehouses']"
 						hide-activity
 						records
 					/>
@@ -925,7 +930,9 @@ function openDetailsRow() {
 				<FilterRailEdge
 					v-if="!sidebarOpen && !isMobile"
 					:open="false"
-					:active="scope.categories.length + scope.warehouses.length > 0"
+					:active="
+						scope.categories.length + scope.units.length + scope.warehouses.length > 0
+					"
 					@toggle="toggleSidebar"
 				/>
 				<div class="browse-results">
