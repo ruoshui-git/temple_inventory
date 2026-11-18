@@ -116,6 +116,7 @@ This document owns user-visible behavior, interaction and language. [DESIGN_SYST
 
 ## Changelog
 
+- 2026-11-17: shared images recognize cached thumbnails that finish before their load listener attaches, so back navigation cannot leave a completed image under a loading skeleton.
 - 2026-11-17: navigation destinations (首页、货物流动、借用、更多, the 库存 menu entries and the phone bar) are links, so they open in a new tab and can be copied.
 - 2026-11-17: 首页 最近记录 shows each unit once per record (summed over its lines) instead of one value per line, so `+N 单位` counts real units.
 - 2026-11-14: main images are no longer cropped to a square on upload; the lightbox shows the whole photo (a lighter 2048px copy) while thumbnails stay square.

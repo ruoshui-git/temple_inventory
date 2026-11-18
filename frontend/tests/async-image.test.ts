@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { mount } from "@vue/test-utils";
-import { describe, expect, it } from "vitest";
+import { nextTick } from "vue";
+import { describe, expect, it, vi } from "vitest";
 import AsyncImage from "../src/components/ui/AsyncImage.vue";
 describe("AsyncImage", () => {
   it("shows a sized skeleton until the image loads", async () => {
@@ -19,6 +20,24 @@ describe("AsyncImage", () => {
     await wrapper.get("img").trigger("load");
     expect(wrapper.classes()).toContain("async-image--loaded");
     expect(wrapper.find(".async-image__skeleton").exists()).toBe(false);
+  });
+
+  it("recognizes a cached image that is already complete when reattached", async () => {
+    vi.spyOn(HTMLImageElement.prototype, "complete", "get").mockReturnValue(
+      true,
+    );
+    vi.spyOn(HTMLImageElement.prototype, "naturalWidth", "get").mockReturnValue(
+      64,
+    );
+
+    const wrapper = mount(AsyncImage, {
+      props: { src: "/cached-item.jpg", alt: "物品" },
+    });
+    await nextTick();
+
+    expect(wrapper.classes()).toContain("async-image--loaded");
+    expect(wrapper.find(".async-image__skeleton").exists()).toBe(false);
+    vi.restoreAllMocks();
   });
 
   it("resets to loading when the source changes and exposes an error fallback", async () => {

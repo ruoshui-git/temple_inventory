@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 
 const props = withDefaults(
 	defineProps<{
@@ -24,15 +24,29 @@ const props = withDefaults(
 );
 
 const state = ref<"empty" | "loading" | "loaded" | "error">("empty");
+const imageElement = ref<HTMLImageElement>();
 const imageVisible = computed(() => Boolean(props.src) && state.value !== "error");
+
+// A memory-cached image can be complete before Vue's load listener sees it; never strand the skeleton.
+// Failures still come from the error event: an intrinsic-size-less SVG also reports naturalWidth 0.
+function syncCompletedImage() {
+	const image = imageElement.value;
+	if (state.value === "loading" && image?.complete && image.naturalWidth > 0)
+		state.value = "loaded";
+}
 
 watch(
 	() => props.src,
 	(value) => {
 		state.value = value ? "loading" : "empty";
+		if (value) void nextTick(syncCompletedImage);
 	},
 	{ immediate: true },
 );
+
+onMounted(() => {
+	void nextTick(syncCompletedImage);
+});
 
 function dimension(value?: number | string) {
 	if (typeof value === "number") return `${value}px`;
@@ -68,6 +82,7 @@ function handleError() {
 		<span v-if="state === 'loading'" class="async-image__skeleton" aria-hidden="true"></span>
 		<img
 			v-if="imageVisible"
+			ref="imageElement"
 			:src="src || undefined"
 			alt=""
 			:width="width"
