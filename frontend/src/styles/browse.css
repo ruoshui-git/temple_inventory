@@ -317,7 +317,7 @@ body:has(.browse-page) {
 		padding-block: 1px;
 		gap: 0;
 	}
-	.app-mobile-nav button {
+	.app-mobile-nav :is(button, a) {
 		min-height: 44px;
 		padding-block: 2px;
 		gap: 2px;

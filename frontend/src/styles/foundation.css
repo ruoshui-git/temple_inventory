@@ -227,8 +227,23 @@ button {
 	padding: 6px var(--p-space-3);
 	line-height: 1.4;
 }
+/* Navigation targets are links (open in new tab, copy link) styled as the buttons around them. */
+:is(.nav-group, .nav-children, .app-mobile-nav) a {
+	border: 1px solid transparent;
+	padding: 6px var(--p-space-3);
+	min-height: var(--p-control);
+	border-radius: var(--p-radius-control);
+	line-height: var(--p-control-line);
+	color: inherit;
+	transition:
+		background var(--p-motion) var(--p-motion-ease),
+		border-color var(--p-motion) var(--p-motion-ease),
+		color var(--p-motion) var(--p-motion-ease);
+	overflow-wrap: anywhere;
+}
 @media (hover: hover) {
-	button:hover:not(:disabled) {
+	button:hover:not(:disabled),
+	:is(.nav-group, .nav-children, .app-mobile-nav) a:hover {
 		background: var(--p-soft);
 	}
 }
@@ -650,7 +665,7 @@ strong {
 	gap: var(--p-space-1);
 	margin-inline: auto;
 }
-.nav-group > button {
+.nav-group > :is(button, a) {
 	display: flex;
 	align-items: center;
 	gap: var(--p-space-3);
@@ -660,11 +675,11 @@ strong {
 	color: var(--p-muted);
 	white-space: nowrap;
 }
-.nav-group > button .nav-chevron {
+.nav-group > :is(button, a) .nav-chevron {
 	margin-left: auto;
 	width: 14px;
 }
-.nav-group > button.active {
+.nav-group > :is(button, a).active {
 	color: var(--p-accent);
 	background: var(--p-soft);
 	font-weight: 600;
@@ -682,7 +697,7 @@ strong {
 	box-shadow: var(--p-shadow-menu);
 	z-index: var(--p-z-menu, 50);
 }
-.nav-children button {
+.nav-children :is(button, a) {
 	display: block;
 	width: 100%;
 	padding: var(--p-space-2) 10px;
@@ -691,7 +706,7 @@ strong {
 	font-size: var(--p-label);
 	border-radius: var(--p-radius-sm);
 }
-.nav-children button[aria-current] {
+.nav-children :is(button, a)[aria-current] {
 	color: var(--p-accent);
 	font-weight: 650;
 }
@@ -1581,7 +1596,7 @@ strong {
 		min-width: 0;
 		max-width: 100%;
 	}
-	.nav-group > button {
+	.nav-group > :is(button, a) {
 		max-width: 100%;
 		min-width: 0;
 		flex-wrap: wrap;
@@ -1741,7 +1756,7 @@ strong {
 		height: var(--ti-phone-appbar-height, 52px);
 		min-height: var(--ti-phone-appbar-height, 52px);
 	}
-	.app-mobile-nav button {
+	.app-mobile-nav :is(button, a) {
 		flex: 0 0 max(64px, 16.5vw);
 		display: flex;
 		align-items: center;
@@ -1752,10 +1767,10 @@ strong {
 		font-size: var(--p-small);
 		min-height: max(44px, var(--p-control));
 	}
-	.app-mobile-nav button[aria-current="page"] {
+	.app-mobile-nav :is(button, a)[aria-current="page"] {
 		scroll-margin-inline: 8px;
 	}
-	.app-mobile-nav button[aria-current] {
+	.app-mobile-nav :is(button, a)[aria-current] {
 		background: var(--p-accent);
 		color: var(--p-on-accent);
 	}
@@ -2243,9 +2258,9 @@ button {
 :root[data-ti-text-scale="200"] .app-mobile-nav {
 	height: auto;
 }
-:root[data-ti-text-scale="150"] .app-mobile-nav button,
-:root[data-ti-text-scale="175"] .app-mobile-nav button,
-:root[data-ti-text-scale="200"] .app-mobile-nav button {
+:root[data-ti-text-scale="150"] .app-mobile-nav :is(button, a),
+:root[data-ti-text-scale="175"] .app-mobile-nav :is(button, a),
+:root[data-ti-text-scale="200"] .app-mobile-nav :is(button, a) {
 	height: auto;
 	min-width: 0;
 	padding-inline: 2px;
@@ -2276,7 +2291,7 @@ button {
 }
 .theme-option > span,
 .app-brand > div,
-.nav-group > button > span {
+.nav-group > :is(button, a) > span {
 	min-width: 0;
 }
 .dialog-heading,
@@ -2932,7 +2947,7 @@ button {
 	}
 }
 @media (max-width: 599px) {
-	.app-mobile-nav button {
+	.app-mobile-nav :is(button, a) {
 		min-width: 0;
 		flex: initial;
 		padding-inline: 0;
@@ -2940,7 +2955,7 @@ button {
 	}
 }
 @media (max-width: 599px) {
-	.app-mobile-nav button span {
+	.app-mobile-nav :is(button, a) span {
 		white-space: nowrap;
 	}
 }

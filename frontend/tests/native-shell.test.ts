@@ -11,6 +11,7 @@ import {
   inventorySectionForRoute,
 } from "../src/lib/appNavigation";
 import { routeTarget } from "../src/lib/routeRegistry";
+import { router } from "../src/router";
 
 const wrappers: VueWrapper[] = [];
 const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
@@ -62,6 +63,7 @@ describe("shared application frame", () => {
       "73px",
     );
     const wrapper = mount(AppFrame, {
+      global: { plugins: [router] },
       props: {
         primary: primaryNavigation,
         mobilePrimary: mobilePrimaryNavigation,
@@ -148,6 +150,7 @@ describe("shared application frame", () => {
       };
     vi.stubGlobal("matchMedia", () => media);
     const wrapper = mount(AppFrame, {
+      global: { plugins: [router] },
       props: {
         primary: primaryNavigation,
         mobilePrimary: mobilePrimaryNavigation,
@@ -163,10 +166,17 @@ describe("shared application frame", () => {
     expect(wrapper.findAll('nav[aria-label="应用主导航"]')).toHaveLength(1);
     expect(wrapper.find(".app-mobile-nav").exists()).toBe(true);
     expect(
-      wrapper.get('.app-mobile-nav button[aria-current="page"]').text(),
+      wrapper.get('.app-mobile-nav a[aria-current="page"]').text(),
     ).toContain("库存");
     expect(wrapper.find(".app-account-menu").exists()).toBe(false);
-    expect(wrapper.findAll(".app-mobile-nav button")).toHaveLength(5);
+    expect(wrapper.findAll(".app-mobile-nav button")).toHaveLength(0);
+    expect(
+      wrapper
+        .findAll(".app-mobile-nav a")
+        .map((link) => link.attributes("href")),
+    ).toEqual(
+      mobilePrimaryNavigation.map((item) => router.resolve(item.route).href),
+    );
     await wrapper.find("input").setValue("保留输入");
     media.matches = true;
     change?.({ matches: true });
@@ -175,11 +185,27 @@ describe("shared application frame", () => {
     expect(wrapper.find(".app-sidebar").exists()).toBe(true);
     expect(wrapper.find(".app-account-menu").exists()).toBe(true);
     expect(
-      wrapper.findAll(".app-sidebar > nav > .nav-group > button"),
+      wrapper.findAll(".app-sidebar > nav > .nav-group > :is(button, a)"),
     ).toHaveLength(5);
+    // Only the 库存 disclosure stays a button; every destination is a real link.
+    expect(
+      wrapper.findAll(".app-sidebar > nav > .nav-group > button"),
+    ).toHaveLength(1);
+    expect(
+      wrapper
+        .findAll(".app-sidebar > nav > .nav-group > a")
+        .map((link) => link.attributes("href")),
+    ).toEqual(
+      primaryNavigation
+        .filter((item) => item.key !== "inventory")
+        .map((item) => router.resolve(item.route).href),
+    );
+    await wrapper.find(".nav-group a").trigger("click", { ctrlKey: true });
+    await wrapper.find(".nav-group a").trigger("click", { button: 1 });
+    expect(wrapper.emitted("primary")).toBeUndefined();
     expect(wrapper.find(".inventory-menu").exists()).toBe(false);
     expect(wrapper.find("input").element.value).toBe("保留输入");
-    await wrapper.find(".nav-group button").trigger("click");
+    await wrapper.find(".nav-group a").trigger("click");
     expect(wrapper.emitted("primary")?.at(-1)).toEqual([routeTarget("home")]);
     const trigger = wrapper.find("[data-inventory-menu-trigger]");
     await trigger.trigger("pointerdown");
@@ -191,8 +217,13 @@ describe("shared application frame", () => {
       wrapper.find("[data-inventory-menu-trigger]").attributes("aria-expanded"),
     ).toBe("true");
     expect(trigger.attributes("aria-controls")).toBe("inventory-menu");
-    expect(wrapper.findAll(".inventory-menu button")).toHaveLength(4);
-    await wrapper.find(".inventory-menu button").trigger("click");
+    expect(wrapper.findAll(".inventory-menu a")).toHaveLength(4);
+    expect(wrapper.get(".inventory-menu a").attributes("href")).toBe(
+      router.resolve(inventoryNavigation[0]!.route).href,
+    );
+    await wrapper.find(".inventory-menu a").trigger("click", { metaKey: true });
+    expect(wrapper.emitted("inventory")).toBeUndefined();
+    await wrapper.find(".inventory-menu a").trigger("click");
     expect(wrapper.emitted("inventory")?.at(-1)).toEqual([
       inventoryNavigation[0]!.route,
     ]);
@@ -209,6 +240,7 @@ describe("shared application frame", () => {
     };
     vi.stubGlobal("matchMedia", () => media);
     const wrapper = mount(AppFrame, {
+      global: { plugins: [router] },
       props: {
         primary: primaryNavigation,
         mobilePrimary: mobilePrimaryNavigation,

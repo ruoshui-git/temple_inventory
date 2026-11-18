@@ -425,12 +425,12 @@ for (const width of [1440, 390]) {
     });
     if (width < 1024) {
       const nav = page.locator(".app-mobile-nav");
-      await expect(nav.getByRole("button")).toHaveCount(5);
+      await expect(nav.getByRole("link")).toHaveCount(5);
       expect(await nav.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
         true,
       );
       await expect(page.locator(".app-breadcrumb")).toHaveCount(0);
-      await nav.getByRole("button", { name: "更多", exact: true }).click();
+      await nav.getByRole("link", { name: "更多", exact: true }).click();
       await expect(page).toHaveURL(/\/more$/);
       await expect(nav.locator('[aria-current="page"]')).toHaveText("更多");
       await expect(page.getByRole("button", { name: /报表/ })).toBeVisible();
@@ -438,7 +438,7 @@ for (const width of [1440, 390]) {
       await expect(
         page
           .locator(".app-sidebar")
-          .getByRole("button", { name: "更多", exact: true }),
+          .getByRole("link", { name: "更多", exact: true }),
       ).toHaveCount(1);
     expect(errors).toEqual([]);
   });

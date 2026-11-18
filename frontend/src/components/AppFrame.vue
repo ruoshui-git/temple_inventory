@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import DisclosureIcon from "./ui/DisclosureIcon.vue";
+import { RouterLink } from "vue-router";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { router } from "../router";
 import InventoryIcon from "./InventoryIcon.vue";
@@ -117,6 +118,19 @@ function choose(item: NavigationItem) {
 		return;
 	}
 	emit("primary", item.route);
+}
+function onNavigationClick(
+	event: MouseEvent,
+	item: NavigationItem,
+	kind: "primary" | "inventory",
+) {
+	if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+		return;
+	event.preventDefault();
+	if (kind === "inventory") {
+		emit("inventory", item.route);
+		closeMenu(true);
+	} else choose(item);
 }
 function closeMenu(returnFocus = false) {
 	if (!props.inventoryExpanded) return;
@@ -251,38 +265,44 @@ onBeforeUnmount(() => {
 							variant="popup"
 						/>
 					</button>
-					<button
-						v-else
-						:class="{ active: active === group.key }"
-						:aria-current="active === group.key ? 'page' : undefined"
-						@click="choose(group)"
-					>
-						<InventoryIcon class="nav-leading-icon" :name="group.icon" /><span
-							class="nav-label"
-							>{{ group.label }}</span
+					<RouterLink v-else :to="group.route" custom v-slot="{ href }">
+						<a
+							:href="href"
+							:class="{ active: active === group.key }"
+							:aria-current="active === group.key ? 'page' : undefined"
+							@click="onNavigationClick($event, group, 'primary')"
 						>
-					</button>
+							<InventoryIcon class="nav-leading-icon" :name="group.icon" /><span
+								class="nav-label"
+								>{{ group.label }}</span
+							>
+						</a>
+					</RouterLink>
 					<div
 						v-if="group.key === 'inventory' && inventoryExpanded"
 						class="nav-children inventory-menu"
 						id="inventory-menu"
 						aria-label="库存页面"
 					>
-						<button
+						<RouterLink
 							v-for="child in inventory"
 							:key="child.key"
-							:aria-current="
-								active === 'inventory' && inventorySection === child.key
-									? 'page'
-									: undefined
-							"
-							@click="
-								emit('inventory', child.route);
-								closeMenu(true);
-							"
+							:to="child.route"
+							custom
+							v-slot="{ href }"
 						>
-							{{ child.label }}
-						</button>
+							<a
+								:href="href"
+								:aria-current="
+									active === 'inventory' && inventorySection === child.key
+										? 'page'
+										: undefined
+								"
+								@click="onNavigationClick($event, child, 'inventory')"
+							>
+								{{ child.label }}
+							</a></RouterLink
+						>
 					</div>
 				</div>
 			</nav>
@@ -337,14 +357,21 @@ onBeforeUnmount(() => {
 			aria-label="应用主导航"
 			:style="{ gridTemplateColumns: `repeat(${mobileItems.length}, minmax(0, 1fr))` }"
 		>
-			<button
+			<RouterLink
 				v-for="group in mobileItems"
 				:key="group.key"
-				:aria-current="active === group.key ? 'page' : undefined"
-				@click="choose(group)"
+				:to="group.route"
+				custom
+				v-slot="{ href }"
 			>
-				<InventoryIcon :name="group.icon" /><span>{{ group.label }}</span>
-			</button>
+				<a
+					:href="href"
+					:aria-current="active === group.key ? 'page' : undefined"
+					@click="onNavigationClick($event, group, 'primary')"
+				>
+					<InventoryIcon :name="group.icon" /><span>{{ group.label }}</span>
+				</a></RouterLink
+			>
 		</nav>
 		<Overlay
 			v-if="logoutOpen"

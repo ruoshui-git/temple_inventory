@@ -137,7 +137,7 @@ describe("routed native browse restoration", () => {
     );
     await flushPromises();
     const primary = wrapper
-      .findAll('nav[aria-label="应用主导航"] button')
+      .findAll('nav[aria-label="应用主导航"] a')
       .find((button) => button.text() === "库存")!;
     await primary.trigger("click");
     await flushPromises();
