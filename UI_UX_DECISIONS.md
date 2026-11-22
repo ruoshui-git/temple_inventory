@@ -116,6 +116,7 @@ This document owns user-visible behavior, interaction and language. [DESIGN_SYST
 
 ## Changelog
 
+- 2026-11-22: closing a dialog, sheet or image viewer no longer undoes a search or filter typed right after it; navigation waits for the overlay's own Back to land.
 - 2026-11-22: location labels are the full codes-only path (`T2 / F / A01`, site kept on narrow screens), so repeated room codes across sites stay distinct; 完整位置 columns are removed. ERPNext Warehouse names use compact paths (`T2/F/A01 - O`); an explicit admin sync renames Warehouse documents to match, and relabels keep them in sync afterwards. 盘点调整 on zero-valued Items submits (zero valuation allowed as for 期初库存).
 - 2026-11-17: new 单位 filter (Item stock unit, multi-select) on 库存、效期、货物流动、借用、盘点记录、活动、草稿、损坏待处理、报表/导出 and the 盘点 editor.
 - 2026-11-17: shared images recognize cached thumbnails that finish before their load listener attaches, so back navigation cannot leave a completed image under a loading skeleton.

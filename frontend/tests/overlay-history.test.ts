@@ -146,6 +146,49 @@ describe("Overlay history", () => {
     expect(history.state?.tiOverlay).toBeUndefined();
   });
 
+  it("keeps a navigation started while the closing Back is still in flight", async () => {
+    history.replaceState(null, "", "/beneath");
+    router = createRouter({
+      history: createWebHistory("/"),
+      routes: [
+        { path: "/beneath", component: { render: () => h("div", "beneath") } },
+      ],
+    });
+    await router.push("/beneath");
+    await router.isReady();
+    disposeRouter = installOverlayHistory(router);
+    const showing = ref(true);
+    const Host = defineComponent({
+      setup() {
+        return () =>
+          showing.value
+            ? h(Overlay, {
+                title: "图片",
+                onClose: () => (showing.value = false),
+              })
+            : null;
+      },
+    });
+    const wrapper = mount(Host, { attachTo: document.body });
+    wrappers.push(wrapper as TestWrapper);
+    await nextTick();
+    // Typing into a browse search right after closing writes the URL before the Back lands.
+    const back = history.back.bind(history);
+    let typed: Promise<unknown> | undefined;
+    vi.spyOn(history, "back").mockImplementation(() => {
+      back();
+      typed = router!.replace("/beneath?query=search");
+    });
+    document.querySelector<HTMLElement>(".dialog-heading .ui-button")!.click();
+    await vi.waitFor(() => expect(typed).toBeDefined());
+    await typed;
+    await flushPromises();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(router.currentRoute.value.fullPath).toBe("/beneath?query=search");
+    expect(location.search).toBe("?query=search");
+    expect(history.state?.tiOverlay).toBeUndefined();
+  });
+
   it("hides a user Back that closes the overlay from Vue Router guards", async () => {
     history.replaceState(null, "", "/beneath");
     router = createRouter({

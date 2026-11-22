@@ -8,6 +8,12 @@ let replacingOverlayNavigation = false;
 let committedHref = typeof window === "undefined" ? "" : window.location.href;
 let currentOverlayMarker: string | undefined;
 const overlayPopHandlers = new Map<string, OverlayPopHandler>();
+// A closing overlay steps Back over its own history entry; the browser delivers that popstate
+// later. A navigation started in between would be written onto the overlay entry and then
+// undone by the Back, so router navigations wait until the Back has landed.
+const OVERLAY_BACK_TIMEOUT_MS = 500;
+let overlayBack: Promise<void> | undefined;
+let releaseOverlayBack: (() => void) | undefined;
 
 function markerFrom(state: unknown) {
   if (!state || typeof state !== "object") return undefined;
@@ -16,6 +22,8 @@ function markerFrom(state: unknown) {
 }
 
 function capturePopstate(event: PopStateEvent) {
+  // Release after this popstate's own listeners, including Vue Router's, have run.
+  if (releaseOverlayBack) setTimeout(releaseOverlayBack, 0);
   const destinationMarker = markerFrom(event.state);
   const previousMarker = currentOverlayMarker;
   const sameCommittedUrl = window.location.href === committedHref;
@@ -48,6 +56,22 @@ export function registerOverlayMarker(id: string, onPop: OverlayPopHandler) {
 
 export function trackOverlayMarker(id: string | undefined) {
   currentOverlayMarker = id;
+}
+
+/** Called by an overlay right before it steps Back over its own history entry. */
+export function expectOverlayBack() {
+  if (overlayBack) return;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  overlayBack = new Promise<void>((resolve) => {
+    releaseOverlayBack = () => {
+      if (timer) clearTimeout(timer);
+      overlayBack = undefined;
+      releaseOverlayBack = undefined;
+      resolve();
+    };
+  });
+  // History.back() can be a no-op (no earlier entry); never hold navigation for long.
+  timer = setTimeout(() => releaseOverlayBack?.(), OVERLAY_BACK_TIMEOUT_MS);
 }
 
 export function isOverlayNavigationPending() {
@@ -96,7 +120,19 @@ export function installOverlayHistory(router: Router) {
     navigationPending = true;
     return replaceOverlayNavigation(to);
   });
+  const push = router.push;
+  const replace = router.replace;
+  router.push = (to) =>
+    overlayBack
+      ? overlayBack.then(() => push.call(router, to))
+      : push.call(router, to);
+  router.replace = (to) =>
+    overlayBack
+      ? overlayBack.then(() => replace.call(router, to))
+      : replace.call(router, to);
   return () => {
+    router.push = push;
+    router.replace = replace;
     removeBefore();
     removeAfter();
     removeError();

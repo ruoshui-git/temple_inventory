@@ -2,6 +2,7 @@
 import { closeOverlayLayer, openOverlayLayer } from "../../lib/overlayLayers";
 import { overlayStageKey } from "../../lib/overlayStage";
 import {
+	expectOverlayBack,
 	isOverlayNavigationPending,
 	registerOverlayMarker,
 	trackOverlayMarker,
@@ -347,6 +348,7 @@ onBeforeUnmount(() => {
 				(history.state as { tiOverlay?: string } | null)?.tiOverlay === titleId
 			) {
 				try {
+					expectOverlayBack();
 					history.back();
 				} catch {
 					/* No History API. */
@@ -370,6 +372,7 @@ onBeforeUnmount(() => {
 			(history.state as { tiOverlay?: string } | null)?.tiOverlay === historyMarker
 		) {
 			try {
+				expectOverlayBack();
 				history.back();
 			} catch {
 				/* No History API. */
