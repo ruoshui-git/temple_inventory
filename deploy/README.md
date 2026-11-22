@@ -305,6 +305,34 @@ The final deploy writes a `deployed` history line required by the production
 promotion gate. A later `staging refresh` restores production data and replaces
 the seeded staging site. Production bootstrap now uses the empty baseline.
 
+## Warehouse document names (operator)
+
+Deploys recompute each physical Warehouse's `warehouse_name` (compact paths such
+as `T2/F/A01`), but never rename Warehouse documents. Renaming them to
+`warehouse_name - ABBR` is a deliberate step: staging first, production only
+after a fresh backup. The dry run lists every `old → new` name, its linked-record
+count and any conflict, and changes nothing. The real run refuses everything on
+any conflict; otherwise it queues one long-queue job that renames one Warehouse
+at a time, so an interrupted job resumes on the next run and a second run renames
+nothing. Open app tabs pick up the new names when they regain focus; a tab
+editing a renamed location may need a reload.
+
+```sh
+dc exec -T backend bench --site staging.kufang.online execute \
+  temple_inventory.warehouse_rename.sync_document_names --kwargs '{"dry_run": 1}'
+# Review the plan; on production take a backup first. Then:
+dc exec -T backend bench --site staging.kufang.online execute \
+  temple_inventory.warehouse_rename.sync_document_names --kwargs '{"dry_run": 0}'
+dc exec -T backend bench --site staging.kufang.online execute \
+  temple_inventory.warehouse_rename.sync_status
+```
+
+The same calls are POST/GET endpoints for accounts with write permission on
+Temple Inventory Settings and Warehouse. After the first complete run
+(`pending: 0`), relabelling a location queues the same checked job automatically
+after commit, so names stay in sync; before that, relabels change only
+`warehouse_name`.
+
 ## Promotion
 
 1. Push main only after validation; Sample tests, builds and deploys one image.

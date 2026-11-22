@@ -53,6 +53,7 @@ from temple_inventory.tests.test_serial_reports import SerialReportTests
 from temple_inventory.tests.test_serial_tracking import SerialTrackingTests
 from temple_inventory.tests.test_table_preferences import TablePreferenceTests
 from temple_inventory.tests.test_units import UnitTests
+from temple_inventory.tests.test_warehouse_rename import WarehouseRenameTests
 
 
 def _rollback_audit_snapshot():
@@ -107,6 +108,7 @@ def run(test_name=None):
 		ReadPerformanceTests,
 		ActivityTypeTests,
 		PermissionTests,
+		WarehouseRenameTests,
 		ItemImportTests,
 	):
 		# Feature suites inherit the shared savepoint setup and helpers. Run their

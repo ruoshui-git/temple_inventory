@@ -56,16 +56,16 @@ class NativeWarehouseTests(NativeDocumentTests):
 
 		baseline = snapshot()
 		self.assertEqual(baseline[area][0], "SA")
-		self.assertEqual(baseline[room][0], f"SA / Snapshot room {self.token}")
-		self.assertEqual(baseline[direct][0], f"SA / Snapshot room {self.token}{DIRECT_STORAGE_SUFFIX}")
-		self.assertEqual(baseline[shelf][0], f"SA / Snapshot room {self.token} / Snapshot shelf {self.token}")
+		self.assertEqual(baseline[room][0], f"SA/Snapshot room {self.token}")
+		self.assertEqual(baseline[direct][0], f"SA/Snapshot room {self.token}{DIRECT_STORAGE_SUFFIX}")
+		self.assertEqual(baseline[shelf][0], f"SA/Snapshot room {self.token}/Snapshot shelf {self.token}")
 		self.assertEqual(
 			baseline[leaf][0],
-			f"SA / Snapshot room {self.token} / Snapshot shelf {self.token}{DIRECT_STORAGE_SUFFIX}",
+			f"SA/Snapshot room {self.token}/Snapshot shelf {self.token}{DIRECT_STORAGE_SUFFIX}",
 		)
 		self.assertEqual(baseline[room][1]["path"], f"SA / Snapshot room {self.token}")
 		self.assertEqual(baseline[room][1]["local_label"], f"Snapshot room {self.token}")
-		self.assertEqual(baseline[room][1]["label"], f"Snapshot room {self.token}")
+		self.assertEqual(baseline[room][1]["label"], f"SA / Snapshot room {self.token}")
 		self.assertEqual(baseline[room][1]["full_label"], f"Snapshot room {self.token}")
 		self.assertIn(f"Snapshot area {self.token}", baseline[room][1]["search_text"])
 		self.assertEqual(baseline[self.system_root][1]["path"], "")
@@ -79,12 +79,14 @@ class NativeWarehouseTests(NativeDocumentTests):
 			f"SA / Snapshot room {self.token} / Snapshot shelf {self.token}",
 		)
 		self.assertEqual(
-			baseline[shelf][1]["label"], f"Snapshot room {self.token} / Snapshot shelf {self.token}"
+			baseline[shelf][1]["label"],
+			f"SA / Snapshot room {self.token} / Snapshot shelf {self.token}",
 		)
 		self.assertEqual(baseline[shelf][1]["local_label"], f"Snapshot shelf {self.token}")
 		self.assertEqual(baseline[shelf][1]["full_label"], f"Snapshot shelf {self.token}")
 		self.assertEqual(
-			baseline[leaf][1]["label"], f"Snapshot room {self.token} / Snapshot shelf {self.token}"
+			baseline[leaf][1]["label"],
+			f"SA / Snapshot room {self.token} / Snapshot shelf {self.token}",
 		)
 		self.assertEqual(baseline[leaf][1]["path"], baseline[shelf][1]["path"])
 		self.assertEqual(baseline[leaf][1]["local_label"], f"Snapshot shelf {self.token}")
@@ -96,25 +98,25 @@ class NativeWarehouseTests(NativeDocumentTests):
 		warehouses.rename_location(room, "Renamed room " + self.token, "SR", str(current.modified))
 		self.assertEqual(
 			frappe.db.get_value("Warehouse", direct, "warehouse_name"),
-			f"SA / SR{DIRECT_STORAGE_SUFFIX}",
+			f"SA/SR{DIRECT_STORAGE_SUFFIX}",
 		)
 		current = frappe.get_doc("Warehouse", room)
 		warehouses.move_location(room, second, str(current.modified))
 		self.assertEqual(
 			frappe.db.get_value("Warehouse", room, "warehouse_name"),
-			f"Snapshot second {self.token} / SR",
+			f"Snapshot second {self.token}/SR",
 		)
 		self.assertEqual(
 			frappe.db.get_value("Warehouse", direct, "warehouse_name"),
-			f"Snapshot second {self.token} / SR{DIRECT_STORAGE_SUFFIX}",
+			f"Snapshot second {self.token}/SR{DIRECT_STORAGE_SUFFIX}",
 		)
 		self.assertEqual(
 			frappe.db.get_value("Warehouse", shelf, "warehouse_name"),
-			f"Snapshot second {self.token} / SR / Snapshot shelf {self.token}",
+			f"Snapshot second {self.token}/SR/Snapshot shelf {self.token}",
 		)
 		self.assertEqual(
 			frappe.db.get_value("Warehouse", leaf, "warehouse_name"),
-			f"Snapshot second {self.token} / SR / Snapshot shelf {self.token}{DIRECT_STORAGE_SUFFIX}",
+			f"Snapshot second {self.token}/SR/Snapshot shelf {self.token}{DIRECT_STORAGE_SUFFIX}",
 		)
 		with patch("frappe.has_permission", return_value=True):
 			after = snapshot()
@@ -262,12 +264,12 @@ class NativeWarehouseTests(NativeDocumentTests):
 				"warehouse_type": "Room",
 				"is_group": 1,
 				"warehouse_name": frappe.db.get_value("Warehouse", first, "warehouse_name")
-				+ " / Desk room "
+				+ "/Desk room "
 				+ self.token,
 			}
 		).insert()
 		self.assertEqual(room.ti_label, "Desk room " + self.token)
-		self.assertEqual(room.warehouse_name, "D / Desk room " + self.token)
+		self.assertEqual(room.warehouse_name, "D/Desk room " + self.token)
 		warehouses.repair_direct_storage(room.name, str(room.modified))
 		second = self._create("Area", "Second area " + self.token, self.physical)
 		room.ti_label = "Renamed room " + self.token
@@ -281,7 +283,7 @@ class NativeWarehouseTests(NativeDocumentTests):
 		room.save()
 		self.assertTrue(
 			frappe.db.get_value("Warehouse", room.name, "warehouse_name").startswith(
-				"Second area " + self.token + " / Renamed room"
+				"Second area " + self.token + "/Renamed room"
 			)
 		)
 
@@ -296,7 +298,7 @@ class NativeWarehouseTests(NativeDocumentTests):
 		second = next(row for row in rows if row["name"] == room_right)
 		self.assertIn("Left", first["label"])
 		self.assertIn("Right", second["label"])
-		self.assertTrue(frappe.db.get_value("Warehouse", short_room, "warehouse_name").endswith(" / Concise"))
+		self.assertTrue(frappe.db.get_value("Warehouse", short_room, "warehouse_name").endswith("/Concise"))
 
 	def test_room_repair_and_subdivide_reference_guards(self):
 		room = self._create("Room", "Repair room " + self.token, self.physical)

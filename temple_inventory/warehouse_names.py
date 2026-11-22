@@ -17,7 +17,7 @@ def native_name(label, short_label, parent, physical_root, *, direct=False):
 		return f"{parent.warehouse_name}{DIRECT_STORAGE_SUFFIX}"
 	segment = str(short_label or label).strip()
 	prefix = "" if parent.name == physical_root else parent.warehouse_name
-	return f"{prefix} / {segment}" if prefix else segment
+	return f"{prefix}/{segment}" if prefix else segment
 
 
 def derive_local_label(warehouse_name, parent, *, direct=False, label="", short_label=""):
@@ -32,7 +32,7 @@ def derive_local_label(warehouse_name, parent, *, direct=False, label="", short_
 				parent.ti_label or parent.ti_short_label or parent_name,
 				short_label or parent.ti_short_label,
 			)
-		prefix = f"{parent_name} / " if parent_name else ""
+		prefix = f"{parent_name}/" if parent_name else ""
 		if prefix and value.startswith(prefix):
 			value = value[len(prefix) :]
 	if value.endswith(DIRECT_STORAGE_SUFFIX):

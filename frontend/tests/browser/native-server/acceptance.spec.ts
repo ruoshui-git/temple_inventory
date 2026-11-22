@@ -1136,7 +1136,7 @@ test("real frontend draft survives a Desk edit, rejects stale input and preserve
     })
   ).results[0].item_code;
   const warehouse = bootstrap.physical_leaves.find(
-    (name: string) => name.includes("T2 / A02") && name.includes("直接存放"),
+    (name: string) => name.includes("T2/A02") && name.includes("直接存放"),
   );
   expect(warehouse).toBeTruthy();
   let name = "";

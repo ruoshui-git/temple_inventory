@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import frappe
 
-from temple_inventory import deployment
+from temple_inventory import deployment, warehouse_rename
 from temple_inventory.patches import install_native_roles
 from temple_inventory.roles import (
 	ADMINISTRATOR,
@@ -479,6 +479,8 @@ class PermissionTests(NativeDocumentTests):
 			"warehouses.repair_direct_storage": lambda: warehouses.repair_direct_storage(
 				self.room_a, room_version
 			),
+			"warehouse_rename.sync_document_names": lambda: warehouse_rename.sync_document_names(dry_run=1),
+			"warehouse_rename.sync_status": lambda: warehouse_rename.sync_status(),
 			"warehouses.set_disabled": lambda: warehouses.set_disabled(shelf, True, shelf_version),
 			"warehouses.subdivide_shelf": lambda: warehouses.subdivide_shelf(shelf, shelf_version),
 		}
@@ -903,4 +905,6 @@ def _endpoint_policies():
 		"warehouses.stock_summary": "READ",
 		"warehouses.subdivide_shelf": "WRITE",
 		"warehouses.tree": "READ",
+		"warehouse_rename.sync_document_names": "WRITE",
+		"warehouse_rename.sync_status": "WRITE",
 	}

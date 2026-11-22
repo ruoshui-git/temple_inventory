@@ -63,14 +63,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "snapshot": "<volatile>",
@@ -173,14 +173,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "snapshot": "<volatile>",
@@ -279,14 +279,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "all",
-        "units": []
+        "tracking": "all"
       }
     },
     "snapshot": "<volatile>",
@@ -387,14 +387,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "all",
-        "units": []
+        "tracking": "all"
       }
     },
     "snapshot": "<volatile>",
@@ -513,7 +513,7 @@
             "location": "<fixture-7>",
             "label": "Native Test A Room <fixture-token>",
             "path": "Native Test A Room <fixture-token>",
-            "nativeName": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test A Room <fixture-token> · 直接存放",
+            "nativeName": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
             "available": 10.0,
             "loaned": 0,
             "damaged": 0,
@@ -533,7 +533,7 @@
             "location": "<fixture-8>",
             "label": "Native Test B Room <fixture-token>",
             "path": "Native Test B Room <fixture-token>",
-            "nativeName": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test B Room <fixture-token> · 直接存放",
+            "nativeName": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test B Room <fixture-token> · 直接存放",
             "available": 3.0,
             "loaned": 0,
             "damaged": 0,
@@ -553,7 +553,7 @@
             "location": "<fixture-10>",
             "label": "Native Test Damaged <fixture-token>",
             "path": "Native Test Damaged <fixture-token>",
-            "nativeName": "Native Test Root <fixture-token> / Native Test System Locations <fixture-token> / Native Test Damaged <fixture-token>",
+            "nativeName": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Damaged <fixture-token>",
             "available": 0,
             "loaned": 0,
             "damaged": 1.0,
@@ -573,7 +573,7 @@
             "location": "<fixture-9>",
             "label": "Native Test Lease Leaf <fixture-token>",
             "path": "Native Test Lease Leaf <fixture-token>",
-            "nativeName": "Native Test Root <fixture-token> / Native Test System Locations <fixture-token> / Native Test Lease Leaf <fixture-token>",
+            "nativeName": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Lease Leaf <fixture-token>",
             "available": 0,
             "loaned": 1.0,
             "damaged": 0,
@@ -674,14 +674,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "analysis": {
@@ -791,7 +791,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-7>",
         "warehouse_label": "Native Test A Room <fixture-token>",
-        "warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test A Room <fixture-token> · 直接存放",
+        "warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
         "warehouse_path": "Native Test A Room <fixture-token>"
       },
       {
@@ -818,7 +818,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-8>",
         "warehouse_label": "Native Test B Room <fixture-token>",
-        "warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test B Room <fixture-token> · 直接存放",
+        "warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test B Room <fixture-token> · 直接存放",
         "warehouse_path": "Native Test B Room <fixture-token>"
       },
       {
@@ -845,7 +845,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-10>",
         "warehouse_label": "Native Test Damaged <fixture-token>",
-        "warehouse_native_name": "Native Test Root <fixture-token> / Native Test System Locations <fixture-token> / Native Test Damaged <fixture-token>",
+        "warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Damaged <fixture-token>",
         "warehouse_path": "Native Test Damaged <fixture-token>"
       },
       {
@@ -872,7 +872,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-9>",
         "warehouse_label": "Native Test Lease Leaf <fixture-token>",
-        "warehouse_native_name": "Native Test Root <fixture-token> / Native Test System Locations <fixture-token> / Native Test Lease Leaf <fixture-token>",
+        "warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Lease Leaf <fixture-token>",
         "warehouse_path": "Native Test Lease Leaf <fixture-token>"
       }
     ],
@@ -956,14 +956,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "analysis": {
@@ -1113,7 +1113,7 @@
               "source_path": "",
               "source_native_name": "",
               "destination_path": "Native Test A Room <fixture-token>",
-              "destination_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test A Room <fixture-token> · 直接存放"
+              "destination_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放"
             }
           ],
           "original_loans": []
@@ -1179,14 +1179,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "snapshot": "<volatile>"
@@ -1241,7 +1241,7 @@
               "source": "<fixture-7>",
               "destination": "",
               "source_path": "Native Test A Room <fixture-token>",
-              "source_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test A Room <fixture-token> · 直接存放",
+              "source_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
               "destination_path": "",
               "destination_native_name": ""
             }
@@ -1316,14 +1316,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "snapshot": "<volatile>"
@@ -1406,14 +1406,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     }
   },
@@ -1490,14 +1490,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     }
   },
@@ -1529,7 +1529,7 @@
           "stock_uom_label": "个",
           "warehouse": "<fixture-7>、<fixture-8>",
           "warehouse_label": "Native Test A Room <fixture-token>",
-          "warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test A Room <fixture-token> · 直接存放",
+          "warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
           "warehouse_path": "Native Test A Room <fixture-token>"
         }
       ]
@@ -1617,14 +1617,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "expiry_preview_limit": 5
@@ -2030,14 +2030,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "matched_count": 8
@@ -2085,7 +2085,7 @@
           {
             "qty": 1.0,
             "uom": "Nos",
-            "effect": 0
+            "effect": 0.0
           }
         ],
         "stock_uom_label": "个",
@@ -2168,14 +2168,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "matched_count": 1
@@ -2208,7 +2208,7 @@
           "stock_uom_label": "个",
           "warehouse": "<fixture-7>、<fixture-8>",
           "warehouse_label": "Native Test A Room <fixture-token>",
-          "warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test A Room <fixture-token> · 直接存放",
+          "warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
           "warehouse_path": "Native Test A Room <fixture-token>"
         }
       ]
@@ -2296,14 +2296,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "expiry_preview_limit": 5,
@@ -2367,14 +2367,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "scope": {
@@ -2387,14 +2387,14 @@
         "<fixture-2>"
       ],
       "categories": [],
+      "units": [],
       "uncategorized": false,
       "item": "<fixture-1>",
       "activity": "",
       "sources": [],
       "destinations": [],
       "kinds": [],
-      "tracking": "batch",
-      "units": []
+      "tracking": "batch"
     },
     "period": {
       "key": "all",
@@ -2578,14 +2578,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "leaf_columns": [
@@ -2662,14 +2662,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "scope": {
@@ -2682,14 +2682,14 @@
         "<fixture-2>"
       ],
       "categories": [],
+      "units": [],
       "uncategorized": false,
       "item": "<fixture-1>",
       "activity": "",
       "sources": [],
       "destinations": [],
       "kinds": [],
-      "tracking": "batch",
-      "units": []
+      "tracking": "batch"
     },
     "period": {
       "key": "all",
@@ -2750,7 +2750,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-7>",
         "warehouse_label": "Native Test A Room <fixture-token>",
-        "warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test A Room <fixture-token> · 直接存放",
+        "warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
         "warehouse_path": "Native Test A Room <fixture-token>"
       },
       {
@@ -2777,7 +2777,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-8>",
         "warehouse_label": "Native Test B Room <fixture-token>",
-        "warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test B Room <fixture-token> · 直接存放",
+        "warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test B Room <fixture-token> · 直接存放",
         "warehouse_path": "Native Test B Room <fixture-token>"
       },
       {
@@ -2804,7 +2804,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-10>",
         "warehouse_label": "Native Test Damaged <fixture-token>",
-        "warehouse_native_name": "Native Test Root <fixture-token> / Native Test System Locations <fixture-token> / Native Test Damaged <fixture-token>",
+        "warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Damaged <fixture-token>",
         "warehouse_path": "Native Test Damaged <fixture-token>"
       },
       {
@@ -2831,7 +2831,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-9>",
         "warehouse_label": "Native Test Lease Leaf <fixture-token>",
-        "warehouse_native_name": "Native Test Root <fixture-token> / Native Test System Locations <fixture-token> / Native Test Lease Leaf <fixture-token>",
+        "warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Lease Leaf <fixture-token>",
         "warehouse_path": "Native Test Lease Leaf <fixture-token>"
       }
     ],
@@ -2968,14 +2968,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "leaf_columns": [
@@ -3052,14 +3052,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "scope": {
@@ -3072,14 +3072,14 @@
         "<fixture-2>"
       ],
       "categories": [],
+      "units": [],
       "uncategorized": false,
       "item": "<fixture-1>",
       "activity": "",
       "sources": [],
       "destinations": [],
       "kinds": [],
-      "tracking": "batch",
-      "units": []
+      "tracking": "batch"
     },
     "period": {
       "key": "custom",
@@ -3141,7 +3141,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-7>",
         "warehouse_label": "Native Test A Room <fixture-token>",
-        "warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test A Room <fixture-token> · 直接存放",
+        "warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
         "warehouse_path": "Native Test A Room <fixture-token>"
       },
       {
@@ -3167,7 +3167,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-8>",
         "warehouse_label": "Native Test B Room <fixture-token>",
-        "warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test B Room <fixture-token> · 直接存放",
+        "warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test B Room <fixture-token> · 直接存放",
         "warehouse_path": "Native Test B Room <fixture-token>"
       },
       {
@@ -3193,7 +3193,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-10>",
         "warehouse_label": "Native Test Damaged <fixture-token>",
-        "warehouse_native_name": "Native Test Root <fixture-token> / Native Test System Locations <fixture-token> / Native Test Damaged <fixture-token>",
+        "warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Damaged <fixture-token>",
         "warehouse_path": "Native Test Damaged <fixture-token>"
       },
       {
@@ -3219,7 +3219,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-9>",
         "warehouse_label": "Native Test Lease Leaf <fixture-token>",
-        "warehouse_native_name": "Native Test Root <fixture-token> / Native Test System Locations <fixture-token> / Native Test Lease Leaf <fixture-token>",
+        "warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Lease Leaf <fixture-token>",
         "warehouse_path": "Native Test Lease Leaf <fixture-token>"
       }
     ],
@@ -3362,14 +3362,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "leaf_columns": [
@@ -3444,14 +3444,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "scope": {
@@ -3464,14 +3464,14 @@
         "<fixture-2>"
       ],
       "categories": [],
+      "units": [],
       "uncategorized": false,
       "item": "<fixture-1>",
       "activity": "",
       "sources": [],
       "destinations": [],
       "kinds": [],
-      "tracking": "batch",
-      "units": []
+      "tracking": "batch"
     },
     "period": {
       "key": "all",
@@ -3529,7 +3529,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-7>",
         "warehouse_label": "Native Test A Room <fixture-token>",
-        "warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test A Room <fixture-token> · 直接存放",
+        "warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
         "warehouse_path": "Native Test A Room <fixture-token>"
       },
       {
@@ -3556,7 +3556,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-8>",
         "warehouse_label": "Native Test B Room <fixture-token>",
-        "warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test B Room <fixture-token> · 直接存放",
+        "warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test B Room <fixture-token> · 直接存放",
         "warehouse_path": "Native Test B Room <fixture-token>"
       },
       {
@@ -3583,7 +3583,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-10>",
         "warehouse_label": "Native Test Damaged <fixture-token>",
-        "warehouse_native_name": "Native Test Root <fixture-token> / Native Test System Locations <fixture-token> / Native Test Damaged <fixture-token>",
+        "warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Damaged <fixture-token>",
         "warehouse_path": "Native Test Damaged <fixture-token>"
       },
       {
@@ -3610,7 +3610,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-9>",
         "warehouse_label": "Native Test Lease Leaf <fixture-token>",
-        "warehouse_native_name": "Native Test Root <fixture-token> / Native Test System Locations <fixture-token> / Native Test Lease Leaf <fixture-token>",
+        "warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Lease Leaf <fixture-token>",
         "warehouse_path": "Native Test Lease Leaf <fixture-token>"
       }
     ],
@@ -3742,14 +3742,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "leaf_columns": [
@@ -3826,14 +3826,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "scope": {
@@ -3846,14 +3846,14 @@
         "<fixture-2>"
       ],
       "categories": [],
+      "units": [],
       "uncategorized": false,
       "item": "<fixture-1>",
       "activity": "",
       "sources": [],
       "destinations": [],
       "kinds": [],
-      "tracking": "batch",
-      "units": []
+      "tracking": "batch"
     },
     "period": {
       "key": "all",
@@ -4337,14 +4337,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "leaf_columns": [
@@ -4429,14 +4429,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "scope": {
@@ -4449,14 +4449,14 @@
         "<fixture-2>"
       ],
       "categories": [],
+      "units": [],
       "uncategorized": false,
       "item": "<fixture-1>",
       "activity": "",
       "sources": [],
       "destinations": [],
       "kinds": [],
-      "tracking": "batch",
-      "units": []
+      "tracking": "batch"
     },
     "period": {
       "key": "all",
@@ -5313,14 +5313,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "leaf_columns": [
@@ -5393,14 +5393,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "scope": {
@@ -5413,14 +5413,14 @@
         "<fixture-2>"
       ],
       "categories": [],
+      "units": [],
       "uncategorized": false,
       "item": "<fixture-1>",
       "activity": "",
       "sources": [],
       "destinations": [],
       "kinds": [],
-      "tracking": "batch",
-      "units": []
+      "tracking": "batch"
     },
     "period": {
       "key": "all",
@@ -5497,7 +5497,7 @@
         "date": "<today>",
         "destination_warehouse": "<fixture-7>",
         "destination_warehouse_label": "Native Test A Room <fixture-token>",
-        "destination_warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test A Room <fixture-token> · 直接存放",
+        "destination_warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
         "destination_warehouse_path": "Native Test A Room <fixture-token>",
         "disabled": false,
         "docstatus": 1,
@@ -5597,7 +5597,7 @@
         "source": "",
         "source_warehouse": "<fixture-7>",
         "source_warehouse_label": "Native Test A Room <fixture-token>",
-        "source_warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test A Room <fixture-token> · 直接存放",
+        "source_warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
         "source_warehouse_path": "Native Test A Room <fixture-token>",
         "stock_qty": 1.0,
         "stock_uom": "Nos",
@@ -5623,7 +5623,7 @@
         "date": "<today>",
         "destination_warehouse": "<fixture-8>",
         "destination_warehouse_label": "Native Test B Room <fixture-token>",
-        "destination_warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test B Room <fixture-token> · 直接存放",
+        "destination_warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test B Room <fixture-token> · 直接存放",
         "destination_warehouse_path": "Native Test B Room <fixture-token>",
         "disabled": false,
         "docstatus": 1,
@@ -5661,7 +5661,7 @@
         "source": "",
         "source_warehouse": "<fixture-7>",
         "source_warehouse_label": "Native Test A Room <fixture-token>",
-        "source_warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test A Room <fixture-token> · 直接存放",
+        "source_warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
         "source_warehouse_path": "Native Test A Room <fixture-token>",
         "stock_qty": 2.0,
         "stock_uom": "Nos",
@@ -5687,7 +5687,7 @@
         "date": "<today>",
         "destination_warehouse": "<fixture-9>",
         "destination_warehouse_label": "Native Test Lease Leaf <fixture-token>",
-        "destination_warehouse_native_name": "Native Test Root <fixture-token> / Native Test System Locations <fixture-token> / Native Test Lease Leaf <fixture-token>",
+        "destination_warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Lease Leaf <fixture-token>",
         "destination_warehouse_path": "Native Test Lease Leaf <fixture-token>",
         "disabled": false,
         "docstatus": 1,
@@ -5711,7 +5711,7 @@
         "notes": "",
         "origin_warehouse": "<fixture-7>",
         "origin_warehouse_label": "Native Test A Room <fixture-token>",
-        "origin_warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test A Room <fixture-token> · 直接存放",
+        "origin_warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
         "origin_warehouse_path": "Native Test A Room <fixture-token>",
         "original_loan": "",
         "original_loan_line": "<generated-line-id>",
@@ -5726,7 +5726,7 @@
         "source": "",
         "source_warehouse": "<fixture-7>",
         "source_warehouse_label": "Native Test A Room <fixture-token>",
-        "source_warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test A Room <fixture-token> · 直接存放",
+        "source_warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
         "source_warehouse_path": "Native Test A Room <fixture-token>",
         "stock_qty": 4.0,
         "stock_uom": "Nos",
@@ -5752,7 +5752,7 @@
         "date": "<today>",
         "destination_warehouse": "<fixture-8>",
         "destination_warehouse_label": "Native Test B Room <fixture-token>",
-        "destination_warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test B Room <fixture-token> · 直接存放",
+        "destination_warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test B Room <fixture-token> · 直接存放",
         "destination_warehouse_path": "Native Test B Room <fixture-token>",
         "disabled": false,
         "docstatus": 1,
@@ -5776,7 +5776,7 @@
         "notes": "",
         "origin_warehouse": "<fixture-7>",
         "origin_warehouse_label": "Native Test A Room <fixture-token>",
-        "origin_warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test A Room <fixture-token> · 直接存放",
+        "origin_warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
         "origin_warehouse_path": "Native Test A Room <fixture-token>",
         "original_loan": "<document-4>",
         "original_loan_line": "<generated-line-id>",
@@ -5791,7 +5791,7 @@
         "source": "",
         "source_warehouse": "<fixture-9>",
         "source_warehouse_label": "Native Test Lease Leaf <fixture-token>",
-        "source_warehouse_native_name": "Native Test Root <fixture-token> / Native Test System Locations <fixture-token> / Native Test Lease Leaf <fixture-token>",
+        "source_warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Lease Leaf <fixture-token>",
         "source_warehouse_path": "Native Test Lease Leaf <fixture-token>",
         "stock_qty": 1.0,
         "stock_uom": "Nos",
@@ -5817,7 +5817,7 @@
         "date": "<today>",
         "destination_warehouse": "<fixture-10>",
         "destination_warehouse_label": "Native Test Damaged <fixture-token>",
-        "destination_warehouse_native_name": "Native Test Root <fixture-token> / Native Test System Locations <fixture-token> / Native Test Damaged <fixture-token>",
+        "destination_warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Damaged <fixture-token>",
         "destination_warehouse_path": "Native Test Damaged <fixture-token>",
         "disabled": false,
         "docstatus": 1,
@@ -5841,7 +5841,7 @@
         "notes": "",
         "origin_warehouse": "<fixture-7>",
         "origin_warehouse_label": "Native Test A Room <fixture-token>",
-        "origin_warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test A Room <fixture-token> · 直接存放",
+        "origin_warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
         "origin_warehouse_path": "Native Test A Room <fixture-token>",
         "original_loan": "<document-4>",
         "original_loan_line": "<generated-line-id>",
@@ -5856,7 +5856,7 @@
         "source": "",
         "source_warehouse": "<fixture-9>",
         "source_warehouse_label": "Native Test Lease Leaf <fixture-token>",
-        "source_warehouse_native_name": "Native Test Root <fixture-token> / Native Test System Locations <fixture-token> / Native Test Lease Leaf <fixture-token>",
+        "source_warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Lease Leaf <fixture-token>",
         "source_warehouse_path": "Native Test Lease Leaf <fixture-token>",
         "stock_qty": 1.0,
         "stock_uom": "Nos",
@@ -5905,7 +5905,7 @@
         "notes": "",
         "origin_warehouse": "<fixture-7>",
         "origin_warehouse_label": "Native Test A Room <fixture-token>",
-        "origin_warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test A Room <fixture-token> · 直接存放",
+        "origin_warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
         "origin_warehouse_path": "Native Test A Room <fixture-token>",
         "original_loan": "<document-4>",
         "original_loan_line": "<generated-line-id>",
@@ -5920,7 +5920,7 @@
         "source": "",
         "source_warehouse": "<fixture-9>",
         "source_warehouse_label": "Native Test Lease Leaf <fixture-token>",
-        "source_warehouse_native_name": "Native Test Root <fixture-token> / Native Test System Locations <fixture-token> / Native Test Lease Leaf <fixture-token>",
+        "source_warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Lease Leaf <fixture-token>",
         "source_warehouse_path": "Native Test Lease Leaf <fixture-token>",
         "stock_qty": 1.0,
         "stock_uom": "Nos",
@@ -5994,7 +5994,7 @@
         "time": "<time>",
         "warehouse": "<fixture-7>",
         "warehouse_label": "Native Test A Room <fixture-token>",
-        "warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test A Room <fixture-token> · 直接存放",
+        "warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
         "warehouse_path": "Native Test A Room <fixture-token>"
       }
     ],
@@ -6335,14 +6335,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "leaf_columns": [
@@ -6426,14 +6426,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "scope": {
@@ -6446,14 +6446,14 @@
         "<fixture-2>"
       ],
       "categories": [],
+      "units": [],
       "uncategorized": false,
       "item": "<fixture-1>",
       "activity": "",
       "sources": [],
       "destinations": [],
       "kinds": [],
-      "tracking": "batch",
-      "units": []
+      "tracking": "batch"
     },
     "period": {
       "key": "all",
@@ -6686,14 +6686,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "leaf_columns": [
@@ -6770,14 +6770,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "scope": {
@@ -6790,14 +6790,14 @@
         "<fixture-2>"
       ],
       "categories": [],
+      "units": [],
       "uncategorized": false,
       "item": "<fixture-1>",
       "activity": "",
       "sources": [],
       "destinations": [],
       "kinds": [],
-      "tracking": "batch",
-      "units": []
+      "tracking": "batch"
     },
     "period": {
       "key": "all",
@@ -7003,14 +7003,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "leaf_columns": [
@@ -7095,14 +7095,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "scope": {
@@ -7115,14 +7115,14 @@
         "<fixture-2>"
       ],
       "categories": [],
+      "units": [],
       "uncategorized": false,
       "item": "<fixture-1>",
       "activity": "",
       "sources": [],
       "destinations": [],
       "kinds": [],
-      "tracking": "batch",
-      "units": []
+      "tracking": "batch"
     },
     "period": {
       "key": "all",
@@ -7192,7 +7192,7 @@
         "date": "<today>",
         "destination_warehouse": "<fixture-9>",
         "destination_warehouse_label": "Native Test Lease Leaf <fixture-token>",
-        "destination_warehouse_native_name": "Native Test Root <fixture-token> / Native Test System Locations <fixture-token> / Native Test Lease Leaf <fixture-token>",
+        "destination_warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Lease Leaf <fixture-token>",
         "destination_warehouse_path": "Native Test Lease Leaf <fixture-token>",
         "disabled": false,
         "docstatus": 1,
@@ -7229,7 +7229,7 @@
         "source": "",
         "source_warehouse": "<fixture-7>",
         "source_warehouse_label": "Native Test A Room <fixture-token>",
-        "source_warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test A Room <fixture-token> · 直接存放",
+        "source_warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
         "source_warehouse_path": "Native Test A Room <fixture-token>",
         "stock_qty": 1.0,
         "stock_uom": "Nos",
@@ -7387,14 +7387,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "leaf_columns": [
@@ -7479,14 +7479,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "scope": {
@@ -7499,14 +7499,14 @@
         "<fixture-2>"
       ],
       "categories": [],
+      "units": [],
       "uncategorized": false,
       "item": "<fixture-1>",
       "activity": "",
       "sources": [],
       "destinations": [],
       "kinds": [],
-      "tracking": "batch",
-      "units": []
+      "tracking": "batch"
     },
     "period": {
       "key": "all",
@@ -7566,7 +7566,7 @@
         "date": "<today>",
         "destination_warehouse": "<fixture-8>",
         "destination_warehouse_label": "Native Test B Room <fixture-token>",
-        "destination_warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test B Room <fixture-token> · 直接存放",
+        "destination_warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test B Room <fixture-token> · 直接存放",
         "destination_warehouse_path": "Native Test B Room <fixture-token>",
         "disabled": false,
         "docstatus": 1,
@@ -7591,7 +7591,7 @@
         "notes": "",
         "origin_warehouse": "<fixture-7>",
         "origin_warehouse_label": "Native Test A Room <fixture-token>",
-        "origin_warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test A Room <fixture-token> · 直接存放",
+        "origin_warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
         "origin_warehouse_path": "Native Test A Room <fixture-token>",
         "original_activity": "<fixture-11>",
         "original_activity_title": "Native Activity <fixture-token>",
@@ -7608,7 +7608,7 @@
         "source": "",
         "source_warehouse": "<fixture-9>",
         "source_warehouse_label": "Native Test Lease Leaf <fixture-token>",
-        "source_warehouse_native_name": "Native Test Root <fixture-token> / Native Test System Locations <fixture-token> / Native Test Lease Leaf <fixture-token>",
+        "source_warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Lease Leaf <fixture-token>",
         "source_warehouse_path": "Native Test Lease Leaf <fixture-token>",
         "stock_qty": 1.0,
         "stock_uom": "Nos",
@@ -7634,7 +7634,7 @@
         "date": "<today>",
         "destination_warehouse": "<fixture-10>",
         "destination_warehouse_label": "Native Test Damaged <fixture-token>",
-        "destination_warehouse_native_name": "Native Test Root <fixture-token> / Native Test System Locations <fixture-token> / Native Test Damaged <fixture-token>",
+        "destination_warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Damaged <fixture-token>",
         "destination_warehouse_path": "Native Test Damaged <fixture-token>",
         "disabled": false,
         "docstatus": 1,
@@ -7659,7 +7659,7 @@
         "notes": "",
         "origin_warehouse": "<fixture-7>",
         "origin_warehouse_label": "Native Test A Room <fixture-token>",
-        "origin_warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test A Room <fixture-token> · 直接存放",
+        "origin_warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
         "origin_warehouse_path": "Native Test A Room <fixture-token>",
         "original_activity": "<fixture-11>",
         "original_activity_title": "Native Activity <fixture-token>",
@@ -7676,7 +7676,7 @@
         "source": "",
         "source_warehouse": "<fixture-9>",
         "source_warehouse_label": "Native Test Lease Leaf <fixture-token>",
-        "source_warehouse_native_name": "Native Test Root <fixture-token> / Native Test System Locations <fixture-token> / Native Test Lease Leaf <fixture-token>",
+        "source_warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Lease Leaf <fixture-token>",
         "source_warehouse_path": "Native Test Lease Leaf <fixture-token>",
         "stock_qty": 1.0,
         "stock_uom": "Nos",
@@ -7726,7 +7726,7 @@
         "notes": "",
         "origin_warehouse": "<fixture-7>",
         "origin_warehouse_label": "Native Test A Room <fixture-token>",
-        "origin_warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test A Room <fixture-token> · 直接存放",
+        "origin_warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
         "origin_warehouse_path": "Native Test A Room <fixture-token>",
         "original_activity": "<fixture-11>",
         "original_activity_title": "Native Activity <fixture-token>",
@@ -7743,7 +7743,7 @@
         "source": "",
         "source_warehouse": "<fixture-9>",
         "source_warehouse_label": "Native Test Lease Leaf <fixture-token>",
-        "source_warehouse_native_name": "Native Test Root <fixture-token> / Native Test System Locations <fixture-token> / Native Test Lease Leaf <fixture-token>",
+        "source_warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Lease Leaf <fixture-token>",
         "source_warehouse_path": "Native Test Lease Leaf <fixture-token>",
         "stock_qty": 1.0,
         "stock_uom": "Nos",
@@ -7920,14 +7920,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "leaf_columns": [
@@ -8008,14 +8008,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "scope": {
@@ -8028,14 +8028,14 @@
         "<fixture-2>"
       ],
       "categories": [],
+      "units": [],
       "uncategorized": false,
       "item": "<fixture-1>",
       "activity": "",
       "sources": [],
       "destinations": [],
       "kinds": [],
-      "tracking": "batch",
-      "units": []
+      "tracking": "batch"
     },
     "period": {
       "key": "all",
@@ -8215,14 +8215,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "leaf_columns": [
@@ -8286,14 +8286,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "scope": {
@@ -8306,14 +8306,14 @@
         "<fixture-2>"
       ],
       "categories": [],
+      "units": [],
       "uncategorized": false,
       "item": "<fixture-1>",
       "activity": "",
       "sources": [],
       "destinations": [],
       "kinds": [],
-      "tracking": "batch",
-      "units": []
+      "tracking": "batch"
     },
     "period": {
       "key": "all",
@@ -8371,7 +8371,7 @@
         "date": "<today>",
         "destination_warehouse": "<fixture-9>",
         "destination_warehouse_label": "Native Test Lease Leaf <fixture-token>",
-        "destination_warehouse_native_name": "Native Test Root <fixture-token> / Native Test System Locations <fixture-token> / Native Test Lease Leaf <fixture-token>",
+        "destination_warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Lease Leaf <fixture-token>",
         "destination_warehouse_path": "Native Test Lease Leaf <fixture-token>",
         "disabled": false,
         "docstatus": 1,
@@ -8395,7 +8395,7 @@
         "notes": "",
         "origin_warehouse": "<fixture-7>",
         "origin_warehouse_label": "Native Test A Room <fixture-token>",
-        "origin_warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test A Room <fixture-token> · 直接存放",
+        "origin_warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
         "origin_warehouse_path": "Native Test A Room <fixture-token>",
         "original_loan": "",
         "original_loan_line": "<generated-line-id>",
@@ -8412,7 +8412,7 @@
         "source": "",
         "source_warehouse": "<fixture-7>",
         "source_warehouse_label": "Native Test A Room <fixture-token>",
-        "source_warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test A Room <fixture-token> · 直接存放",
+        "source_warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
         "source_warehouse_path": "Native Test A Room <fixture-token>",
         "stock_qty": 4.0,
         "stock_uom": "Nos",
@@ -8438,7 +8438,7 @@
         "date": "<today>",
         "destination_warehouse": "<fixture-8>",
         "destination_warehouse_label": "Native Test B Room <fixture-token>",
-        "destination_warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test B Room <fixture-token> · 直接存放",
+        "destination_warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test B Room <fixture-token> · 直接存放",
         "destination_warehouse_path": "Native Test B Room <fixture-token>",
         "disabled": false,
         "docstatus": 1,
@@ -8462,7 +8462,7 @@
         "notes": "",
         "origin_warehouse": "<fixture-7>",
         "origin_warehouse_label": "Native Test A Room <fixture-token>",
-        "origin_warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test A Room <fixture-token> · 直接存放",
+        "origin_warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
         "origin_warehouse_path": "Native Test A Room <fixture-token>",
         "original_loan": "<document-4>",
         "original_loan_line": "<generated-line-id>",
@@ -8479,7 +8479,7 @@
         "source": "",
         "source_warehouse": "<fixture-9>",
         "source_warehouse_label": "Native Test Lease Leaf <fixture-token>",
-        "source_warehouse_native_name": "Native Test Root <fixture-token> / Native Test System Locations <fixture-token> / Native Test Lease Leaf <fixture-token>",
+        "source_warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Lease Leaf <fixture-token>",
         "source_warehouse_path": "Native Test Lease Leaf <fixture-token>",
         "stock_qty": 1.0,
         "stock_uom": "Nos",
@@ -8505,7 +8505,7 @@
         "date": "<today>",
         "destination_warehouse": "<fixture-10>",
         "destination_warehouse_label": "Native Test Damaged <fixture-token>",
-        "destination_warehouse_native_name": "Native Test Root <fixture-token> / Native Test System Locations <fixture-token> / Native Test Damaged <fixture-token>",
+        "destination_warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Damaged <fixture-token>",
         "destination_warehouse_path": "Native Test Damaged <fixture-token>",
         "disabled": false,
         "docstatus": 1,
@@ -8529,7 +8529,7 @@
         "notes": "",
         "origin_warehouse": "<fixture-7>",
         "origin_warehouse_label": "Native Test A Room <fixture-token>",
-        "origin_warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test A Room <fixture-token> · 直接存放",
+        "origin_warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
         "origin_warehouse_path": "Native Test A Room <fixture-token>",
         "original_loan": "<document-4>",
         "original_loan_line": "<generated-line-id>",
@@ -8546,7 +8546,7 @@
         "source": "",
         "source_warehouse": "<fixture-9>",
         "source_warehouse_label": "Native Test Lease Leaf <fixture-token>",
-        "source_warehouse_native_name": "Native Test Root <fixture-token> / Native Test System Locations <fixture-token> / Native Test Lease Leaf <fixture-token>",
+        "source_warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Lease Leaf <fixture-token>",
         "source_warehouse_path": "Native Test Lease Leaf <fixture-token>",
         "stock_qty": 1.0,
         "stock_uom": "Nos",
@@ -8595,7 +8595,7 @@
         "notes": "",
         "origin_warehouse": "<fixture-7>",
         "origin_warehouse_label": "Native Test A Room <fixture-token>",
-        "origin_warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test A Room <fixture-token> · 直接存放",
+        "origin_warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
         "origin_warehouse_path": "Native Test A Room <fixture-token>",
         "original_loan": "<document-4>",
         "original_loan_line": "<generated-line-id>",
@@ -8612,7 +8612,7 @@
         "source": "",
         "source_warehouse": "<fixture-9>",
         "source_warehouse_label": "Native Test Lease Leaf <fixture-token>",
-        "source_warehouse_native_name": "Native Test Root <fixture-token> / Native Test System Locations <fixture-token> / Native Test Lease Leaf <fixture-token>",
+        "source_warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Lease Leaf <fixture-token>",
         "source_warehouse_path": "Native Test Lease Leaf <fixture-token>",
         "stock_qty": 1.0,
         "stock_uom": "Nos",
@@ -8886,14 +8886,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "leaf_columns": [
@@ -8974,14 +8974,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "scope": {
@@ -8994,14 +8994,14 @@
         "<fixture-2>"
       ],
       "categories": [],
+      "units": [],
       "uncategorized": false,
       "item": "<fixture-1>",
       "activity": "",
       "sources": [],
       "destinations": [],
       "kinds": [],
-      "tracking": "batch",
-      "units": []
+      "tracking": "batch"
     },
     "period": {
       "key": "all",
@@ -9065,7 +9065,7 @@
         "date": "<today>",
         "destination_warehouse": "<fixture-9>",
         "destination_warehouse_label": "Native Test Lease Leaf <fixture-token>",
-        "destination_warehouse_native_name": "Native Test Root <fixture-token> / Native Test System Locations <fixture-token> / Native Test Lease Leaf <fixture-token>",
+        "destination_warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Lease Leaf <fixture-token>",
         "destination_warehouse_path": "Native Test Lease Leaf <fixture-token>",
         "disabled": false,
         "docstatus": 1,
@@ -9102,7 +9102,7 @@
         "source": "",
         "source_warehouse": "<fixture-7>",
         "source_warehouse_label": "Native Test A Room <fixture-token>",
-        "source_warehouse_native_name": "Native Test Root <fixture-token> / Native Test Physical <fixture-token> / Native Test A Room <fixture-token> · 直接存放",
+        "source_warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
         "source_warehouse_path": "Native Test A Room <fixture-token>",
         "stock_qty": 1.0,
         "stock_uom": "Nos",
@@ -9251,14 +9251,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "leaf_columns": [
@@ -9344,14 +9344,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "scope": {
@@ -9364,14 +9364,14 @@
         "<fixture-2>"
       ],
       "categories": [],
+      "units": [],
       "uncategorized": false,
       "item": "<fixture-1>",
       "activity": "",
       "sources": [],
       "destinations": [],
       "kinds": [],
-      "tracking": "batch",
-      "units": []
+      "tracking": "batch"
     },
     "period": {
       "key": "all",
@@ -9567,14 +9567,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "leaf_columns": [
@@ -9649,14 +9649,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "scope": {
@@ -9669,14 +9669,14 @@
         "<fixture-2>"
       ],
       "categories": [],
+      "units": [],
       "uncategorized": false,
       "item": "<fixture-1>",
       "activity": "",
       "sources": [],
       "destinations": [],
       "kinds": [],
-      "tracking": "batch",
-      "units": []
+      "tracking": "batch"
     },
     "period": {
       "key": "all",
@@ -9963,14 +9963,14 @@
           "<fixture-2>"
         ],
         "categories": [],
+        "units": [],
         "uncategorized": false,
         "item": "<fixture-1>",
         "activity": "",
         "sources": [],
         "destinations": [],
         "kinds": [],
-        "tracking": "batch",
-        "units": []
+        "tracking": "batch"
       }
     },
     "leaf_columns": [

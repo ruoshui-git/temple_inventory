@@ -130,6 +130,23 @@ def _cascade_warehouse_names(doc, method=None):
 		)
 		warehouse_names[child.name] = value
 		frappe.db.set_value("Warehouse", child.name, "warehouse_name", value, update_modified=False)
+	if doc.name in _physical_tree_names(physical_root, children):
+
+		def enqueue_sync():
+			from temple_inventory.warehouse_rename import enqueue_after_relabel
+
+			enqueue_after_relabel()
+
+		frappe.db.after_commit.add(enqueue_sync)
+
+
+def _physical_tree_names(root, children):
+	"""Return descendants from the already loaded, ordered company rows."""
+	selected = {root}
+	for row in children:
+		if row.parent_warehouse in selected:
+			selected.add(row.name)
+	return selected
 
 
 def validate_native_warehouse(doc, method=None):
