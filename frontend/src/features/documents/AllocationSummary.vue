@@ -10,7 +10,7 @@ import { formatConversion } from "../../lib/conversionText";
 import type { DataColumn, DataTableEntry, DataTableGroup } from "../../lib/dataTable";
 import { routeTarget } from "../../lib/routeRegistry";
 import { sortByUnit, unitLabel } from "../../lib/units";
-import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
+import { warehouseLabel, warehouseTitle } from "../../lib/warehouseLabel";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import { enteredQty } from "../../lib/quantityConversion";
 import {
@@ -325,7 +325,7 @@ function itemFor(row: Record<string, unknown>) {
 				@click="toggleGroup(`location:${place}`)"
 			>
 				<span class="allocation-phone-group-heading">
-					<strong :title="warehousePath(place, reference.warehouses)">{{
+					<strong :title="warehouseTitle(place, reference.warehouses)">{{
 						warehouseLabel(place, reference.warehouses)
 					}}</strong>
 					<span

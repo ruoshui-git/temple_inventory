@@ -9,6 +9,7 @@ import InventoryIcon from "../../components/InventoryIcon.vue";
 import { kindIcons } from "../../lib/kindIcons";
 import { presentationText } from "../../lib/presentationLabels";
 import { warehouseLabel } from "../../lib/warehouseLabel";
+import LocationLabel from "../../components/ui/LocationLabel.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import type { ReportQuery } from "../../lib/reportContract";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
@@ -760,9 +761,15 @@ async function back() {
 						empty-text="此记录没有明细。"
 					>
 						<template #cell="{ column, row }">
-							<template v-if="column.id === 'warehouse'">{{
-								warehouseLabel(String(row.warehouse || ""), c.reference.warehouses)
-							}}</template>
+							<LocationLabel
+								v-if="column.id === 'warehouse'"
+								:label="
+									warehouseLabel(
+										String(row.warehouse || ''),
+										c.reference.warehouses,
+									)
+								"
+							/>
 							<div v-else-if="column.id === 'image'" class="count-item-thumbnail">
 								<ItemImage :item="deskItem(row)" />
 							</div>
@@ -944,9 +951,12 @@ async function back() {
 						<small>{{ row.item_code }}</small>
 						<NativeCountAllocations :row="row" />
 					</div>
-					<template v-else-if="column.id === 'warehouse'">{{
-						warehouseLabel(String(row.warehouse || ""), c.reference.warehouses)
-					}}</template>
+					<LocationLabel
+						v-else-if="column.id === 'warehouse'"
+						:label="
+							warehouseLabel(String(row.warehouse || ''), c.reference.warehouses)
+						"
+					/>
 					<template v-else-if="column.id === 'batch_no'">{{
 						row.batch_no || "—"
 					}}</template>
@@ -991,8 +1001,10 @@ async function back() {
 			<div v-if="!deskOrigin" class="count-confirmation-rows">
 				<p v-for="row in reviewedRows" :key="c.countKey(row)">
 					{{ c.names[row.item_code] || row.item_code }} ·
-					{{ warehouseLabel(row.warehouse, c.reference.warehouses) }} ·
-					{{ row.batch_no || "无批次" }} · 账面 {{ row.baseline_qty }} · 实点
+					<LocationLabel
+						:label="warehouseLabel(row.warehouse, c.reference.warehouses)"
+					/>
+					· {{ row.batch_no || "无批次" }} · 账面 {{ row.baseline_qty }} · 实点
 					{{ row.actual_qty ?? "待核对" }} {{ unitLabel(row.stock_uom) }} · 差异
 					<span
 						v-if="row.actual_qty !== null"
@@ -1019,8 +1031,10 @@ async function back() {
 			<div v-else v-for="(row, index) in values.items" :key="String(row.name || index)">
 				<p>
 					{{ row.item_code }} ·
-					{{ warehouseLabel(row.warehouse, c.reference.warehouses) }} ·
-					{{ row.batch_no || "库存明细" }} · 账面 {{ row.current_qty ?? "未记录" }} ·
+					<LocationLabel
+						:label="warehouseLabel(row.warehouse, c.reference.warehouses)"
+					/>
+					· {{ row.batch_no || "库存明细" }} · 账面 {{ row.current_qty ?? "未记录" }} ·
 					实点 {{ row.qty }} {{ unitLabel(row.stock_uom) }}
 				</p>
 				<NativeCountAllocations :row="row" />

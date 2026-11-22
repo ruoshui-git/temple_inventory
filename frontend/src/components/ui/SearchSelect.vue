@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import LocationLabel from "./LocationLabel.vue";
 import { computed, ref, useId, watch, onMounted, onBeforeUnmount, nextTick } from "vue";
 import VirtualList from "./VirtualList.vue";
 import UiButton from "./UiButton.vue";
@@ -350,8 +351,12 @@ defineExpose({
 							@mousedown.prevent
 							@click="!option.disabled && choose(option.value)"
 						>
-							{{ option.label
-							}}<small v-if="option.detail">{{ option.detail }}</small>
+							<LocationLabel
+								v-if="option.label.includes(' / ')"
+								:label="option.label"
+							/>
+							<template v-else>{{ option.label }}</template
+							><small v-if="option.detail">{{ option.detail }}</small>
 						</li>
 					</ul>
 					<p v-if="state === 'ready' && !matches.length" role="status">没有匹配的选项</p>

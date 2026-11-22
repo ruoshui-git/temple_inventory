@@ -582,3 +582,33 @@
 	max-width: 300px;
 	color: var(--p-danger);
 }
+/* Location paths keep the site and cut the rest from the left. */
+.location-label {
+	display: inline-flex;
+	min-width: 0;
+	max-width: 100%;
+	align-items: baseline;
+	white-space: nowrap;
+	vertical-align: bottom;
+}
+
+.location-label-site {
+	flex: none;
+	/* Keeps the separator's trailing space, which a flex item would otherwise drop. */
+	white-space: pre;
+}
+
+.location-label-tail {
+	min-width: 0;
+	overflow: hidden;
+	direction: rtl;
+	text-align: left;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	unicode-bidi: isolate;
+}
+
+.location-label-tail bdi {
+	direction: ltr;
+	unicode-bidi: isolate;
+}

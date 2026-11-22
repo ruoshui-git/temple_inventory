@@ -79,12 +79,6 @@ export const expiryColumnDefinitions: DataColumn[] = [
     export: ["warehouse"],
   },
   {
-    id: "warehouse_path",
-    label: "完整位置",
-    defaultVisible: false,
-    export: ["warehouse_path"],
-  },
-  {
     id: "warehouse_native_name",
     label: "ERPNext 库位",
     defaultVisible: false,

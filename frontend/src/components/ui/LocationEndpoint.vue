@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useOptionalReferenceData } from "../../services/contracts";
-import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
+import { warehouseLabel, warehouseName } from "../../lib/warehouseLabel";
 import InventoryIcon from "../InventoryIcon.vue";
+import LocationLabel from "./LocationLabel.vue";
 import { kindIcons } from "../../lib/kindIcons";
 
 const props = defineProps<{
@@ -33,7 +34,7 @@ const endpoint = computed(() => {
 			label: warehouseLabel(props.warehouse, reference?.warehouses || [], props.warehouse),
 			icon: "",
 			className: "is-location",
-			detail: warehousePath(props.warehouse, reference?.warehouses || [], props.warehouse),
+			detail: warehouseName(props.warehouse, reference?.warehouses || []),
 		};
 	}
 	const settings = reference?.settings || {};
@@ -69,9 +70,14 @@ const endpoint = computed(() => {
 		label: warehouseLabel(props.warehouse, reference?.warehouses || [], props.warehouse),
 		icon: "",
 		className: "is-location",
-		detail: warehousePath(props.warehouse, reference?.warehouses || [], props.warehouse),
+		detail: warehouseName(props.warehouse, reference?.warehouses || []),
 	};
 });
+const title = computed(() =>
+	endpoint.value.className === "is-location"
+		? [endpoint.value.label, endpoint.value.detail].filter(Boolean).join(" · ")
+		: endpoint.value.detail,
+);
 const ariaLabel = computed(
 	() =>
 		`${props.kind === "Reconcile" || props.kind === "Stock Reconciliation" ? "盘点位置" : props.role || "位置"} ${endpoint.value.label}${endpoint.value.detail && endpoint.value.label !== endpoint.value.detail ? `，${endpoint.value.detail}` : ""}`,
@@ -82,11 +88,16 @@ const ariaLabel = computed(
 	<span
 		class="location-endpoint"
 		:class="endpoint.className"
-		:title="endpoint.detail"
+		:title="title"
 		:aria-label="ariaLabel"
 	>
 		<InventoryIcon v-if="endpoint.icon" :name="endpoint.icon" />
-		<span>{{ endpoint.label }}</span>
+		<LocationLabel
+			v-if="endpoint.className === 'is-location'"
+			:label="endpoint.label"
+			:title="title"
+		/>
+		<span v-else>{{ endpoint.label }}</span>
 	</span>
 </template>
 

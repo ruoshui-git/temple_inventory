@@ -9,6 +9,7 @@ import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import { warehouseLabel } from "../../lib/warehouseLabel";
+import LocationLabel from "../../components/ui/LocationLabel.vue";
 import type { HistoryRow } from "../movements/useMovementHistory";
 import CountSummary from "./CountSummary.vue";
 import type { CountRow } from "./countModel";
@@ -503,7 +504,7 @@ function itemImage(row: CountRow) {
 			</div>
 			<p v-for="(row, index) in removed" :key="index">
 				{{ row.item_name || names[row.item_code] || row.item_code }} ·
-				{{ warehouseLabel(row.warehouse, reference.warehouses) }} ·
+				<LocationLabel :label="warehouseLabel(row.warehouse, reference.warehouses)" /> ·
 				{{ row.batch_no || "无批次" }} ·
 				{{ row.actual_qty ?? "未核对" }}
 				{{ unitLabel(String(row.stock_uom || "")) }}
@@ -553,9 +554,12 @@ function itemImage(row: CountRow) {
 										· {{ row.batch_no }}</template
 									></small
 								>
-								<small class="count-card-location">{{
-									warehouseLabel(row.warehouse, reference.warehouses)
-								}}</small>
+								<small class="count-card-location"
+									><LocationLabel
+										:label="
+											warehouseLabel(row.warehouse, reference.warehouses)
+										"
+								/></small>
 							</div>
 						</div>
 						<div class="count-card-counts" :class="{ 'is-serial': row.is_serial }">
@@ -705,9 +709,10 @@ function itemImage(row: CountRow) {
 			@toggle-group="toggleCountGroup"
 		>
 			<template #cell="{ column, row }">
-				<template v-if="column.id === 'location'">{{
-					warehouseLabel(String(row.warehouse || ""), reference.warehouses)
-				}}</template>
+				<LocationLabel
+					v-if="column.id === 'location'"
+					:label="warehouseLabel(String(row.warehouse || ''), reference.warehouses)"
+				/>
 				<div v-else-if="column.id === 'image'" class="count-item-thumbnail">
 					<ItemImage :item="itemImage(row as unknown as CountRow)" />
 				</div>
@@ -827,9 +832,12 @@ function itemImage(row: CountRow) {
 				</div>
 			</template>
 			<template #group-label="{ group }">
-				<span v-if="isSerialDetailGroup(group)">{{
-					warehouseLabel(serialDetailValue(group).warehouse, reference.warehouses)
-				}}</span>
+				<LocationLabel
+					v-if="isSerialDetailGroup(group)"
+					:label="
+						warehouseLabel(serialDetailValue(group).warehouse, reference.warehouses)
+					"
+				/>
 			</template>
 			<template #group-column="{ group, column }">
 				<template v-if="isSerialDetailGroup(group)">
@@ -950,8 +958,9 @@ function itemImage(row: CountRow) {
 			@close="c.closeHistory"
 		>
 			<p>
-				{{ warehouseLabel(historyTarget.warehouse, reference.warehouses)
-				}}<template v-if="historyTarget.batch_no">
+				<LocationLabel
+					:label="warehouseLabel(historyTarget.warehouse, reference.warehouses)"
+				/><template v-if="historyTarget.batch_no">
 					· {{ historyTarget.batch_no }}</template
 				>
 			</p>
@@ -978,7 +987,10 @@ function itemImage(row: CountRow) {
 				{{
 					notesTarget.item_name || names[notesTarget.item_code] || notesTarget.item_code
 				}}
-				· {{ warehouseLabel(notesTarget.warehouse, reference.warehouses) }}
+				·
+				<LocationLabel
+					:label="warehouseLabel(notesTarget.warehouse, reference.warehouses)"
+				/>
 			</p>
 			<label class="form-field"
 				>差异原因<textarea

@@ -12,6 +12,7 @@ import type {
 } from "../../lib/dataTable";
 import { dataColumnAlignment, dataColumnKind, orderedVisibleColumns } from "../../lib/dataTable";
 import DisclosureIcon from "./DisclosureIcon.vue";
+import LocationLabel from "./LocationLabel.vue";
 import { useOverflowEdges } from "../../composables/useOverflowEdges";
 import { useStickyGroupRows, type StickyGroupMeta } from "../../composables/useStickyGroupRows";
 import FloatingTableScrollbar from "./FloatingTableScrollbar.vue";
@@ -843,7 +844,21 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 												<span
 													class="data-table-group-name"
 													:title="entry.label"
-													>{{ entry.label }}</span
+													><LocationLabel
+														v-if="
+															[
+																'location',
+																'warehouse',
+																'source',
+																'destination',
+																'source_warehouse',
+																'destination_warehouse',
+															].includes(entry.labelColumn || '')
+														"
+														:label="entry.label"
+													/><template v-else>{{
+														entry.label
+													}}</template></span
 												>
 											</button>
 											<span class="data-table-group-count"
@@ -916,7 +931,21 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 													<span
 														class="data-table-group-name"
 														:title="entry.label"
-														>{{ entry.label }}</span
+														><LocationLabel
+															v-if="
+																[
+																	'location',
+																	'warehouse',
+																	'source',
+																	'destination',
+																	'source_warehouse',
+																	'destination_warehouse',
+																].includes(entry.labelColumn || '')
+															"
+															:label="entry.label"
+														/><template v-else>{{
+															entry.label
+														}}</template></span
 													>
 												</button>
 												<span

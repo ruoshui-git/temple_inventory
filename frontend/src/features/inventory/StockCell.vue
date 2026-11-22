@@ -4,6 +4,7 @@ import { RouterLink } from "vue-router";
 import ItemImage from "../../components/ItemImage.vue";
 import StockDetails from "../../components/StockDetails.vue";
 import UnitText from "../../components/ui/UnitText.vue";
+import LocationLabel from "../../components/ui/LocationLabel.vue";
 import type { DataColumn } from "../../lib/dataTable";
 import { itemBatches } from "../../lib/stockPresentation";
 import { routeTarget } from "../../lib/routeRegistry";
@@ -17,7 +18,6 @@ import {
 	stockLocationDetail,
 	stockLocationLabel,
 	stockName,
-	stockWarehousePath,
 	type StockReference,
 	type StockRow,
 } from "./stockColumns";
@@ -71,9 +71,10 @@ const compactSummary = computed(() => {
 		><UnitText :name="row.uom || row.stock_uom"
 	/></template>
 	<template v-else-if="column.id === 'category'">{{ row.category || "未分类" }}</template>
-	<template v-else-if="column.id === 'warehouse_label'">{{
-		stockComponentDetail(row, "warehouse_label", reference.siteDate) || "—"
-	}}</template>
+	<LocationLabel
+		v-else-if="column.id === 'warehouse_label'"
+		:label="stockComponentDetail(row, 'warehouse_label', reference.siteDate) || '—'"
+	/>
 	<template v-else-if="column.id === 'batch_no'">{{
 		stockComponentDetail(row, "batch_no", reference.siteDate) || "—"
 	}}</template>
@@ -100,13 +101,8 @@ const compactSummary = computed(() => {
 		stockComponentDetail(row, "batch_no", reference.siteDate) || "—"
 	}}</template>
 	<template v-else-if="column.id === 'locations'"
-		><span :title="stockWarehousePath(row, reference)">{{
-			stockLocationLabel(row, reference)
-		}}</span></template
-	>
-	<template v-else-if="column.id === 'warehouse_path'">{{
-		stockLocationDetail(row, "path") || "—"
-	}}</template>
+		><LocationLabel :label="stockLocationLabel(row, reference)"
+	/></template>
 	<template v-else-if="column.id === 'warehouse_native_name'">{{
 		stockLocationDetail(row, "nativeName") || "—"
 	}}</template>

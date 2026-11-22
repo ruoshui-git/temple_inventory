@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 
 import Overlay from "../../components/ui/Overlay.vue";
 import Scanner from "../../components/Scanner.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
+import LocationLabel from "../../components/ui/LocationLabel.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import { defineAsyncComponent } from "vue";
 const ImageCrop = defineAsyncComponent(() => import("../../components/ui/ImageCrop.vue"));
@@ -405,7 +406,7 @@ defineExpose({
 					>
 				</article>
 				<template v-if="result.warehouse">
-					<p>{{ result.warehouse.label }}</p>
+					<p><LocationLabel :label="result.warehouse.label" /></p>
 					<template v-if="result.warehouse.is_group">
 						<p>这是分组节点，请选择具体库位。</p>
 						<SearchSelect

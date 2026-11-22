@@ -41,7 +41,6 @@ describe("groupImpliedColumns", () => {
       "locations",
       "warehouse",
       "warehouse_label",
-      "warehouse_path",
       "warehouse_native_name",
     ]);
     expect(groupImpliedColumns(["batch"])).toEqual(["batches", "batch_no"]);
@@ -49,12 +48,10 @@ describe("groupImpliedColumns", () => {
     expect(groupImpliedColumns(["activity"])).toEqual(["activity_title"]);
     expect(groupImpliedColumns(["source"])).toEqual([
       "source",
-      "source_warehouse_path",
       "source_warehouse_native_name",
     ]);
     expect(groupImpliedColumns(["destination"])).toEqual([
       "destination",
-      "destination_warehouse_path",
       "destination_warehouse_native_name",
     ]);
     expect(groupImpliedColumns(["status"])).toEqual(["docstatus"]);

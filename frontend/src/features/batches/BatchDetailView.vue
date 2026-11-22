@@ -13,6 +13,7 @@ import type { AppRouteTarget } from "../../lib/routeRegistry";
 import { movementLabels } from "../../lib/presentationLabels";
 import { useReferenceData } from "../../services/contracts";
 import { warehouseLabel } from "../../lib/warehouseLabel";
+import LocationLabel from "../../components/ui/LocationLabel.vue";
 import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
 import DataTable from "../../components/ui/DataTable.vue";
 import DateField from "../../components/ui/DateField.vue";
@@ -263,13 +264,16 @@ function openDocument(row: Record<string, unknown>) {
 				empty-text="此批次当前没有位置余额"
 			>
 				<template #cell="{ column, row }">
-					<template v-if="column.id === 'warehouse'">{{
-						warehouseLabel(
-							String(row.warehouse || ""),
-							reference.warehouses,
-							String(row.warehouse_label || ""),
-						)
-					}}</template>
+					<LocationLabel
+						v-if="column.id === 'warehouse'"
+						:label="
+							warehouseLabel(
+								String(row.warehouse || ''),
+								reference.warehouses,
+								String(row.warehouse_label || ''),
+							)
+						"
+					/>
 					<template v-else-if="column.id === 'stock_uom'">{{
 						unitLabel(String(row.stock_uom || ""))
 					}}</template>

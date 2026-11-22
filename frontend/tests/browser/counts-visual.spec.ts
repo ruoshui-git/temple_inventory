@@ -1,12 +1,16 @@
 import { expect, test } from "@playwright/test";
-import { nativeUiSession, showPhoneTable } from "./fixtures/nativeUi";
+import {
+  nativeUiSession,
+  sampleWarehouses,
+  showPhoneTable,
+} from "./fixtures/nativeUi";
 
 const reviewRows = [
   {
     item_code: "ITEM-A",
     item_name: "礼堂椅",
     image: "",
-    warehouse: "A02-DIRECT",
+    warehouse: "LONG-COUNT",
     batch_no: null,
     stock_uom: "Nos",
     baseline_qty: 4,
@@ -47,6 +51,19 @@ const baselineRows = reviewRows.map((row) => ({
   actual_qty: null,
   review_state: "Unreviewed",
 }));
+const countPath = "T2 / OUT / FY / 北侧器材储物架第一层";
+const longCountLocation = {
+  ...sampleWarehouses.find((row) => row.name === "ROOM-A")!,
+  name: "LONG-COUNT",
+  label: countPath,
+  path: countPath,
+  local_label: "北侧器材储物架第一层",
+  short_label: "S1",
+  full_label: "北侧器材储物架第一层",
+  parent: "ROOM-A",
+  kind: "shelf" as const,
+  is_group: false,
+};
 const detailDocument = {
   doctype: "Stock Reconciliation",
   name: "COUNT-VISUAL",
@@ -87,7 +104,9 @@ test("fixture count editor and detail render the review layouts at desktop and p
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await nativeUiSession(page, 100, {
+    warehouses: [...sampleWarehouses, longCountLocation],
     physical_leaves: [
+      "LONG-COUNT",
       "A02-DIRECT",
       "SHELF-1",
       "DEMO-A-DIRECT",
@@ -140,7 +159,7 @@ test("fixture count editor and detail render the review layouts at desktop and p
             : row;
         }),
         timestamp: args.timestamp,
-        warehouses: ["A02-DIRECT", "ROOM-B-DIRECT"],
+        warehouses: ["LONG-COUNT", "ROOM-B-DIRECT"],
         removed_rows: [],
       };
     } else if (method === "counts.save_count") {
@@ -199,6 +218,12 @@ test("fixture count editor and detail render the review layouts at desktop and p
     await page.goto("/inventory/counts/new");
     const rows = page.locator("[data-count-key]");
     await expect(rows.first()).toBeVisible();
+    const location = page.locator(`.location-label[title="${countPath}"]`);
+    await expect(location).toHaveAttribute("title", countPath);
+    await expect(location.locator(".location-label-site")).toHaveText("T2 /");
+    await expect(location.locator(".location-label-tail")).toContainText(
+      "北侧器材储物架第一层",
+    );
     await expect(page.getByRole("combobox", { name: "分组方式" })).toHaveValue(
       "location",
     );

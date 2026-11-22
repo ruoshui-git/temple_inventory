@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, useSlots } from "vue";
 import { useOptionalInventoryServices, useOptionalReferenceData } from "../../services/contracts";
-import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
+import { warehouseLabel, warehouseTitle } from "../../lib/warehouseLabel";
 import { nativeStatusLabel, tablePresentationLabel } from "../../lib/presentationLabels";
 import { formatSiteDateTime } from "../../lib/nativeTime";
 import { formatQuantity, formatQuantityWithUnit } from "../../lib/formatQuantity";
@@ -23,6 +23,7 @@ import { dataColumnKind } from "../../lib/dataTable";
 import { movementLabels } from "../../lib/presentationLabels";
 import { enumPresentationLabel } from "../../lib/presentationLabels";
 import LocationEndpoint from "./LocationEndpoint.vue";
+import LocationLabel from "./LocationLabel.vue";
 import { RouterLink } from "vue-router";
 import { routeTarget } from "../../lib/routeRegistry";
 import { unitLabel, sortByUnit } from "../../lib/units";
@@ -279,7 +280,7 @@ function warehouseCellTitle(column: string, value: unknown, row: Record<string, 
 		].includes(column)
 	)
 		return undefined;
-	return warehousePath(value, reference?.warehouses || [], row[column + "_label"]);
+	return warehouseTitle(value, reference?.warehouses || [], row[column + "_label"]);
 }
 
 function stockEffect(row: Record<string, unknown>) {
@@ -525,13 +526,17 @@ function groupMetric(group: DataTableGroup, column: string) {
 							: undefined)
 					"
 				>
-					{{
+					<LocationLabel
+						v-if="['warehouse', 'origin_warehouse'].includes(String(column.id))"
+						:label="String(displayCell(String(column.id), value, row))"
+					/>
+					<template v-else>{{
 						column.id === "stock_uom" ||
 						column.id === "entered_uom" ||
 						column.id === "uom"
 							? unitLabel(String(value || ""))
 							: displayCell(String(column.id), value, row)
-					}}
+					}}</template>
 					<span v-if="quantityTone(String(column.id), row)" class="sr-only">{{
 						quantityEffectLabel(row)
 					}}</span>

@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import { warehouseLabel, warehousePath, warehouseSearchText } from "../../lib/warehouseLabel";
+import {
+	warehouseLabel,
+	warehouseTitle,
+	warehouseName,
+	warehouseSearchText,
+} from "../../lib/warehouseLabel";
 import { unitLabel, unitOption, sortByUnit } from "../../lib/units";
 import UnitText from "../../components/ui/UnitText.vue";
 import { formatQuantity } from "../../lib/formatQuantity";
@@ -219,8 +224,8 @@ const scanDestinationOptions = computed<ItemScanOption[]>(() => {
 	return destinationChoices(source).map((name) => ({
 		value: name,
 		label: warehouseLabel(name, reference.warehouses),
-		title: warehousePath(name, reference.warehouses),
-		detail: warehousePath(name, reference.warehouses),
+		title: warehouseTitle(name, reference.warehouses),
+		detail: warehouseName(name, reference.warehouses),
 		keywords: warehouseSearchText(name, reference.warehouses),
 	}));
 });
@@ -509,8 +514,8 @@ const locationOptions = computed(() =>
 	places.value.map((name) => ({
 		value: name,
 		label: warehouseLabel(name, reference.warehouses),
-		title: warehousePath(name, reference.warehouses),
-		detail: warehousePath(name, reference.warehouses),
+		title: warehouseTitle(name, reference.warehouses),
+		detail: warehouseName(name, reference.warehouses),
 		keywords: warehouseSearchText(name, reference.warehouses),
 	})),
 );
@@ -581,8 +586,8 @@ function lineLocationOptions(section: OperationLocationSection, line: Allocation
 			const node = reference.warehouses.find((row) => row.name === option.value);
 			return {
 				...option,
-				label: node?.short_label || node?.local_label || option.label,
-				title: option.title || warehousePath(option.value, reference.warehouses),
+				label: node ? warehouseLabel(node.name, reference.warehouses) : option.label,
+				title: option.title || warehouseTitle(option.value, reference.warehouses),
 			};
 		});
 }
@@ -861,7 +866,12 @@ function scanResolutionFor(
 			value: source,
 			label: warehouseLabel(source, reference.warehouses),
 			available,
-			detail: `${warehousePath(source, reference.warehouses)} · 可用 ${available} ${unitLabel(item.uom)}`,
+			detail: [
+				warehouseName(source, reference.warehouses),
+				`可用 ${available} ${unitLabel(item.uom)}`,
+			]
+				.filter(Boolean)
+				.join(" · "),
 			keywords: warehouseSearchText(source, reference.warehouses),
 		};
 	});
@@ -920,8 +930,8 @@ function scanResolutionFor(
 					destinationOptions: destinationValues.map((name) => ({
 						value: name,
 						label: warehouseLabel(name, reference.warehouses),
-						title: warehousePath(name, reference.warehouses),
-						detail: warehousePath(name, reference.warehouses),
+						title: warehouseTitle(name, reference.warehouses),
+						detail: warehouseName(name, reference.warehouses),
 						keywords: warehouseSearchText(name, reference.warehouses),
 					})),
 					defaultSource,
@@ -1578,8 +1588,8 @@ function receiveBatchChanged(line: AllocationLine) {
 								places.map((name) => ({
 									value: name,
 									label: warehouseLabel(name, reference.warehouses),
-									title: warehousePath(name, reference.warehouses),
-									detail: warehousePath(name, reference.warehouses),
+									title: warehouseTitle(name, reference.warehouses),
+									detail: warehouseName(name, reference.warehouses),
 									keywords: warehouseSearchText(name, reference.warehouses),
 								}))
 							"
@@ -1645,8 +1655,8 @@ function receiveBatchChanged(line: AllocationLine) {
 								transferDestinations.map((name) => ({
 									value: name,
 									label: warehouseLabel(name, reference.warehouses),
-									title: warehousePath(name, reference.warehouses),
-									detail: warehousePath(name, reference.warehouses),
+									title: warehouseTitle(name, reference.warehouses),
+									detail: warehouseName(name, reference.warehouses),
 									keywords: warehouseSearchText(name, reference.warehouses),
 								}))
 							"
@@ -2152,8 +2162,8 @@ function receiveBatchChanged(line: AllocationLine) {
 											.map((name) => ({
 												value: name,
 												label: warehouseLabel(name, reference.warehouses),
-												title: warehousePath(name, reference.warehouses),
-												detail: warehousePath(name, reference.warehouses),
+												title: warehouseTitle(name, reference.warehouses),
+												detail: warehouseName(name, reference.warehouses),
 											}))
 									"
 									@update:model-value="line.location = $event"

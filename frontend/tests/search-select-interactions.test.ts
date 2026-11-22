@@ -211,8 +211,9 @@ describe("SearchSelect interactions", () => {
       document.querySelectorAll('.search-select-menu [role="option"]'),
     ).toHaveLength(1);
     expect(
-      document.querySelector('.search-select-menu [role="option"]')
-        ?.textContent,
-    ).toContain("库房 / 货架");
+      document
+        .querySelector(".search-select-menu .location-label")
+        ?.getAttribute("title"),
+    ).toBe("库房 / 货架");
   });
 });

@@ -1,7 +1,7 @@
 import type { DataColumn } from "../../lib/dataTable";
 import { presentationText } from "../../lib/presentationLabels";
 import { expiryStatus, type StockItem } from "../../lib/stockPresentation";
-import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
+import { warehouseLabel } from "../../lib/warehouseLabel";
 import type { ReferenceData } from "../../services/contracts";
 
 export function inventoryColumnsForPage(
@@ -86,12 +86,6 @@ export function inventoryColumnsForPage(
       export: ["serial_nos"],
     },
     {
-      id: "warehouse_path",
-      label: "完整位置",
-      defaultVisible: false,
-      export: ["warehouse_path"],
-    },
-    {
       id: "warehouse_native_name",
       label: "ERPNext 库位",
       defaultVisible: false,
@@ -166,7 +160,6 @@ const BATCH_LEVEL_COLUMNS = [
 const LOCATION_LEVEL_COLUMNS = [
   "locations",
   "warehouse_label",
-  "warehouse_path",
   "warehouse_native_name",
 ];
 
@@ -215,26 +208,12 @@ export function stockLocationLabel(row: StockRow, reference: StockReference) {
   );
 }
 
-export function stockLocationDetail(
-  row: StockRow,
-  field: "path" | "nativeName",
-) {
-  if (!isStockItemRow(row))
-    return String(
-      row[field === "path" ? "warehouse_path" : "warehouse_native_name"] || "",
-    );
+export function stockLocationDetail(row: StockRow, field: "nativeName") {
+  if (!isStockItemRow(row)) return String(row.warehouse_native_name || "");
   return row.locations
     .map((location) => location[field])
     .filter(Boolean)
     .join("；");
-}
-
-export function stockWarehousePath(row: StockRow, reference: StockReference) {
-  return warehousePath(
-    row.warehouse || row.warehouse_label,
-    reference.warehouses,
-    row.warehouse_label,
-  );
 }
 
 export function stockComponentDetail(

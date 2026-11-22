@@ -12,6 +12,7 @@ import PageHeader from "../../components/ui/PageHeader.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import BackButton from "../../components/ui/BackButton.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
+import LocationLabel from "../../components/ui/LocationLabel.vue";
 import DateField from "../../components/ui/DateField.vue";
 import ItemImage from "../../components/ItemImage.vue";
 import InboundSerialField from "../documents/InboundSerialField.vue";
@@ -19,7 +20,12 @@ import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import Attachments from "../../components/Attachments.vue";
 import { confirm as confirmDialog } from "../../services/confirm";
-import { warehouseLabel, warehousePath, warehouseSearchText } from "../../lib/warehouseLabel";
+import {
+	warehouseLabel,
+	warehouseTitle,
+	warehouseName,
+	warehouseSearchText,
+} from "../../lib/warehouseLabel";
 import type { NativeDocument } from "../documents/nativeEditor";
 const props = defineProps<{
 	name?: string;
@@ -77,8 +83,8 @@ const locationOptions = computed(() =>
 	warehouses.value.map((location) => ({
 		value: location.name,
 		label: location.label || warehouseLabel(location.name, warehouses.value),
-		title: warehousePath(location.name, warehouses.value),
-		detail: warehousePath(location.name, warehouses.value),
+		title: warehouseTitle(location.name, warehouses.value),
+		detail: warehouseName(location.name, warehouses.value),
 		keywords: warehouseSearchText(location.name, warehouses.value),
 	})),
 );
@@ -327,9 +333,10 @@ async function lifecycle(kind: "cancel" | "amend") {
 						<strong>{{ row.item_name }}</strong
 						><small>{{ row.item_code }}</small>
 					</div>
-					<template v-else-if="column.id === 'warehouse'">{{
-						row.warehouse_label
-					}}</template>
+					<LocationLabel
+						v-else-if="column.id === 'warehouse'"
+						:label="String(row.warehouse_label || '')"
+					/>
 					<template v-else-if="column.id === 'batch_no'">{{ row.batch_no }}</template>
 					<span v-else-if="column.id === 'qty'">{{
 						formatQuantityWithUnit(Number(row.qty), row.stock_uom)

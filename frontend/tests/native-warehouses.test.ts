@@ -9,7 +9,7 @@ import {
   provideInventoryServices,
   type LocationNode,
 } from "../src/services/contracts";
-import { warehouseLabel, warehousePath } from "../src/lib/warehouseLabel";
+import { warehouseLabel } from "../src/lib/warehouseLabel";
 import type { ReportQuery } from "../src/lib/reportContract";
 import { fixtureServices } from "./support/fixtureServices";
 import { provideGalleryReference } from "./support/fixtureReference";
@@ -61,7 +61,7 @@ const area = node({
 });
 const room = node({
   name: "ROOM",
-  label: "A02",
+  label: "T2 / A02",
   local_label: "演示室甲",
   full_label: "演示室甲",
   path: "T2 / A02",
@@ -79,7 +79,7 @@ const room = node({
 });
 const direct = node({
   name: "ROOM-DIRECT",
-  label: "A02",
+  label: "T2 / A02",
   local_label: "演示室甲",
   full_label: "演示室甲",
   path: "T2 / A02",
@@ -242,8 +242,7 @@ describe("native location workspace", () => {
     expect(
       c.visibleRows.value.find((row) => row.name === "ROOM")?.local_label,
     ).toBe("演示室甲");
-    expect(warehouseLabel("ROOM-DIRECT", tree.rows)).toBe("A02");
-    expect(warehousePath("ROOM-DIRECT", tree.rows)).toBe("T2 / A02");
+    expect(warehouseLabel("ROOM-DIRECT", tree.rows)).toBe("T2 / A02");
   });
   it("creates a location through the versioned location API shape", async () => {
     const call = vi.fn(async (endpoint: string) =>

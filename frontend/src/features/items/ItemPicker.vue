@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { unitLabel } from "../../lib/units";
 import FilterDisclosure from "../../components/ui/FilterDisclosure.vue";
-import { warehouseLabel, warehousePath } from "../../lib/warehouseLabel";
+import { warehouseLabel, warehouseTitle } from "../../lib/warehouseLabel";
 import { computed, ref, nextTick, watch, onMounted } from "vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import UiButton from "../../components/ui/UiButton.vue";
@@ -825,7 +825,7 @@ async function selectExisting(code: string, warehouse: string) {
 											v-if="item.pickerWarehouse && purpose !== 'inbound'"
 											class="picker-phone-location"
 											:title="
-												warehousePath(
+												warehouseTitle(
 													item.pickerWarehouse,
 													reference.warehouses,
 												)
@@ -941,7 +941,7 @@ async function selectExisting(code: string, warehouse: string) {
 										<span
 											v-if="row.pickerWarehouse"
 											:title="
-												warehousePath(
+												warehouseTitle(
 													String(row.pickerWarehouse),
 													reference.warehouses,
 												)

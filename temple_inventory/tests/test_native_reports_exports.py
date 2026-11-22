@@ -325,7 +325,6 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			("expiry", "batches"): {
 				"stock_qty": "库存数量",
 				"warehouse": "位置",
-				"warehouse_path": "完整位置",
 				"warehouse_native_name": "ERPNext 库位",
 				"expiry_date": "到期日期",
 				"remaining_days": "剩余天数",
@@ -337,7 +336,6 @@ class NativeReportsExportsTests(NativeReportTestCase):
 				"expiry_date": "到期日期",
 				"remaining_days": "剩余天数",
 				"expiry_state": "到期状态",
-				"warehouse_path": "完整位置",
 				"warehouse_native_name": "ERPNext 库位",
 			},
 			("movements", "records"): {
@@ -347,7 +345,6 @@ class NativeReportsExportsTests(NativeReportTestCase):
 				"borrower": "借用方",
 				"source": "来源位置",
 				"destination": "去向位置",
-				"source_warehouse_path": "来源完整位置",
 				"destination_warehouse_native_name": "去向 ERPNext 库位",
 				"time": "时间",
 				"available_effect": "可用变化",
@@ -381,11 +378,23 @@ class NativeReportsExportsTests(NativeReportTestCase):
 				"time": "时间",
 				"original_loan": "原借出",
 			},
-			("counts", "lines"): {"difference": "差异量", "warehouse_path": "完整位置"},
+			("counts", "lines"): {"difference": "差异量"},
 		}
 		for (dataset, table), fields in contracts.items():
 			for field, expected in fields.items():
 				self.assertEqual(export_label(dataset, field, table), expected)
+		from temple_inventory.export_columns import allowed_columns
+
+		for dataset, table in (("inventory", "locations"), ("movements", "lines"), ("counts", "lines")):
+			self.assertFalse(
+				{
+					"warehouse_path",
+					"origin_warehouse_path",
+					"source_warehouse_path",
+					"destination_warehouse_path",
+				}
+				& set(allowed_columns(dataset, table))
+			)
 
 	def test_count_record_export_matches_every_page_column(self):
 		self.receipt(10)
@@ -1379,11 +1388,12 @@ class NativeReportsExportsTests(NativeReportTestCase):
 		query = self.query("movements", "lines", record=doc.name, statuses=[1])
 		with Projection(query) as projection, tempfile.TemporaryDirectory() as directory:
 			projection.build()
+			expected_label = projection.context.label(self.a)
 			row = next(projection.rows("lines"))
 			self.assertEqual(row["docstatus"], 1)
 			self.assertEqual(row["docstatus_label"], "已提交")
 			self.assertEqual(row["destination_warehouse"], self.a)
-			self.assertEqual(row["destination_warehouse_label"], "供灯-用品")
+			self.assertEqual(row["destination_warehouse_label"], expected_label)
 			self.assertEqual(
 				row["destination_warehouse_path"],
 				projection.context.location_fields(self.a)["warehouse_path"],
@@ -1398,7 +1408,7 @@ class NativeReportsExportsTests(NativeReportTestCase):
 			with path.open(encoding="utf-8-sig", newline="") as stream:
 				values = next(csv.DictReader(stream))
 			self.assertEqual(values["状态"], "已提交")
-		self.assertEqual(values["去向位置"], "供灯-用品")
+		self.assertEqual(values["去向位置"], expected_label)
 		self.assertNotIn(self.a, values.values())
 
 	def test_saved_opening_export_uses_native_movement_quantities_and_counts_opening_stock(self):

@@ -32,7 +32,7 @@ This document owns tokens, geometry and shared visual contracts. [UI_UX_DECISION
 - **Overlay layers:** `lib/overlayLayers.ts` owns app inertness and the body scroll lock from the layers still open, so layers may close out of order (a phone menu sheet closing after the dialog it opened).
 - **ItemGallery:** a reserved hero (contain) and a strip of ≥44px thumbnails with a selected outline; arrow keys and swipe move between images and the lightbox has previous/next. `Item.image` comes first, then image attachments; with no image it shows the shared item artwork.
 - **ItemImage / ItemLine:** ItemImage reserves stable dimensions and uses shared missing/error SVG artwork. ItemLine pairs image/lightbox and Item name, with one secondary related identity.
-- **LocationEndpoint / QuantitySummary / UnitText:** Use semantic endpoint treatments for physical, leased/damaged and outside locations. QuantitySummary keeps unit/status categories distinct and complete breakdown in accessible text. UnitText is the standalone unit presentation; keep quantity and unit together.
+- **LocationLabel / LocationEndpoint / QuantitySummary / UnitText:** LocationLabel keeps the first path segment visible and truncates the remaining path from the left in constrained single-line layouts; its title and accessible name retain the full path. Use it for physical location labels. LocationEndpoint uses semantic endpoint treatments for physical, leased/damaged and outside locations. QuantitySummary keeps unit/status categories distinct and complete breakdown in accessible text. UnitText is the standalone unit presentation; keep quantity and unit together.
 - **Attachments:** shared file picker uses a localized button/label, hidden native input and chosen-file list. Main-image controls use image icons; general attachments use paperclip. Never show native English file-input text.
 - **Scanner dialog:** small dialog, square preview, camera controls, manual entry and image recognition in one column. ItemPicker retains its inline scan stage.
 - **NotificationCenter:** bell target at least 44px, count capped at `99+`, accessible name includes unread count. Desktop bounded popover; phone full-height sheet. Rows use kind icon, emphasized subject, unread dot, relative time and export action.
@@ -82,6 +82,7 @@ Before visual browser inspection, run the browser under `scripts/ui-visual-prefl
 
 ## Changelog
 
+- 2026-11-22: added LocationLabel for full-path location text with a persistent site segment and left-side truncation.
 - 2026-11-13: width tiers documented; phone-only rules end at 599px so 600px is tablet everywhere, and the remaining special widths carry their reason.
 - 2026-11-13: radius and type are fixed tokens shared by every theme (bronze and blue lose their own radii); every radius and font-size literal moved onto `--p-radius-*` and `--p-micro`/`--p-small`/`--p-label`/`--p-body`/`--p-section`/`--p-heading`/`--p-input-text`, so rem-based text now follows the text-size setting too.
 - 2026-11-11: ItemCard thumbnails square again at every density (the 2026-11-09 fixed-height override is gone).

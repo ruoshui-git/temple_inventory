@@ -20,7 +20,7 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 | 类别 | ✅ | ✅ | |
 | 🆕 截至（历史库存） | ✅ | ✅ | 2026-11-02: 截至 filter; rows from the ledger at that moment (sample data: as-of a moment ago equals current stock for all 1,625 non-zero rows); export lists 截至 |
 | 库存位置 | ✅ | ✅ | 2026-11-02: separate 位置 and 批次 columns. 批次 (or another batch-level column) shown → one row per item × 库位 × 批次; only 位置 → one row per item × 库位 (batches summed); neither → one row per item. 效期 hidden by default |
-| 🔁 完整位置 / ERPNext 库位 | ✅ | ✅ | Hidden by default. 完整位置 is the app path ("T2 / A02 / S1"); ERPNext 库位 is the native warehouse_name without the company suffix ("T2 / A02 · 直接存放") |
+| ERPNext 库位 | ✅ | ✅ | Hidden by default. Location labels already use the app path; ERPNext 库位 is the native warehouse_name without the company suffix ("T2/A02 · 直接存放") |
 | 数量 | ✅ | ✅ | 🆕 可用数量 (on hand); 借出 / 损坏 / 合计 hidden by default. 🔁 合计 now shows a value and exports as 合计 (was blank / 数量). 🔄 Numeric cells, bold tabular digits; 物品名称 stays pinned while the table scrolls sideways |
 | 🔄 库存状态 | ✅ | ✅ | Per item across the selected locations: 有库存 (default, includes loaned/damaged-only), 有可用, 无可用, 无库存, 全部 |
 | 单位 | ✅ | ✅ | |
@@ -36,7 +36,7 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 | 🔄 到期日期 / 剩余天数 | ✅ | ✅ | The date is 到期日期 on page and in files; 效期 names the compound column |
 | 🆕 到期状态 | ✅ | ✅ | Page: 已过期 / 未过期 / 无效期 tabs and colored dates; export: 已过期 / 未过期 (无效期 for undated). 🔁 The 未过期 filter chip reads 到期窗口：未过期 |
 | 数量 / 单位 | ✅ | ✅ | |
-| 位置 | ✅ | ✅ | Canonical label, not the ERPNext name; 🔁 完整位置 / ERPNext 库位 optional |
+| 位置 | ✅ | ✅ | Canonical full-path label; ERPNext 库位 optional |
 | 汇总：物品数量 | ✅ | ✅ | "N 个批次 · M 种物品" + per-unit totals |
 
 ### 库房清单 — 仓库 → a location (or 库存 filtered by location)
@@ -55,7 +55,7 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 |---|---|---|---|
 | 图片 / 物品名称 / 物品编号 | ✅ | ✅ | 🔁 Thumbnails load on every 明细 row (were placeholders) |
 | 数量（未归还） | ✅ | ✅ | 2026-10-31: one 借用状态 filter — 未结清 (default, the 借出清单), 已结清, 全部 (adds return / damage / loss lines); replaces 记录范围 and 包括已结清物品. In the URL; the export follows it. 借还数量 is signed: loan +, return − |
-| 来源位置 | ✅ | ✅ | 🔁 Neutral labels (日期 / 编号 / 来源位置) because 明细 may list returns; 完整位置 / ERPNext 库位 optional |
+| 来源位置 | ✅ | ✅ | 🔁 Neutral labels (日期 / 编号 / 来源位置) because 明细 may list returns; ERPNext 库位 optional |
 | 借用方 | ✅ | ✅ | 🔄 One term on forms, columns, filters and files |
 | 借出活动 | ✅ | ✅ | |
 | 借出时间 | ✅ | ✅ | |
@@ -79,7 +79,7 @@ Verified 2026-10-29 on `development.localhost` (sample data) at 1440×900 and 39
 | 🆕 流动编号 | ✅ | ✅ | 🔁 编号 column holds only the record; 物品名称 is its own column |
 | 日期 | ✅ | ✅ | |
 | 移动类型 | ✅ | ✅ | 入库 / 出库 / 调拨 / 借出 / 归还 … 🔁 盘点调整 and 期初库存 are always listed and selectable in 流动类型 (the 包括盘点调整 switch is gone) |
-| 来源位置 / 去向位置 | ✅ | ✅ | Empty endpoint = 外部; a 盘点调整 names the checked location and leaves the other end blank. 🔁 来源/去向 完整位置 and ERPNext 库位 optional. 🔄 Fixed: they showed — on movement and loan pages |
+| 来源位置 / 去向位置 | ✅ | ✅ | Empty endpoint = 外部; a 盘点调整 names the checked location and leaves the other end blank. 🔁 来源/去向 ERPNext 库位 optional. 🔄 Fixed: they showed — on movement and loan pages |
 | 🔁 可用变化 | ✅ | ✅ | Default quantity column (signed, per unit); 数量 is optional. 🔄 Files: numeric with a 单位 column |
 | 🔄 原借出 / 时间 / 单位 | ✅ | ✅ | Hidden by default; exported when shown |
 | 数量 | ✅ | ✅ | Optional |

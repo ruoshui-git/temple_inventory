@@ -6,6 +6,7 @@ import type { DataColumn } from "../../lib/dataTable";
 import type { ReportRow } from "../../lib/reportContract";
 import type { StockItem } from "../../lib/stockPresentation";
 import { warehouseLabel } from "../../lib/warehouseLabel";
+import LocationLabel from "../../components/ui/LocationLabel.vue";
 import { formatExpiryDuration } from "../../lib/expiryDuration";
 import type { ReferenceData } from "../../services/contracts";
 import { expiryRemainingText, expiryStatusOf } from "./expiryColumns";
@@ -76,10 +77,16 @@ const status = computed(() => expiryStatusOf(props.row, props.siteDate));
 		></template
 	>
 	<template v-else-if="id === 'stock_uom'"><UnitText :name="row.stock_uom" /></template>
-	<template v-else-if="id === 'warehouse'">{{
-		warehouseLabel(String(row.warehouse || ""), warehouses, String(row.warehouse_label || ""))
-	}}</template>
-	<template v-else-if="id === 'warehouse_path'">{{ row.warehouse_path || "—" }}</template>
+	<LocationLabel
+		v-else-if="id === 'warehouse'"
+		:label="
+			warehouseLabel(
+				String(row.warehouse || ''),
+				warehouses,
+				String(row.warehouse_label || ''),
+			)
+		"
+	/>
 	<template v-else-if="id === 'warehouse_native_name'">{{
 		row.warehouse_native_name || "—"
 	}}</template>

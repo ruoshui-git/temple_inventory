@@ -25,6 +25,7 @@ import PopupMenu from "../../components/ui/PopupMenu.vue";
 import { useConfirm } from "../../services/confirm";
 import { showToast } from "../../services/toast";
 import UnitText from "../../components/ui/UnitText.vue";
+import LocationLabel from "../../components/ui/LocationLabel.vue";
 import {
 	productBatchColumns,
 	productLocationColumns,
@@ -431,13 +432,16 @@ const productExportColumns = computed(() => {
 							<template v-else-if="column.id === 'expiry'">{{
 								row.expiry || "无效期"
 							}}</template>
-							<template v-else-if="column.id === 'location'">{{
-								warehouseLabel(
-									String(row.location || ""),
-									warehouseReference?.warehouses || [],
-									String(row.label || ""),
-								)
-							}}</template>
+							<LocationLabel
+								v-else-if="column.id === 'location'"
+								:label="
+									warehouseLabel(
+										String(row.location || ''),
+										warehouseReference?.warehouses || [],
+										String(row.label || ''),
+									)
+								"
+							/>
 							<template v-else-if="column.id === 'uom' || column.id === 'stock_uom'"
 								><UnitText :name="row[column.id]"
 							/></template>
@@ -461,13 +465,16 @@ const productExportColumns = computed(() => {
 						empty-text="此物品暂无库存。"
 					>
 						<template #cell="{ column, row }">
-							<template v-if="column.id === 'location'">{{
-								warehouseLabel(
-									String(row.location || ""),
-									warehouseReference?.warehouses || [],
-									String(row.label || ""),
-								)
-							}}</template>
+							<LocationLabel
+								v-if="column.id === 'location'"
+								:label="
+									warehouseLabel(
+										String(row.location || ''),
+										warehouseReference?.warehouses || [],
+										String(row.label || ''),
+									)
+								"
+							/>
 							<template v-else-if="column.id === 'uom' || column.id === 'stock_uom'"
 								><UnitText :name="row[column.id]"
 							/></template>

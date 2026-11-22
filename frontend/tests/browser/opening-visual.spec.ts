@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { nativeUiSession } from "./fixtures/nativeUi";
+import { nativeUiSession, sampleWarehouses } from "./fixtures/nativeUi";
 
 async function expectNoHorizontalOverflow(
   page: import("@playwright/test").Page,
@@ -15,13 +15,24 @@ async function expectNoHorizontalOverflow(
 
 test("Opening Stock batch and serial rows fit desktop and phone", async ({
   page,
-}) => {
+}, info) => {
+  const locationPath = "T2 / OUT / FY / 北侧器材储物架第一层";
+  const location = {
+    ...sampleWarehouses.find((row) => row.name === "ROOM-A")!,
+    label: locationPath,
+    path: locationPath,
+    search_text: `${locationPath} 北侧器材储物架第一层`,
+    local_label: "北侧器材储物架第一层",
+    full_label: "北侧器材储物架第一层",
+    is_group: false,
+    storable: true,
+  };
   await nativeUiSession(
     page,
     100,
     {
       physical_leaves: ["ROOM-A"],
-      warehouses: [{ name: "ROOM-A", label: "礼堂" }],
+      warehouses: [location],
     },
     "Manager",
   );
@@ -125,6 +136,14 @@ test("Opening Stock batch and serial rows fit desktop and phone", async ({
   await page.goto("/inventory/counts/SR-OPEN-VISUAL");
   await expect(page.getByRole("heading", { name: "期初库存" })).toBeVisible();
   expect(dispatchLoads).toBe(1);
+  await expect(page.getByLabel("批次物品位置")).toHaveValue(locationPath);
+  await page.getByLabel("批次物品位置").click();
+  const locationOption = page.locator(".location-label").last();
+  await expect(locationOption).toHaveAttribute("title", locationPath);
+  await expect(locationOption).toContainText("T2");
+  await expect(locationOption).toContainText("北侧器材储物架第一层");
+  await page.screenshot({ path: info.outputPath("location-selector.png") });
+  await page.keyboard.press("Escape");
   await expect(page.getByLabel("批次物品批次编号")).toHaveValue("B-001");
   await expect(
     page.locator(".operation-serial-chip").filter({ hasText: "SER-0001" }),

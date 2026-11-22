@@ -277,7 +277,7 @@ async function selectTable(wrapper: VueWrapper) {
   await flushPromises();
 }
 describe("native operation browsing", () => {
-  it("keeps detailed branch locations in operation record rows", async () => {
+  it("keeps native branch identifiers in operation record rows", async () => {
     const operationQuery = newReportQuery("movements");
     operationQuery.view = "records";
     operationQuery.groupBy = [];
@@ -287,9 +287,7 @@ describe("native operation browsing", () => {
         version: 1,
         values: {
           order: [
-            "source_warehouse_path",
             "source_warehouse_native_name",
-            "destination_warehouse_path",
             "destination_warehouse_native_name",
           ],
           hidden: [],
@@ -313,9 +311,7 @@ describe("native operation browsing", () => {
               {
                 source: "来源库位",
                 destination: "去向库位",
-                source_path: "仓库 / 来源区",
                 source_native_name: "Source Warehouse",
-                destination_path: "仓库 / 去向区",
                 destination_native_name: "Destination Warehouse",
               },
             ],
@@ -335,12 +331,7 @@ describe("native operation browsing", () => {
     );
     await flushPromises();
     await selectTable(mounted.wrapper);
-    for (const value of [
-      "仓库 / 来源区",
-      "Source Warehouse",
-      "仓库 / 去向区",
-      "Destination Warehouse",
-    ])
+    for (const value of ["Source Warehouse", "Destination Warehouse"])
       expect(mounted.wrapper.text()).toContain(value);
   });
 

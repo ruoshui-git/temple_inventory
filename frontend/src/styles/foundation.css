@@ -1040,6 +1040,16 @@ strong {
 	gap: var(--p-space-2);
 	margin-top: var(--p-space-3);
 }
+/* Long location paths shrink inside the card instead of running past its edge. */
+.stock-detail-chips > .detail-popover,
+.stock-detail-chips .detail-popover-trigger,
+.stock-detail-trigger-label {
+	min-width: 0;
+	max-width: 100%;
+}
+.stock-detail-chips > .detail-popover {
+	display: inline-flex;
+}
 .detail-popover-trigger {
 	display: inline-flex;
 	align-items: center;

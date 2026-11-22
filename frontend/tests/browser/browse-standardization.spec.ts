@@ -9,7 +9,65 @@ import {
 
 // Routed production components with controlled HTTP data. Native inventory
 // correctness is checked separately by the rollback-only backend suite.
+
+async function expectSiteAndLeaf(
+  locator: import("@playwright/test").Locator,
+  title: string,
+  site: string,
+  leaf: string,
+) {
+  await expect(locator).toHaveAttribute("title", title);
+  await expect(locator.locator(".location-label-site")).toHaveText(`${site} /`);
+  await expect(locator.locator(".location-label-tail")).toContainText(leaf);
+  const leafVisible = await locator.evaluate((element, target) => {
+    const tail = element.querySelector(".location-label-tail");
+    const bdi = tail?.querySelector("bdi");
+    const text = bdi?.firstChild;
+    if (!tail || !bdi || !text || text.nodeType !== Node.TEXT_NODE)
+      return false;
+    const start = text.textContent?.lastIndexOf(target) ?? -1;
+    if (start < 0) return false;
+    const range = document.createRange();
+    range.setStart(text, start);
+    range.setEnd(text, start + target.length);
+    const leafRect = range.getBoundingClientRect();
+    const tailRect = tail.getBoundingClientRect();
+    // The label stays inside its card, cell or row. A leaf that fits shows whole; a longer
+    // one is cut from the left, so its end stays visible.
+    const holder =
+      element.closest(".item-card, td, li") ?? document.documentElement;
+    const holderRect = holder.getBoundingClientRect();
+    const fits = leafRect.width <= tailRect.width + 1;
+    return (
+      leafRect.width > 0 &&
+      (!fits || leafRect.left >= tailRect.left - 1) &&
+      leafRect.right > tailRect.left &&
+      leafRect.right <= tailRect.right + 1 &&
+      tailRect.right <= holderRect.right + 1
+    );
+  }, leaf);
+  expect(leafVisible).toBe(true);
+}
 async function prepare(page: Page, textScale: number, withMore = false) {
+  const longT2 = {
+    ...sampleWarehouses.find((row) => row.name === "ROOM-A")!,
+    name: "LONG-T2",
+    label: "T2 / OUT / FY / 北侧器材储物架第一层",
+    path: "T2 / OUT / FY / 北侧器材储物架第一层",
+    local_label: "北侧器材储物架第一层",
+    short_label: "S1",
+    full_label: "北侧器材储物架第一层",
+    parent: "ROOM-A",
+    kind: "shelf" as const,
+    is_group: false,
+  };
+  const longT1 = {
+    ...longT2,
+    name: "LONG-T1",
+    label: "T1 / OUT / FY / 南侧器材储物架第二层",
+    path: "T1 / OUT / FY / 南侧器材储物架第二层",
+    local_label: "南侧器材储物架第二层",
+  };
   let release!: () => void;
   const loaded = new Promise<void>((resolve) => (release = resolve));
   await page.route("**/api/method/temple_inventory.**", async (route) => {
@@ -37,19 +95,10 @@ async function prepare(page: Page, textScale: number, withMore = false) {
       image: "",
       locations: [
         {
-          location: "A01",
-          label: "礼堂储物室第一层",
-          path: "T2 / A02 / S1",
-          nativeName: "T2 / A02 / S1",
-          available: 4,
-          loaned: 0,
-          damaged: 0,
-        },
-        {
-          location: "A02",
-          label: "礼堂储物室第二层",
-          path: "T2 / A02",
-          nativeName: "T2 / A02 · 直接存放",
+          location: "LONG-T2",
+          label: longT2.path,
+          path: longT2.path,
+          nativeName: "T2/OUT/FY/S1",
           available: 4,
           loaned: 0,
           damaged: 0,
@@ -64,13 +113,14 @@ async function prepare(page: Page, textScale: number, withMore = false) {
       batch_no: `BATCH-${i}`,
       expiry_date: "2026-11-18",
       remaining_days: 31,
-      warehouse: "DEFAULT-A14",
-      source_warehouse: "SHELF-1",
-      destination_warehouse: "A02-DIRECT",
-      source_warehouse_path: "T2 / A02 / 演示架1",
-      source_warehouse_native_name: "T2 / A02 / 演示架1",
-      destination_warehouse_path: "T2 / A02",
-      destination_warehouse_native_name: "T2 / A02 · 直接存放",
+      warehouse: "LONG-T2",
+      warehouse_label: longT2.path,
+      source_warehouse: "LONG-T2",
+      source_warehouse_label: longT2.path,
+      destination_warehouse: "LONG-T1",
+      destination_warehouse_label: longT1.path,
+      source_warehouse_native_name: "T2/F/A01/S1",
+      destination_warehouse_native_name: "T1/OUT/FY/S2",
       document_count: 1,
       allocation_count: 1,
       totals: [
@@ -81,12 +131,10 @@ async function prepare(page: Page, textScale: number, withMore = false) {
         quantities: [{ uom: "件", qty: 11 }],
         branches: [
           {
-            source: "SHELF-1",
-            destination: "A02-DIRECT",
-            source_path: "T2 / A02 / 演示架1",
-            source_native_name: "T2 / A02 / 演示架1",
-            destination_path: "T2 / A02",
-            destination_native_name: "T2 / A02 · 直接存放",
+            source: "LONG-T2",
+            destination: "LONG-T1",
+            source_native_name: "T2/F/A01/S1",
+            destination_native_name: "T1/OUT/FY/S2",
           },
         ],
         original_loans: [],
@@ -190,8 +238,10 @@ async function prepare(page: Page, textScale: number, withMore = false) {
       },
       { name: "SHORT", item_group_name: "日常用品", is_group: false },
     ],
-    warehouses: sampleWarehouses,
+    warehouses: [...sampleWarehouses, longT2, longT1],
     physical_leaves: [
+      "LONG-T2",
+      "LONG-T1",
       "A02-DIRECT",
       "SHELF-1",
       "DEMO-A-DIRECT",
@@ -276,10 +326,10 @@ test("card views keep rows and load-more visible at the end of the page", async 
   });
 });
 
-test("stock and movement browse show exported full-location columns at 1440px", async ({
+test("stock and movement browse omit retired full-location columns at 1280px", async ({
   page,
 }, info) => {
-  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.setViewportSize({ width: 1280, height: 1000 });
   await page.addInitScript(() => {
     const preference = (order: string[]) =>
       JSON.stringify({
@@ -297,7 +347,7 @@ test("stock and movement browse show exported full-location columns at 1440px", 
         "stock_uom",
         "category",
         "locations",
-        "warehouse_path",
+        "warehouse_label",
         "warehouse_native_name",
         "loaned",
         "damaged",
@@ -318,9 +368,7 @@ test("stock and movement browse show exported full-location columns at 1440px", 
         "docstatus",
         "source",
         "destination",
-        "source_warehouse_path",
         "source_warehouse_native_name",
-        "destination_warehouse_path",
         "destination_warehouse_native_name",
         "available_effect",
         "quantities",
@@ -335,31 +383,74 @@ test("stock and movement browse show exported full-location columns at 1440px", 
   await expect(page.getByRole("columnheader", { name: /合计/ })).toBeVisible();
   await expect(
     page.getByRole("columnheader", { name: /完整位置/ }),
-  ).toBeVisible();
+  ).toHaveCount(0);
   await expect(
     page.getByRole("columnheader", { name: /ERPNext 库位/ }),
   ).toBeVisible();
+  const stockLocation = page.locator(".location-label").first();
+  await expectSiteAndLeaf(
+    stockLocation,
+    "T2 / OUT / FY / 北侧器材储物架第一层",
+    "T2",
+    "北侧器材储物架第一层",
+  );
+  await page.screenshot({ path: info.outputPath("stock-label-desktop.png") });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/inventory/stock");
+  // Phone 列表 rows clip their single field line and offer 更多 for the rest.
+  const listLocation = page.locator(".location-label").first();
+  await expect(listLocation).toHaveAttribute(
+    "title",
+    "T2 / OUT / FY / 北侧器材储物架第一层",
+  );
+  await expect(listLocation.locator(".location-label-site")).toHaveText("T2 /");
+  await page.getByRole("button", { name: "卡片视图" }).click();
+  await expectSiteAndLeaf(
+    page.locator(".location-label").first(),
+    "T2 / OUT / FY / 北侧器材储物架第一层",
+    "T2",
+    "北侧器材储物架第一层",
+  );
   await page.screenshot({
-    path: info.outputPath("stock-total-full-location.png"),
+    path: info.outputPath("stock-label-phone-cards.png"),
   });
 
   await page.goto("/inventory/movements?view=items");
   await expect(page.locator(".browse-results")).toBeVisible();
+  await page.getByRole("button", { name: "表格视图" }).click();
   await expect(
     page.getByRole("columnheader", { name: /来源完整位置/ }),
-  ).toBeVisible();
+  ).toHaveCount(0);
   await expect(
     page.getByRole("columnheader", { name: /去向完整位置/ }),
-  ).toBeVisible();
+  ).toHaveCount(0);
   await expect(
     page.getByRole("columnheader", { name: /来源 ERPNext 库位/ }),
   ).toBeVisible();
   await expect(
     page.getByRole("columnheader", { name: /去向 ERPNext 库位/ }),
   ).toBeVisible();
+  const movementLabel = page.locator(".location-label").first();
+  await expectSiteAndLeaf(
+    movementLabel,
+    "T2 / OUT / FY / 北侧器材储物架第一层",
+    "T2",
+    "北侧器材储物架第一层",
+  );
   await page.screenshot({
-    path: info.outputPath("movement-full-location.png"),
+    path: info.outputPath("movement-label-desktop.png"),
   });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/inventory/movements?view=items");
+  await expectSiteAndLeaf(
+    page.locator(".location-label").first(),
+    "T2 / OUT / FY / 北侧器材储物架第一层",
+    "T2",
+    "北侧器材储物架第一层",
+  );
+  await page.screenshot({ path: info.outputPath("movement-label-phone.png") });
 });
 
 for (const surface of [

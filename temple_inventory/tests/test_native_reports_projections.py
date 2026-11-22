@@ -43,7 +43,7 @@ class NativeReportsProjectionsTests(NativeReportTestCase):
 		self.assertNotIn(f"Native Test Lease Leaf {self.token}", result["empty_labels"])
 		self.assertNotIn(f"Native Test Damaged {self.token}", result["empty_labels"])
 
-	def test_location_presenter_labels_direct_leaves_and_disambiguates_duplicate_rooms(self):
+	def test_location_presenter_uses_full_path_for_repeated_room_codes_and_direct_leaves(self):
 		from temple_inventory.native_topology import present_locations
 
 		settings = frappe._dict(root_warehouse="ROOT", physical_root_warehouse="PHYSICAL")
@@ -78,24 +78,33 @@ class NativeReportsProjectionsTests(NativeReportTestCase):
 			),
 			"ROOM-1": frappe._dict(
 				name="ROOM-1",
-				warehouse_name="T1 / A14",
-				ti_label="A14",
+				warehouse_name="T1/FY",
+				ti_label="FY",
 				parent_warehouse="AREA-1",
 				warehouse_type="Room",
 				is_group=1,
 			),
 			"ROOM-2": frappe._dict(
 				name="ROOM-2",
-				warehouse_name="T2 / A14",
-				ti_label="A14",
+				warehouse_name="T2/FY",
+				ti_label="FY",
 				parent_warehouse="AREA-2",
 				warehouse_type="Room",
 				is_group=1,
 			),
+			"SHELF-1": frappe._dict(
+				name="SHELF-1",
+				warehouse_name="T1/FY/S1",
+				ti_label="第一层",
+				ti_short_label="S1",
+				parent_warehouse="ROOM-1",
+				warehouse_type="Shelf",
+				is_group=0,
+			),
 			"DIRECT-1": frappe._dict(
 				name="DIRECT-1",
-				warehouse_name=f"T1 / A14{DIRECT_STORAGE_SUFFIX}",
-				ti_label="A14",
+				warehouse_name=f"T1/FY{DIRECT_STORAGE_SUFFIX}",
+				ti_label="FY",
 				parent_warehouse="ROOM-1",
 				warehouse_type="",
 				is_group=0,
@@ -103,8 +112,8 @@ class NativeReportsProjectionsTests(NativeReportTestCase):
 			),
 			"DIRECT-2": frappe._dict(
 				name="DIRECT-2",
-				warehouse_name=f"T2 / A14{DIRECT_STORAGE_SUFFIX}",
-				ti_label="A14",
+				warehouse_name=f"T2/FY{DIRECT_STORAGE_SUFFIX}",
+				ti_label="FY",
 				parent_warehouse="ROOM-2",
 				warehouse_type="",
 				is_group=0,
@@ -112,11 +121,21 @@ class NativeReportsProjectionsTests(NativeReportTestCase):
 			),
 		}
 		presented = {row["name"]: row for row in present_locations(rows, settings=settings)}
-		self.assertEqual(presented["DIRECT-1"]["label"], presented["ROOM-1"]["label"])
-		self.assertIn("T1", presented["ROOM-1"]["label"])
-		self.assertIn("T2", presented["ROOM-2"]["label"])
+		self.assertEqual(presented["ROOM-1"]["label"], presented["ROOM-1"]["path"])
+		self.assertEqual(presented["ROOM-2"]["label"], presented["ROOM-2"]["path"])
+		self.assertEqual(presented["DIRECT-1"]["label"], "T1 / FY")
+		self.assertEqual(presented["DIRECT-2"]["label"], "T2 / FY")
+		self.assertNotEqual(presented["ROOM-1"]["label"], presented["ROOM-2"]["label"])
+		self.assertEqual(presented["AREA-1"]["label"], presented["AREA-1"]["path"])
+		self.assertEqual(presented["ROOM-1"]["path"], "T1 / FY")
+		self.assertEqual(presented["SHELF-1"]["label"], "T1 / FY / S1")
+		self.assertEqual(presented["SHELF-1"]["label"], presented["SHELF-1"]["path"])
+		self.assertEqual(presented["DIRECT-1"]["label"], presented["ROOM-1"]["path"])
+		self.assertIn("FY", presented["ROOM-1"]["search_text"])
+		self.assertIn("T1", presented["ROOM-1"]["search_text"])
+		self.assertIn("FY", presented["ROOM-2"]["search_text"])
+		self.assertIn("T2", presented["ROOM-2"]["search_text"])
 		self.assertTrue(presented["DIRECT-1"]["storable"])
-		self.assertEqual(presented["ROOM-1"]["path"], "T1 / A14")
 
 	def test_repeated_allocations_authorize_item_images_once_per_report_context(self):
 		from temple_inventory.native_files import attachments

@@ -76,22 +76,10 @@ export function operationColumnsFor(
           export: ["destination"],
         },
         {
-          id: "source_warehouse_path",
-          label: "来源完整位置",
-          defaultVisible: false,
-          export: ["source_warehouse_path"],
-        },
-        {
           id: "source_warehouse_native_name",
           label: "来源 ERPNext 库位",
           defaultVisible: false,
           export: ["source_warehouse_native_name"],
-        },
-        {
-          id: "destination_warehouse_path",
-          label: "去向完整位置",
-          defaultVisible: false,
-          export: ["destination_warehouse_path"],
         },
         {
           id: "destination_warehouse_native_name",
@@ -211,22 +199,10 @@ export function operationColumnsFor(
           export: ["destination"],
         },
         {
-          id: "source_warehouse_path",
-          label: "来源完整位置",
-          defaultVisible: false,
-          export: ["source_warehouse_path"],
-        },
-        {
           id: "source_warehouse_native_name",
           label: "来源 ERPNext 库位",
           defaultVisible: false,
           export: ["source_warehouse_native_name"],
-        },
-        {
-          id: "destination_warehouse_path",
-          label: "去向完整位置",
-          defaultVisible: false,
-          export: ["destination_warehouse_path"],
         },
         {
           id: "destination_warehouse_native_name",
@@ -379,22 +355,10 @@ export function operationItemColumnsFor(
           export: ["serial_nos"],
         },
         {
-          id: "source_warehouse_path",
-          label: "来源完整位置",
-          defaultVisible: false,
-          export: ["source_warehouse_path"],
-        },
-        {
           id: "source_warehouse_native_name",
           label: "来源 ERPNext 库位",
           defaultVisible: false,
           export: ["source_warehouse_native_name"],
-        },
-        {
-          id: "destination_warehouse_path",
-          label: "去向完整位置",
-          defaultVisible: false,
-          export: ["destination_warehouse_path"],
         },
         {
           id: "destination_warehouse_native_name",
@@ -539,22 +503,10 @@ export function operationItemColumnsFor(
           export: ["serial_nos"],
         },
         {
-          id: "source_warehouse_path",
-          label: "来源完整位置",
-          defaultVisible: false,
-          export: ["source_warehouse_path"],
-        },
-        {
           id: "source_warehouse_native_name",
           label: "来源 ERPNext 库位",
           defaultVisible: false,
           export: ["source_warehouse_native_name"],
-        },
-        {
-          id: "destination_warehouse_path",
-          label: "去向完整位置",
-          defaultVisible: false,
-          export: ["destination_warehouse_path"],
         },
         {
           id: "destination_warehouse_native_name",

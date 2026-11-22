@@ -283,11 +283,8 @@ function historyRecord(row: Record<string, unknown>, item: OperationGroup): Data
 					{
 						source,
 						destination,
-						source_path: branch?.source_path || row.source_warehouse_path,
 						source_native_name:
 							branch?.source_native_name || row.source_warehouse_native_name,
-						destination_path:
-							branch?.destination_path || row.destination_warehouse_path,
 						destination_native_name:
 							branch?.destination_native_name ||
 							row.destination_warehouse_native_name,
@@ -304,23 +301,20 @@ function historyRecord(row: Record<string, unknown>, item: OperationGroup): Data
 	};
 }
 function operationLocationDetail(row: Record<string, any>, column: string) {
-	const field = column;
-	if (row[field]) return String(row[field]);
-	const branches = row.whole?.branches || [];
+	if (row[column]) return String(row[column]);
 	const branchField =
-		column === "source_warehouse_path"
-			? "source_path"
-			: column === "source_warehouse_native_name"
-				? "source_native_name"
-				: column === "destination_warehouse_path"
-					? "destination_path"
-					: "destination_native_name";
+		column === "source_warehouse_native_name"
+			? "source_native_name"
+			: "destination_native_name";
 	return [
 		...new Set(
-			branches.map((branch: Record<string, string>) => branch[branchField]).filter(Boolean),
+			(row.whole?.branches || [])
+				.map((branch: Record<string, string>) => branch[branchField])
+				.filter(Boolean),
 		),
 	].join("；");
 }
+
 function itemHistoryRows(item: OperationGroup): DataTableEntry[] {
 	if (!c.expanded.has(item.id)) return [];
 	const detail = details[item.id];

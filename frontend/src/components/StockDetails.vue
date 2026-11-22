@@ -11,6 +11,7 @@ import { useColumnPreferences } from "../composables/useColumnPreferences";
 import { useOptionalInventoryServices } from "../services/contracts";
 import { useArrayTableSort } from "../composables/useArrayTableSort";
 import UnitText from "./ui/UnitText.vue";
+import LocationLabel from "./ui/LocationLabel.vue";
 // "locations" and "batches" render the two table chips separately; "all" keeps the card pair.
 const props = withDefaults(
 	defineProps<{
@@ -139,19 +140,26 @@ const batchPreferences =
 				v-if="physicalLocations.length || loanedTotal || damagedTotal"
 				:label="`${item.name}的库位与可用数量`"
 			>
-				<template #trigger
-					><InventoryIcon name="warehouse" /><span class="stock-detail-trigger-label">{{
-						physicalLocations.length === 1
-							? warehouseLabel(
+				<template #trigger>
+					<InventoryIcon name="warehouse" />
+					<span class="stock-detail-trigger-label">
+						<LocationLabel
+							v-if="physicalLocations.length === 1"
+							:label="
+								warehouseLabel(
 									physicalLocations[0].location,
 									warehouseReference?.warehouses || [],
 									physicalLocations[0].label,
 								)
-							: physicalLocations.length
+							"
+						/>
+						<template v-else>{{
+							physicalLocations.length
 								? `${physicalLocations.length} 个库位`
 								: `借出 ${loanedTotal} · 损坏 ${damagedTotal}`
-					}}</span></template
-				>
+						}}</template>
+					</span>
+				</template>
 				<strong>{{ item.name }}</strong>
 				<p class="muted">当前筛选范围 · 可用库存</p>
 				<DataTable
@@ -170,13 +178,16 @@ const batchPreferences =
 					@sort="locationSort.setSort"
 				>
 					<template #cell="{ column, row }">
-						<template v-if="column.id === 'location'">{{
-							warehouseLabel(
-								String(row.location),
-								warehouseReference?.warehouses || [],
-								String(row.label || ""),
-							)
-						}}</template>
+						<LocationLabel
+							v-if="column.id === 'location'"
+							:label="
+								warehouseLabel(
+									String(row.location),
+									warehouseReference?.warehouses || [],
+									String(row.label || ''),
+								)
+							"
+						/>
 						<template v-else-if="column.id === 'uom'"
 							><UnitText :name="row.uom"
 						/></template>
@@ -224,13 +235,16 @@ const batchPreferences =
 					@sort="batchSort.setSort"
 				>
 					<template #cell="{ column, row }">
-						<template v-if="column.id === 'location'">{{
-							warehouseLabel(
-								String(row.location),
-								warehouseReference?.warehouses || [],
-								String(row.label || ""),
-							)
-						}}</template>
+						<LocationLabel
+							v-if="column.id === 'location'"
+							:label="
+								warehouseLabel(
+									String(row.location),
+									warehouseReference?.warehouses || [],
+									String(row.label || ''),
+								)
+							"
+						/>
 						<template v-else-if="column.id === 'batch'">{{ row.batch }}</template>
 						<template v-else>{{ row[column.id] }}</template>
 					</template>

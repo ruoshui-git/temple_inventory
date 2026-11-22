@@ -415,10 +415,13 @@ class NotificationTests(NativeDocumentTests):
 			),
 			patch(
 				"temple_inventory.native_topology.present_locations",
-				return_value=[{"name": "SRC", "label": "A01"}, {"name": "DST", "label": "B02"}],
+				return_value=[
+					{"name": "SRC", "label": "T1 / F / A01"},
+					{"name": "DST", "label": "T2 / F / B02"},
+				],
 			),
 		):
-			self.assertEqual(notifications._primary_location(doc, "Transfer"), "A01 → B02")
+			self.assertEqual(notifications._primary_location(doc, "Transfer"), "T1 / F / A01 → T2 / F / B02")
 
 	def test_read_notifications_do_not_push_and_badge_count_is_app_scoped(self):
 		log = frappe._dict(

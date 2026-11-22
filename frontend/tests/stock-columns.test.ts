@@ -78,9 +78,6 @@ describe("stock columns", () => {
     expect(stockExportTableFor(["item_name", "warehouse_label"])).toBe(
       "positions",
     );
-    expect(stockExportTableFor(["item_name", "warehouse_path"])).toBe(
-      "positions",
-    );
     expect(stockExportTableFor(["item_name", "warehouse_native_name"])).toBe(
       "positions",
     );

@@ -296,16 +296,13 @@ def present_locations(rows, *, physical_root=None, settings=None):
 
 	items = []
 	for name, row in rows.items():
-		parent = rows.get(row.parent_warehouse)
 		is_direct = bool(cint(row.get("ti_direct_storage")))
 		owner_name = owners.get(name, "")
 		kind = _derived_kind(row, direct_by_parent, rows, systems)
 		direct = direct_by_parent.get(name, [])
 		missing_direct = kind in {"room", "shelf"} and cint(row.is_group) and not direct
 		path = paths[name]
-		local = local_label(row)
 		if is_direct:
-			local = local_label(rows.get(owner_name) or row)
 			kind = _derived_kind(rows.get(owner_name) or row, direct_by_parent, rows, systems)
 			path = paths.get(owner_name, path)
 		full = full_label(row, rows, owner_name if is_direct else "")
@@ -328,11 +325,7 @@ def present_locations(rows, *, physical_root=None, settings=None):
 		storable = bool(is_direct or (not cint(row.is_group) and not is_direct) or direct)
 		if missing_direct:
 			storable = False
-		label = local
-		if is_direct and owner_name in rows:
-			label = local_label(rows[owner_name])
-		elif kind == "shelf" and parent and parent.name not in (physical_root, settings.root_warehouse):
-			label = f"{local_label(parent)} / {local}"
+		label = " / ".join(path) or local_label(row)
 		items.append(
 			{
 				"name": name,
@@ -358,27 +351,6 @@ def present_locations(rows, *, physical_root=None, settings=None):
 				"can_edit": name in editable,
 			}
 		)
-	# Keep names unique with the shortest ancestor suffix needed to distinguish peers.
-	by_label = {}
-	for item in items:
-		if not item["direct"]:
-			by_label.setdefault(item["label"], []).append(item)
-	for duplicates in by_label.values():
-		if len(duplicates) < 2:
-			continue
-		for item in duplicates:
-			parts = item["path"].split(" / ")
-			for size in range(2, len(parts) + 1):
-				candidate = " / ".join(parts[-size:])
-				if sum(other["path"].endswith(candidate) for other in duplicates) == 1:
-					item["label"] = candidate
-					break
-			else:
-				item["label"] = item["path"]
-	labels = {item["name"]: item["label"] for item in items}
-	for item in items:
-		if item["direct"] and item["owner"] in labels:
-			item["label"] = labels[item["owner"]]
 	if memo is not None:
 		memo[key] = [dict(item) for item in items]
 	return items

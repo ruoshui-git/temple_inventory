@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import PageHeader from "../../components/ui/PageHeader.vue";
+import LocationLabel from "../../components/ui/LocationLabel.vue";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import { computed, ref, useId } from "vue";
 import { RouterLink } from "vue-router";
@@ -672,14 +673,15 @@ function datasetChanged(dataset: ReportDataset) {
 											)
 										"
 										><small>库位</small
-										>{{
-											warehouseLabel(
-												row.warehouse,
-												reference.warehouses,
-												row.warehouse_label,
-											)
-										}}</span
-									>
+										><LocationLabel
+											:label="
+												warehouseLabel(
+													row.warehouse,
+													reference.warehouses,
+													row.warehouse_label,
+												)
+											"
+									/></span>
 								</div>
 								<b :title="`${row.available} ${unitLabel(row.stock_uom)}`"
 									>{{ row.available }} {{ unitLabel(row.stock_uom) }}</b

@@ -125,7 +125,7 @@ describe("typed movement history table", () => {
       warehouses: [
         {
           name: "ROOM",
-          label: "A02",
+          label: "T2 / A02",
           local_label: "演示室甲",
           short_label: "A02",
           full_label: "演示室甲",
@@ -171,7 +171,9 @@ describe("typed movement history table", () => {
     expect(wrapper.get(".history-mobile-row").text()).toContain("入库");
     expect(wrapper.get(".history-mobile-row").text()).toContain("…00001124");
     expect(wrapper.get(".history-mobile-row").text()).toContain("10-19 09:00");
-    expect(wrapper.get(".history-mobile-row").text()).toContain("A02");
+    expect(
+      wrapper.get(".history-mobile-row .location-label").attributes("title"),
+    ).toBe("T2 / A02 · 演示室甲");
     const mobileRecord = wrapper.get(".history-mobile-row");
     const referenceChip = mobileRecord.get(".record-ref-chip");
     expect(referenceChip.text()).toContain("…00001124");
@@ -198,7 +200,7 @@ describe("typed movement history table", () => {
       warehouses: [
         {
           name: "ROOM",
-          label: "A02",
+          label: "T2 / A02",
           local_label: "演示室甲",
           short_label: "A02",
           full_label: "演示室甲",

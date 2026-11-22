@@ -30,8 +30,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "history": [
         "activity_title",
@@ -41,7 +40,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "docstatus",
         "document",
         "expiry_state",
@@ -56,7 +54,6 @@
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_qty",
         "stock_uom",
         "time",
@@ -89,7 +86,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "difference",
         "docstatus",
         "document",
@@ -110,13 +106,11 @@
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_qty",
         "stock_uom",
         "time",
         "warehouse",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "loan_history": [
         "activity_title",
@@ -125,7 +119,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "docstatus",
         "document",
         "expiry_state",
@@ -133,14 +126,12 @@
         "item_name",
         "kind",
         "origin_warehouse_native_name",
-        "origin_warehouse_path",
         "original_loan",
         "outstanding",
         "quantity",
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_uom",
         "time"
       ],
@@ -174,8 +165,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "metadata": [
         "activity",
@@ -199,7 +189,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "docstatus",
         "document",
         "expiry_state",
@@ -208,13 +197,11 @@
         "loan_status",
         "lost",
         "origin_warehouse_native_name",
-        "origin_warehouse_path",
         "outstanding",
         "returned",
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_uom",
         "time"
       ],
@@ -230,8 +217,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "records": [
         "activity_title",
@@ -244,7 +230,6 @@
         "date",
         "destination",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "difference",
         "docstatus",
         "document",
@@ -256,7 +241,6 @@
         "lost",
         "notes",
         "origin_warehouse_native_name",
-        "origin_warehouse_path",
         "original_loan",
         "outstanding",
         "purpose",
@@ -265,12 +249,10 @@
         "reviewer",
         "source",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_qty",
         "stock_uom",
         "time",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "settlements": [
         "batch_no",
@@ -279,7 +261,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "docstatus",
         "document",
         "expiry_state",
@@ -289,7 +270,6 @@
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_qty",
         "stock_uom"
       ],
@@ -336,8 +316,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "history": [
         "activity_title",
@@ -347,7 +326,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "docstatus",
         "document",
         "expiry_state",
@@ -362,7 +340,6 @@
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_qty",
         "stock_uom",
         "time",
@@ -395,7 +372,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "difference",
         "docstatus",
         "document",
@@ -416,13 +392,11 @@
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_qty",
         "stock_uom",
         "time",
         "warehouse",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "loan_history": [
         "activity_title",
@@ -431,7 +405,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "docstatus",
         "document",
         "expiry_state",
@@ -439,14 +412,12 @@
         "item_name",
         "kind",
         "origin_warehouse_native_name",
-        "origin_warehouse_path",
         "original_loan",
         "outstanding",
         "quantity",
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_uom",
         "time"
       ],
@@ -480,8 +451,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "metadata": [
         "activity",
@@ -505,7 +475,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "docstatus",
         "document",
         "expiry_state",
@@ -514,13 +483,11 @@
         "loan_status",
         "lost",
         "origin_warehouse_native_name",
-        "origin_warehouse_path",
         "outstanding",
         "returned",
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_uom",
         "time"
       ],
@@ -536,8 +503,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "records": [
         "activity_title",
@@ -550,7 +516,6 @@
         "date",
         "destination",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "difference",
         "docstatus",
         "document",
@@ -565,7 +530,6 @@
         "net",
         "notes",
         "origin_warehouse_native_name",
-        "origin_warehouse_path",
         "original_loan",
         "outstanding",
         "purpose",
@@ -574,12 +538,10 @@
         "reviewer",
         "source",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_qty",
         "stock_uom",
         "time",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "settlements": [
         "batch_no",
@@ -588,7 +550,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "docstatus",
         "document",
         "expiry_state",
@@ -598,7 +559,6 @@
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_qty",
         "stock_uom"
       ],
@@ -645,8 +605,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "history": [
         "activity_title",
@@ -656,7 +615,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "docstatus",
         "document",
         "expiry_state",
@@ -671,7 +629,6 @@
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_qty",
         "stock_uom",
         "time",
@@ -704,7 +661,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "difference",
         "docstatus",
         "document",
@@ -725,13 +681,11 @@
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_qty",
         "stock_uom",
         "time",
         "warehouse",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "loan_history": [
         "activity_title",
@@ -740,7 +694,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "docstatus",
         "document",
         "expiry_state",
@@ -748,14 +701,12 @@
         "item_name",
         "kind",
         "origin_warehouse_native_name",
-        "origin_warehouse_path",
         "original_loan",
         "outstanding",
         "quantity",
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_uom",
         "time"
       ],
@@ -789,8 +740,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "metadata": [
         "activity",
@@ -814,7 +764,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "docstatus",
         "document",
         "expiry_state",
@@ -823,13 +772,11 @@
         "loan_status",
         "lost",
         "origin_warehouse_native_name",
-        "origin_warehouse_path",
         "outstanding",
         "returned",
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_uom",
         "time"
       ],
@@ -845,8 +792,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "records": [
         "activity_title",
@@ -859,7 +805,6 @@
         "date",
         "destination",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "difference",
         "docstatus",
         "document",
@@ -871,7 +816,6 @@
         "lost",
         "notes",
         "origin_warehouse_native_name",
-        "origin_warehouse_path",
         "original_loan",
         "outstanding",
         "purpose",
@@ -880,12 +824,10 @@
         "reviewer",
         "source",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_qty",
         "stock_uom",
         "time",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "settlements": [
         "batch_no",
@@ -894,7 +836,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "docstatus",
         "document",
         "expiry_state",
@@ -904,7 +845,6 @@
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_qty",
         "stock_uom"
       ],
@@ -951,8 +891,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "history": [
         "activity_title",
@@ -962,7 +901,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "docstatus",
         "document",
         "expiry_state",
@@ -977,7 +915,6 @@
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_qty",
         "stock_uom",
         "time",
@@ -1010,7 +947,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "difference",
         "docstatus",
         "document",
@@ -1031,13 +967,11 @@
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_qty",
         "stock_uom",
         "time",
         "warehouse",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "loan_history": [
         "activity_title",
@@ -1046,7 +980,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "docstatus",
         "document",
         "expiry_state",
@@ -1054,14 +987,12 @@
         "item_name",
         "kind",
         "origin_warehouse_native_name",
-        "origin_warehouse_path",
         "original_loan",
         "outstanding",
         "quantity",
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_uom",
         "time"
       ],
@@ -1095,8 +1026,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "metadata": [
         "activity",
@@ -1120,7 +1050,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "docstatus",
         "document",
         "expiry_state",
@@ -1129,13 +1058,11 @@
         "loan_status",
         "lost",
         "origin_warehouse_native_name",
-        "origin_warehouse_path",
         "outstanding",
         "returned",
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_uom",
         "time"
       ],
@@ -1151,8 +1078,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "records": [
         "activity_title",
@@ -1165,7 +1091,6 @@
         "date",
         "destination",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "difference",
         "docstatus",
         "document",
@@ -1177,7 +1102,6 @@
         "lost",
         "notes",
         "origin_warehouse_native_name",
-        "origin_warehouse_path",
         "original_loan",
         "outstanding",
         "purpose",
@@ -1186,12 +1110,10 @@
         "reviewer",
         "source",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_qty",
         "stock_uom",
         "time",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "settlements": [
         "batch_no",
@@ -1200,7 +1122,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "docstatus",
         "document",
         "expiry_state",
@@ -1210,7 +1131,6 @@
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_qty",
         "stock_uom"
       ],
@@ -1257,8 +1177,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "history": [
         "activity_title",
@@ -1268,7 +1187,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "docstatus",
         "document",
         "expiry_state",
@@ -1283,7 +1201,6 @@
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_qty",
         "stock_uom",
         "time",
@@ -1316,7 +1233,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "difference",
         "docstatus",
         "document",
@@ -1337,13 +1253,11 @@
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_qty",
         "stock_uom",
         "time",
         "warehouse",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "loan_history": [
         "activity_title",
@@ -1352,7 +1266,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "docstatus",
         "document",
         "expiry_state",
@@ -1360,14 +1273,12 @@
         "item_name",
         "kind",
         "origin_warehouse_native_name",
-        "origin_warehouse_path",
         "original_loan",
         "outstanding",
         "quantity",
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_uom",
         "time"
       ],
@@ -1401,8 +1312,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "metadata": [
         "activity",
@@ -1426,7 +1336,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "docstatus",
         "document",
         "expiry_state",
@@ -1435,13 +1344,11 @@
         "loan_status",
         "lost",
         "origin_warehouse_native_name",
-        "origin_warehouse_path",
         "outstanding",
         "returned",
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_uom",
         "time"
       ],
@@ -1457,8 +1364,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "records": [
         "activity_title",
@@ -1471,7 +1377,6 @@
         "date",
         "destination",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "difference",
         "docstatus",
         "document",
@@ -1483,7 +1388,6 @@
         "lost",
         "notes",
         "origin_warehouse_native_name",
-        "origin_warehouse_path",
         "original_loan",
         "outstanding",
         "purpose",
@@ -1494,12 +1398,10 @@
         "settlement_records",
         "source",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_qty",
         "stock_uom",
         "time",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "settlements": [
         "batch_no",
@@ -1508,7 +1410,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "docstatus",
         "document",
         "expiry_state",
@@ -1518,7 +1419,6 @@
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_qty",
         "stock_uom"
       ],
@@ -1565,8 +1465,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "history": [
         "activity_title",
@@ -1576,7 +1475,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "docstatus",
         "document",
         "expiry_state",
@@ -1591,7 +1489,6 @@
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_qty",
         "stock_uom",
         "time",
@@ -1624,7 +1521,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "difference",
         "docstatus",
         "document",
@@ -1645,13 +1541,11 @@
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_qty",
         "stock_uom",
         "time",
         "warehouse",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "loan_history": [
         "activity_title",
@@ -1660,7 +1554,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "docstatus",
         "document",
         "expiry_state",
@@ -1668,14 +1561,12 @@
         "item_name",
         "kind",
         "origin_warehouse_native_name",
-        "origin_warehouse_path",
         "original_loan",
         "outstanding",
         "quantity",
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_uom",
         "time"
       ],
@@ -1709,8 +1600,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "metadata": [
         "activity",
@@ -1734,7 +1624,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "docstatus",
         "document",
         "expiry_state",
@@ -1743,13 +1632,11 @@
         "loan_status",
         "lost",
         "origin_warehouse_native_name",
-        "origin_warehouse_path",
         "outstanding",
         "returned",
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_uom",
         "time"
       ],
@@ -1765,8 +1652,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "records": [
         "activity_title",
@@ -1779,7 +1665,6 @@
         "date",
         "destination",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "difference",
         "docstatus",
         "document",
@@ -1792,7 +1677,6 @@
         "lost",
         "notes",
         "origin_warehouse_native_name",
-        "origin_warehouse_path",
         "original_loan",
         "outstanding",
         "purpose",
@@ -1801,11 +1685,9 @@
         "reviewer",
         "source",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_uom",
         "time",
-        "warehouse_native_name",
-        "warehouse_path"
+        "warehouse_native_name"
       ],
       "settlements": [
         "batch_no",
@@ -1814,7 +1696,6 @@
         "date",
         "destination_warehouse",
         "destination_warehouse_native_name",
-        "destination_warehouse_path",
         "docstatus",
         "document",
         "expiry_state",
@@ -1824,7 +1705,6 @@
         "serial_nos",
         "source_warehouse",
         "source_warehouse_native_name",
-        "source_warehouse_path",
         "stock_qty",
         "stock_uom"
       ],
@@ -1873,8 +1753,7 @@
         "stock_uom": "库存单位",
         "warehouse": "库位",
         "warehouse_label": "库位",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "history": {
         "activity_title": "活动",
@@ -1884,7 +1763,6 @@
         "date": "日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "docstatus": "状态",
         "document": "编号",
         "expiry_state": "到期状态",
@@ -1899,7 +1777,6 @@
         "serial_nos": "序列号",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_qty": "库存数量",
         "stock_uom": "库存单位",
         "time": "时间",
@@ -1932,7 +1809,6 @@
         "date": "日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "difference": "差异量",
         "docstatus": "状态",
         "document": "编号",
@@ -1953,13 +1829,11 @@
         "serial_nos": "序列号",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_qty": "库存数量",
         "stock_uom": "库存单位",
         "time": "时间",
         "warehouse": "库位",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "loan_history": {
         "activity_title": "活动",
@@ -1968,7 +1842,6 @@
         "date": "日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "docstatus": "状态",
         "document": "编号",
         "expiry_state": "到期状态",
@@ -1976,14 +1849,12 @@
         "item_name": "物品名称",
         "kind": "类型",
         "origin_warehouse_native_name": "原位置 ERPNext 库位",
-        "origin_warehouse_path": "原位置完整位置",
         "original_loan": "原借出",
         "outstanding": "未归还数量",
         "quantity": "数量",
         "serial_nos": "序列号",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_uom": "库存单位",
         "time": "时间"
       },
@@ -2017,8 +1888,7 @@
         "stock_uom": "库存单位",
         "warehouse": "库位",
         "warehouse_label": "库位",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "metadata": {
         "activity": "活动编号",
@@ -2042,7 +1912,6 @@
         "date": "日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "docstatus": "状态",
         "document": "编号",
         "expiry_state": "到期状态",
@@ -2051,13 +1920,11 @@
         "loan_status": "借用状态",
         "lost": "遗失",
         "origin_warehouse_native_name": "原位置 ERPNext 库位",
-        "origin_warehouse_path": "原位置完整位置",
         "outstanding": "未归还数量",
         "returned": "正常归还量",
         "serial_nos": "序列号",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_uom": "库存单位",
         "time": "时间"
       },
@@ -2073,8 +1940,7 @@
         "stock_uom": "库存单位",
         "warehouse": "库位",
         "warehouse_label": "库位",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "records": {
         "activity_title": "活动",
@@ -2087,7 +1953,6 @@
         "date": "日期",
         "destination": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "difference": "差异量",
         "docstatus": "状态",
         "document": "编号",
@@ -2099,7 +1964,6 @@
         "lost": "遗失",
         "notes": "备注",
         "origin_warehouse_native_name": "原位置 ERPNext 库位",
-        "origin_warehouse_path": "原位置完整位置",
         "original_loan": "原借出",
         "outstanding": "未归还数量",
         "purpose": "用途",
@@ -2108,12 +1972,10 @@
         "reviewer": "鉴证人",
         "source": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_qty": "库存数量",
         "stock_uom": "库存单位",
         "time": "时间",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "settlements": {
         "batch_no": "批次编号",
@@ -2122,7 +1984,6 @@
         "date": "日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "docstatus": "状态",
         "document": "编号",
         "expiry_state": "到期状态",
@@ -2132,7 +1993,6 @@
         "serial_nos": "序列号",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_qty": "库存数量",
         "stock_uom": "库存单位"
       },
@@ -2179,8 +2039,7 @@
         "stock_uom": "库存单位",
         "warehouse": "盘点库位",
         "warehouse_label": "库位",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "history": {
         "activity_title": "活动",
@@ -2190,7 +2049,6 @@
         "date": "日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "docstatus": "状态",
         "document": "盘点编号",
         "expiry_state": "到期状态",
@@ -2205,7 +2063,6 @@
         "serial_nos": "序列号",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_qty": "库存数量",
         "stock_uom": "库存单位",
         "time": "时间",
@@ -2238,7 +2095,6 @@
         "date": "日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "difference": "差异量",
         "docstatus": "状态",
         "document": "盘点编号",
@@ -2259,13 +2115,11 @@
         "serial_nos": "序列号",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_qty": "库存数量",
         "stock_uom": "单位",
         "time": "时间",
         "warehouse": "盘点库位",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "loan_history": {
         "activity_title": "活动",
@@ -2274,7 +2128,6 @@
         "date": "日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "docstatus": "状态",
         "document": "盘点编号",
         "expiry_state": "到期状态",
@@ -2282,14 +2135,12 @@
         "item_name": "物品名称",
         "kind": "类型",
         "origin_warehouse_native_name": "原位置 ERPNext 库位",
-        "origin_warehouse_path": "原位置完整位置",
         "original_loan": "原借出",
         "outstanding": "未归还数量",
         "quantity": "数量",
         "serial_nos": "序列号",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_uom": "库存单位",
         "time": "时间"
       },
@@ -2323,8 +2174,7 @@
         "stock_uom": "库存单位",
         "warehouse": "盘点库位",
         "warehouse_label": "库位",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "metadata": {
         "activity": "活动编号",
@@ -2348,7 +2198,6 @@
         "date": "日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "docstatus": "状态",
         "document": "盘点编号",
         "expiry_state": "到期状态",
@@ -2357,13 +2206,11 @@
         "loan_status": "借用状态",
         "lost": "遗失",
         "origin_warehouse_native_name": "原位置 ERPNext 库位",
-        "origin_warehouse_path": "原位置完整位置",
         "outstanding": "未归还数量",
         "returned": "正常归还量",
         "serial_nos": "序列号",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_uom": "库存单位",
         "time": "时间"
       },
@@ -2379,8 +2226,7 @@
         "stock_uom": "库存单位",
         "warehouse": "盘点库位",
         "warehouse_label": "库位",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "records": {
         "activity_title": "活动",
@@ -2393,7 +2239,6 @@
         "date": "日期",
         "destination": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "difference": "差异量",
         "docstatus": "状态",
         "document": "盘点编号",
@@ -2408,7 +2253,6 @@
         "net": "净差异",
         "notes": "备注",
         "origin_warehouse_native_name": "原位置 ERPNext 库位",
-        "origin_warehouse_path": "原位置完整位置",
         "original_loan": "原借出",
         "outstanding": "未归还数量",
         "purpose": "用途",
@@ -2417,12 +2261,10 @@
         "reviewer": "鉴证人",
         "source": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_qty": "库存数量",
         "stock_uom": "单位",
         "time": "时间",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "settlements": {
         "batch_no": "批次编号",
@@ -2431,7 +2273,6 @@
         "date": "日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "docstatus": "状态",
         "document": "盘点编号",
         "expiry_state": "到期状态",
@@ -2441,7 +2282,6 @@
         "serial_nos": "序列号",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_qty": "库存数量",
         "stock_uom": "库存单位"
       },
@@ -2488,8 +2328,7 @@
         "stock_uom": "库存单位",
         "warehouse": "位置",
         "warehouse_label": "库位",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "history": {
         "activity_title": "活动",
@@ -2499,7 +2338,6 @@
         "date": "日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "docstatus": "状态",
         "document": "编号",
         "expiry_state": "到期状态",
@@ -2514,7 +2352,6 @@
         "serial_nos": "序列号",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_qty": "库存数量",
         "stock_uom": "库存单位",
         "time": "时间",
@@ -2547,7 +2384,6 @@
         "date": "日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "difference": "差异量",
         "docstatus": "状态",
         "document": "编号",
@@ -2568,13 +2404,11 @@
         "serial_nos": "序列号",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_qty": "库存数量",
         "stock_uom": "库存单位",
         "time": "时间",
         "warehouse": "库位",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "loan_history": {
         "activity_title": "活动",
@@ -2583,7 +2417,6 @@
         "date": "日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "docstatus": "状态",
         "document": "编号",
         "expiry_state": "到期状态",
@@ -2591,14 +2424,12 @@
         "item_name": "物品名称",
         "kind": "类型",
         "origin_warehouse_native_name": "原位置 ERPNext 库位",
-        "origin_warehouse_path": "原位置完整位置",
         "original_loan": "原借出",
         "outstanding": "未归还数量",
         "quantity": "数量",
         "serial_nos": "序列号",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_uom": "库存单位",
         "time": "时间"
       },
@@ -2632,8 +2463,7 @@
         "stock_uom": "库存单位",
         "warehouse": "库位",
         "warehouse_label": "库位",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "metadata": {
         "activity": "活动编号",
@@ -2657,7 +2487,6 @@
         "date": "日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "docstatus": "状态",
         "document": "编号",
         "expiry_state": "到期状态",
@@ -2666,13 +2495,11 @@
         "loan_status": "借用状态",
         "lost": "遗失",
         "origin_warehouse_native_name": "原位置 ERPNext 库位",
-        "origin_warehouse_path": "原位置完整位置",
         "outstanding": "未归还数量",
         "returned": "正常归还量",
         "serial_nos": "序列号",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_uom": "库存单位",
         "time": "时间"
       },
@@ -2688,8 +2515,7 @@
         "stock_uom": "库存单位",
         "warehouse": "库位",
         "warehouse_label": "库位",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "records": {
         "activity_title": "活动",
@@ -2702,7 +2528,6 @@
         "date": "日期",
         "destination": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "difference": "差异量",
         "docstatus": "状态",
         "document": "编号",
@@ -2714,7 +2539,6 @@
         "lost": "遗失",
         "notes": "备注",
         "origin_warehouse_native_name": "原位置 ERPNext 库位",
-        "origin_warehouse_path": "原位置完整位置",
         "original_loan": "原借出",
         "outstanding": "未归还数量",
         "purpose": "用途",
@@ -2723,12 +2547,10 @@
         "reviewer": "鉴证人",
         "source": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_qty": "库存数量",
         "stock_uom": "库存单位",
         "time": "时间",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "settlements": {
         "batch_no": "批次编号",
@@ -2737,7 +2559,6 @@
         "date": "日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "docstatus": "状态",
         "document": "编号",
         "expiry_state": "到期状态",
@@ -2747,7 +2568,6 @@
         "serial_nos": "序列号",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_qty": "库存数量",
         "stock_uom": "库存单位"
       },
@@ -2794,8 +2614,7 @@
         "stock_uom": "库存单位",
         "warehouse": "库位",
         "warehouse_label": "库位",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "history": {
         "activity_title": "活动",
@@ -2805,7 +2624,6 @@
         "date": "日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "docstatus": "状态",
         "document": "编号",
         "expiry_state": "到期状态",
@@ -2820,7 +2638,6 @@
         "serial_nos": "序列号",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_qty": "合计",
         "stock_uom": "库存单位",
         "time": "时间",
@@ -2853,7 +2670,6 @@
         "date": "日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "difference": "差异量",
         "docstatus": "状态",
         "document": "编号",
@@ -2874,13 +2690,11 @@
         "serial_nos": "序列号",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_qty": "合计",
         "stock_uom": "库存单位",
         "time": "时间",
         "warehouse": "库位",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "loan_history": {
         "activity_title": "活动",
@@ -2889,7 +2703,6 @@
         "date": "日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "docstatus": "状态",
         "document": "编号",
         "expiry_state": "到期状态",
@@ -2897,14 +2710,12 @@
         "item_name": "物品名称",
         "kind": "类型",
         "origin_warehouse_native_name": "原位置 ERPNext 库位",
-        "origin_warehouse_path": "原位置完整位置",
         "original_loan": "原借出",
         "outstanding": "未归还数量",
         "quantity": "数量",
         "serial_nos": "序列号",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_uom": "库存单位",
         "time": "时间"
       },
@@ -2938,8 +2749,7 @@
         "stock_uom": "库存单位",
         "warehouse": "库位",
         "warehouse_label": "库位",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "metadata": {
         "activity": "活动编号",
@@ -2963,7 +2773,6 @@
         "date": "日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "docstatus": "状态",
         "document": "编号",
         "expiry_state": "到期状态",
@@ -2972,13 +2781,11 @@
         "loan_status": "借用状态",
         "lost": "遗失",
         "origin_warehouse_native_name": "原位置 ERPNext 库位",
-        "origin_warehouse_path": "原位置完整位置",
         "outstanding": "未归还数量",
         "returned": "正常归还量",
         "serial_nos": "序列号",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_uom": "库存单位",
         "time": "时间"
       },
@@ -2994,8 +2801,7 @@
         "stock_uom": "库存单位",
         "warehouse": "库位",
         "warehouse_label": "库位",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "records": {
         "activity_title": "活动",
@@ -3008,7 +2814,6 @@
         "date": "日期",
         "destination": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "difference": "差异量",
         "docstatus": "状态",
         "document": "编号",
@@ -3020,7 +2825,6 @@
         "lost": "遗失",
         "notes": "备注",
         "origin_warehouse_native_name": "原位置 ERPNext 库位",
-        "origin_warehouse_path": "原位置完整位置",
         "original_loan": "原借出",
         "outstanding": "未归还数量",
         "purpose": "用途",
@@ -3029,12 +2833,10 @@
         "reviewer": "鉴证人",
         "source": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_qty": "合计",
         "stock_uom": "库存单位",
         "time": "时间",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "settlements": {
         "batch_no": "批次编号",
@@ -3043,7 +2845,6 @@
         "date": "日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "docstatus": "状态",
         "document": "编号",
         "expiry_state": "到期状态",
@@ -3053,7 +2854,6 @@
         "serial_nos": "序列号",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_qty": "合计",
         "stock_uom": "库存单位"
       },
@@ -3100,8 +2900,7 @@
         "stock_uom": "库存单位",
         "warehouse": "库位",
         "warehouse_label": "库位",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "history": {
         "activity_title": "活动",
@@ -3111,7 +2910,6 @@
         "date": "日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "docstatus": "状态",
         "document": "编号",
         "expiry_state": "到期状态",
@@ -3126,7 +2924,6 @@
         "serial_nos": "序列号",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_qty": "库存数量",
         "stock_uom": "库存单位",
         "time": "时间",
@@ -3159,7 +2956,6 @@
         "date": "借出日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "difference": "差异量",
         "docstatus": "状态",
         "document": "借出单号",
@@ -3180,13 +2976,11 @@
         "serial_nos": "序列号",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_qty": "库存数量",
         "stock_uom": "库存单位",
         "time": "时间",
         "warehouse": "库位",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "loan_history": {
         "activity_title": "活动",
@@ -3195,7 +2989,6 @@
         "date": "日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "docstatus": "状态",
         "document": "编号",
         "expiry_state": "到期状态",
@@ -3203,14 +2996,12 @@
         "item_name": "物品名称",
         "kind": "类型",
         "origin_warehouse_native_name": "原位置 ERPNext 库位",
-        "origin_warehouse_path": "原位置完整位置",
         "original_loan": "原借出",
         "outstanding": "未归还数量",
         "quantity": "借还数量",
         "serial_nos": "序列号",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_uom": "单位",
         "time": "时间"
       },
@@ -3244,8 +3035,7 @@
         "stock_uom": "库存单位",
         "warehouse": "库位",
         "warehouse_label": "库位",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "metadata": {
         "activity": "活动编号",
@@ -3269,7 +3059,6 @@
         "date": "借出日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "docstatus": "状态",
         "document": "借出单号",
         "expiry_state": "到期状态",
@@ -3278,13 +3067,11 @@
         "loan_status": "借用状态",
         "lost": "遗失",
         "origin_warehouse_native_name": "原位置 ERPNext 库位",
-        "origin_warehouse_path": "原位置完整位置",
         "outstanding": "未归还数量",
         "returned": "正常归还量",
         "serial_nos": "序列号",
         "source_warehouse": "原位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_uom": "库存单位",
         "time": "时间"
       },
@@ -3300,8 +3087,7 @@
         "stock_uom": "库存单位",
         "warehouse": "库位",
         "warehouse_label": "库位",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "records": {
         "activity_title": "活动",
@@ -3314,7 +3100,6 @@
         "date": "日期",
         "destination": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "difference": "差异量",
         "docstatus": "状态",
         "document": "编号",
@@ -3326,7 +3111,6 @@
         "lost": "遗失",
         "notes": "备注",
         "origin_warehouse_native_name": "原位置 ERPNext 库位",
-        "origin_warehouse_path": "原位置完整位置",
         "original_loan": "原借出",
         "outstanding": "未归还数量",
         "purpose": "用途",
@@ -3337,12 +3121,10 @@
         "settlement_records": "结算记录",
         "source": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_qty": "库存数量",
         "stock_uom": "库存单位",
         "time": "时间",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "settlements": {
         "batch_no": "批次编号",
@@ -3351,7 +3133,6 @@
         "date": "日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "docstatus": "状态",
         "document": "编号",
         "expiry_state": "到期状态",
@@ -3361,7 +3142,6 @@
         "serial_nos": "序列号",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_qty": "库存数量",
         "stock_uom": "库存单位"
       },
@@ -3408,8 +3188,7 @@
         "stock_uom": "库存单位",
         "warehouse": "库位",
         "warehouse_label": "库位",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "history": {
         "activity_title": "活动",
@@ -3419,7 +3198,6 @@
         "date": "日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "docstatus": "状态",
         "document": "编号",
         "expiry_state": "到期状态",
@@ -3434,7 +3212,6 @@
         "serial_nos": "序列号",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_qty": "数量",
         "stock_uom": "单位",
         "time": "时间",
@@ -3467,7 +3244,6 @@
         "date": "日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "difference": "差异量",
         "docstatus": "状态",
         "document": "编号",
@@ -3488,13 +3264,11 @@
         "serial_nos": "序列号",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_qty": "库存数量",
         "stock_uom": "库存单位",
         "time": "时间",
         "warehouse": "位置",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "loan_history": {
         "activity_title": "活动",
@@ -3503,7 +3277,6 @@
         "date": "日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "docstatus": "状态",
         "document": "编号",
         "expiry_state": "到期状态",
@@ -3511,14 +3284,12 @@
         "item_name": "物品名称",
         "kind": "类型",
         "origin_warehouse_native_name": "原位置 ERPNext 库位",
-        "origin_warehouse_path": "原位置完整位置",
         "original_loan": "原借出",
         "outstanding": "未归还数量",
         "quantity": "数量",
         "serial_nos": "序列号",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_uom": "库存单位",
         "time": "时间"
       },
@@ -3552,8 +3323,7 @@
         "stock_uom": "库存单位",
         "warehouse": "库位",
         "warehouse_label": "库位",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "metadata": {
         "activity": "活动编号",
@@ -3577,7 +3347,6 @@
         "date": "日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "docstatus": "状态",
         "document": "编号",
         "expiry_state": "到期状态",
@@ -3586,13 +3355,11 @@
         "loan_status": "借用状态",
         "lost": "遗失",
         "origin_warehouse_native_name": "原位置 ERPNext 库位",
-        "origin_warehouse_path": "原位置完整位置",
         "outstanding": "未归还数量",
         "returned": "正常归还量",
         "serial_nos": "序列号",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_uom": "库存单位",
         "time": "时间"
       },
@@ -3608,8 +3375,7 @@
         "stock_uom": "库存单位",
         "warehouse": "库位",
         "warehouse_label": "库位",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "records": {
         "activity_title": "活动",
@@ -3622,7 +3388,6 @@
         "date": "日期",
         "destination": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "difference": "差异量",
         "docstatus": "状态",
         "document": "编号",
@@ -3635,7 +3400,6 @@
         "lost": "遗失",
         "notes": "备注",
         "origin_warehouse_native_name": "原位置 ERPNext 库位",
-        "origin_warehouse_path": "原位置完整位置",
         "original_loan": "原借出",
         "outstanding": "未归还数量",
         "purpose": "用途",
@@ -3644,11 +3408,9 @@
         "reviewer": "鉴证人",
         "source": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_uom": "库存单位",
         "time": "时间",
-        "warehouse_native_name": "ERPNext 库位",
-        "warehouse_path": "完整位置"
+        "warehouse_native_name": "ERPNext 库位"
       },
       "settlements": {
         "batch_no": "批次编号",
@@ -3657,7 +3419,6 @@
         "date": "日期",
         "destination_warehouse": "去向位置",
         "destination_warehouse_native_name": "去向 ERPNext 库位",
-        "destination_warehouse_path": "去向完整位置",
         "docstatus": "状态",
         "document": "编号",
         "expiry_state": "到期状态",
@@ -3667,7 +3428,6 @@
         "serial_nos": "序列号",
         "source_warehouse": "来源位置",
         "source_warehouse_native_name": "来源 ERPNext 库位",
-        "source_warehouse_path": "来源完整位置",
         "stock_qty": "库存数量",
         "stock_uom": "库存单位"
       },
