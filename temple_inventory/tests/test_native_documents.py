@@ -913,6 +913,109 @@ class NativeDocumentTests(unittest.TestCase):
 		self.assertEqual(amended["items"][0].allow_zero_valuation_rate, 1)
 		self.assertEqual(self.submit(amended)["docstatus"], 1)
 
+	def unvalued_count_item(self):
+		item = frappe.get_doc(
+			{
+				"doctype": "Item",
+				"item_code": f"TI-COUNT-ZERO-{self.token}",
+				"item_name": "Unvalued count test item",
+				"stock_uom": "Nos",
+				"item_group": "All Item Groups",
+				"is_stock_item": 1,
+				"valuation_rate": 0,
+			}
+		).insert()
+		data = self.movement(quantity=1)
+		data["items"][0]["item_code"] = item.name
+		data["items"][0].pop("basic_rate")
+		self.submit(self.create(data))
+		return item.name
+
+	def test_zero_valuation_count_adjustments_submit_in_both_directions(self):
+		item = self.unvalued_count_item()
+		for before, after in ((1, 3), (3, 1)):
+			with self.subTest(path="native_api", before=before, after=after):
+				draft = native_api.create_document(
+					"Stock Reconciliation",
+					str(uuid4()),
+					{
+						"company": self.company,
+						"purpose": "Stock Reconciliation",
+						"posting_date": nowdate(),
+						"items": [{"item_code": item, "warehouse": self.a, "qty": after}],
+					},
+				)
+				self.assertEqual(
+					frappe.get_doc("Stock Reconciliation", draft["name"]).items[0].allow_zero_valuation_rate,
+					1,
+				)
+				completed = native_api.submit_document(
+					"Stock Reconciliation", draft["name"], draft["version"]
+				)
+				self.assertEqual(completed["docstatus"], 1)
+				self.assertEqual(get_stock_balance(item, self.a), after)
+				self.assertEqual(get_stock_balance(item, self.a, with_valuation_rate=True)[1], 0)
+
+		for before, after in ((1, 3), (3, 1)):
+			with self.subTest(path="count_editor", before=before, after=after):
+				data = self.count_data()
+				for row in data["ti_count_review"]:
+					if row["item_code"] == item and row["warehouse"] == self.a:
+						row.update(actual_qty=after, review_state="Reviewed", reason="实点差异")
+				created = counts.save_count(str(uuid4()), data)
+				self.assertEqual(created.get("items")[0].allow_zero_valuation_rate, 1)
+				updated_data = self.count_data()
+				for row in updated_data["ti_count_review"]:
+					if row["item_code"] == item and row["warehouse"] == self.a:
+						row.update(actual_qty=after, review_state="Reviewed", reason="实点差异")
+				created = counts.save_count(str(uuid4()), updated_data, created.name, created.version)
+				self.assertEqual(created.get("items")[0].allow_zero_valuation_rate, 1)
+				completed = native_api.submit_document("Stock Reconciliation", created.name, created.version)
+				self.assertEqual(completed["docstatus"], 1)
+				self.assertEqual(get_stock_balance(item, self.a), after)
+				self.assertEqual(get_stock_balance(item, self.a, with_valuation_rate=True)[1], 0)
+
+	def test_amend_keeps_zero_valuation_allowance_for_count_reconciliation(self):
+		item = self.unvalued_count_item()
+		draft = native_api.create_document(
+			"Stock Reconciliation",
+			str(uuid4()),
+			{
+				"company": self.company,
+				"purpose": "Stock Reconciliation",
+				"posting_date": nowdate(),
+				"items": [{"item_code": item, "warehouse": self.a, "qty": 3}],
+			},
+		)
+		submitted = native_api.submit_document("Stock Reconciliation", draft["name"], draft["version"])
+		cancelled = native_api.cancel_document(
+			"Stock Reconciliation", submitted["name"], submitted["version"]
+		)
+		amended = native_api.amend_document(
+			"Stock Reconciliation", cancelled["name"], cancelled["version"], str(uuid4())
+		)
+		self.assertEqual(amended["items"][0].allow_zero_valuation_rate, 1)
+		self.assertEqual(
+			native_api.submit_document("Stock Reconciliation", amended["name"], amended["version"])[
+				"docstatus"
+			],
+			1,
+		)
+
+	def test_count_valuation_fallback_preserves_a_rate_entered_in_desk(self):
+		doc = frappe.new_doc("Stock Reconciliation")
+		doc.company = self.company
+		doc.purpose = "Stock Reconciliation"
+		doc.posting_date = nowdate()
+		doc.set_posting_time = 1
+		doc.posting_time = now_datetime().time()
+		doc.append(
+			"items",
+			{"item_code": self.item, "warehouse": self.a, "qty": 1, "valuation_rate": 73},
+		)
+		counts.before_validate(doc)
+		self.assertEqual(doc.items[0].valuation_rate, 73)
+
 	def test_count_posts_real_difference_and_keeps_native_valuation(self):
 		self.receipt(10)
 		doc = counts.save_count(str(uuid4()), self.count_data(8, "Reviewed"))

@@ -626,6 +626,102 @@ test("real matching count finishes without creating an adjustment document", asy
   );
 });
 
+test("count editor submits both increases and decreases for an unvalued item", async ({
+  page,
+}) => {
+  const bootstrap = await call(page.request, "browse.bootstrap");
+  const warehouse = (bootstrap.physical_leaves as string[])[0]!;
+  const code = `TI-COUNT-ZERO-${crypto.randomUUID().slice(0, 10)}`;
+  await call(page.request, "catalog.save_item", {
+    data: {
+      item_code: code,
+      item_name: `Unvalued count ${code}`,
+      stock_uom: "Nos",
+    },
+  });
+  const receipt = await call(page.request, "native_api.create_document", {
+    doctype: "Stock Entry",
+    request_id: crypto.randomUUID(),
+    data: {
+      company: bootstrap.company,
+      posting_date: bootstrap.site_date,
+      ti_movement_kind: "Receive",
+      items: [
+        {
+          item_code: code,
+          qty: 1,
+          uom: "Nos",
+          conversion_factor: 1,
+          t_warehouse: warehouse,
+        },
+      ],
+    },
+  });
+  const docs: { doctype: string; name: string }[] = [
+    { doctype: "Stock Entry", name: receipt.name },
+  ];
+  try {
+    const receiptSubmit = await call(
+      page.request,
+      "native_api.submit_document",
+      {
+        doctype: "Stock Entry",
+        name: receipt.name,
+        version: receipt.version,
+      },
+    );
+    expect(receiptSubmit.docstatus).toBe(1);
+
+    for (const quantity of [3, 1]) {
+      await page.goto(
+        `/inventory/counts/new?warehouse=${encodeURIComponent(warehouse)}`,
+      );
+      const row = page.locator("[data-count-key]").filter({ hasText: code });
+      await expect(row).toHaveCount(1);
+      await row.locator('input[type="number"]').fill(String(quantity));
+      const saved = page.waitForResponse((response) =>
+        response.url().endsWith("temple_inventory.counts.save_count"),
+      );
+      const submitted = page.waitForResponse((response) =>
+        response.url().endsWith("temple_inventory.native_api.submit_document"),
+      );
+      await page
+        .getByRole("button", { name: "核对并确认", exact: true })
+        .click();
+      const saveResponse = await saved;
+      expect(saveResponse.ok()).toBe(true);
+      const draft = (await saveResponse.json()).message;
+      expect(draft.name).toBeTruthy();
+      docs.push({ doctype: "Stock Reconciliation", name: draft.name });
+      await expect(
+        page.getByRole("button", { name: "确认提交", exact: true }),
+      ).toBeVisible();
+      await page.getByRole("button", { name: "确认提交", exact: true }).click();
+      const response = await submitted;
+      expect(response.ok()).toBe(true);
+      const result = (await response.json()).message;
+      expect(result.docstatus).toBe(1);
+    }
+  } finally {
+    for (const doc of docs.reverse()) {
+      try {
+        const loaded = await call(
+          page.request,
+          "native_api.load_document",
+          doc,
+        );
+        if (loaded.docstatus === 1)
+          await call(page.request, "native_api.cancel_document", {
+            ...doc,
+            version: loaded.version,
+          });
+      } catch {
+        // A failed fixture should not hide the original acceptance failure.
+      }
+    }
+  }
+});
+
 test("native seed, clean schema, private originals and the real built app", async ({
   page,
   browser,

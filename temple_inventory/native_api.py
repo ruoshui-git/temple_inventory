@@ -822,14 +822,16 @@ def amend_document(doctype, name, version, request_id):
 	if doctype == "Stock Entry":
 		_copy_zero_valuation_allowance(doc, amended)
 		_copy_entry_batches(doc, amended)
-	elif doc.purpose == "Opening Stock":
-		_copy_opening_allocations(doc, amended)
+	elif doctype == "Stock Reconciliation":
+		_copy_zero_valuation_allowance(doc, amended)
+		if doc.purpose == "Opening Stock":
+			_copy_opening_allocations(doc, amended)
 	amended.insert()
 	return serialize(amended)
 
 
 def _copy_zero_valuation_allowance(original, copied):
-	"""Restore the no-copy allowance for each matching copied Stock Entry row."""
+	"""Restore the no-copy allowance for each matching native stock row."""
 	for previous, row in zip(original.get("items"), copied.get("items"), strict=True):
 		row.allow_zero_valuation_rate = previous.allow_zero_valuation_rate
 

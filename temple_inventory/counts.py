@@ -5,7 +5,7 @@
 from decimal import Decimal
 
 import frappe
-from frappe.utils import get_datetime
+from frappe.utils import flt, get_datetime
 
 from temple_inventory.activities import validate_assignment
 from temple_inventory.native_access import (
@@ -496,6 +496,19 @@ def before_validate(doc, method=None):
 		validate_opening(doc)
 	else:
 		reject_future_posting(doc, "盘点时间不能晚于当前时间。")
+	if doc.purpose == "Stock Reconciliation" and doc.company == frappe.db.get_single_value(
+		"Temple Inventory Settings", "company"
+	):
+		from temple_inventory.opening import set_valuation_rate_or_allow_zero
+
+		for row in doc.get("items"):
+			if not row.item_code or not row.warehouse:
+				continue
+			if row.get("valuation_rate") not in (None, "") and flt(row.valuation_rate):
+				continue
+			if row.get("allow_zero_valuation_rate"):
+				continue
+			set_valuation_rate_or_allow_zero(doc, row)
 	if not doc.get("ti_count_review"):
 		return
 	_lock_count_locations()

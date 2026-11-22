@@ -21,6 +21,32 @@ def set_difference_account(doc):
 	return account
 
 
+def set_valuation_rate_or_allow_zero(doc, row):
+	"""Use an existing valuation source, or mark an unvalued row for native zero valuation."""
+	from erpnext.stock.utils import get_stock_balance
+
+	rate = get_stock_balance(
+		row.item_code,
+		row.warehouse,
+		doc.posting_date,
+		doc.posting_time,
+		with_valuation_rate=True,
+	)[1]
+	if not rate:
+		currency = frappe.get_cached_value("Company", doc.company, "default_currency")
+		rate = frappe.db.get_value(
+			"Item Price",
+			{"item_code": row.item_code, "buying": 1, "currency": currency},
+			"price_list_rate",
+		)
+	if not rate:
+		rate = frappe.get_cached_value("Item", row.item_code, "valuation_rate")
+	if rate:
+		row.valuation_rate = rate
+	else:
+		row.allow_zero_valuation_rate = 1
+
+
 @frappe.whitelist(methods=["POST"])
 def ensure_batch(item_code, batch_id, manufacturing_date=None, expiry_date=None):
 	require_app()
@@ -220,28 +246,7 @@ def validate_opening(doc):
 				frappe.throw(f"物品 {item.item_name}（{item.name}）的批次 {row.batch_no} 必须填写到期日期。")
 			row.use_serial_batch_fields = 1
 		if not flt(row.get("valuation_rate")):
-			from erpnext.stock.utils import get_stock_balance
-
-			rate = get_stock_balance(
-				row.item_code,
-				row.warehouse,
-				doc.posting_date,
-				doc.posting_time,
-				with_valuation_rate=True,
-			)[1]
-			if not rate:
-				currency = frappe.get_cached_value("Company", doc.company, "default_currency")
-				rate = frappe.db.get_value(
-					"Item Price",
-					{"item_code": row.item_code, "buying": 1, "currency": currency},
-					"price_list_rate",
-				)
-			if not rate:
-				rate = frappe.get_cached_value("Item", row.item_code, "valuation_rate")
-			if rate:
-				row.valuation_rate = rate
-			else:
-				row.allow_zero_valuation_rate = 1
+			set_valuation_rate_or_allow_zero(doc, row)
 	if serial_rows:
 		serial_docs = frappe.get_all(
 			"Serial No",
