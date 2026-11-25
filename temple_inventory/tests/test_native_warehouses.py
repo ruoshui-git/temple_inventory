@@ -95,7 +95,7 @@ class NativeWarehouseTests(NativeDocumentTests):
 		self.assertEqual(baseline[shelf][1]["full_label"], f"Snapshot shelf {self.token}")
 		self.assertEqual(
 			baseline[leaf][1]["label"],
-			f"SA / Snapshot room {self.token} / Snapshot shelf {self.token}",
+			f"SA/Snapshot room {self.token}/Snapshot shelf {self.token}",
 		)
 		self.assertEqual(baseline[leaf][1]["path"], baseline[shelf][1]["path"])
 		self.assertEqual(baseline[leaf][1]["local_label"], f"Snapshot shelf {self.token}")
@@ -130,7 +130,7 @@ class NativeWarehouseTests(NativeDocumentTests):
 		with patch("frappe.has_permission", return_value=True):
 			after = snapshot()
 		self.assertEqual(after[room][1]["local_label"], f"Renamed room {self.token}")
-		self.assertEqual(after[room][1]["path"], f"Snapshot second {self.token} / SR")
+		self.assertEqual(after[room][1]["path"], f"Snapshot second {self.token}/SR")
 
 	def test_system_location_group_is_presented_with_leaf_labels_without_group_path(self):
 		rows = native_topology._visible_warehouses()
