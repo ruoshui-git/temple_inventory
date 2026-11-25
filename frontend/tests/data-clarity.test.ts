@@ -5,6 +5,7 @@ import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import LocationEndpoint from "../src/components/ui/LocationEndpoint.vue";
 import MultiLocationEndpoint from "../src/components/ui/MultiLocationEndpoint.vue";
 import RecordRef from "../src/components/ui/RecordRef.vue";
+import { tooltipBinding } from "./support/tooltipBinding";
 import RelatedLoanPreview from "../src/features/loans/RelatedLoanPreview.vue";
 import { loanReferenceIdentity } from "../src/lib/relatedLoanPresentation";
 import {
@@ -209,7 +210,7 @@ describe("data clarity components", () => {
     wrappers.push(wrapper);
     expect(wrapper.text()).toContain("活动服务团队 · 07-14");
     expect(wrapper.text()).not.toContain("MAT-STE-2026-01279");
-    expect(wrapper.get("button").attributes("title")).toBe(
+    expect(tooltipBinding(wrapper.get("button").element)).toBe(
       "MAT-STE-2026-01279",
     );
   });
@@ -228,7 +229,7 @@ describe("data clarity components", () => {
     expect(wrapper.get("button").attributes("aria-label")).toBe(
       "借出记录 2 笔借出",
     );
-    expect(wrapper.get("button").attributes("title")).toBe("STE-42");
+    expect(tooltipBinding(wrapper.get("button").element)).toBe("STE-42");
     await wrapper.get("button").trigger("click");
     expect(wrapper.emitted("open")).toHaveLength(1);
   });

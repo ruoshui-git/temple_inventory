@@ -47,7 +47,7 @@ const label = () => {
 		type="button"
 		class="record-ref-chip"
 		:aria-label="accessibleLabel || label()"
-		:title="documentName || tooltip || label()"
+		v-tip="documentName || { text: tooltip || label(), overflow: true }"
 		:disabled="disabled"
 		@click="emit('open')"
 	>

@@ -253,7 +253,8 @@ const selectedSize = computed(() => {
 				v-else-if="['pdf', 'text'].includes(selectedKind) && selected.url"
 				class="attachment-frame"
 				:src="selected.url"
-				:title="selected.name"
+				v-tip="selected.name"
+				:aria-label="selected.name"
 			/>
 			<div v-else class="attachment-file-card">
 				<strong>{{ selected.name }}</strong>

@@ -149,7 +149,7 @@ function fieldClass(column: DataColumn) {
 				:class="fieldClass(column)"
 			>
 				<dt>{{ column.label }}</dt>
-				<dd :title="plainText(valueOf(column))" data-clamp>
+				<dd v-tip.overflow="plainText(valueOf(column))" data-clamp>
 					<slot name="cell" :column="column" :row="row" :value="valueOf(column)">
 						<DataCell :column="column" :value="valueOf(column)" empty-text="—" />
 					</slot>

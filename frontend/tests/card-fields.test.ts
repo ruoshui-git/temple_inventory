@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { mount, type VueWrapper } from "@vue/test-utils";
 import { h, ref } from "vue";
 import CardFields from "../src/components/ui/CardFields.vue";
+import { tooltipBinding } from "./support/tooltipBinding";
 import DataCell from "../src/components/ui/DataCell.vue";
 import { browseCardTruncatedKey } from "../src/composables/useTextOverflow";
 import type { DataColumn } from "../src/lib/dataTable";
@@ -29,7 +30,7 @@ describe("CardFields", () => {
     expect(items).toHaveLength(3);
     expect(items[0]!.get("dt").text()).toBe("仓库");
     expect(items[0]!.get("dd").text()).toBe("主库");
-    expect(items[0]!.get("dd").attributes("title")).toBe("主库");
+    expect(tooltipBinding(items[0]!.get("dd").element)).toBe("主库");
   });
 
   it("keeps self-describing fields' labels for assistive technology only", () => {

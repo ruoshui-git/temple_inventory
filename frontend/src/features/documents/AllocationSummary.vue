@@ -356,7 +356,9 @@ function itemFor(row: Record<string, unknown>) {
 							<RouterLink
 								v-if="linkItems"
 								class="allocation-item-link"
-								:title="item(line.code)?.name || line.displayName || line.code"
+								v-tip.overflow="
+									item(line.code)?.name || line.displayName || line.code
+								"
 								:to="routeTarget('item-detail', { code: line.code })"
 								>{{
 									item(line.code)?.name || line.displayName || line.code
@@ -365,7 +367,9 @@ function itemFor(row: Record<string, unknown>) {
 							<span
 								v-else
 								class="allocation-item-name"
-								:title="item(line.code)?.name || line.displayName || line.code"
+								v-tip.overflow="
+									item(line.code)?.name || line.displayName || line.code
+								"
 								>{{ item(line.code)?.name || line.displayName || line.code }}</span
 							>
 							<strong class="allocation-phone-quantity">{{
@@ -458,7 +462,7 @@ function itemFor(row: Record<string, unknown>) {
 			<RouterLink
 				v-else-if="column.id === 'item_name' && linkItems"
 				class="allocation-item-link"
-				:title="String(row.item_name || '')"
+				v-tip.overflow="String(row.item_name || '')"
 				:to="routeTarget('item-detail', { code: String(row.code || '') })"
 				>{{ String(row.item_name || "") }}</RouterLink
 			>

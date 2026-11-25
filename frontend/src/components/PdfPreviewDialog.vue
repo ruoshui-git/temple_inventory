@@ -28,6 +28,7 @@ function print() {
 			>
 		</div>
 		<p v-if="phone" class="muted">手机浏览器可能无法预览 PDF，请下载后打开或打印。</p>
+		<!-- An iframe's title is its accessible name, not a tooltip. -->
 		<iframe v-if="!phone" ref="frame" :src="url" :title="`${number} PDF 预览`" />
 	</Overlay>
 </template>

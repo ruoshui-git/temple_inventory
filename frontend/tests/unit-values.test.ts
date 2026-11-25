@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
 import UnitValues from "../src/components/ui/UnitValues.vue";
+import { tooltipBinding } from "./support/tooltipBinding";
 import { setUnitSource } from "../src/lib/units";
 
 describe("UnitValues", () => {
@@ -29,6 +30,6 @@ describe("UnitValues", () => {
     expect(wrapper.attributes("aria-label")).toBe(
       "可用变化：+4 Nos；−2 Box；+3 Set",
     );
-    expect(wrapper.attributes("title")).toBe("+4 Nos；−2 Box；+3 Set");
+    expect(tooltipBinding(wrapper.element)).toBe("+4 Nos；−2 Box；+3 Set");
   });
 });

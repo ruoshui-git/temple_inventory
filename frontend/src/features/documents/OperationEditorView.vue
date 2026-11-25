@@ -908,7 +908,7 @@ async function lifecycle() {
 										:key="name"
 										type="button"
 										class="record-ref-chip"
-										:title="returnLoanContext(name)"
+										v-tip="returnLoanContext(name)"
 										:aria-label="`移除 ${returnLoanContext(name)}`"
 										@click="removeLoan(name)"
 									>

@@ -80,7 +80,7 @@ const {
 		<template v-else-if="column.id === 'available_effect'">
 			<span
 				:class="recordEffectTone(operationRow(row), String(row.stock_uom || ''))"
-				:title="recordEffectLabel(operationRow(row), String(row.stock_uom || ''))"
+				v-tip="recordEffectLabel(operationRow(row), String(row.stock_uom || ''))"
 			>
 				{{
 					recordEffect(operationRow(row), String(row.stock_uom || "")) > 0
@@ -139,7 +139,7 @@ const {
 						? recordEffectTone(operationRow(row), String(row.stock_uom || ''))
 						: 'operation-total'
 				"
-				:title="
+				v-tip="
 					family === 'movements'
 						? recordEffectLabel(operationRow(row), String(row.stock_uom || ''))
 						: undefined
@@ -237,7 +237,7 @@ const {
 								: 'stock-effect is-neutral'
 						: undefined
 				"
-				:title="
+				v-tip="
 					typeof metric.effect === 'number'
 						? effectLabel(metric.effect, metric.quantity.uom, metric.quantity.status)
 						: undefined

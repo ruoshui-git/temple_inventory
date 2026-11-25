@@ -60,7 +60,7 @@ function effectLabel(quantity: Quantity) {
 									? undefined
 									: `stock-effect ${effect(quantity) > 0 ? 'is-increase' : effect(quantity) < 0 ? 'is-decrease' : 'is-neutral'}`
 							"
-							:title="
+							v-tip="
 								quantity.effect === undefined ? undefined : effectLabel(quantity)
 							"
 						>

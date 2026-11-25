@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
 import HierarchyFilter from "../src/components/ui/HierarchyFilter.vue";
+import { tooltipBinding } from "./support/tooltipBinding";
 
 const nodes = [
   {
@@ -178,9 +179,9 @@ describe("HierarchyFilter", () => {
       .findAll(".hierarchy-row")
       .find((row) => row.get(".hierarchy-option-primary").text() === "C");
     expect(searchRow).toBeTruthy();
-    expect(searchRow!.get(".hierarchy-option-label").attributes("title")).toBe(
-      "C",
-    );
+    expect(
+      tooltipBinding(searchRow!.get(".hierarchy-option-label").element),
+    ).toBe("C");
     await wrapper.get('input[type="search"]').setValue("");
     expect(wrapper.findAll(".hierarchy-row")).toHaveLength(1);
     expect(wrapper.findAll(".hierarchy-path")).toHaveLength(0);
@@ -237,12 +238,11 @@ describe("HierarchyFilter", () => {
     await wrapper.setProps({ modelValue: ["root"] });
     await wrapper.get('input[type="search"]').setValue("A-01");
     expect(wrapper.findAll(".hierarchy-row")).toHaveLength(3);
+    const searchedRow = wrapper
+      .findAll(".hierarchy-row")
+      .find((row) => row.get(".hierarchy-option-primary").text() === "A-01");
     expect(
-      wrapper
-        .findAll(".hierarchy-row")
-        .find((row) => row.get(".hierarchy-option-primary").text() === "A-01")
-        ?.get(".hierarchy-option-label")
-        .attributes("title"),
+      tooltipBinding(searchedRow!.get(".hierarchy-option-label").element),
     ).toBe("A-01");
     await wrapper.get('input[type="search"]').setValue("");
     expect(wrapper.findAll(".hierarchy-path")).toHaveLength(0);
@@ -496,7 +496,7 @@ describe("HierarchyFilter", () => {
       wrapper.findAll(".hierarchy-option-primary").map((node) => node.text()),
     ).toEqual(["T2", "A02"]);
     expect(
-      wrapper.findAll(".hierarchy-option-label")[1]?.attributes("title"),
+      tooltipBinding(wrapper.findAll(".hierarchy-option-label")[1]!.element),
     ).toBe("演示室甲");
     await wrapper.findAll('input[type="checkbox"]')[1]!.trigger("change");
     expect(wrapper.emitted("update:modelValue")?.at(-1)).toEqual([["ROOM"]]);

@@ -662,10 +662,10 @@ function datasetChanged(dataset: ReportDataset) {
 											image: String(row.image || ''),
 										}"
 									/>
-									<span class="dashboard-expiry-field" :title="row.batch_no"
+									<span class="dashboard-expiry-field" v-tip="row.batch_no"
 										><small>批次</small>{{ row.batch_no }}</span
 									>
-									<span class="dashboard-expiry-field" :title="row.expiry_date"
+									<span class="dashboard-expiry-field" v-tip="row.expiry_date"
 										><small>到期</small>{{ row.expiry_date }}</span
 									>
 									<span class="dashboard-expiry-field"
@@ -681,7 +681,7 @@ function datasetChanged(dataset: ReportDataset) {
 											"
 									/></span>
 								</div>
-								<b :title="`${row.available} ${unitLabel(row.stock_uom)}`"
+								<b v-tip="`${row.available} ${unitLabel(row.stock_uom)}`"
 									>{{ row.available }} {{ unitLabel(row.stock_uom) }}</b
 								>
 							</button>
@@ -758,7 +758,7 @@ function datasetChanged(dataset: ReportDataset) {
 													? 'is-decrease'
 													: 'is-neutral'
 										"
-										:title="effectLabel(quantity.effect, quantity.uom)"
+										v-tip="effectLabel(quantity.effect, quantity.uom)"
 										><UnitText :name="quantity.uom" :qty="quantity.qty" /><span
 											class="sr-only"
 											>{{ effectLabel(quantity.effect, quantity.uom) }}</span
@@ -791,7 +791,7 @@ function datasetChanged(dataset: ReportDataset) {
 							:key="`${row.doctype}/${row.document}`"
 							class="browse-rank-row"
 							:to="documentDestination(row.doctype!, row.document!)"
-							:title="
+							v-tip.overflow="
 								row.item_names?.join('、') ||
 								row.item_name ||
 								movementLabels[row.kind || ''] ||

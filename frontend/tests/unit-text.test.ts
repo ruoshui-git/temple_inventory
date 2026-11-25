@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import UnitText from "../src/components/ui/UnitText.vue";
 import { setUnitSource } from "../src/lib/units";
 import { formatQuantityWithUnit } from "../src/lib/formatQuantity";
+import { tooltipBinding } from "./support/tooltipBinding";
 
 describe("UnitText", () => {
   afterEach(() => setUnitSource(undefined));
@@ -12,7 +13,7 @@ describe("UnitText", () => {
     setUnitSource({ units: [{ name: "Nos", label: "个" }] });
     const wrapper = mount(UnitText, { props: { name: "Nos" } });
     expect(wrapper.text()).toBe("个");
-    expect(wrapper.attributes("title")).toBe("Nos");
+    expect(tooltipBinding(wrapper.element)).toBe("Nos");
   });
 
   it("formats an optional quantity and omits a redundant title", () => {

@@ -102,7 +102,7 @@ const hiddenCount = computed(() => {
 		class="group-totals"
 		role="group"
 		:aria-label="`${label}：${fullText}`"
-		:title="fullText"
+		v-tip.overflow="fullText"
 	>
 		<template v-for="(value, index) in inline" :key="value.key">
 			<span v-if="index" class="group-totals-separator" aria-hidden="true"> · </span>

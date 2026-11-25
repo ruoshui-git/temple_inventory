@@ -66,7 +66,7 @@ const compactSummary = computed(() => {
 		v-else-if="column.id === 'item_name'"
 		class="item-name browse-row-link"
 		:to="routeTarget('item-detail', { code: stockCode(row) })"
-		:title="stockName(row)"
+		v-tip.overflow="stockName(row)"
 	>
 		{{ stockName(row) }}
 	</RouterLink>

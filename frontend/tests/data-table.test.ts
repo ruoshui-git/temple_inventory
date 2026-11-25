@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, h, nextTick, ref } from "vue";
 import DataTable from "../src/components/ui/DataTable.vue";
+import { tooltipBinding } from "./support/tooltipBinding";
 import ReportTable from "../src/components/ui/ReportTable.vue";
 import { useColumnPreferences } from "../src/composables/useColumnPreferences";
 import {
@@ -133,7 +134,7 @@ describe("table column contracts", () => {
     await flushPromises();
     const titles = wrapper
       .findAll("tbody td")
-      .map((cell) => cell.attributes("title"));
+      .map((cell) => tooltipBinding(cell.element));
     // The structured 位置与批次 cell renders its own detail, so it has no native tooltip.
     expect(titles).toEqual(["灯", undefined, "供灯用品"]);
   });
@@ -245,7 +246,7 @@ describe("table column contracts", () => {
     expect(scroll.classList.contains("is-overflow-end")).toBe(true);
     const hint = wrapper.get(".data-table-overflow-hint-end");
     expect(hint.attributes("aria-label")).toBe("向右滚动查看更多列");
-    expect(hint.attributes("title")).toBe("更多列");
+    expect(tooltipBinding(hint.element)).toBe("更多列");
     expect(hint.find("svg").exists()).toBe(true);
     expect(hint.text()).toBe("");
     expect(hint.attributes("style")).toContain("right: 622px");

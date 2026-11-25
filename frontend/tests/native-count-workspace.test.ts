@@ -6,6 +6,7 @@ import CountWorkspace from "../src/features/counts/CountWorkspace.vue";
 import HierarchyFilter from "../src/components/ui/HierarchyFilter.vue";
 import type { CountEditor } from "../src/features/counts/useCountEditor";
 import type { CountRow } from "../src/features/counts/countModel";
+import { tooltipBinding } from "./support/tooltipBinding";
 import {
   createReferenceData,
   provideInventoryServices,
@@ -454,9 +455,11 @@ describe("compact count workspace", () => {
     await flushPromises();
     expect(document.body.textContent).toContain("−2");
     expect(document.body.textContent).toContain("库存单位");
-    const historyDocument = document.body.querySelector<HTMLButtonElement>(
-      'button[title="ISSUE-1"]',
-    );
+    const historyDocument = Array.from(
+      document.body.querySelectorAll<HTMLButtonElement>(
+        "button.record-ref-chip",
+      ),
+    ).find((button) => tooltipBinding(button) === "ISSUE-1");
     expect(historyDocument).toBeTruthy();
     historyDocument!.click();
     await flushPromises();
@@ -493,9 +496,11 @@ describe("compact count workspace", () => {
       initialized: true,
     });
     await flushPromises();
-    const record = document.body.querySelector<HTMLButtonElement>(
-      'button[title="LOAN-1"]',
-    )!;
+    const record = Array.from(
+      document.body.querySelectorAll<HTMLButtonElement>(
+        "button.record-ref-chip",
+      ),
+    ).find((button) => tooltipBinding(button) === "LOAN-1")!;
     record.click();
     await flushPromises();
     expect(

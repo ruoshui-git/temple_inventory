@@ -1818,7 +1818,9 @@ function receiveBatchChanged(line: AllocationLine) {
 								/>
 							</div>
 							<div class="operation-compact-identity">
-								<strong :title="lineName(line)">{{ lineName(line) }}</strong>
+								<strong v-tip.overflow="lineName(line)">{{
+									lineName(line)
+								}}</strong>
 								<small class="muted">{{ line.code }}</small>
 								<small
 									v-if="draft.kind === 'Repair'"

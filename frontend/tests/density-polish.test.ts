@@ -5,6 +5,7 @@ import BrowseSplitButton from "../src/components/ui/BrowseSplitButton.vue";
 import BrowseResultSummary from "../src/components/ui/BrowseResultSummary.vue";
 import DataTable from "../src/components/ui/DataTable.vue";
 import RecordRef from "../src/components/ui/RecordRef.vue";
+import { tooltipBinding } from "./support/tooltipBinding";
 
 const wrappers: VueWrapper[] = [];
 afterEach(() => wrappers.splice(0).forEach((wrapper) => wrapper.unmount()));
@@ -133,7 +134,7 @@ it("keeps a document name in the RecordRef tooltip without widening the chip", (
     },
   });
   wrappers.push(wrapper);
-  expect(wrapper.get(".record-ref-chip").attributes("title")).toContain(
+  expect(tooltipBinding(wrapper.get(".record-ref-chip").element)).toContain(
     "MAT-STE-2026-01568-1",
   );
   expect(wrapper.get(".record-ref-main").text()).not.toContain(

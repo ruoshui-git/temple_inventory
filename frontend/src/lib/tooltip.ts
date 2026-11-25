@@ -7,7 +7,8 @@ export interface LocationLevel {
 export type LocationTooltip = {
   location: { path: string; levels: LocationLevel[] };
 };
-type TooltipContent = string | { text: string } | LocationTooltip;
+type TooltipContent =
+  string | { text: string; overflow?: boolean } | LocationTooltip;
 export type TooltipValue = TooltipContent | false | null | undefined | 0;
 
 type Trigger = { value: TooltipContent; overflow: boolean };
@@ -158,7 +159,9 @@ export function setTooltip(
     return;
   }
   if (!triggers.has(anchor)) anchor.setAttribute("data-inventory-tip", "");
-  triggers.set(anchor, { value, overflow });
+  const valueOverflow =
+    typeof value === "object" && "text" in value && value.overflow === true;
+  triggers.set(anchor, { value, overflow: overflow || valueOverflow });
   const active = activeTooltip.value;
   if (active?.anchor === anchor) show(anchor, active.mode, active.described);
 }
@@ -169,6 +172,10 @@ export function removeTooltip(anchor: HTMLElement) {
   if (suppressClick === anchor) suppressClick = undefined;
   if (anchor === activeTooltip.value?.anchor || anchor === pending)
     dismissTooltip();
+}
+
+export function tooltipValueFor(anchor: HTMLElement): TooltipValue {
+  return triggers.get(anchor)?.value;
 }
 
 function show(anchor: HTMLElement, mode: Mode, described = anchor): boolean {

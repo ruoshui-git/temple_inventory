@@ -21,12 +21,14 @@ const emit = defineEmits<{ open: [code: string] }>();
 				v-if="interactive"
 				type="button"
 				class="item-line-name"
-				:title="item.name"
+				v-tip.overflow="item.name"
 				@click="emit('open', item.code)"
 			>
 				{{ item.name }}
 			</button>
-			<strong v-else class="item-line-name" :title="item.name">{{ item.name }}</strong>
+			<strong v-else class="item-line-name" v-tip.overflow="item.name">{{
+				item.name
+			}}</strong>
 			<small v-if="$slots.secondary" class="item-line-secondary"
 				><slot name="secondary"
 			/></small>

@@ -1634,10 +1634,12 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 											v-tip="
 												locationTip(group.warehouse, reference.warehouses)
 											"
-											:title="group.warehouse ? undefined : group.label"
+											v-tip.overflow="
+												group.warehouse ? undefined : group.label
+											"
 											>{{ group.label }}</strong
 										>
-										<small :title="`明细条数 ${group.count}`">
+										<small v-tip.overflow="`明细条数 ${group.count}`">
 											{{ group.count }} 条
 										</small>
 									</span>

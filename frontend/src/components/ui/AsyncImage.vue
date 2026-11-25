@@ -101,7 +101,7 @@ function handleError() {
 		<span
 			v-if="state === 'empty' || state === 'error'"
 			class="async-image__fallback"
-			:title="state === 'error' ? '图片加载失败' : placeholderLabel"
+			v-tip="state === 'error' ? '图片加载失败' : placeholderLabel"
 		>
 			<slot name="fallback">
 				<svg

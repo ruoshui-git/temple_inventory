@@ -794,7 +794,7 @@ function acceptBrowseLocation(name: string) {
 												serialPreview(entry.value).title
 											"
 											class="stock-serial-preview"
-											:title="serialPreview(entry.value).title"
+											v-tip.overflow="serialPreview(entry.value).title"
 										>
 											{{ serialPreview(entry.value).visible }}
 											<span v-if="serialPreview(entry.value).extra"
@@ -891,7 +891,7 @@ function acceptBrowseLocation(name: string) {
 										serialPreview(item).title
 									"
 									class="stock-serial-preview"
-									:title="serialPreview(item).title"
+									v-tip.overflow="serialPreview(item).title"
 								>
 									{{ serialPreview(item).visible }}
 									<span v-if="serialPreview(item).extra"
@@ -961,7 +961,7 @@ function acceptBrowseLocation(name: string) {
 													serialPreview(item).title
 												"
 												class="stock-serial-preview"
-												:title="serialPreview(item).title"
+												v-tip.overflow="serialPreview(item).title"
 											>
 												{{ serialPreview(item).visible }}
 												<span v-if="serialPreview(item).extra"
@@ -1121,7 +1121,9 @@ function acceptBrowseLocation(name: string) {
 										) && group.value?.[String(column.id)] !== undefined
 									"
 									class="operation-unit-summary"
-									:title="groupUnitValues(group, String(column.id)).join('；')"
+									v-tip.overflow="
+										groupUnitValues(group, String(column.id)).join('；')
+									"
 									:aria-label="
 										groupUnitValues(group, String(column.id)).join('；')
 									"

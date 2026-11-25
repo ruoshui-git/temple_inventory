@@ -13,6 +13,7 @@ import {
   type OperationBrowsePage,
 } from "../src/features/movements/useOperationBrowse";
 import OperationBrowsePage from "../src/features/movements/OperationBrowsePage.vue";
+import { tooltipBinding } from "./support/tooltipBinding";
 import { newReportQuery, type ReportQuery } from "../src/lib/reportContract";
 import { decodeReportQuery } from "../src/lib/reportQuery";
 import { createRecoveryStore } from "../src/lib/browserRecovery";
@@ -976,8 +977,8 @@ describe("native operation browsing", () => {
         expect(cells).toContain("未归还 1 Nos");
         expect(
           row
-            .findAll(".operation-group-metrics[title]")
-            .map((cell) => cell.attributes("title")),
+            .findAll(".operation-group-metrics")
+            .map((cell) => tooltipBinding(cell.element)),
         ).toContain("借出 2 Nos · 未归还 1 Nos");
       } finally {
         if (previousInnerWidth)
@@ -1894,7 +1895,7 @@ describe("native operation browsing", () => {
       ".mobile-item-group-list .mobile-operation-group-identity small",
     );
     expect(count.text()).toBe("42 条");
-    expect(count.attributes("title")).toBe("明细条数 42");
+    expect(tooltipBinding(count.element)).toBe("明细条数 42");
     const totals = wrapper.get(
       ".mobile-item-group-list .mobile-operation-group-totals",
     );

@@ -130,13 +130,13 @@ function draftDate(value: unknown) {
 	<time
 		v-else-if="id === 'date' && entry"
 		:datetime="draftDate(row.date)"
-		:title="formatSiteDateTime(draftDate(row.date), timezone)"
+		v-tip="formatSiteDateTime(draftDate(row.date), timezone)"
 		>{{ relativeTime(draftDate(row.date)) }}</time
 	>
 	<span
 		v-else-if="id === 'summary'"
 		v-tip="locationTip(entry?.warehouse, reference.warehouses)"
-		:title="entry?.warehouse ? undefined : String(row.summary || '')"
+		v-tip.overflow="entry?.warehouse ? undefined : String(row.summary || '')"
 		>{{ row.summary }}</span
 	>
 	<div v-else-if="id === 'actions' && entry" class="browse-row-actions">

@@ -843,7 +843,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 												<DisclosureIcon variant="inline" />
 												<span
 													class="data-table-group-name"
-													:title="
+													v-tip.overflow="
 														entry.warehouse ? undefined : entry.label
 													"
 													><LocationLabel
@@ -924,7 +924,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 													<DisclosureIcon variant="inline" />
 													<span
 														class="data-table-group-name"
-														:title="
+														v-tip.overflow="
 															entry.warehouse
 																? undefined
 																: entry.label
@@ -1015,7 +1015,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 											cellClass?.(String(column.id), recordValue(entry)),
 										]"
 										:style="columnStyle(column)"
-										:title="
+										v-tip.overflow="
 											['primary', 'code', 'chip'].includes(
 												columnKind(column),
 											)
@@ -1079,7 +1079,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 				:style="{ top: `${hintTop}px`, left: `${hintLeft}px` }"
 				type="button"
 				aria-label="向左滚动查看更多列"
-				title="更多列"
+				v-tip="'更多列'"
 				@click="scrollMore(-1)"
 			>
 				<InventoryIcon name="chevron-left" />
@@ -1093,7 +1093,7 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 				:style="{ top: `${hintTop}px`, right: `${hintRight}px` }"
 				type="button"
 				aria-label="向右滚动查看更多列"
-				title="更多列"
+				v-tip="'更多列'"
 				@click="scrollMore(1)"
 			>
 				<InventoryIcon name="chevron-right" />

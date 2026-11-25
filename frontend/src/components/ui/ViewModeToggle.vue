@@ -19,7 +19,7 @@ const items = computed(() => props.options.map((value) => ({ value, ...meta[valu
 			v-for="item in items"
 			:key="item.value"
 			:aria-label="`${item.label}视图`"
-			:title="item.label"
+			v-tip.overflow="item.label"
 			:aria-pressed="view === item.value"
 			@click="view = item.value"
 		>

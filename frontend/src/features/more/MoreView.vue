@@ -78,7 +78,7 @@ const displayGroups = computed(() =>
 				</button>
 				<div class="more-card surface account-card">
 					<strong>当前账户</strong>
-					<p :title="c.reference.user">{{ c.reference.user }}</p>
+					<p v-tip.overflow="c.reference.user">{{ c.reference.user }}</p>
 					<small>{{ c.reference.role_label }}</small>
 					<UiButton variant="ghost" @click="logoutOpen = true">退出登录</UiButton>
 				</div>

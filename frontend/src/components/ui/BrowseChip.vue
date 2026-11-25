@@ -12,14 +12,8 @@ const emit = defineEmits<{ edit: []; remove: [] }>();
 </script>
 
 <template>
-	<span class="browse-active-chip" :title="tip ? undefined : label">
-		<button
-			type="button"
-			class="browse-active-chip-label"
-			v-tip="tip"
-			:title="tip ? undefined : label"
-			@click="emit('edit')"
-		>
+	<span class="browse-active-chip" v-tip.overflow="tip ? undefined : label">
+		<button type="button" class="browse-active-chip-label" v-tip="tip" @click="emit('edit')">
 			<InventoryIcon v-if="icon" :name="icon" />
 			{{ label }}
 		</button>

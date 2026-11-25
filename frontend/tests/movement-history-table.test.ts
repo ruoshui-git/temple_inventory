@@ -2,6 +2,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import MovementHistoryTable from "../src/components/ui/MovementHistoryTable.vue";
+import { tooltipBinding } from "./support/tooltipBinding";
 import {
   createReferenceData,
   provideInventoryServices,
@@ -240,7 +241,7 @@ describe("typed movement history table", () => {
     expect(wrapper.get("tbody tr").attributes("aria-label")).toContain(
       "可用库存增加 5 Nos",
     );
-    expect(wrapper.get("[data-effect-value]").attributes("title")).toBe(
+    expect(tooltipBinding(wrapper.get("[data-effect-value]").element)).toBe(
       "可用库存增加 5 Nos",
     );
     expect(wrapper.get("[data-effect-label]").text()).toBe(

@@ -28,7 +28,7 @@ watch(
 		class="filter-rail-collapse"
 		type="button"
 		aria-label="收起筛选侧栏"
-		title="收起筛选侧栏"
+		v-tip="'收起筛选侧栏'"
 		@click="toggle"
 	>
 		<InventoryIcon name="chevron-left" />
@@ -39,7 +39,7 @@ watch(
 		class="filter-rail-edge"
 		type="button"
 		aria-label="展开筛选侧栏"
-		title="展开筛选侧栏"
+		v-tip="'展开筛选侧栏'"
 		@click="toggle"
 	>
 		<span class="filter-rail-edge-icon" aria-hidden="true"

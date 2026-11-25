@@ -146,7 +146,7 @@ onScopeDispose(() => {
 		class="data-table-column-trigger"
 		:aria-expanded="open"
 		aria-label="显示字段"
-		title="显示字段"
+		v-tip="'显示字段'"
 		@click="toggleSettings"
 	>
 		☷

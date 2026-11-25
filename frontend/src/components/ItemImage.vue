@@ -119,7 +119,7 @@ onDeactivated(() => {
 			v-if="source || hasArtwork"
 			class="item-image-enlarge"
 			:aria-label="`放大查看${item.name}图片`"
-			title="查看大图"
+			v-tip="'查看大图'"
 			@click.stop="showLightbox"
 		>
 			<InventoryIcon name="expand" />
@@ -135,7 +135,7 @@ onDeactivated(() => {
 			'item-image-button--compact-target': targetSize,
 		}"
 		:aria-label="`放大查看${item.name}图片`"
-		title="查看大图"
+		v-tip="'查看大图'"
 		:style="targetSize ? { width: `${targetSize}px`, height: `${targetSize}px` } : undefined"
 		@click.stop="showLightbox"
 	>

@@ -6,6 +6,7 @@ export default defineConfig({
   test: {
     environment: "node",
     fsModuleCache: true,
+    setupFiles: ["tests/setup.ts"],
     // Keep DOM-heavy editor suites within the development container's CPU budget.
     maxWorkers: 4,
     include: ["tests/**/*.test.ts"],

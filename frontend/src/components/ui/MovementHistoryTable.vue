@@ -365,7 +365,7 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 				<template v-else-if="column.id === 'available_effect'">
 					<span
 						:class="availableEffectClass(history(row))"
-						:title="effectText(history(row))"
+						v-tip="effectText(history(row))"
 					>
 						{{ effect(history(row)) > 0 ? "+" : effect(history(row)) < 0 ? "−" : ""
 						}}{{ formatQuantity(Math.abs(effect(history(row)))) }}
@@ -375,7 +375,7 @@ const title = computed(() => (props.mode === "loan-allocation" ? "物品借用�
 				<template v-else-if="column.id === 'stock_qty'">
 					<span
 						:class="quantityClass(history(row))"
-						:title="
+						v-tip="
 							['movement', 'handling'].includes(mode)
 								? effectText(history(row))
 								: undefined

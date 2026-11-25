@@ -29,13 +29,13 @@ const fullText = computed(() => ordered.value.map(text).join("；"));
 		:class="['unit-values', props.class]"
 		role="group"
 		:aria-label="`${label}：${fullText}`"
-		:title="title || fullText"
+		v-tip.overflow="title || fullText"
 	>
 		<span
 			v-for="entry in ordered.slice(0, max)"
 			:key="entry.uom"
 			:class="entry.tone"
-			:title="entry.title"
+			v-tip.overflow="entry.title"
 			>{{ text(entry) }}</span
 		>
 		<!-- The disclosure must not trigger a surrounding record link. -->

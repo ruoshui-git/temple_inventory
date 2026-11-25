@@ -465,7 +465,9 @@ function groupMetric(group: DataTableGroup, column: string) {
 				<span
 					v-else-if="column.id === 'image' && (row.item_code || row.itemId)"
 					class="report-item-image"
-					:title="String(row.item_name || row.itemName || row.item_code || row.itemId)"
+					v-tip.overflow="
+						String(row.item_name || row.itemName || row.item_code || row.itemId)
+					"
 				>
 					<ItemImage
 						:item="{
@@ -516,7 +518,7 @@ function groupMetric(group: DataTableGroup, column: string) {
 				<span
 					v-else
 					:class="quantityTone(String(column.id), row)"
-					:title="
+					v-tip.overflow="
 						quantityTone(String(column.id), row) ? quantityEffectLabel(row) : undefined
 					"
 				>

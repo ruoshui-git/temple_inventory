@@ -15,7 +15,7 @@ const nativeName = computed(() => {
 </script>
 
 <template>
-	<span :title="nativeName">{{
+	<span v-tip="nativeName">{{
 		qty === undefined ? label : formatQuantityWithUnit(Number(qty), props.name)
 	}}</span>
 </template>

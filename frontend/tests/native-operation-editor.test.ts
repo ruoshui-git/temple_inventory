@@ -10,6 +10,7 @@ import {
   type InventoryServices,
 } from "../src/services/contracts";
 import { useOperationEditor } from "../src/features/documents/useOperationEditor";
+import { tooltipBinding } from "./support/tooltipBinding";
 import {
   newOperation,
   decodeOperation,
@@ -599,7 +600,7 @@ describe("native movement editor integration", () => {
     const wrapper = wrappers.at(-1)!;
     expect(wrapper.find(".allocation-phone-list").exists()).toBe(true);
     expect(wrapper.find(".data-table").exists()).toBe(false);
-    expect(wrapper.get(".allocation-item-link").attributes("title")).toBe(
+    expect(tooltipBinding(wrapper.get(".allocation-item-link").element)).toBe(
       longItemName,
     );
     expect(wrapper.text()).toContain("2 Box = 24 Nos（1 Box = 12 Nos）");

@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
 import GroupTotals from "../src/components/ui/GroupTotals.vue";
+import { tooltipBinding } from "./support/tooltipBinding";
 import { setUnitSource } from "../src/lib/units";
 
 const metrics = [
@@ -120,7 +121,7 @@ describe("GroupTotals", () => {
     expect(wrapper.attributes("aria-label")).toBe(
       "分组数量：可用变化：+4 个；−2 箱 · 借出：−5 个",
     );
-    expect(wrapper.attributes("title")).toBe(
+    expect(tooltipBinding(wrapper.element)).toBe(
       "可用变化：+4 个；−2 箱 · 借出：−5 个",
     );
   });

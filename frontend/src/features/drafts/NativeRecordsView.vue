@@ -758,10 +758,10 @@ function openDetailsRow() {
 						<div class="draft-entry-meta">
 							<span
 								v-tip="locationTip(entry.warehouse, c.reference.warehouses)"
-								:title="entry.warehouse ? undefined : entry.summary"
+								v-tip.overflow="entry.warehouse ? undefined : entry.summary"
 								>{{ entry.summary }}</span
 							>
-							<time :datetime="entry.updatedAt" :title="entry.absolute">{{
+							<time :datetime="entry.updatedAt" v-tip="entry.absolute">{{
 								relativeTime(entry.updatedAt)
 							}}</time>
 						</div>

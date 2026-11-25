@@ -617,7 +617,7 @@ function canExpiryAction() {
 						v-if="isMobile && query.expiryWindow.startsWith('next_')"
 						class="browse-info-popover"
 					>
-						<summary aria-label="效期范围说明" title="效期范围说明">i</summary>
+						<summary aria-label="效期范围说明" v-tip="'效期范围说明'">i</summary>
 						<p>今日至未来 {{ query.expiryWindow.slice(5) }} 天到期，包含端点。</p>
 					</details>
 					<UiButton
@@ -881,7 +881,7 @@ function canExpiryAction() {
 								) && group.value?.[String(column.id)] !== undefined
 							"
 							class="operation-unit-summary"
-							:title="groupUnitValues(group, String(column.id)).join('；')"
+							v-tip.overflow="groupUnitValues(group, String(column.id)).join('；')"
 							:aria-label="groupUnitValues(group, String(column.id)).join('；')"
 						>
 							{{ groupUnitPreview(group, String(column.id)) }}

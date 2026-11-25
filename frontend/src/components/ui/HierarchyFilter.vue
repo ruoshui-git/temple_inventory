@@ -372,7 +372,7 @@ watch(term, () => {
 								@change="toggle(node)"
 							/><span
 								class="hierarchy-option-label"
-								:title="
+								v-tip.overflow="
 									node.path_segments?.length
 										? undefined
 										: node.full_label || localLabel(node)

@@ -89,7 +89,7 @@ function activated(event: MouseEvent) {
 			class="popup-menu-trigger"
 			:class="`popup-menu-trigger-${variant}`"
 			:aria-label="label"
-			:title="label"
+			v-tip.overflow="label"
 			aria-haspopup="menu"
 			:aria-expanded="open"
 			@click="toggle"

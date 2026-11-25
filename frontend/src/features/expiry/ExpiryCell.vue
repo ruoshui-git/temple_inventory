@@ -64,7 +64,7 @@ const status = computed(() => expiryStatusOf(props.row, props.siteDate));
 	<template v-else-if="id === 'remaining_days'">
 		<span
 			v-if="typeof row.remaining_days === 'number'"
-			:title="formatExpiryDuration(row.remaining_days)"
+			v-tip="formatExpiryDuration(row.remaining_days)"
 			>{{ expiryRemainingText(row.remaining_days) }}</span
 		>
 	</template>
