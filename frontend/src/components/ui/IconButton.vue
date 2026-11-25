@@ -1,27 +1,41 @@
-<script setup lang="ts">
-withDefaults(
-	defineProps<{
-		label: string;
-		title?: string;
-		variant?: "primary" | "secondary" | "ghost" | "danger";
-		disabled?: boolean;
-		loading?: boolean;
-	}>(),
-	{ variant: "ghost", disabled: false, loading: false },
-);
+<script lang="ts">
+import { defineComponent, h, mergeProps, type PropType } from "vue";
+import { buttonWithTip } from "../../directives/tip";
+
+export default defineComponent({
+	name: "IconButton",
+	inheritAttrs: false,
+	props: {
+		label: { type: String, required: true },
+		title: String,
+		variant: {
+			type: String as PropType<"primary" | "secondary" | "ghost" | "danger">,
+			default: "ghost",
+		},
+		disabled: Boolean,
+		loading: Boolean,
+	},
+	setup(props, { attrs, slots }) {
+		return () => {
+			const disabled = props.disabled || props.loading;
+			const button = h(
+				"button",
+				mergeProps(
+					{
+						type: "button",
+						class: ["icon-button", `icon-button--${props.variant}`],
+						disabled,
+						"aria-busy": props.loading || undefined,
+						"aria-label": props.label,
+					},
+					attrs,
+				),
+				props.loading
+					? [h("span", { class: "ui-button-spinner", "aria-hidden": "true" })]
+					: slots.default?.(),
+			);
+			return buttonWithTip(button, props.title || props.label, disabled);
+		};
+	},
+});
 </script>
-<template>
-	<button
-		type="button"
-		class="icon-button"
-		:class="`icon-button--${variant}`"
-		:aria-label="label"
-		:disabled="disabled || loading"
-		:aria-busy="loading || undefined"
-	>
-		<span v-if="loading" class="ui-button-spinner" aria-hidden="true"></span
-		><slot v-else /><span class="icon-button-tooltip" role="tooltip">{{
-			title || label
-		}}</span>
-	</button>
-</template>

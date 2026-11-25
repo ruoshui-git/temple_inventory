@@ -172,8 +172,10 @@ describe("typed movement history table", () => {
     expect(wrapper.get(".history-mobile-row").text()).toContain("…00001124");
     expect(wrapper.get(".history-mobile-row").text()).toContain("10-19 09:00");
     expect(
-      wrapper.get(".history-mobile-row .location-label").attributes("title"),
-    ).toBe("T2 / A02 · 演示室甲");
+      wrapper
+        .get(".history-mobile-row .location-label")
+        .attributes("aria-label"),
+    ).toBe("T2/A02，演示室甲");
     const mobileRecord = wrapper.get(".history-mobile-row");
     const referenceChip = mobileRecord.get(".record-ref-chip");
     expect(referenceChip.text()).toContain("…00001124");

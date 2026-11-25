@@ -234,8 +234,19 @@ test.describe("default filter chips", () => {
     await page.getByLabel("流动日期时间范围预设").selectOption("custom");
     const button = page.getByRole("button", { name: "设为默认", exact: true });
     await expect(button).toBeDisabled();
-    await expect(button).toHaveAttribute(
-      "title",
+    const trigger = page
+      .locator(".disabled-button-tip")
+      .filter({ has: button });
+    await trigger.scrollIntoViewIfNeeded();
+    await page.mouse.move(0, 0);
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+        }),
+    );
+    await trigger.hover();
+    await expect(page.getByRole("tooltip")).toHaveText(
       "自定义日期不会随时间更新，只能将预设范围设为默认",
     );
     await page.screenshot({ path: `${shots}/date-filter-custom-phone.png` });

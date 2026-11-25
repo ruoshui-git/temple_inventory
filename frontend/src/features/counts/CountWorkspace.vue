@@ -8,6 +8,7 @@ import ItemPicker from "../items/ItemPicker.vue";
 import MovementHistoryTable from "../../components/ui/MovementHistoryTable.vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import UiButton from "../../components/ui/UiButton.vue";
+import { matchesWords } from "../../lib/searchMatch";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import LocationLabel from "../../components/ui/LocationLabel.vue";
 import type { HistoryRow } from "../movements/useMovementHistory";
@@ -117,7 +118,7 @@ function leafScope(row: CountRow) {
 	});
 }
 const filteredRows = computed(() => {
-	const term = searchTerm.value.trim().toLocaleLowerCase();
+	const term = searchTerm.value.trim();
 	return rows.value.filter((row) => {
 		if (!leafScope(row)) return false;
 		if (selectedUnits.value.length && !selectedUnits.value.includes(row.stock_uom))
@@ -133,12 +134,20 @@ const filteredRows = computed(() => {
 					: row.actual_qty === row.baseline_qty))
 		)
 			return false;
-		const location = warehouseLabels.value.get(row.warehouse) || row.warehouse;
-		return (
-			!term ||
-			`${location} ${row.item_name || names[row.item_code] || ""} ${row.item_code} ${row.batch_no || ""}`
-				.toLocaleLowerCase()
-				.includes(term)
+		if (!term) return true;
+		const location = warehouseByName.value.get(row.warehouse);
+		return matchesWords(
+			term,
+			[
+				location?.label || row.warehouse,
+				location?.search_text,
+				location?.path_names?.join(" "),
+				row.item_name || names[row.item_code],
+				row.item_code,
+				row.batch_no,
+			]
+				.filter(Boolean)
+				.join(" "),
 		);
 	});
 });

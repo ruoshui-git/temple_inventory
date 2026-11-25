@@ -5,6 +5,9 @@ import {
   warehouseName,
   warehouseTitle,
   warehouseSearchText,
+  locationLevels,
+  locationTip,
+  warehouseOption,
 } from "../src/lib/warehouseLabel";
 const room: LocationNode = {
   name: "ROOM-A",
@@ -79,5 +82,66 @@ describe("warehouse presenter readers", () => {
     expect(warehouseLabel(second.name, [first, second])).toBe("T2/A14");
     expect(warehouseSearchText(first.name, [first, second])).toContain("T1");
     expect(warehouseSearchText(second.name, [first, second])).toContain("T2");
+  });
+});
+
+describe("location levels and options", () => {
+  const site = {
+    ...room,
+    name: "T2",
+    label: "T2",
+    path: "T2",
+    path_segments: ["T2"],
+    path_names: ["第2寺院"],
+    full_label: "第2寺院",
+    local_label: "第2寺院",
+    parent: "PHYSICAL",
+  };
+  const namedRoom = { ...room, path_names: ["第2寺院", "演示室甲"] };
+  it("aligns the direct leaf with the public path and omits a repeated name", () => {
+    const leaf = {
+      ...direct,
+      short_label: "旧代码",
+      path_names: ["第2寺院", "A02"],
+    };
+    expect(locationLevels(leaf.name, [site, namedRoom, leaf])).toEqual([
+      { code: "T2", name: "第2寺院" },
+      { code: "A02", name: "" },
+    ]);
+    expect(locationTip(leaf.name, [leaf])).toEqual({
+      location: {
+        path: "T2/A02",
+        levels: [
+          { code: "T2", name: "第2寺院" },
+          { code: "A02", name: "" },
+        ],
+      },
+    });
+  });
+  it("uses present ancestors on earlier payloads and keeps code-only paths without them", () => {
+    expect(locationLevels(direct.name, [site, room, direct])).toEqual([
+      { code: "T2", name: "第2寺院" },
+      { code: "A02", name: "演示室甲" },
+    ]);
+    expect(locationLevels(room.name, [room])).toEqual([
+      { code: "T2", name: "" },
+      { code: "A02", name: "演示室甲" },
+    ]);
+    expect(locationTip("unknown", [], "可见位置")).toBe("可见位置");
+  });
+  it("builds searchable options with supporting names and caller metadata", () => {
+    const option = warehouseOption(room.name, [namedRoom], {
+      keywords: "别名",
+      disabled: true,
+    });
+    expect(option).toMatchObject({
+      value: room.name,
+      label: "T2/A02",
+      detail: "演示室甲",
+      disabled: true,
+    });
+    expect(option.keywords).toContain("第2寺院");
+    expect(option.keywords).toContain("别名");
+    expect(option.tip).toEqual(locationTip(room.name, [namedRoom]));
   });
 });

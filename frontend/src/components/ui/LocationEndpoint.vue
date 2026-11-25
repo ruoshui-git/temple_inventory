@@ -1,19 +1,23 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { vTip } from "../../directives/tip";
 import { useOptionalReferenceData } from "../../services/contracts";
 import { warehouseLabel, warehouseName } from "../../lib/warehouseLabel";
 import InventoryIcon from "../InventoryIcon.vue";
 import LocationLabel from "./LocationLabel.vue";
 import { kindIcons } from "../../lib/kindIcons";
 
-const props = defineProps<{
-	warehouse?: string | null;
-	kind: string;
-	borrower?: string;
-	role?: "来源位置" | "去向位置";
-}>();
+const props = withDefaults(
+	defineProps<{
+		warehouse?: string | null;
+		kind: string;
+		borrower?: string;
+		role?: "来源位置" | "去向位置";
+		tooltip?: boolean;
+	}>(),
+	{ tooltip: true },
+);
 const reference = useOptionalReferenceData();
-const node = computed(() => reference?.warehouses.find((entry) => entry.name === props.warehouse));
 const endpoint = computed(() => {
 	if (props.kind === "Reconcile" || props.kind === "Stock Reconciliation") {
 		if (props.role === "去向位置")
@@ -88,7 +92,8 @@ const ariaLabel = computed(
 	<span
 		class="location-endpoint"
 		:class="endpoint.className"
-		:title="title"
+		v-tip="tooltip && endpoint.className !== 'is-location' ? title : undefined"
+		:tabindex="tooltip && endpoint.className !== 'is-location' ? 0 : undefined"
 		:aria-label="ariaLabel"
 	>
 		<InventoryIcon v-if="endpoint.icon" :name="endpoint.icon" />
@@ -96,6 +101,8 @@ const ariaLabel = computed(
 			v-if="endpoint.className === 'is-location'"
 			:label="endpoint.label"
 			:title="title"
+			:warehouse="endpoint.label === '—' ? undefined : warehouse"
+			:tooltip="tooltip"
 		/>
 		<span v-else>{{ endpoint.label }}</span>
 	</span>

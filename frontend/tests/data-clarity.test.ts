@@ -109,13 +109,17 @@ describe("data clarity components", () => {
     expect(wrapper.text()).toContain("损坏待处理");
     expect(wrapper.text()).toContain("外部");
     expect(
-      wrapper.findAll("[title]").map((node) => node.attributes("title")),
-    ).toContain("来自库外");
+      wrapper
+        .findAll(".location-endpoint")
+        .map((node) => node.attributes("aria-label")),
+    ).toContain("位置 外部，来自库外");
     expect(
-      wrapper.findAll("[title]").map((node) => node.attributes("title")),
-    ).toContain("不再计入库存");
+      wrapper
+        .findAll(".location-endpoint")
+        .map((node) => node.attributes("aria-label")),
+    ).toContain("位置 外部，不再计入库存");
     expect(
-      wrapper.findAll(".location-endpoint")[1]?.attributes("title"),
+      wrapper.findAll(".location-endpoint")[1]?.attributes("aria-label"),
     ).toContain("演出团队");
   });
 

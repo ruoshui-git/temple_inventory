@@ -4,6 +4,7 @@ import {
   useReferenceData,
   type LocationNode,
 } from "../../services/contracts";
+import { matchesWords } from "../../lib/searchMatch";
 import { newReportQuery } from "../../lib/reportContract";
 import {
   createRecoveryStore,
@@ -160,12 +161,15 @@ export function useNativeWarehouses(
   });
   const visibleRows = computed(() => {
     const rows = tree.value?.rows || [],
-      term = search.value.trim().toLocaleLowerCase();
+      term = search.value.trim();
     const matches = term
       ? rows.filter((row) =>
-          `${row.search_text} ${row.full_label}`
-            .toLocaleLowerCase()
-            .includes(term),
+          matchesWords(
+            term,
+            [row.search_text, row.full_label, row.path_names?.join(" ")]
+              .filter(Boolean)
+              .join(" "),
+          ),
         )
       : [];
     return rows

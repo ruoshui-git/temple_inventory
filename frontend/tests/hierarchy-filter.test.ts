@@ -502,3 +502,50 @@ describe("HierarchyFilter", () => {
     expect(wrapper.emitted("update:modelValue")?.at(-1)).toEqual([["ROOM"]]);
   });
 });
+
+it("shows the node code from its path and searches its own names in any word order", async () => {
+  const wrapper = mount(HierarchyFilter, {
+    props: {
+      modelValue: [],
+      title: "位置",
+      placeholder: "搜索位置",
+      options: [
+        {
+          name: "root",
+          label: "T2",
+          is_group: true,
+          path_segments: ["T2"],
+          path_names: ["第2寺院"],
+        },
+        {
+          name: "a01",
+          parent: "root",
+          label: "T2/A01",
+          short_label: "旧代码",
+          path_segments: ["T2", "A01"],
+          path_names: ["第2寺院", "阅览室"],
+        },
+        {
+          name: "b01",
+          parent: "root",
+          label: "T2/B01",
+          short_label: "旧代码",
+          path_segments: ["T2", "B01"],
+          path_names: ["第2寺院", "办公室"],
+        },
+      ],
+    },
+  });
+  try {
+    const labels = () =>
+      wrapper.findAll(".hierarchy-option-primary").map((entry) => entry.text());
+    expect(labels()).toEqual(["T2", "A01", "B01"]);
+    await wrapper.get('input[type="search"]').setValue("阅览室 第2寺院");
+    expect(labels()).toEqual(["T2", "A01"]);
+    expect(wrapper.text()).not.toContain("阅览室");
+    await wrapper.get('input[type="search"]').setValue("阅览室 办公室");
+    expect(labels()).toEqual([]);
+  } finally {
+    wrapper.unmount();
+  }
+});

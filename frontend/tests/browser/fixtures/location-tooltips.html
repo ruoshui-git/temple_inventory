@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>库位提示测试</title>
+    <style>
+      main {
+        display: grid;
+        gap: 24px;
+        justify-items: start;
+        margin: 32px;
+      }
+      .location-label {
+        max-width: 170px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module">
+      import { createApp, h, ref } from "vue";
+      import "/src/styles/app.css";
+      import IconButton from "/src/components/ui/IconButton.vue";
+      import LocationLabel from "/src/components/ui/LocationLabel.vue";
+      import Overlay from "/src/components/ui/Overlay.vue";
+      import SearchSelect from "/src/components/ui/SearchSelect.vue";
+      import TooltipHost from "/src/components/ui/TooltipHost.vue";
+      import UiButton from "/src/components/ui/UiButton.vue";
+      import { vTip } from "/src/directives/tip.ts";
+      import { createReferenceData, provideInventoryServices } from "/src/services/contracts.ts";
+      import { warehouseOption } from "/src/lib/warehouseLabel.ts";
+
+      const room = {
+        name: "ROOM-A-DIRECT",
+        label: "T2/FUN/A01",
+        path: "T2/FUN/A01",
+        path_segments: ["T2", "FUN", "A01"],
+        path_names: ["第2寺院", "功能区域", "阅览室"],
+        full_label: "阅览室",
+        local_label: "阅览室",
+        short_label: "旧代码",
+      };
+      createApp({
+        setup() {
+          const open = ref(false);
+          const count = ref(0);
+          const selected = ref(room.name);
+          const reference = createReferenceData();
+          reference.warehouses = [room];
+          provideInventoryServices({}, reference);
+          const location = () => h(LocationLabel, { warehouse: room.name, label: room.label, focusable: true });
+          return () => h("div", { "data-inventory-app": "" }, [
+            h(TooltipHost),
+            h("main", [
+              h("h1", "库位"),
+              location(),
+              h(UiButton, { title: "还有库存", disabled: true }, () => "删除"),
+              h(IconButton, { label: "归档", title: "等待审核", disabled: true }, () => "◉"),
+              h(UiButton, { onClick: () => { open.value = true; } }, () => "打开详情"),
+              h(UiButton, { title: "核对库位", onClick: () => count.value++ }, () => "确认"),
+              h("output", { "aria-label": "确认次数" }, String(count.value)),
+              h(SearchSelect, {
+                label: "选择库位",
+                options: [warehouseOption(room.name, reference.warehouses)],
+                modelValue: selected.value,
+                "onUpdate:modelValue": (value) => { selected.value = value; },
+              }),
+            ]),
+            open.value && h(Overlay, {
+              title: "库位详情",
+              onClose: () => { open.value = false; },
+            }, { default: location }),
+          ]);
+        },
+      }).directive("tip", vTip).mount("#app");
+    </script>
+  </body>
+</html>

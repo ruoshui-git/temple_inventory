@@ -162,7 +162,9 @@ const warehouseOptions = computed(() => {
 						value: direct.name,
 						label: direct.label,
 						detail: direct.path,
-						keywords: direct.search_text,
+						keywords: [direct.search_text, ...(direct.path_names ?? [])]
+							.filter(Boolean)
+							.join(" "),
 					},
 				]
 			: [];
@@ -184,7 +186,7 @@ const warehouseOptions = computed(() => {
 			value: row.name,
 			label: row.label,
 			detail: row.path,
-			keywords: row.search_text,
+			keywords: [row.search_text, ...(row.path_names ?? [])].filter(Boolean).join(" "),
 		}));
 });
 

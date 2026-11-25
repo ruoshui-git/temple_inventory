@@ -15,7 +15,8 @@ describe("LocationLabel", () => {
     expect(wrapper.find(".location-label-site").text()).toBe("T2/");
     expect(wrapper.find(".location-label-tail").text()).toBe("F/A01/S1");
     expect(wrapper.text().replace(/\s+/g, "")).toBe("T2/F/A01/S1");
-    expect(wrapper.attributes("title")).toBe("T2/F/A01/S1");
+    expect(wrapper.attributes("title")).toBeUndefined();
+    expect(wrapper.attributes("data-inventory-tip")).toBe("");
     expect(wrapper.attributes("aria-label")).toBe("T2/F/A01/S1");
   });
 
@@ -25,6 +26,6 @@ describe("LocationLabel", () => {
     });
     wrappers.push(wrapper);
     expect(wrapper.find(".location-label-site").text()).toBe("第二寺院/");
-    expect(wrapper.attributes("title")).toBe("第二寺院/室外/前院");
+    expect(wrapper.attributes("aria-label")).toBe("第二寺院/室外/前院");
   });
 });

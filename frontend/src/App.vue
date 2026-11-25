@@ -6,6 +6,7 @@ import ApplicationShell from "./components/ApplicationShell.vue";
 import RouteBreadcrumbs from "./components/RouteBreadcrumbs.vue";
 import UiButton from "./components/ui/UiButton.vue";
 import SkeletonBlock from "./components/ui/SkeletonBlock.vue";
+import TooltipHost from "./components/ui/TooltipHost.vue";
 import ToastHost from "./components/ui/ToastHost.vue";
 import TaskTray from "./components/TaskTray.vue";
 import Overlay from "./components/ui/Overlay.vue";
@@ -91,6 +92,7 @@ const routeForbidden = computed(() => {
 <template>
 	<div class="inventory-app" data-inventory-app>
 		<ToastHost />
+		<TooltipHost />
 		<main v-if="state.gate === 'loading'" class="app-content">
 			<RouteBreadcrumbs />
 			<SkeletonBlock variant="lines" :count="4" />

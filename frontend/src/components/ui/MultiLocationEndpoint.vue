@@ -25,6 +25,7 @@ const locations = computed(() => [...new Set(props.locations.filter(Boolean))]);
 		<template #trigger>
 			<LocationEndpoint
 				:warehouse="locations[0]"
+				:tooltip="false"
 				:kind="kind"
 				:borrower="borrower"
 				:role="role"

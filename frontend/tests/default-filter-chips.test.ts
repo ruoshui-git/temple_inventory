@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
+import UiButton from "../src/components/ui/UiButton.vue";
 import PeriodFilter from "../src/components/ui/PeriodFilter.vue";
 import { createReferenceData } from "../src/services/contracts";
 import { newReportQuery } from "../src/lib/reportContract";
@@ -221,9 +222,17 @@ describe("设为默认 in the date filter", () => {
       .setValue("custom");
     const button = defaultButton(wrapper)!;
     expect(button.attributes("disabled")).toBeDefined();
-    expect(button.attributes("title")).toBe(
-      "自定义日期不会随时间更新，只能将预设范围设为默认",
-    );
+    expect(
+      button.element
+        .closest(".disabled-button-tip")
+        ?.hasAttribute("data-inventory-tip"),
+    ).toBe(true);
+    expect(
+      wrapper
+        .findAllComponents(UiButton)
+        .find((control) => control.text() === "设为默认")
+        ?.props("title"),
+    ).toBe("自定义日期不会随时间更新，只能将预设范围设为默认");
   });
 
   it("is not offered where the area has no account default", () => {

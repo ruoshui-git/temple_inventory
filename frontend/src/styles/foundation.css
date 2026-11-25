@@ -74,6 +74,7 @@
 	--p-z-menu: 40;
 	--p-z-overlay: 50;
 	--p-z-toast: 60;
+	--p-z-tooltip: 70;
 	--p-space-1: 4px;
 	--p-space-2: 8px;
 	--p-space-3: 12px;
@@ -426,30 +427,6 @@ strong {
 	position: relative;
 	min-width: var(--p-control);
 	padding: var(--p-control-pad-y);
-}
-.icon-button-tooltip {
-	position: absolute;
-	bottom: calc(100% + 8px);
-	left: 50%;
-	transform: translateX(-50%);
-	display: none;
-	width: max-content;
-	max-width: 220px;
-	padding: 6px 10px;
-	color: var(--p-on-ink);
-	background: var(--p-ink);
-	border-radius: var(--p-radius-sm);
-	font-size: var(--p-small);
-	z-index: var(--p-z-menu);
-	pointer-events: none;
-}
-.icon-button:focus-visible .icon-button-tooltip {
-	display: block;
-}
-@media (hover: hover) {
-	.icon-button:hover .icon-button-tooltip {
-		display: block;
-	}
 }
 .text-button {
 	display: inline-flex;
@@ -2065,9 +2042,6 @@ strong {
 	.return-top.icon-button {
 		bottom: calc(156px + env(safe-area-inset-bottom));
 		right: 20px;
-	}
-	.return-top .icon-button-tooltip {
-		display: none;
 	}
 	.ui-button--compact,
 	.text-button {

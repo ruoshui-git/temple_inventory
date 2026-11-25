@@ -11,6 +11,7 @@ export interface LocationNode {
   full_label: string;
   path: string;
   path_segments?: string[];
+  path_names?: string[];
   search_text: string;
   kind: "area" | "room" | "shelf" | "system";
   owner: string;

@@ -139,10 +139,14 @@ test("Opening Stock batch and serial rows fit desktop and phone", async ({
   await expect(page.getByLabel("批次物品位置")).toHaveValue(locationPath);
   await page.getByLabel("批次物品位置").click();
   const locationOption = page.locator(".location-label").last();
-  await expect(locationOption).toHaveAttribute("title", locationPath);
+  await expect(locationOption).toHaveAttribute("aria-label", locationPath);
+  await locationOption.hover();
+  await expect(page.getByRole("tooltip")).toContainText("北侧器材储物架第一层");
   await expect(locationOption).toContainText("T2");
   await expect(locationOption).toContainText("北侧器材储物架第一层");
   await page.screenshot({ path: info.outputPath("location-selector.png") });
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("tooltip")).toBeHidden();
   await page.keyboard.press("Escape");
   await expect(page.getByLabel("批次物品批次编号")).toHaveValue("B-001");
   await expect(

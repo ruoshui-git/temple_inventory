@@ -12,11 +12,11 @@ import {
 
 async function expectSiteAndLeaf(
   locator: import("@playwright/test").Locator,
-  title: string,
+  path: string,
   site: string,
   leaf: string,
 ) {
-  await expect(locator).toHaveAttribute("title", title);
+  await expect(locator).toHaveAttribute("aria-label", path);
   await expect(locator.locator(".location-label-site")).toHaveText(`${site}/`);
   await expect(locator.locator(".location-label-tail")).toContainText(leaf);
   const leafVisible = await locator.evaluate((element, target) => {
@@ -401,7 +401,7 @@ test("stock and movement browse omit retired full-location columns at 1280px", a
   // Phone 列表 rows clip their single field line and offer 更多 for the rest.
   const listLocation = page.locator(".location-label").first();
   await expect(listLocation).toHaveAttribute(
-    "title",
+    "aria-label",
     "T2/OUT/FY/北侧器材储物架第一层",
   );
   await expect(listLocation.locator(".location-label-site")).toHaveText("T2/");

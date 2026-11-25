@@ -1,9 +1,14 @@
 <script setup lang="ts">
+import { vTip } from "../../directives/tip";
+import { matchesWords, normalizeSearch } from "../../lib/searchMatch";
+import { tooltipText, type TooltipValue } from "../../lib/tooltip";
+import { useOptionalReferenceData } from "../../services/contracts";
 import LocationLabel from "./LocationLabel.vue";
 import { computed, ref, useId, watch, onMounted, onBeforeUnmount, nextTick } from "vue";
 import VirtualList from "./VirtualList.vue";
 import UiButton from "./UiButton.vue";
 import { useAnchoredPopup } from "../../composables/useAnchoredPopup";
+const reference = useOptionalReferenceData();
 const virtualList = ref<InstanceType<typeof VirtualList>>();
 export type SearchOption = {
 	value: string;
@@ -11,6 +16,7 @@ export type SearchOption = {
 	detail?: string;
 	keywords?: string;
 	title?: string;
+	tip?: TooltipValue;
 	disabled?: boolean;
 };
 const props = withDefaults(
@@ -126,24 +132,61 @@ const state = ref<"ready" | "loading" | "error">("ready");
 const options = computed(() =>
 	props.options.map((o) => (typeof o === "string" ? { value: o, label: o } : o)),
 );
+function optionTip(option: SearchOption | undefined) {
+	return (
+		option?.tip ?? option?.title ?? (option?.label.includes("/") ? option.label : undefined)
+	);
+}
+
 const selectedOption = computed(() =>
 	options.value.find((option) => option.value === props.modelValue),
 );
 const selected = computed(
 	() => props.selectedLabel || selectedOption.value?.label || props.modelValue || "",
 );
-const normalizeSearch = (value: string) => value.toLocaleLowerCase().replace(/\s*\/\s*/g, "/");
-const matches = computed(() =>
-	props.remote
-		? options.value
-		: !typed.value
-			? options.value
-			: options.value.filter((o) =>
-					normalizeSearch(
-						`${o.label} ${o.value} ${o.detail || ""} ${o.keywords || ""}`,
-					).includes(normalizeSearch(query.value.trim())),
-				),
+const warehouseByName = computed(
+	() => new Map((reference?.warehouses ?? []).map((row) => [row.name, row])),
 );
+const matches = computed(() => {
+	const term = typed.value && !props.remote ? normalizeSearch(query.value) : "";
+	if (!term) return options.value;
+
+	const exact: SearchOption[] = [];
+	const prefixes: SearchOption[] = [];
+	const remaining: SearchOption[] = [];
+	for (const option of options.value) {
+		const warehouse = warehouseByName.value.get(option.value);
+		const location =
+			option.tip && typeof option.tip === "object" && "location" in option.tip
+				? option.tip.location
+				: undefined;
+		const text = [
+			option.label,
+			option.value,
+			option.title,
+			option.detail,
+			option.keywords,
+			option.tip && tooltipText(option.tip),
+			warehouse?.full_label,
+			warehouse?.search_text,
+			warehouse?.path_names?.join(" "),
+		]
+			.filter(Boolean)
+			.join(" ");
+		if (!matchesWords(term, text)) continue;
+		const label = normalizeSearch(location?.path || warehouse?.path || option.label);
+		const code = normalizeSearch(
+			location?.levels.at(-1)?.code ||
+				warehouse?.path_segments?.at(-1) ||
+				label.split("/").at(-1) ||
+				label,
+		);
+		if (term === code || term === label) exact.push(option);
+		else if (code.startsWith(term) || label.startsWith(term)) prefixes.push(option);
+		else remaining.push(option);
+	}
+	return [...exact, ...prefixes, ...remaining];
+});
 const virtual = computed(() => matches.value.length > 100);
 const visible = computed(() =>
 	virtual.value ? matches.value : matches.value.slice(0, limit.value),
@@ -261,7 +304,7 @@ defineExpose({
 					open && state === 'ready' && visible[active] ? id + '-' + active : undefined
 				"
 				:disabled="disabled"
-				:title="selectedOption?.title || selected"
+				v-tip="!typed && (selectedOption?.tip ?? selectedOption?.title ?? selected)"
 				:aria-invalid="invalid || ariaInvalid || undefined"
 				:placeholder="placeholder || '搜索并选择'"
 				:value="open && typed ? query : selected"
@@ -323,7 +366,7 @@ defineExpose({
 								:aria-selected="matches[index]?.value === modelValue"
 								:aria-disabled="matches[index]?.disabled"
 								:class="{ active: index === active }"
-								:title="matches[index]?.title"
+								v-tip="optionTip(matches[index])"
 								class="virtual-option"
 								@mousedown.prevent
 								@click="
@@ -348,13 +391,14 @@ defineExpose({
 							:aria-selected="option.value === modelValue"
 							:aria-disabled="option.disabled"
 							:class="{ active: index === active }"
-							:title="option.title"
+							v-tip="optionTip(option)"
 							@mousedown.prevent
 							@click="!option.disabled && choose(option.value)"
 						>
 							<LocationLabel
 								v-if="option.label.includes('/')"
 								:label="option.label"
+								:tooltip="false"
 							/>
 							<template v-else>{{ option.label }}</template
 							><small v-if="option.detail">{{ option.detail }}</small>

@@ -218,8 +218,10 @@ test("fixture count editor and detail render the review layouts at desktop and p
     await page.goto("/inventory/counts/new");
     const rows = page.locator("[data-count-key]");
     await expect(rows.first()).toBeVisible();
-    const location = page.locator(`.location-label[title="${countPath}"]`);
-    await expect(location).toHaveAttribute("title", countPath);
+    const location = page.locator(
+      `.location-label[aria-label^="${countPath}"]`,
+    );
+    await expect(location).toHaveAttribute("data-inventory-tip", "");
     await expect(location.locator(".location-label-site")).toHaveText("T2/");
     await expect(location.locator(".location-label-tail")).toContainText(
       "北侧器材储物架第一层",

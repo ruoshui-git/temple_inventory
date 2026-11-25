@@ -135,6 +135,8 @@ describe("record print", () => {
     });
     wrappers.push(wrapper);
     expect(wrapper.get("button").attributes("disabled")).toBeDefined();
-    expect(wrapper.get("button").attributes("title")).toBe("请先保存后再打印");
+    expect(
+      wrapper.get(".disabled-button-tip").attributes("data-inventory-tip"),
+    ).toBe("");
   });
 });

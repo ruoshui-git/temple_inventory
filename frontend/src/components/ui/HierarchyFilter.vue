@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import { normalizeHierarchySelection } from "../../lib/hierarchySelection";
+import { vTip } from "../../directives/tip";
+import { matchesWords, normalizeSearch } from "../../lib/searchMatch";
+import { locationTip } from "../../lib/warehouseLabel";
 import DisclosureIcon from "./DisclosureIcon.vue";
 
 export type HierarchyFilterNode = {
@@ -17,6 +20,8 @@ export type HierarchyFilterNode = {
 	rgt?: number;
 	count?: number;
 	path?: string;
+	path_segments?: string[];
+	path_names?: string[];
 	full_label?: string;
 	kind?: string;
 	version?: string;
@@ -99,19 +104,29 @@ function isAncestor(ancestor: HierarchyFilterNode, node: HierarchyFilterNode) {
 	);
 }
 const localLabel = (node: HierarchyFilterNode) =>
-	node.short_label || node.local_label || node.label || node.name;
+	node.path_segments?.at(-1) || node.short_label || node.local_label || node.label || node.name;
 const path = (node: HierarchyFilterNode) => node.label || node.name;
-const normalize = (value: string) =>
-	value
-		.toLocaleLowerCase()
-		.replace(/\s*\/\s*/g, "/")
-		.replace(/\s+/g, " ")
-		.trim();
-const matches = (node: HierarchyFilterNode) =>
-	!term.value ||
-	normalize([node.name, node.search_text || "", node.label || ""].join(" ")).includes(
-		normalize(term.value),
+const tipFor = (node: HierarchyFilterNode) =>
+	node.path_segments?.length
+		? locationTip(node.name, allNodes.value, node.full_label || localLabel(node))
+		: node.full_label || localLabel(node);
+function matches(node: HierarchyFilterNode) {
+	const text = [node.name, node.search_text, node.label].filter(Boolean);
+	if (node.path === undefined && node.path_segments === undefined)
+		return normalizeSearch(text.join(" ")).includes(normalizeSearch(term.value));
+	return matchesWords(
+		term.value,
+		[
+			...text,
+			node.local_label,
+			node.full_label,
+			node.path_segments?.join("/"),
+			node.path_names?.join(" "),
+		]
+			.filter(Boolean)
+			.join(" "),
 	);
+}
 const visible = (node: HierarchyFilterNode) =>
 	matches(node) || descendants(node).some((candidate) => matches(candidate));
 function depth(node: HierarchyFilterNode) {
@@ -291,6 +306,11 @@ watch(term, () => {
 				:key="name"
 				type="button"
 				:aria-label="'移除 ' + path(byName.get(name) || { name })"
+				v-tip="
+					byName.get(name)?.path_segments?.length
+						? locationTip(name, allNodes)
+						: undefined
+				"
 				@click="remove(name)"
 			>
 				× <span>{{ path(byName.get(name) || { name }) }}</span>
@@ -338,7 +358,10 @@ watch(term, () => {
 							<DisclosureIcon variant="inline" />
 						</button>
 						<span v-else class="tree-spacer" aria-hidden="true"></span>
-						<label class="form-choice-label">
+						<label
+							class="form-choice-label"
+							v-tip="node.path_segments?.length ? tipFor(node) : undefined"
+						>
 							<input
 								:data-facet-index="index"
 								@focus="activeIndex = index"
@@ -349,7 +372,11 @@ watch(term, () => {
 								@change="toggle(node)"
 							/><span
 								class="hierarchy-option-label"
-								:title="node.full_label || localLabel(node)"
+								:title="
+									node.path_segments?.length
+										? undefined
+										: node.full_label || localLabel(node)
+								"
 								><span class="hierarchy-option-primary">{{
 									localLabel(node)
 								}}</span></span

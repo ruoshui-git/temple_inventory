@@ -20,6 +20,8 @@ export interface ConfigurationStatus {
   candidates: {
     value: string;
     label: string;
+    search_text?: string;
+    path_names?: string[];
     group: boolean;
     parent: string;
     type: string;
@@ -89,6 +91,9 @@ export function useConfiguration(changed: () => void) {
         value: row.value,
         label: row.label,
         detail: `ERPNext 名称：${row.value}`,
+        keywords: [row.search_text, ...(row.path_names ?? [])]
+          .filter(Boolean)
+          .join(" "),
       })),
   );
   async function load() {
