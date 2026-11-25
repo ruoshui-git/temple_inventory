@@ -543,7 +543,7 @@ test("real location editor creates an area and renames it with a short name", as
       .getByRole("textbox", { name: "名称", exact: true })
       .fill(`${label}-修改`);
     await dialog
-      .getByRole("textbox", { name: "简称", exact: true })
+      .getByRole("textbox", { name: "代码", exact: true })
       .fill(short);
     await dialog
       .getByRole("button", { name: "保存仓库资料", exact: true })

@@ -41,6 +41,7 @@ export function presentCatalogItem(item: CatalogItem): StockItem {
       place = {
         location: warehouse,
         label: String(row.warehouse_label || "位置暂不可用"),
+        warehouse_name: String(row.warehouse_name || ""),
         available: 0,
         loaned: 0,
         damaged: 0,

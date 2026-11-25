@@ -149,6 +149,8 @@ async function removeItem() {
 const batchColumns = computed<DataColumn[]>(() => productBatchColumns);
 const locationColumns = computed<DataColumn[]>(() => productLocationColumns);
 const serialColumns = computed<DataColumn[]>(() => productSerialColumns);
+const serialWarehouse = (label: unknown) =>
+	warehouseReference?.warehouses.find((row) => row.label === label)?.name;
 const serialTableRows = computed<DataTableRecord[]>(() =>
 	c.serialRows.value.map((serial) => ({
 		kind: "record",
@@ -210,15 +212,17 @@ const locationPrefs =
 			)
 		: undefined;
 const productExportColumns = computed(() => {
-	const visible = batchPrefs?.visible.value.length
-		? batchPrefs.visible.value
-		: productBatchColumns
+	const columns = tab.value === "overview" ? productLocationColumns : productBatchColumns;
+	const prefs = tab.value === "overview" ? locationPrefs : batchPrefs;
+	const visible = prefs?.effectiveVisible.value.length
+		? prefs.effectiveVisible.value
+		: columns
 				.filter((column) => column.defaultVisible !== false || column.required)
 				.map((column) => String(column.id));
-	const order = batchPrefs?.order.value.length
-		? batchPrefs.order.value
-		: productBatchColumns.map((column) => String(column.id));
-	return exportFields(productBatchColumns, order, [...new Set([...visible, "uom"])]);
+	const order = prefs?.order.value.length
+		? prefs.order.value
+		: columns.map((column) => String(column.id));
+	return exportFields(columns, order, visible);
 });
 </script>
 <template>
@@ -387,13 +391,26 @@ const productExportColumns = computed(() => {
 								@click="openSerialMovement(row.last_movement)"
 								>{{ serialMovementName(row.last_movement) }}</UiButton
 							>
+							<LocationLabel
+								v-else-if="column.id === 'location' && row.location"
+								:warehouse="serialWarehouse(row.location)"
+								:label="String(row.location)"
+							/>
 							<template v-else>{{ row[column.id] || "—" }}</template>
 						</template>
 					</DataTable>
 					<ul v-else class="item-serial-rows">
 						<li v-for="serial in c.serialRows.value" :key="String(serial.serial)">
 							<strong>{{ serial.serial }}</strong
-							><span>{{ serial.status }} · {{ serial.location || "—" }}</span>
+							><span
+								>{{ serial.status }} ·
+								<LocationLabel
+									v-if="serial.location"
+									:warehouse="serialWarehouse(serial.location)"
+									:label="String(serial.location)"
+								/>
+								<template v-else>—</template>
+							</span>
 							<UiButton
 								v-if="serial.last_movement"
 								@click="openSerialMovement(serial.last_movement)"
@@ -434,6 +451,7 @@ const productExportColumns = computed(() => {
 							}}</template>
 							<LocationLabel
 								v-else-if="column.id === 'location'"
+								:warehouse="String(row.location || '')"
 								:label="
 									warehouseLabel(
 										String(row.location || ''),
@@ -442,6 +460,9 @@ const productExportColumns = computed(() => {
 									)
 								"
 							/>
+							<template v-else-if="column.id === 'warehouse_name'">{{
+								row.warehouse_name || "—"
+							}}</template>
 							<template v-else-if="column.id === 'uom' || column.id === 'stock_uom'"
 								><UnitText :name="row[column.id]"
 							/></template>
@@ -467,6 +488,7 @@ const productExportColumns = computed(() => {
 						<template #cell="{ column, row }">
 							<LocationLabel
 								v-if="column.id === 'location'"
+								:warehouse="String(row.location || '')"
 								:label="
 									warehouseLabel(
 										String(row.location || ''),
@@ -475,6 +497,9 @@ const productExportColumns = computed(() => {
 									)
 								"
 							/>
+							<template v-else-if="column.id === 'warehouse_name'">{{
+								row.warehouse_name || "—"
+							}}</template>
 							<template v-else-if="column.id === 'uom' || column.id === 'stock_uom'"
 								><UnitText :name="row[column.id]"
 							/></template>

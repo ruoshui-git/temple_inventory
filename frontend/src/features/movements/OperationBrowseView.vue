@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { locationTip } from "../../lib/warehouseLabel";
+import { vTip } from "../../directives/tip";
 import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
 import BrowseChip from "../../components/ui/BrowseChip.vue";
 import { useFilterRailPreference } from "../../composables/useFilterRailPreference";
@@ -1398,6 +1400,7 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 						v-for="chip in extraChips"
 						:key="chip.key"
 						:label="chip.summary || chip.label"
+						:tip="chip.tip"
 						:removable="!chip.fixed"
 						@edit="editFilter(chip.field)"
 						@remove="Object.assign(query, chip.reset)"
@@ -1627,7 +1630,13 @@ function movementHistoryRows(id: string): MovementHistoryPage["rows"] {
 								>
 									<DisclosureIcon variant="inline" />
 									<span class="mobile-operation-group-identity">
-										<strong :title="group.label">{{ group.label }}</strong>
+										<strong
+											v-tip="
+												locationTip(group.warehouse, reference.warehouses)
+											"
+											:title="group.warehouse ? undefined : group.label"
+											>{{ group.label }}</strong
+										>
 										<small :title="`明细条数 ${group.count}`">
 											{{ group.count }} 条
 										</small>

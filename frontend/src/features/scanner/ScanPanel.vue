@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { warehouseOption } from "../../lib/warehouseLabel";
 import { computed, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from "vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import Scanner from "../../components/Scanner.vue";
@@ -156,18 +157,7 @@ const warehouseOptions = computed(() => {
 		const direct = reference.warehouses.find(
 			(row) => row.direct && row.owner === group.name && row.storable,
 		);
-		return direct
-			? [
-					{
-						value: direct.name,
-						label: direct.label,
-						detail: direct.path,
-						keywords: [direct.search_text, ...(direct.path_names ?? [])]
-							.filter(Boolean)
-							.join(" "),
-					},
-				]
-			: [];
+		return direct ? [warehouseOption(direct.name, reference.warehouses)] : [];
 	}
 	const byName = new Map(reference.warehouses.map((row) => [row.name, row]));
 	const contains = (name: string) => {
@@ -182,12 +172,7 @@ const warehouseOptions = computed(() => {
 	};
 	return reference.warehouses
 		.filter((row) => !row.is_group && row.storable && contains(row.name))
-		.map((row) => ({
-			value: row.name,
-			label: row.label,
-			detail: row.path,
-			keywords: [row.search_text, ...(row.path_names ?? [])].filter(Boolean).join(" "),
-		}));
+		.map((row) => warehouseOption(row.name, reference.warehouses));
 });
 
 function closeScan() {
@@ -408,7 +393,12 @@ defineExpose({
 					>
 				</article>
 				<template v-if="result.warehouse">
-					<p><LocationLabel :label="result.warehouse.label" /></p>
+					<p>
+						<LocationLabel
+							:warehouse="result.warehouse.name"
+							:label="result.warehouse.label"
+						/>
+					</p>
 					<template v-if="result.warehouse.is_group">
 						<p>这是分组节点，请选择具体库位。</p>
 						<SearchSelect

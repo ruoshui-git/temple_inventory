@@ -8,6 +8,8 @@ export interface ImportRow {
   action: "NEW" | "UPDATE" | "UNCHANGED" | "REJECTED";
   target: string;
   item_code?: string;
+  warehouse?: string;
+  location_label?: string;
   errors: string[];
   warnings: string[];
   before: Record<string, unknown>;

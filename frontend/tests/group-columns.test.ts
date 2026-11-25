@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { groupImpliedColumns } from "../src/lib/groupColumns";
+import {
+  groupImpliedColumns,
+  visibleGroupExportColumns,
+} from "../src/lib/groupColumns";
 
 describe("groupImpliedColumns", () => {
   it("returns no columns for an ungrouped table", () => {
@@ -41,6 +44,7 @@ describe("groupImpliedColumns", () => {
       "locations",
       "warehouse",
       "warehouse_label",
+      "warehouse_name",
       "warehouse_native_name",
     ]);
     expect(groupImpliedColumns(["batch"])).toEqual(["batches", "batch_no"]);
@@ -57,4 +61,13 @@ describe("groupImpliedColumns", () => {
     expect(groupImpliedColumns(["status"])).toEqual(["docstatus"]);
     expect(groupImpliedColumns(["outcome"])).toEqual(["outcome"]);
   });
+});
+
+it("exports the location group heading and omits its hidden name column", () => {
+  const visible = ["warehouse_label", "warehouse_name", "available"];
+  expect(visibleGroupExportColumns(visible, ["location"])).toEqual([
+    "warehouse_label",
+    "available",
+  ]);
+  expect(visibleGroupExportColumns(visible, ["batch"])).toEqual(visible);
 });

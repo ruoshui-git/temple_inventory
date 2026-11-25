@@ -19,6 +19,7 @@ export interface StockLocation {
   label?: string;
   path?: string;
   nativeName?: string;
+  warehouse_name?: string;
   available: number;
   loaned: number;
   damaged: number;

@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from "vue-router";
 import NativeWarehousesPage from "../features/warehouses/NativeWarehousesPage.vue";
+import { warehouseTreeLabel } from "../features/warehouses/useNativeWarehouses";
 import { isBrowseStateUpdate } from "../features/warehouses/warehouseRoute";
 import {
 	browseDestination,
@@ -17,11 +18,7 @@ const route = useRoute(),
 	router = useRouter(),
 	page = ref<InstanceType<typeof NativeWarehousesPage>>();
 const { goBack } = useBackNavigation();
-useRouteBreadcrumbLabel(
-	() =>
-		page.value?.controller.selected.value?.full_label ||
-		page.value?.controller.selected.value?.label,
-);
+useRouteBreadcrumbLabel(() => warehouseTreeLabel(page.value?.controller.selected.value));
 onBeforeRouteLeave(() => page.value?.controller.requestLeave() ?? true);
 onBeforeRouteUpdate((to, from) =>
 	isBrowseStateUpdate(to, from) ? true : (page.value?.controller.requestLeave() ?? true),

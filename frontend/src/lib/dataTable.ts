@@ -212,6 +212,7 @@ export interface DataTableGroup<Row = Record<string, unknown>> {
   parentId?: string;
   label: string;
   labelColumn?: string;
+  warehouse?: string;
   countColumn?: string;
   depth: number;
   count: number;

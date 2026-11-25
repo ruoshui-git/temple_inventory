@@ -48,6 +48,7 @@ const locationColumns: DataColumn[] = [
 		defaultVisible: true,
 		sortable: true,
 	},
+	{ id: "warehouse_name", label: "库位名称", defaultVisible: false, export: ["warehouse_name"] },
 	{
 		id: "available",
 		label: "可用数量",
@@ -65,6 +66,7 @@ const batchColumns: DataColumn[] = [
 		defaultVisible: true,
 		sortable: true,
 	},
+	{ id: "warehouse_name", label: "库位名称", defaultVisible: false, export: ["warehouse_name"] },
 	{
 		id: "batch",
 		label: "批次",
@@ -99,6 +101,7 @@ const batchRows = computed<DataTableRecord[]>(() =>
 				value: {
 					location: location.location,
 					label: location.label,
+					warehouse_name: location.warehouse_name,
 					batch: batch.id,
 					uom: props.item.uom,
 					...batch,
@@ -145,6 +148,7 @@ const batchPreferences =
 					<span class="stock-detail-trigger-label">
 						<LocationLabel
 							v-if="physicalLocations.length === 1"
+							:warehouse="physicalLocations[0]?.location"
 							:label="
 								warehouseLabel(
 									physicalLocations[0].location,
@@ -180,6 +184,7 @@ const batchPreferences =
 					<template #cell="{ column, row }">
 						<LocationLabel
 							v-if="column.id === 'location'"
+							:warehouse="String(row.location || '')"
 							:label="
 								warehouseLabel(
 									String(row.location),
@@ -188,6 +193,9 @@ const batchPreferences =
 								)
 							"
 						/>
+						<template v-else-if="column.id === 'warehouse_name'">{{
+							row.warehouse_name || "—"
+						}}</template>
 						<template v-else-if="column.id === 'uom'"
 							><UnitText :name="row.uom"
 						/></template>
@@ -237,6 +245,7 @@ const batchPreferences =
 					<template #cell="{ column, row }">
 						<LocationLabel
 							v-if="column.id === 'location'"
+							:warehouse="String(row.location || '')"
 							:label="
 								warehouseLabel(
 									String(row.location),
@@ -246,6 +255,9 @@ const batchPreferences =
 							"
 						/>
 						<template v-else-if="column.id === 'batch'">{{ row.batch }}</template>
+						<template v-else-if="column.id === 'warehouse_name'">{{
+							row.warehouse_name || "—"
+						}}</template>
 						<template v-else>{{ row[column.id] }}</template>
 					</template>
 				</DataTable>

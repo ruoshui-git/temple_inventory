@@ -1,10 +1,7 @@
 <script setup lang="ts">
-import {
-	warehouseLabel,
-	warehouseTitle,
-	warehouseName,
-	warehouseSearchText,
-} from "../../lib/warehouseLabel";
+import { vTip } from "../../directives/tip";
+import { warehouseLabel, warehouseOption, locationTip } from "../../lib/warehouseLabel";
+import { matchesWords } from "../../lib/searchMatch";
 import { unitLabel, unitOption, sortByUnit } from "../../lib/units";
 import UnitText from "../../components/ui/UnitText.vue";
 import { formatQuantity } from "../../lib/formatQuantity";
@@ -149,7 +146,10 @@ const scanOnOpen = ref(false);
 const selectionError = ref("");
 const multiAdding = ref(false);
 const scanWarehouse = ref("");
-const scanFeedback = ref("");
+const scanFeedback = ref({ text: "", warehouses: [] as string[] });
+function setScanFeedback(text: string, warehouses: string[] = []) {
+	scanFeedback.value = { text, warehouses };
+}
 const scanResolution = ref<ItemScanResolution>();
 const scanUndo: Array<{
 	lineId: string;
@@ -221,13 +221,7 @@ const scanDestinationLabel = computed(() =>
 );
 const scanDestinationOptions = computed<ItemScanOption[]>(() => {
 	const source = scanWarehouse.value || String(props.draft.preferredWarehouse || "");
-	return destinationChoices(source).map((name) => ({
-		value: name,
-		label: warehouseLabel(name, reference.warehouses),
-		title: warehouseTitle(name, reference.warehouses),
-		detail: warehouseName(name, reference.warehouses),
-		keywords: warehouseSearchText(name, reference.warehouses),
-	}));
+	return destinationChoices(source).map((name) => warehouseOption(name, reference.warehouses));
 });
 const activeScanWarehouse = computed(() =>
 	receive.value
@@ -511,13 +505,7 @@ const fixedSectionLocation = computed(
 		sections.value.some((section) => reference.damagedLeaves.includes(section.location)),
 );
 const locationOptions = computed(() =>
-	places.value.map((name) => ({
-		value: name,
-		label: warehouseLabel(name, reference.warehouses),
-		title: warehouseTitle(name, reference.warehouses),
-		detail: warehouseName(name, reference.warehouses),
-		keywords: warehouseSearchText(name, reference.warehouses),
-	})),
+	places.value.map((name) => warehouseOption(name, reference.warehouses)),
 );
 const sections = computed(() => {
 	const grouped = operationSections(props.draft);
@@ -576,20 +564,11 @@ function sectionLocationOptions(section: OperationLocationSection) {
 	);
 }
 function lineLocationOptions(section: OperationLocationSection, line: AllocationLine) {
-	return sectionLocationOptions(section)
-		.filter(
-			(option) =>
-				option.value !== section.location &&
-				(props.draft.kind !== "Transfer" || option.value !== line.location),
-		)
-		.map((option) => {
-			const node = reference.warehouses.find((row) => row.name === option.value);
-			return {
-				...option,
-				label: node ? warehouseLabel(node.name, reference.warehouses) : option.label,
-				title: option.title || warehouseTitle(option.value, reference.warehouses),
-			};
-		});
+	return sectionLocationOptions(section).filter(
+		(option) =>
+			option.value !== section.location &&
+			(props.draft.kind !== "Transfer" || option.value !== line.location),
+	);
 }
 function duplicateLine(line: AllocationLine) {
 	const copy = copyOperationLine(line);
@@ -603,24 +582,39 @@ function pickAt(location: string) {
 	} else scanWarehouse.value = location;
 	pick();
 }
-const visibleIds = computed(
-	() =>
-		new Set(
-			props.draft.items
-				.filter((line) => {
-					const term = search.value.trim().toLocaleLowerCase();
-					return (
-						(!term ||
-							`${stockItem(line.code)?.name} ${line.code} ${line.location} ${line.sourceLocation || ""} ${line.batch || ""}`
-								.toLocaleLowerCase()
-								.includes(term)) &&
-						(!incompleteOnly.value ||
-							lineIssues.value.some((issue) => issue.lineId === line.id))
-					);
-				})
-				.map((line) => line.id),
-		),
-);
+const visibleIds = computed(() => {
+	const term = search.value.trim();
+	const locationByName = new Map(reference.warehouses.map((row) => [row.name, row]));
+	const matchesLocation = (name?: string) => {
+		const row = name && locationByName.get(name);
+		return (
+			row &&
+			matchesWords(
+				term,
+				[row.label, row.path, row.path_names?.join(" "), row.search_text]
+					.filter(Boolean)
+					.join(" "),
+			)
+		);
+	};
+	return new Set(
+		props.draft.items
+			.filter((line) => {
+				return (
+					(!term ||
+						matchesWords(
+							term,
+							`${stockItem(line.code)?.name || ""} ${line.code} ${line.batch || ""}`,
+						) ||
+						matchesLocation(line.location) ||
+						matchesLocation(line.sourceLocation)) &&
+					(!incompleteOnly.value ||
+						lineIssues.value.some((issue) => issue.lineId === line.id))
+				);
+			})
+			.map((line) => line.id),
+	);
+});
 const filteringRows = ref(false);
 watch([search, incompleteOnly], () => {
 	filteringRows.value = true;
@@ -862,17 +856,13 @@ function scanResolutionFor(
 		const available = sourcePairs
 			.filter((row) => row.source === source)
 			.reduce((total, row) => total + row.available, 0);
+		const option = warehouseOption(source, reference.warehouses);
 		return {
-			value: source,
-			label: warehouseLabel(source, reference.warehouses),
+			...option,
 			available,
-			detail: [
-				warehouseName(source, reference.warehouses),
-				`可用 ${available} ${unitLabel(item.uom)}`,
-			]
+			detail: [option.detail, `可用 ${available} ${unitLabel(item.uom)}`]
 				.filter(Boolean)
 				.join(" · "),
-			keywords: warehouseSearchText(source, reference.warehouses),
 		};
 	});
 	const batchOptions = selectedPairs.map((row) => ({
@@ -927,13 +917,9 @@ function scanResolutionFor(
 					uom: item.uom,
 					sourceOptions,
 					batchOptions,
-					destinationOptions: destinationValues.map((name) => ({
-						value: name,
-						label: warehouseLabel(name, reference.warehouses),
-						title: warehouseTitle(name, reference.warehouses),
-						detail: warehouseName(name, reference.warehouses),
-						keywords: warehouseSearchText(name, reference.warehouses),
-					})),
+					destinationOptions: destinationValues.map((name) =>
+						warehouseOption(name, reference.warehouses),
+					),
 					defaultSource,
 					defaultBatch: receiving ? scannedBatch || "" : defaultBatch,
 					defaultDestination: validDestination,
@@ -1030,12 +1016,18 @@ function addScannedLine(item: StockItem, batch: string, source: string, destinat
 	nextAffected.add(line.id);
 	scannedLineIds.value = nextAffected;
 	markRecent(line);
-	const warehouse = receive.value
-		? lineDestination
-		: ["Transfer", "Repair"].includes(props.draft.kind)
-			? `${source} → ${lineDestination}`
-			: source;
-	scanFeedback.value = `已扫描添加 ${item.name} ×1 ${unitLabel(item.uom)}${warehouse ? ` · ${warehouseLabel(warehouse, reference.warehouses, warehouse)}` : ""}`;
+	const warehouses = (
+		receive.value
+			? [lineDestination]
+			: ["Transfer", "Repair"].includes(props.draft.kind)
+				? [source, lineDestination]
+				: [source]
+	).filter(Boolean);
+	const path = warehouses.map((name) => warehouseLabel(name, reference.warehouses)).join(" → ");
+	setScanFeedback(
+		`已扫描添加 ${item.name} ×1 ${unitLabel(item.uom)}${path ? ` · ${path}` : ""}`,
+		warehouses,
+	);
 }
 function activeScanContext(value: unknown): ScanContextSnapshot {
 	return value && typeof value === "object" ? (value as ScanContextSnapshot) : {};
@@ -1199,7 +1191,7 @@ function resolveScannedItem(selection: {
 function cancelScannedItem() {
 	const pending = pendingScanResolution;
 	if (!pending) return;
-	scanFeedback.value = `已取消 ${pending.item.name} 的本次扫描`;
+	setScanFeedback(`已取消 ${pending.item.name} 的本次扫描`);
 	scanResolution.value = undefined;
 	pendingScanResolution = undefined;
 	pending.resolve();
@@ -1207,7 +1199,7 @@ function cancelScannedItem() {
 function setScanWarehouse(name: string) {
 	if (receive.value) destination.value = name;
 	else scanWarehouse.value = name;
-	scanFeedback.value = `当前扫描库位：${warehouseLabel(name, reference.warehouses, name)}`;
+	setScanFeedback(`当前扫描库位：${warehouseLabel(name, reference.warehouses)}`, [name]);
 }
 function setScanDestination(name: string) {
 	if (props.draft.kind === "Loan") props.draft.loanDestination = name;
@@ -1245,7 +1237,7 @@ function undoLatestScan() {
 		Number(line.entryQty || 0) !== latest.afterQty ||
 		String(line.entryUom || line.uom) !== latest.uom
 	) {
-		scanFeedback.value = "最近扫描对应的数量或分配已更改；为保留你的编辑，无法撤销。";
+		setScanFeedback("最近扫描对应的数量或分配已更改；为保留你的编辑，无法撤销。");
 		return;
 	}
 	scanUndo.pop();
@@ -1276,7 +1268,7 @@ function undoLatestScan() {
 					].includes(key),
 			)
 		) {
-			scanFeedback.value = "此扫描行已添加其他资料；为保留编辑，无法删除整行。";
+			setScanFeedback("此扫描行已添加其他资料；为保留编辑，无法删除整行。");
 			scanUndo.push(latest);
 			scanUndoRevision.value++;
 			return;
@@ -1287,7 +1279,7 @@ function undoLatestScan() {
 		line.qty = latest.beforeQty;
 		line.entryQty = latest.beforeQty;
 	}
-	scanFeedback.value = "已撤销最近扫描";
+	setScanFeedback("已撤销最近扫描");
 }
 function lineDestinationForUndo(line: AllocationLine) {
 	return props.draft.kind === "Loan"
@@ -1585,13 +1577,7 @@ function receiveBatchChanged(line: AllocationLine) {
 							@update:model-value="destinationChanged"
 							:clearable="false"
 							:options="
-								places.map((name) => ({
-									value: name,
-									label: warehouseLabel(name, reference.warehouses),
-									title: warehouseTitle(name, reference.warehouses),
-									detail: warehouseName(name, reference.warehouses),
-									keywords: warehouseSearchText(name, reference.warehouses),
-								}))
+								places.map((name) => warehouseOption(name, reference.warehouses))
 							"
 						/>
 					</template>
@@ -1652,13 +1638,9 @@ function receiveBatchChanged(line: AllocationLine) {
 							@update:model-value="destinationChanged"
 							:clearable="false"
 							:options="
-								transferDestinations.map((name) => ({
-									value: name,
-									label: warehouseLabel(name, reference.warehouses),
-									title: warehouseTitle(name, reference.warehouses),
-									detail: warehouseName(name, reference.warehouses),
-									keywords: warehouseSearchText(name, reference.warehouses),
-								}))
+								transferDestinations.map((name) =>
+									warehouseOption(name, reference.warehouses),
+								)
 							"
 						/>
 					</template>
@@ -1838,7 +1820,10 @@ function receiveBatchChanged(line: AllocationLine) {
 							<div class="operation-compact-identity">
 								<strong :title="lineName(line)">{{ lineName(line) }}</strong>
 								<small class="muted">{{ line.code }}</small>
-								<small v-if="draft.kind === 'Repair'" class="muted"
+								<small
+									v-if="draft.kind === 'Repair'"
+									v-tip="locationTip(line.sourceLocation, reference.warehouses)"
+									class="muted"
 									>损坏来源：{{
 										warehouseLabel(
 											line.sourceLocation || "",
@@ -2159,12 +2144,9 @@ function receiveBatchChanged(line: AllocationLine) {
 													name !==
 													(line.sourceLocation || line.location),
 											)
-											.map((name) => ({
-												value: name,
-												label: warehouseLabel(name, reference.warehouses),
-												title: warehouseTitle(name, reference.warehouses),
-												detail: warehouseName(name, reference.warehouses),
-											}))
+											.map((name) =>
+												warehouseOption(name, reference.warehouses),
+											)
 									"
 									@update:model-value="line.location = $event"
 								/>
@@ -2326,7 +2308,8 @@ function receiveBatchChanged(line: AllocationLine) {
 				:timestamp="context.timestamp()"
 				:scan-mode="pickerLines.length ? 'selection' : 'operation'"
 				:start-in-scan-mode="scanOnOpen"
-				:scan-feedback="scanFeedback"
+				:scan-feedback="scanFeedback.text"
+				:scan-feedback-warehouses="scanFeedback.warehouses"
 				:scan-error="selectionError"
 				:can-undo-scan="canUndoScan"
 				:active-warehouse="activeScanWarehouse"

@@ -9,6 +9,7 @@ export interface DraftRecordEntry {
   kind: string;
   label: string;
   summary: string;
+  warehouse?: string;
   updatedAt: string;
   absolute: string;
   server?: NativeRecord;

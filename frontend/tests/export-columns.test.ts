@@ -4,8 +4,14 @@ import { expiryColumnDefinitions } from "../src/features/expiry/expiryColumns";
 import { activityColumns } from "../src/features/activities/activityColumns";
 import { countEditorColumns } from "../src/features/counts/countEditorColumns";
 import { nativeRecordColumns } from "../src/features/drafts/nativeRecordColumns";
-import { productBatchColumns } from "../src/features/items/itemDetailColumns";
-import { inventoryColumnsForPage } from "../src/features/inventory/stockColumns";
+import {
+  productBatchColumns,
+  productLocationColumns,
+} from "../src/features/items/itemDetailColumns";
+import {
+  inventoryColumnsForPage,
+  stockExportTableFor,
+} from "../src/features/inventory/stockColumns";
 import {
   operationColumnsFor,
   operationItemColumnsFor,
@@ -55,6 +61,7 @@ const tables: { dataset: string; table: string; columns: DataColumn[] }[] = [
         "category",
         "locations",
         "warehouse_label",
+        "warehouse_name",
         "available",
         "loaned",
         "damaged",
@@ -93,6 +100,7 @@ const tables: { dataset: string; table: string; columns: DataColumn[] }[] = [
   },
   { dataset: "counts", table: "lines", columns: countEditorColumns },
   { dataset: "inventory", table: "locations", columns: productBatchColumns },
+  { dataset: "inventory", table: "locations", columns: productLocationColumns },
 ];
 const reportTables = [
   ["inventory", "summary"],
@@ -211,6 +219,56 @@ describe("exportFields", () => {
             ).toBe(true);
         }
       }
+    }
+  });
+
+  it("offers 库位名称 in location tables and exports it only when shown", () => {
+    expect(stockExportTableFor(["item_code", "warehouse_name"])).toBe(
+      "positions",
+    );
+    const report = reportExportColumns(
+      {
+        id: "locations",
+        label: "库位",
+        columns: ["item_name", "warehouse_label", "batch_no"],
+        rows: [],
+      },
+      "inventory",
+    );
+    const expiry = reportExportColumns(
+      {
+        id: "batches",
+        label: "批次",
+        columns: ["item_name", "warehouse", "batch_no"],
+        rows: [],
+      },
+      "expiry",
+    );
+    for (const columns of [
+      inventory,
+      expiryColumnDefinitions,
+      warehouseColumnDefinitions,
+      productBatchColumns,
+      productLocationColumns,
+      report,
+      expiry,
+    ]) {
+      const order = columns.map((column) => String(column.id));
+      const index = order.indexOf("warehouse_name");
+      const name = columns[index]!;
+      expect(name).toMatchObject({
+        label: "库位名称",
+        defaultVisible: false,
+        export: ["warehouse_name"],
+      });
+      const code = columns[index - 1]!;
+      const codeId = String(code.id);
+      expect(code.export?.[0]).toMatch(/^warehouse(?:_label)?$/);
+      expect(exportFields(columns, order, [codeId])).toEqual(code.export);
+      expect(exportFields(columns, order, ["warehouse_name", codeId])).toEqual([
+        ...code.export!,
+        "warehouse_name",
+      ]);
     }
   });
 

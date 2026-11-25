@@ -1,9 +1,12 @@
 <script setup lang="ts">
+import { vTip } from "../../directives/tip";
+import type { TooltipValue } from "../../lib/tooltip";
 import DisclosureIcon from "./DisclosureIcon.vue";
 withDefaults(
 	defineProps<{
 		label: string;
 		summary?: string;
+		summaryTip?: TooltipValue;
 		field?: string;
 		disclosure?: boolean;
 	}>(),
@@ -15,7 +18,7 @@ withDefaults(
 		<summary>
 			<DisclosureIcon variant="inline" />
 			{{ label }}
-			<small>{{ summary }}</small>
+			<small v-tip="summaryTip">{{ summary }}</small>
 		</summary>
 		<slot />
 	</details>

@@ -65,9 +65,16 @@ describe("damaged page columns", () => {
       "stock_uom",
       "batch_no",
       "warehouse_label",
+      "warehouse_name",
     ]);
     expect(columns.find((column) => column.id === "item_name")).toMatchObject({
       pinned: "start",
+    });
+    expect(
+      columns.find((column) => column.id === "warehouse_name"),
+    ).toMatchObject({
+      defaultVisible: false,
+      label: "库位名称",
     });
     expect(columns.find((column) => column.id === "damaged")?.quantity).toBe(
       true,
@@ -87,6 +94,7 @@ describe("damaged page columns", () => {
       "stock_uom",
       "batch_no",
       "warehouse_label",
+      "warehouse_name",
     ]);
     for (const dropped of ["available", "loaned", "stock_qty"])
       expect(fields).not.toContain(dropped);

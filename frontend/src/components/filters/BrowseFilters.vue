@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { warehouseFilterTip } from "../../lib/filterPresentation";
 import InventoryIcon from "../InventoryIcon.vue";
 import { kindIcons } from "../../lib/kindIcons";
 import RemoteSelect from "../ui/RemoteSelect.vue";
@@ -234,6 +235,7 @@ function selectedSummary(values: string[], options: HierarchyFilterNode[]) {
 			field="warehouses"
 			:disclosure="disclosureMode"
 			:summary="selectedSummary(scope.warehouses, reference.warehouses) || '不限'"
+			:summary-tip="warehouseFilterTip(scope.warehouses, reference)"
 		>
 			<fieldset v-if="hierarchyInRail" class="browse-hierarchy-section" tabindex="-1">
 				<button type="button" @click="editHierarchy('warehouses')">
@@ -281,6 +283,7 @@ function selectedSummary(values: string[], options: HierarchyFilterNode[]) {
 				label="来源位置"
 				field="sources"
 				:summary="selectedSummary(scope.sources, reference.warehouses) || '不限'"
+				:summary-tip="warehouseFilterTip(scope.sources, reference)"
 			>
 				<fieldset class="browse-hierarchy-section" tabindex="-1">
 					<HierarchyFilter
@@ -300,6 +303,7 @@ function selectedSummary(values: string[], options: HierarchyFilterNode[]) {
 				label="去向位置"
 				field="destinations"
 				:summary="selectedSummary(scope.destinations, reference.warehouses) || '不限'"
+				:summary-tip="warehouseFilterTip(scope.destinations, reference)"
 			>
 				<fieldset class="browse-hierarchy-section" tabindex="-1">
 					<HierarchyFilter

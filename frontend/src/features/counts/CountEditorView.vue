@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { vTip } from "../../directives/tip";
 import { formatSiteTime } from "../../lib/nativeTime";
 import { unitLabel } from "../../lib/units";
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
@@ -8,7 +9,7 @@ import BackButton from "../../components/ui/BackButton.vue";
 import InventoryIcon from "../../components/InventoryIcon.vue";
 import { kindIcons } from "../../lib/kindIcons";
 import { presentationText } from "../../lib/presentationLabels";
-import { warehouseLabel } from "../../lib/warehouseLabel";
+import { locationTip, warehouseLabel } from "../../lib/warehouseLabel";
 import LocationLabel from "../../components/ui/LocationLabel.vue";
 import QuickExport from "../../components/QuickExport.vue";
 import type { ReportQuery } from "../../lib/reportContract";
@@ -277,6 +278,7 @@ const readOnlyTableRows = computed<DataTableEntry[]>(() => {
 			kind: "group",
 			id: `count-detail:${location}`,
 			label: warehouseLabel(location, c.reference.warehouses),
+			warehouse: location,
 			labelColumn: "item_name",
 			countColumn: "item_name",
 			depth: 0,
@@ -683,12 +685,20 @@ async function back() {
 												}}</template
 											></small
 										>
-										<small>{{
-											warehouseLabel(
-												String(entry.value.warehouse || ""),
-												c.reference.warehouses,
-											)
-										}}</small>
+										<small
+											v-tip="
+												locationTip(
+													entry.value.warehouse,
+													c.reference.warehouses,
+												)
+											"
+											>{{
+												warehouseLabel(
+													String(entry.value.warehouse || ""),
+													c.reference.warehouses,
+												)
+											}}</small
+										>
 									</div>
 								</div>
 								<div class="native-count-card-counts">
@@ -763,6 +773,7 @@ async function back() {
 						<template #cell="{ column, row }">
 							<LocationLabel
 								v-if="column.id === 'warehouse'"
+								:warehouse="String(row.warehouse || '')"
 								:label="
 									warehouseLabel(
 										String(row.warehouse || ''),
@@ -953,6 +964,7 @@ async function back() {
 					</div>
 					<LocationLabel
 						v-else-if="column.id === 'warehouse'"
+						:warehouse="String(row.warehouse || '')"
 						:label="
 							warehouseLabel(String(row.warehouse || ''), c.reference.warehouses)
 						"
@@ -1002,6 +1014,7 @@ async function back() {
 				<p v-for="row in reviewedRows" :key="c.countKey(row)">
 					{{ c.names[row.item_code] || row.item_code }} ·
 					<LocationLabel
+						:warehouse="String(row.warehouse || '')"
 						:label="warehouseLabel(row.warehouse, c.reference.warehouses)"
 					/>
 					· {{ row.batch_no || "无批次" }} · 账面 {{ row.baseline_qty }} · 实点
@@ -1032,6 +1045,7 @@ async function back() {
 				<p>
 					{{ row.item_code }} ·
 					<LocationLabel
+						:warehouse="String(row.warehouse || '')"
 						:label="warehouseLabel(row.warehouse, c.reference.warehouses)"
 					/>
 					· {{ row.batch_no || "库存明细" }} · 账面 {{ row.current_qty ?? "未记录" }} ·

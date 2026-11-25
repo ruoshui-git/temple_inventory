@@ -78,7 +78,7 @@ test("warehouse settings list and detail at phone and desktop sizes", async ({
   });
   await page.getByRole("button", { name: "查看库存" }).click();
   await expect(
-    page.locator('.browse-active-chip[title^="仓库 / 位置："]'),
+    page.getByRole("button", { name: "仓库 / 位置：T2", exact: true }),
   ).toContainText("T2");
 });
 

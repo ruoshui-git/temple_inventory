@@ -5,6 +5,8 @@ import {
   reportLoanStatusLabels,
   reportOutcomeLabels,
 } from "./presentationLabels";
+import { warehouseFilterTip } from "./filterPresentation";
+import type { TooltipValue } from "./tooltip";
 import { warehouseLabel } from "./warehouseLabel";
 import { supportsAsOf, type ReportQuery } from "./reportContract";
 interface ReportFilterChip {
@@ -14,6 +16,7 @@ interface ReportFilterChip {
   summary?: string;
   reset: Partial<ReportQuery>;
   fixed?: boolean;
+  tip?: TooltipValue;
 }
 export function hasReportStatuses(query: ReportQuery) {
   return (
@@ -41,25 +44,39 @@ export function reportFilterChips(
     const name = reference.items.find((row) => row.value === code)?.label;
     return name ? `${name}（${code}）` : code;
   };
-  const allocationLabel = (key: string, itemLocation = false) => {
+  const allocationLabel = (
+    key: string,
+    itemLocation = false,
+  ): { label: string; warehouse?: string } => {
     const inventoryIdentity =
       itemLocation || ["inventory", "expiry"].includes(query.dataset);
+    const formatLocation = (
+      item: string,
+      warehouse: string,
+      batch: string,
+    ) => ({
+      warehouse,
+      label: [
+        itemLabel(item),
+        warehouseLabel(warehouse, reference.warehouses),
+        ...(itemLocation ? [] : [batch || "无批次"]),
+      ].join(" / "),
+    });
     try {
-      const parts = JSON.parse(key);
+      const parts: unknown = JSON.parse(key);
       if (Array.isArray(parts)) {
         if (inventoryIdentity && parts.length === (itemLocation ? 2 : 3))
-          return [
-            itemLabel(String(parts[0])),
-            warehouseLabel(parts[1], reference.warehouses),
-            ...(!itemLocation ? [parts[2] || "无批次"] : []),
-          ].join(" / ");
-        return parts.map(String).join(" / ");
+          return formatLocation(
+            String(parts[0]),
+            String(parts[1]),
+            String(parts[2] ?? ""),
+          );
+        return { label: parts.map(String).join(" / ") };
       }
     } catch {
       /* Native line IDs remain readable text. */
     }
-    // Legacy keys can contain slashes in either native Item or Warehouse names.
-    // Only format an unambiguous, authorized warehouse match; never change the key.
+    // Legacy keys can contain slashes in the native Item or Warehouse name.
     if (inventoryIdentity) {
       const matches = reference.warehouses.flatMap((node) => {
         const suffix = `/${node.name}`;
@@ -75,21 +92,24 @@ export function reportFilterChips(
           },
         ];
       });
-      if (matches.length === 1) {
-        const match = matches[0]!;
-        return [
-          itemLabel(match.item),
-          warehouseLabel(match.warehouse, reference.warehouses),
-          ...(!itemLocation ? [match.batch || "无批次"] : []),
-        ].join(" / ");
-      }
-      return "所选存放明细（位置暂不可用）";
+      const match = matches.length === 1 ? matches[0] : undefined;
+      return match
+        ? formatLocation(match.item, match.warehouse, match.batch)
+        : { label: "所选存放明细（位置暂不可用）" };
     }
     const slash = key.indexOf("/");
-    return slash < 0
-      ? key
-      : `${itemLabel(key.slice(0, slash))} / ${key.slice(slash + 1)}`;
+    return {
+      label:
+        slash < 0
+          ? key
+          : `${itemLabel(key.slice(0, slash))} / ${key.slice(slash + 1)}`,
+    };
   };
+  const selectionTip = (entries: { warehouse?: string }[]) =>
+    warehouseFilterTip(
+      entries.flatMap(({ warehouse }) => (warehouse ? [warehouse] : [])),
+      reference,
+    );
   const activityTypeLabel = (id: string) =>
     reference.activityTypes.find((row) => row.value === id)?.label || id;
   const chips: ReportFilterChip[] = [];
@@ -99,6 +119,7 @@ export function reportFilterChips(
     reset: Partial<ReportQuery>,
     fixed = false,
     summary?: string,
+    tip?: TooltipValue,
   ) => {
     const fieldByKey: Record<string, string> = {
       statuses: "status",
@@ -133,6 +154,7 @@ export function reportFilterChips(
       reset,
       fixed,
       summary,
+      ...(tip ? { tip } : {}),
     });
   };
   // Every chip restricts rows: its default value shows too, and × lifts it to the unrestricted value.
@@ -255,26 +277,30 @@ export function reportFilterChips(
         ? `选定物品（${query.itemCodes.length}）`
         : undefined,
     );
-  if (query.restrictAllocations || query.allocationKeys.length)
+  if (query.restrictAllocations || query.allocationKeys.length) {
+    const entries = query.allocationKeys.map((key) => allocationLabel(key));
     add(
       "allocations",
-      `选定明细（${query.allocationKeys.length}）：${query.allocationKeys.map((key) => allocationLabel(key)).join("；") || "范围为空（无结果）"}`,
+      `选定明细（${entries.length}）：${entries.map(({ label }) => label).join("；") || "范围为空（无结果）"}`,
       { restrictAllocations: false, allocationKeys: [] },
       false,
-      query.allocationKeys.length > 1
-        ? `选定明细（${query.allocationKeys.length}）`
-        : undefined,
+      entries.length > 1 ? `选定明细（${entries.length}）` : undefined,
+      selectionTip(entries),
     );
-  if (query.itemLocationKeys.length)
+  }
+  if (query.itemLocationKeys.length) {
+    const entries = query.itemLocationKeys.map((key) =>
+      allocationLabel(key, true),
+    );
     add(
       "itemLocations",
-      `物品 / 库位：${query.itemLocationKeys.map((key) => allocationLabel(key, true)).join("；")}`,
+      `物品 / 库位：${entries.map(({ label }) => label).join("；")}`,
       { itemLocationKeys: [] },
       false,
-      query.itemLocationKeys.length > 1
-        ? `物品 / 库位（${query.itemLocationKeys.length}）`
-        : undefined,
+      entries.length > 1 ? `物品 / 库位（${entries.length}）` : undefined,
+      selectionTip(entries),
     );
+  }
   if (query.dataset === "loans" && query.loanStatus !== "all")
     add(
       "loanStatus",

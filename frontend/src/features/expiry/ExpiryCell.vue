@@ -79,6 +79,7 @@ const status = computed(() => expiryStatusOf(props.row, props.siteDate));
 	<template v-else-if="id === 'stock_uom'"><UnitText :name="row.stock_uom" /></template>
 	<LocationLabel
 		v-else-if="id === 'warehouse'"
+		:warehouse="String(row.warehouse || '')"
 		:label="
 			warehouseLabel(
 				String(row.warehouse || ''),
@@ -87,6 +88,7 @@ const status = computed(() => expiryStatusOf(props.row, props.siteDate));
 			)
 		"
 	/>
+	<template v-else-if="id === 'warehouse_name'">{{ row.warehouse_name || "—" }}</template>
 	<template v-else-if="id === 'warehouse_native_name'">{{
 		row.warehouse_native_name || "—"
 	}}</template>

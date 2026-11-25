@@ -74,6 +74,12 @@ export function inventoryColumnsForPage(
       export: ["warehouse_label"],
     },
     {
+      id: "warehouse_name",
+      label: "库位名称",
+      defaultVisible: false,
+      export: ["warehouse_name"],
+    },
+    {
       id: "batch_no",
       label: "批次编号",
       defaultVisible: false,
@@ -160,6 +166,7 @@ const BATCH_LEVEL_COLUMNS = [
 const LOCATION_LEVEL_COLUMNS = [
   "locations",
   "warehouse_label",
+  "warehouse_name",
   "warehouse_native_name",
 ];
 
@@ -208,12 +215,19 @@ export function stockLocationLabel(row: StockRow, reference: StockReference) {
   );
 }
 
-export function stockLocationDetail(row: StockRow, field: "nativeName") {
-  if (!isStockItemRow(row)) return String(row.warehouse_native_name || "");
-  return row.locations
-    .map((location) => location[field])
-    .filter(Boolean)
-    .join("；");
+export function stockLocationDetail(
+  row: StockRow,
+  field: "nativeName" | "warehouse_name",
+) {
+  if (!isStockItemRow(row))
+    return String(
+      row[field === "nativeName" ? "warehouse_native_name" : field] || "",
+    );
+  return [
+    ...new Set(
+      row.locations.map((location) => location[field]).filter(Boolean),
+    ),
+  ].join("；");
 }
 
 export function stockComponentDetail(

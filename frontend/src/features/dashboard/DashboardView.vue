@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import PageHeader from "../../components/ui/PageHeader.vue";
 import LocationLabel from "../../components/ui/LocationLabel.vue";
+import { vTip } from "../../directives/tip";
+import { warehouseFilterTip } from "../../lib/filterPresentation";
 import { warehouseLabel } from "../../lib/warehouseLabel";
 import { computed, ref, useId } from "vue";
 import { RouterLink } from "vue-router";
@@ -270,7 +272,10 @@ function datasetChanged(dataset: ReportDataset) {
 						</template>
 					</FilterPanel>
 					<span class="dashboard-scope-summary"
-						><strong>范围</strong> {{ scopeLabel }}</span
+						><strong>范围</strong>
+						<span v-tip="warehouseFilterTip(filters.warehouses, reference)">{{
+							scopeLabel
+						}}</span></span
 					>
 				</div>
 			</template>
@@ -663,17 +668,10 @@ function datasetChanged(dataset: ReportDataset) {
 									<span class="dashboard-expiry-field" :title="row.expiry_date"
 										><small>到期</small>{{ row.expiry_date }}</span
 									>
-									<span
-										class="dashboard-expiry-field"
-										:title="
-											warehouseLabel(
-												row.warehouse,
-												reference.warehouses,
-												row.warehouse_label,
-											)
-										"
+									<span class="dashboard-expiry-field"
 										><small>库位</small
 										><LocationLabel
+											:warehouse="row.warehouse"
 											:label="
 												warehouseLabel(
 													row.warehouse,

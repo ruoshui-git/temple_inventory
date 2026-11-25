@@ -106,6 +106,7 @@ export function useProductDetail(props: { code: string; tab?: string }) {
       stockItem.value?.locations.flatMap((place) =>
         (place.batches || []).map((batch) => ({
           ...batch,
+          warehouse_name: place.warehouse_name,
           location: place.location,
           label: place.label,
         })),

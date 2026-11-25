@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, useSlots } from "vue";
 import { useOptionalInventoryServices, useOptionalReferenceData } from "../../services/contracts";
-import { warehouseLabel, warehouseTitle } from "../../lib/warehouseLabel";
+import { warehouseLabel } from "../../lib/warehouseLabel";
 import { nativeStatusLabel, tablePresentationLabel } from "../../lib/presentationLabels";
 import { formatSiteDateTime } from "../../lib/nativeTime";
 import { formatQuantity, formatQuantityWithUnit } from "../../lib/formatQuantity";
@@ -18,6 +18,7 @@ import ItemImage from "../ItemImage.vue";
 import DataTable from "./DataTable.vue";
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import type { useReportGroups } from "../../composables/useReportGroups";
+import { reportLocationFields } from "../../lib/reportExportColumns";
 import { reportColumnLabels } from "../../lib/reportCells";
 import { dataColumnKind } from "../../lib/dataTable";
 import { movementLabels } from "../../lib/presentationLabels";
@@ -115,10 +116,9 @@ const columns = computed<DataColumn[]>(() => {
 		props.grouped && props.groupPages?.leafColumns?.value.length
 			? props.groupPages.leafColumns.value
 			: props.table.columns;
+	const fields = reportLocationFields(props.table.id, baseColumns);
 	const sourceColumns =
-		hasItemIdentity.value && !baseColumns.includes("image")
-			? ["image", ...baseColumns]
-			: baseColumns;
+		hasItemIdentity.value && !fields.includes("image") ? ["image", ...fields] : fields;
 	const data: DataColumn[] = sourceColumns
 		.filter(
 			(column) =>
@@ -130,7 +130,7 @@ const columns = computed<DataColumn[]>(() => {
 		.map((column) => ({
 			id: column,
 			label: column === "image" ? "图片" : columnLabel(column),
-			defaultVisible: true,
+			defaultVisible: column !== "warehouse_name",
 			required:
 				(column === "image" && hasItemIdentity.value) ||
 				["item_code", "itemId", "document", "documentId"].includes(column),
@@ -209,6 +209,7 @@ const hasMore = computed(() =>
 );
 
 function cell(column: string, value: unknown, row: Record<string, unknown>) {
+	if (column === "warehouse_name") return value || "—";
 	if (value === "" || value === undefined || value === null) return "";
 	if (
 		[
@@ -268,19 +269,15 @@ function displayCell(column: string, value: unknown, row: Record<string, unknown
 	}
 	return cell(column, value, row);
 }
-function warehouseCellTitle(column: string, value: unknown, row: Record<string, unknown>) {
-	if (
-		![
-			"warehouse",
-			"source_warehouse",
-			"destination_warehouse",
-			"origin_warehouse",
-			"locationId",
-			"sourceLocationId",
-		].includes(column)
-	)
-		return undefined;
-	return warehouseTitle(value, reference?.warehouses || [], row[column + "_label"]);
+const locationFields = new Set([
+	"warehouse",
+	"warehouse_label",
+	"origin_warehouse",
+	"locationId",
+	"sourceLocationId",
+]);
+function cellWarehouse(column: string, value: unknown, row: Record<string, unknown>) {
+	return String((column === "warehouse_label" ? row.warehouse : value) || "");
 }
 
 function stockEffect(row: Record<string, unknown>) {
@@ -520,14 +517,12 @@ function groupMetric(group: DataTableGroup, column: string) {
 					v-else
 					:class="quantityTone(String(column.id), row)"
 					:title="
-						warehouseCellTitle(String(column.id), value, row) ||
-						(quantityTone(String(column.id), row)
-							? quantityEffectLabel(row)
-							: undefined)
+						quantityTone(String(column.id), row) ? quantityEffectLabel(row) : undefined
 					"
 				>
 					<LocationLabel
-						v-if="['warehouse', 'origin_warehouse'].includes(String(column.id))"
+						v-if="locationFields.has(String(column.id))"
+						:warehouse="cellWarehouse(String(column.id), value, row)"
 						:label="String(displayCell(String(column.id), value, row))"
 					/>
 					<template v-else>{{

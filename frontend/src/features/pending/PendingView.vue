@@ -11,7 +11,7 @@ import BrowseFilters from "../../components/filters/BrowseFilters.vue";
 import ItemStatusFilter from "../../components/filters/ItemStatusFilter.vue";
 import GroupByFilter from "../../components/filters/GroupByFilter.vue";
 import { removeGroupByField } from "../../lib/groupBy";
-import { groupImpliedColumns } from "../../lib/groupColumns";
+import { groupImpliedColumns, visibleGroupExportColumns } from "../../lib/groupColumns";
 import { groupLabels, sortableColumnsForView } from "../../lib/reportContract";
 import Overlay from "../../components/ui/Overlay.vue";
 import UiButton from "../../components/ui/UiButton.vue";
@@ -106,7 +106,7 @@ const exportColumns = computed(() => {
 	const order = reportPrefs?.order.value.length
 		? reportPrefs.order.value
 		: columns.map((column) => String(column.id));
-	return exportFields(columns, order, visible);
+	return exportFields(columns, order, visibleGroupExportColumns(visible, query.value.groupBy));
 });
 const {
 	open: filterOpen,
@@ -313,6 +313,7 @@ watch([() => props.active, isMobile], () => {
 					v-for="chip in scopeChips"
 					:key="chip.key"
 					:label="chip.label"
+					:tip="chip.tip"
 					@edit="editFilter(chip.field)"
 					@remove="c.removeScope(chip.field)"
 				/>
@@ -320,6 +321,7 @@ watch([() => props.active, isMobile], () => {
 					v-for="chip in chips"
 					:key="chip.key"
 					:label="chip.summary || chip.label"
+					:tip="chip.tip"
 					:removable="!chip.fixed"
 					@edit="editFilter(chip.field)"
 					@remove="Object.assign(query, chip.reset)"
@@ -543,7 +545,6 @@ watch([() => props.active, isMobile], () => {
 						c.report.loadTable(table, table.initialized && table.next !== null, true)
 					"
 				>
-					<template #group-label="{ group }">{{ group.label }}</template>
 					<template #cell="{ column, row }">
 						<PendingCell :column="column" :row="asRow(row)" />
 					</template>

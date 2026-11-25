@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { vTip } from "../../directives/tip";
 import { unitLabel } from "../../lib/units";
 import FilterDisclosure from "../../components/ui/FilterDisclosure.vue";
-import { warehouseLabel, warehouseTitle } from "../../lib/warehouseLabel";
+import type { TooltipValue } from "../../lib/tooltip";
+import { warehouseLabel, locationTip } from "../../lib/warehouseLabel";
 import { computed, ref, nextTick, watch, onMounted } from "vue";
 import Overlay from "../../components/ui/Overlay.vue";
 import UiButton from "../../components/ui/UiButton.vue";
@@ -11,7 +13,11 @@ import BrowseChip from "../../components/ui/BrowseChip.vue";
 import BrowseFilters from "../../components/filters/BrowseFilters.vue";
 import ScanPanel from "../scanner/ScanPanel.vue";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
-import { scopeFilterFieldChips, type ScopeFilterField } from "../../lib/filterPresentation";
+import {
+	scopeFilterFieldChips,
+	warehouseFilterTip,
+	type ScopeFilterField,
+} from "../../lib/filterPresentation";
 import { emptyScope, type BrowseScope } from "../../lib/browseQuery";
 import ItemEditorView from "./ItemEditorView.vue";
 import SearchSelect from "../../components/ui/SearchSelect.vue";
@@ -33,6 +39,7 @@ export type ItemScanOption = {
 	label: string;
 	detail?: string;
 	keywords?: string;
+	tip?: TooltipValue;
 	available?: number;
 };
 export type ItemScanResolution = {
@@ -68,6 +75,7 @@ const props = defineProps<{
 	timestamp?: string;
 	scanMode?: "selection" | "operation";
 	scanFeedback?: string;
+	scanFeedbackWarehouses?: string[];
 	scanError?: string;
 	canUndoScan?: boolean;
 	startInScanMode?: boolean;
@@ -521,6 +529,7 @@ async function selectExisting(code: string, warehouse: string) {
 							v-for="chip in scopeChips"
 							:key="chip.key"
 							:label="chip.label"
+							:tip="chip.tip"
 							@edit="editFilter(chip.field)"
 							@remove="clearScope(chip.field)"
 						/>
@@ -539,7 +548,11 @@ async function selectExisting(code: string, warehouse: string) {
 					<p v-if="scanMode === 'operation'" class="muted scan-help">
 						每次扫描添加1个库存单位
 					</p>
-					<p v-if="activeWarehouseLabel" class="muted">
+					<p
+						v-if="activeWarehouseLabel"
+						v-tip="locationTip(activeWarehouse, reference.warehouses)"
+						class="muted"
+					>
 						{{
 							scanMode === "operation"
 								? scanDestinationLabel === "入库位置"
@@ -562,7 +575,12 @@ async function selectExisting(code: string, warehouse: string) {
 					>
 						没有可用的{{ scanDestinationLabel }}；请检查操作库位设置。
 					</p>
-					<p v-if="scanFeedback" class="notice-bar success" role="status">
+					<p
+						v-if="scanFeedback"
+						v-tip="warehouseFilterTip(scanFeedbackWarehouses || [], reference)"
+						class="notice-bar success"
+						role="status"
+					>
 						{{ scanFeedback }}
 						<UiButton v-if="canUndoScan" variant="ghost" @click="emit('undoScan')"
 							>撤销最近扫描</UiButton
@@ -731,7 +749,11 @@ async function selectExisting(code: string, warehouse: string) {
 							<div class="picker-created-copy">
 								<strong>刚创建 · 已选择</strong
 								><span>{{ createdPreview.name }} · {{ createdPreview.code }}</span>
-								<small v-if="props.activeWarehouse"
+								<small
+									v-if="props.activeWarehouse"
+									v-tip="
+										locationTip(props.activeWarehouse, reference.warehouses)
+									"
 									>入库位置：{{
 										warehouseLabel(props.activeWarehouse, reference.warehouses)
 									}}</small
@@ -812,6 +834,12 @@ async function selectExisting(code: string, warehouse: string) {
 										>
 										<small
 											v-if="purpose === 'inbound' && receivingWarehouse"
+											v-tip="
+												locationTip(
+													receivingWarehouse,
+													reference.warehouses,
+												)
+											"
 											class="picker-phone-location"
 											>目标位置 ·
 											{{
@@ -824,8 +852,8 @@ async function selectExisting(code: string, warehouse: string) {
 										<small
 											v-if="item.pickerWarehouse && purpose !== 'inbound'"
 											class="picker-phone-location"
-											:title="
-												warehouseTitle(
+											v-tip="
+												locationTip(
 													item.pickerWarehouse,
 													reference.warehouses,
 												)
@@ -834,6 +862,7 @@ async function selectExisting(code: string, warehouse: string) {
 												warehouseLabel(
 													item.pickerWarehouse,
 													reference.warehouses,
+													item.pickerWarehouseLabel,
 												)
 											}}</small
 										>
@@ -940,8 +969,8 @@ async function selectExisting(code: string, warehouse: string) {
 									<template v-else-if="column.id === 'warehouse'">
 										<span
 											v-if="row.pickerWarehouse"
-											:title="
-												warehouseTitle(
+											v-tip="
+												locationTip(
 													String(row.pickerWarehouse),
 													reference.warehouses,
 												)
@@ -950,6 +979,7 @@ async function selectExisting(code: string, warehouse: string) {
 												warehouseLabel(
 													String(row.pickerWarehouse),
 													reference.warehouses,
+													row.pickerWarehouseLabel,
 												)
 											}}</span
 										>

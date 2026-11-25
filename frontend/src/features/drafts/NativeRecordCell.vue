@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { locationTip } from "../../lib/warehouseLabel";
+import { vTip } from "../../directives/tip";
 import { computed } from "vue";
 import DataCell from "../../components/ui/DataCell.vue";
 import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
@@ -131,7 +133,12 @@ function draftDate(value: unknown) {
 		:title="formatSiteDateTime(draftDate(row.date), timezone)"
 		>{{ relativeTime(draftDate(row.date)) }}</time
 	>
-	<span v-else-if="id === 'summary'" :title="String(row.summary || '')">{{ row.summary }}</span>
+	<span
+		v-else-if="id === 'summary'"
+		v-tip="locationTip(entry?.warehouse, reference.warehouses)"
+		:title="entry?.warehouse ? undefined : String(row.summary || '')"
+		>{{ row.summary }}</span
+	>
 	<div v-else-if="id === 'actions' && entry" class="browse-row-actions">
 		<UiButton
 			v-if="entry.server"

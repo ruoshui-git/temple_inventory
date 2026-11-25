@@ -246,6 +246,16 @@ export function useReportGroups(
         id: row.id,
         parentId: row.parent_group_id || undefined,
         label,
+        warehouse: [
+          "location",
+          "warehouse",
+          "source",
+          "destination",
+          "source_warehouse",
+          "destination_warehouse",
+        ].includes(groupField)
+          ? row.group_path?.at(-1)
+          : undefined,
         labelColumn:
           {
             item: "item_name",

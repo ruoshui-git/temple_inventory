@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { RouterLink } from "vue-router";
 import ItemImage from "../../components/ItemImage.vue";
 import DataCell from "../../components/ui/DataCell.vue";
+import LocationLabel from "../../components/ui/LocationLabel.vue";
 import UnitText from "../../components/ui/UnitText.vue";
 import type { DataColumn } from "../../lib/dataTable";
 import type { ReportRow } from "../../lib/reportContract";
@@ -33,5 +34,11 @@ const identity = computed(() => ({
 		>{{ row.item_name }}</RouterLink
 	>
 	<UnitText v-else-if="id === 'stock_uom'" :name="row.stock_uom" />
+	<LocationLabel
+		v-else-if="id === 'warehouse_label'"
+		:warehouse="String(row.warehouse || '')"
+		:label="String(row.warehouse_label || '—')"
+	/>
+	<template v-else-if="id === 'warehouse_name'">{{ row.warehouse_name || "—" }}</template>
 	<DataCell v-else :column="column" :value="row[id]" :empty-text="emptyText" />
 </template>

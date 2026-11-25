@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { vTip } from "../../directives/tip";
 import { formatSiteDateTime } from "../../lib/nativeTime";
 import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import BrowseToolbar from "../../components/ui/BrowseToolbar.vue";
@@ -59,7 +60,7 @@ import type {
 import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import { reportColumnLabels } from "../../lib/reportCells";
 import { useOptionalInventoryServices } from "../../services/contracts";
-import { warehouseLabel } from "../../lib/warehouseLabel";
+import { warehouseLabel, locationTip } from "../../lib/warehouseLabel";
 import { summarizeItems } from "../../lib/itemSummary";
 import { relativeTime } from "../../lib/nativeTime";
 import RemoteSelect from "../../components/ui/RemoteSelect.vue";
@@ -169,12 +170,14 @@ function resetDraftFilters(includeSearch = false) {
 	draftSort.value = "recent";
 	if (includeSearch) draftSearch.value = "";
 }
-function localSummary(entry: RecoverySnapshot) {
+function localSummary(entry: RecoverySnapshot): { summary: string; warehouse?: string } {
 	const values = entry.values as Record<string, unknown>;
 	if (entry.editorKind === "Stock Entry") {
 		const lines = Array.isArray(values.items) ? values.items : [];
 		if (!lines.length)
-			return String(values.source || values.remarks || values.note || "尚未添加物品");
+			return {
+				summary: String(values.source || values.remarks || values.note || "尚未添加物品"),
+			};
 		const codes = new Set(
 			lines
 				.map((line) =>
@@ -195,15 +198,19 @@ function localSummary(entry: RecoverySnapshot) {
 				first?.item_code ||
 				"",
 		).trim();
-		const location =
-			first?.location || first?.warehouse || first?.t_warehouse || values.ti_warehouse;
+		const warehouse = String(
+			first?.location || first?.warehouse || first?.t_warehouse || values.ti_warehouse || "",
+		);
 		const count = codes.size || lines.length;
 		const summary = firstName
 			? count > 1
 				? `${firstName} 等 ${count} 种物品`
 				: firstName
 			: summarizeItems([], count);
-		return `${summary}${location ? ` → ${warehouseLabel(location, c.reference.warehouses)}` : ""}`;
+		return {
+			warehouse,
+			summary: `${summary}${warehouse ? ` → ${warehouseLabel(warehouse, c.reference.warehouses)}` : ""}`,
+		};
 	}
 	if (entry.editorKind === "Stock Reconciliation") {
 		const lines = Array.isArray(values.ti_count_review)
@@ -212,14 +219,15 @@ function localSummary(entry: RecoverySnapshot) {
 		const locations = new Set(
 			lines.map((line) => String(line?.warehouse || "")).filter(Boolean),
 		);
-		return `盘点 ${lines.length} 种物品 · ${locations.size} 个库位`;
+		return { summary: `盘点 ${lines.length} 种物品 · ${locations.size} 个库位` };
 	}
-	if (entry.editorKind === "Item") return String(values.name || values.editingCode || "新物品");
+	if (entry.editorKind === "Item")
+		return { summary: String(values.name || values.editingCode || "新物品") };
 	if (entry.editorKind === "Inventory Activity")
-		return String(values.title || values.editingActivity || "活动资料");
+		return { summary: String(values.title || values.editingActivity || "活动资料") };
 	if (entry.editorKind === "Warehouse")
-		return String(values.label || values.editingWarehouse || "仓库资料");
-	return "未完成输入";
+		return { summary: String(values.label || values.editingWarehouse || "仓库资料") };
+	return { summary: "未完成输入" };
 }
 const personRoleLabels: Record<string, string> = {
 	any: "任一角色",
@@ -246,6 +254,7 @@ const draftEntries = computed<DraftListEntry[]>(() => {
 			type: "server",
 			kind: String(row.kind || ""),
 			label: kind,
+			warehouse: branch?.destination,
 			summary: `${row.item_name ? (row.whole.item_count > 1 ? `${row.item_name} 等 ${row.whole.item_count} 种物品` : row.item_name) : summarizeItems([], row.whole.item_count)}${destination ? ` → ${destination}` : ""}`,
 			updatedAt: row.modified || `${row.date || ""} ${row.time || ""}`.trim(),
 			absolute: row.modified || `${row.date || ""} ${row.time || ""}`.trim(),
@@ -257,7 +266,7 @@ const draftEntries = computed<DraftListEntry[]>(() => {
 		type: "browser",
 		kind: entry.editorKind,
 		label: localTitle(entry),
-		summary: localSummary(entry),
+		...localSummary(entry),
 		updatedAt: entry.updatedAt,
 		absolute: formatSiteDateTime(entry.updatedAt, c.reference.timezone),
 		local: entry,
@@ -647,6 +656,7 @@ function openDetailsRow() {
 					v-for="chip in scopeChips"
 					:key="chip.key"
 					:label="chip.label"
+					:tip="chip.tip"
 					@edit="editFilter(chip.field)"
 					@remove="removeScopeChip(chip)"
 				/>
@@ -654,6 +664,7 @@ function openDetailsRow() {
 					v-for="chip in extraChips"
 					:key="chip.key"
 					:label="chip.label"
+					:tip="chip.tip"
 					:removable="!chip.fixed"
 					@edit="editFilter(chip.field)"
 					@remove="Object.assign(query, chip.reset)"
@@ -745,7 +756,11 @@ function openDetailsRow() {
 							<strong v-else>{{ entry.label }}</strong>
 						</div>
 						<div class="draft-entry-meta">
-							<span :title="entry.summary">{{ entry.summary }}</span>
+							<span
+								v-tip="locationTip(entry.warehouse, c.reference.warehouses)"
+								:title="entry.warehouse ? undefined : entry.summary"
+								>{{ entry.summary }}</span
+							>
 							<time :datetime="entry.updatedAt" :title="entry.absolute">{{
 								relativeTime(entry.updatedAt)
 							}}</time>

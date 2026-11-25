@@ -7,7 +7,13 @@ import { routeTarget } from "../../lib/routeRegistry";
 import BrowseOverflowMenu from "../../components/ui/BrowseOverflowMenu.vue";
 import BackButton from "../../components/ui/BackButton.vue";
 import BrowseSplitButton from "../../components/ui/BrowseSplitButton.vue";
-import type { NativeWarehouses } from "./useNativeWarehouses";
+import { computed } from "vue";
+import { locationLevels } from "../../lib/warehouseLabel";
+import {
+	warehouseTreeLabel,
+	type NativeWarehouse,
+	type NativeWarehouses,
+} from "./useNativeWarehouses";
 import type { ReportQuery } from "../../lib/reportContract";
 import UiButton from "../../components/ui/UiButton.vue";
 import SkeletonBlock from "../../components/ui/SkeletonBlock.vue";
@@ -81,10 +87,39 @@ function addChild(row: { name: string }, kind: "area" | "room" | "shelf") {
 	c.select(row.name);
 	c.openEditor(undefined, "create", kind);
 }
+function ownLevel(row: NativeWarehouse) {
+	return locationLevels(row.name, [row]).at(-1) || { code: row.label, name: "" };
+}
+const selectedPath = computed(() => {
+	const row = selected.value;
+	const rows = tree.value?.rows || [];
+	if (!row) return [];
+	const levels = locationLevels(row.name, rows);
+	const ancestors = new Map<number, string>();
+	const seen = new Set([row.name]);
+	let parent = row.parent;
+	while (parent && !seen.has(parent)) {
+		seen.add(parent);
+		const ancestor = rows.find((entry) => entry.name === parent);
+		if (!ancestor) break;
+		const path = locationLevels(ancestor.name, rows);
+		if (
+			path.length < levels.length &&
+			path.every((level, index) => level.code === levels[index]?.code)
+		)
+			ancestors.set(path.length, ancestor.name);
+		parent = ancestor.parent;
+	}
+	return levels.map((level, index) => ({ ...level, target: ancestors.get(index + 1) }));
+});
+function selectPath(name: string) {
+	if (isMobile.value || props.detail) emit("warehouse", name);
+	else c.select(name);
+}
 function parentLabel(name?: string) {
 	if (!name || name === tree.value?.physical_root) return "实体仓库";
 	const parent = tree.value?.rows.find((row) => row.name === name);
-	return parent?.full_label || parent?.label || "实体仓库";
+	return warehouseTreeLabel(parent) || "实体仓库";
 }
 </script>
 <template>
@@ -92,7 +127,7 @@ function parentLabel(name?: string) {
 	<section class="browse-page">
 		<PageHeader v-if="detail"
 			><div>
-				<h1 tabindex="-1">{{ detail ? selected?.full_label || "位置详情" : "仓库" }}</h1>
+				<h1 tabindex="-1">{{ warehouseTreeLabel(selected) || "位置详情" }}</h1>
 			</div>
 			<template #back
 				><BackButton v-if="detail" label="返回" @click="emit('back')" /></template
@@ -177,12 +212,15 @@ function parentLabel(name?: string) {
 						:class="{ 'is-selected': selected?.name === row.name }"
 						:style="{ '--tree-depth': Math.min(row.depth, 4) }"
 						role="group"
-						:aria-label="row.label"
+						:aria-label="warehouseTreeLabel(row)"
 					>
 						<button
 							v-if="row.is_group"
 							class="browse-link warehouse-toggle"
-							:aria-label="(expanded.has(row.name) ? '收起' : '展开') + row.label"
+							:aria-label="
+								(expanded.has(row.name) ? '收起' : '展开') +
+								warehouseTreeLabel(row)
+							"
 							:aria-expanded="expanded.has(row.name)"
 							@click="toggle(row.name)"
 						>
@@ -197,9 +235,11 @@ function parentLabel(name?: string) {
 							:aria-pressed="selected?.name === row.name"
 							@click="isMobile ? emit('warehouse', row.name) : c.select(row.name)"
 						>
-							<strong :title="row.full_label">{{
-								row.local_label || row.label
-							}}</strong
+							<span class="warehouse-tree-label">
+								<b class="inventory-tooltip-code">{{ ownLevel(row).code }}</b>
+								<span v-if="ownLevel(row).name">{{
+									ownLevel(row).name
+								}}</span> </span
 							><small
 								>{{ physicalType(row.kind)
 								}}{{ row.disabled ? " · 已停用" : "" }}</small
@@ -229,11 +269,24 @@ function parentLabel(name?: string) {
 				>
 					<div class="browse-card-heading">
 						<div>
-							<h2>{{ selected.full_label }}</h2>
-							<p v-if="selected.path && selected.path !== selected.name">
-								{{ selected.path }}
+							<h2>{{ warehouseTreeLabel(selected) }}</h2>
+							<p v-if="selectedPath.length" class="warehouse-detail-path">
+								<template v-for="(level, index) in selectedPath" :key="index">
+									<span v-if="index" aria-hidden="true">›</span>
+									<button
+										v-if="level.target"
+										type="button"
+										class="browse-link"
+										@click="selectPath(level.target)"
+									>
+										{{ [level.code, level.name].filter(Boolean).join(" ") }}
+									</button>
+									<span v-else>{{
+										[level.code, level.name].filter(Boolean).join(" ")
+									}}</span>
+								</template>
 							</p>
-							<p v-if="selected.short_label">简称 {{ selected.short_label }}</p>
+							<p v-if="selected.short_label">代码 {{ selected.short_label }}</p>
 						</div>
 						<div class="warehouse-detail-actions">
 							<UiButton v-if="deleteBusy" variant="danger" :loading="true" disabled
@@ -418,8 +471,8 @@ function parentLabel(name?: string) {
 				></FormField>
 				<FormField
 					v-if="c.action.value !== 'move'"
-					label="简称"
-					hint="填写后会在位置路径中显示简称。"
+					label="代码"
+					hint="代码用于位置路径，如 A01。名称帮助辨认。"
 					><template #default="{ fieldAttrs }"
 						><input
 							v-model="form.short_label"
@@ -465,7 +518,17 @@ function parentLabel(name?: string) {
 	display: block;
 	text-align: left;
 }
-.browse-grow strong,
+.warehouse-tree-label,
+.warehouse-detail-path {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: var(--p-field-gap);
+	overflow-wrap: anywhere;
+}
+.warehouse-detail-path button {
+	font: inherit;
+}
 .browse-grow small {
 	display: block;
 }

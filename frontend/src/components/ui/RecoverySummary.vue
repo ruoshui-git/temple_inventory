@@ -8,6 +8,8 @@ import { useColumnPreferences } from "../../composables/useColumnPreferences";
 import { useOptionalInventoryServices, useOptionalReferenceData } from "../../services/contracts";
 import { showToast } from "../../services/toast";
 import ItemLine from "./ItemLine.vue";
+import { warehouseLabel } from "../../lib/warehouseLabel";
+import LocationLabel from "./LocationLabel.vue";
 import LocationEndpoint from "./LocationEndpoint.vue";
 import { recoveryLabels } from "../../lib/presentationLabels";
 
@@ -58,7 +60,7 @@ const labels: Record<string, string> = {
 	warehouse: "仓库 / 位置",
 	label: "名称",
 	parent: "上级位置",
-	short_label: "简称",
+	short_label: "代码",
 	action: "编辑方式",
 	disabled: "停用",
 
@@ -144,6 +146,10 @@ const fields = computed(() => {
 	return known
 		.filter(([key]) => !excluded.has(key))
 		.map(([key, label]) => ({
+			warehouse:
+				key === "warehouse" || (key === "parent" && props.kind === "Warehouse")
+					? String(normalizedValues.value[key] || "")
+					: "",
 			key,
 			label,
 			value: format(
@@ -306,7 +312,14 @@ async function copy() {
 		<dl v-if="fields.length" class="info-grid">
 			<div v-for="field in fields" :key="field.key">
 				<dt>{{ field.label }}</dt>
-				<dd class="content-long-text">{{ field.value }}</dd>
+				<dd class="content-long-text">
+					<LocationLabel
+						v-if="field.warehouse"
+						:warehouse="field.warehouse"
+						:label="warehouseLabel(field.warehouse, reference?.warehouses || [])"
+					/>
+					<template v-else>{{ field.value }}</template>
+				</dd>
 			</div>
 		</dl>
 		<DataTable
@@ -340,6 +353,11 @@ async function copy() {
 					:kind="String(row.ti_movement_kind || row.kind || '')"
 					:borrower="String(row.loanBorrower || row.ti_borrower || '')"
 					:role="column.id === 's_warehouse' ? '来源位置' : '去向位置'"
+				/>
+				<LocationLabel
+					v-else-if="column.id === 'warehouse' && row.warehouse"
+					:warehouse="String(row.warehouse)"
+					:label="warehouseLabel(row.warehouse, reference?.warehouses || [])"
 				/>
 				<span v-else class="content-long-text">{{
 					recoveryCell(row, String(column.id))

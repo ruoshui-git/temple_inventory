@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { vTip } from "../../directives/tip";
+import { locationTip } from "../../lib/warehouseLabel";
+import LocationLabel from "../../components/ui/LocationLabel.vue";
 import { useRoute } from "vue-router";
 import { useImportWizard, type ImportRow } from "./useImportWizard";
 import {
@@ -65,14 +68,13 @@ const qtyText = (row: ImportRow) => {
 };
 const openingMeta = (row: ImportRow) => {
 	const value = row as unknown as {
-		location_label?: string;
 		line_value?: number;
 		batch_no?: string;
 		serials?: string[];
 	};
 	const serials = value.serials || [];
 	return [
-		value.location_label,
+		row.location_label,
 		qtyText(row),
 		value.line_value ? `估值 ${value.line_value}` : "",
 		value.batch_no ? `批次 ${value.batch_no}` : "",
@@ -83,6 +85,13 @@ const openingMeta = (row: ImportRow) => {
 		.filter(Boolean)
 		.join(" · ");
 };
+const openingLocations = computed(() => [
+	...new Map(
+		(c.preview.value?.rows || [])
+			.filter((row) => row.location_label)
+			.map((row) => [row.location_label, row]),
+	).values(),
+]);
 const tableRows = computed<DataTableEntry[]>(() =>
 	c.visibleRows.value.map((row: ImportRow) => ({
 		kind: "record" as const,
@@ -95,7 +104,7 @@ const tableRows = computed<DataTableEntry[]>(() =>
 			qty: qtyText(row),
 			valuation_rate: (row as any).valuation_rate ?? "",
 			line_value: (row as any).line_value ?? "",
-			location_label: (row as any).location_label ?? "",
+			location_label: row.location_label || "",
 			batch_no: (row as any).batch_no || "—",
 			serials:
 				((row as any).serials || []).slice(0, 3).join("、") +
@@ -320,15 +329,17 @@ const downloadRejected = () => downloadReport("rejected");
 					</p>
 					<p>导入期间这些位置的其他操作会等待，大批量导入请在空闲时进行。</p>
 					<p>
-						位置：{{
-							[
-								...new Set(
-									c.preview.value.rows
-										.map((row: any) => row.location_label)
-										.filter(Boolean),
-								),
-							].join("、") || "—"
-						}}
+						位置：<template
+							v-for="(location, index) in openingLocations"
+							:key="location.location_label"
+						>
+							<span v-if="index">、</span>
+							<LocationLabel
+								:warehouse="location.warehouse"
+								:label="location.location_label"
+							/>
+						</template>
+						<template v-if="!openingLocations.length">—</template>
 					</p>
 				</div>
 				<section class="import-summary" aria-label="预览数量">
@@ -376,7 +387,12 @@ const downloadRejected = () => downloadReport("rejected");
 							}}</span>
 						</div>
 						<small>第 {{ row.row }} 行 · {{ rowCode(row) }}</small>
-						<p v-if="isOpening">{{ openingMeta(row) }}</p>
+						<p
+							v-if="isOpening"
+							v-tip="locationTip(row.warehouse, c.reference.warehouses)"
+						>
+							{{ openingMeta(row) }}
+						</p>
 						<p v-if="row.errors.length" class="is-danger">
 							{{ row.errors.join("；") }}
 						</p>
@@ -420,7 +436,11 @@ const downloadRejected = () => downloadReport("rejected");
 							>
 								{{ compare(rowFor(row)) }}
 							</p></template
-						><template v-else-if="column.id === 'issues'"
+						><LocationLabel
+							v-else-if="column.id === 'location_label' && value"
+							:warehouse="String(row.warehouse || '')"
+							:label="String(value)"
+						/><template v-else-if="column.id === 'issues'"
 							><span :class="rowFor(row).errors.length ? 'is-danger' : ''">{{
 								value || "—"
 							}}</span></template
@@ -460,15 +480,16 @@ const downloadRejected = () => downloadReport("rejected");
 			><p>
 				<template v-if="isOpening"
 					>将导入 {{ c.preview?.value?.counts.new || 0 }} 行，涉及位置
-					{{
-						[
-							...new Set(
-								c.preview?.value?.rows
-									.map((row: any) => row.location_label)
-									.filter(Boolean) || [],
-							),
-						].join("、")
-					}}；期初日期 {{ c.preview?.value?.posting_date }}
+					<template
+						v-for="(location, index) in openingLocations"
+						:key="location.location_label"
+					>
+						<span v-if="index">、</span>
+						<LocationLabel
+							:warehouse="location.warehouse"
+							:label="location.location_label"
+						/> </template
+					>；期初日期 {{ c.preview?.value?.posting_date }}
 					{{ postingTime(String(c.preview?.value?.posting_time || "")) }}；差额科目
 					{{
 						c.preview?.value?.difference_account

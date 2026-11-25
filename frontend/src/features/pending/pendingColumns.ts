@@ -16,6 +16,7 @@ const pendingColumnIds = [
   "stock_uom",
   "batch_no",
   "warehouse_label",
+  "warehouse_name",
 ] as const;
 
 export function pendingColumns(columns: DataColumn[]): DataColumn[] {
@@ -27,7 +28,7 @@ export function pendingColumns(columns: DataColumn[]): DataColumn[] {
     return [
       {
         ...column,
-        defaultVisible: id !== "warehouse_label",
+        defaultVisible: id !== "warehouse_label" && id !== "warehouse_name",
         pinned: id === "item_name" ? "start" : undefined,
         sortable: sortable.has(id) || undefined,
       },

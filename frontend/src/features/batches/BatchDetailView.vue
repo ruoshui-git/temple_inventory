@@ -42,6 +42,7 @@ const locationColumns = computed<DataColumn[]>(() => [
 		sortable: true,
 		sortField: "warehouse_label",
 	},
+	{ id: "warehouse_name", label: "库位名称", defaultVisible: false, export: ["warehouse_name"] },
 	{ id: "stock_qty", label: "批次数量", defaultVisible: true, sortable: true },
 	{ id: "available", label: "可用数量", defaultVisible: true, sortable: true },
 	...(new Set((c.batch.value?.locations.summary || []).map((row) => String(row.stock_uom || "")))
@@ -266,6 +267,7 @@ function openDocument(row: Record<string, unknown>) {
 				<template #cell="{ column, row }">
 					<LocationLabel
 						v-if="column.id === 'warehouse'"
+						:warehouse="String(row.warehouse || '')"
 						:label="
 							warehouseLabel(
 								String(row.warehouse || ''),
@@ -274,6 +276,9 @@ function openDocument(row: Record<string, unknown>) {
 							)
 						"
 					/>
+					<template v-else-if="column.id === 'warehouse_name'">{{
+						row.warehouse_name || "—"
+					}}</template>
 					<template v-else-if="column.id === 'stock_uom'">{{
 						unitLabel(String(row.stock_uom || ""))
 					}}</template>

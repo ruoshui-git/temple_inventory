@@ -20,12 +20,7 @@ import NativeStatusBadge from "../../components/ui/NativeStatusBadge.vue";
 import DisclosureSection from "../../components/ui/DisclosureSection.vue";
 import Attachments from "../../components/Attachments.vue";
 import { confirm as confirmDialog } from "../../services/confirm";
-import {
-	warehouseLabel,
-	warehouseTitle,
-	warehouseName,
-	warehouseSearchText,
-} from "../../lib/warehouseLabel";
+import { warehouseLabel, warehouseOption } from "../../lib/warehouseLabel";
 import type { NativeDocument } from "../documents/nativeEditor";
 const props = defineProps<{
 	name?: string;
@@ -80,13 +75,7 @@ const columnCount = computed(
 		Number(writable.value),
 );
 const locationOptions = computed(() =>
-	warehouses.value.map((location) => ({
-		value: location.name,
-		label: location.label || warehouseLabel(location.name, warehouses.value),
-		title: warehouseTitle(location.name, warehouses.value),
-		detail: warehouseName(location.name, warehouses.value),
-		keywords: warehouseSearchText(location.name, warehouses.value),
-	})),
+	warehouses.value.map((location) => warehouseOption(location.name, warehouses.value)),
 );
 const exportQuery = computed(() => savedDocumentExport(state.server, state.status));
 const readOnlyColumns = computed<DataColumn[]>(() => [
@@ -165,6 +154,7 @@ const readOnlyTableRows = computed<DataTableEntry[]>(() => {
 			kind: "group",
 			id,
 			label: warehouseLabel(location, warehouses.value),
+			warehouse: location,
 			labelColumn: "item_name",
 			countColumn: "item_name",
 			depth: 0,
@@ -335,6 +325,7 @@ async function lifecycle(kind: "cancel" | "amend") {
 					</div>
 					<LocationLabel
 						v-else-if="column.id === 'warehouse'"
+						:warehouse="String(row.warehouse || '')"
 						:label="String(row.warehouse_label || '')"
 					/>
 					<template v-else-if="column.id === 'batch_no'">{{ row.batch_no }}</template>

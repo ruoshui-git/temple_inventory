@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { vTip } from "../directives/tip";
 import { computed, ref, watch } from "vue";
 import { reportFilterChips } from "../lib/reportFilters";
 import { reportDefinitions, type ReportDataset, type ReportQuery } from "../lib/reportContract";
@@ -45,15 +46,14 @@ const table = computed(() => (props.allowDatasetSelection ? undefined : props.ta
 const columns = computed(() => (props.allowDatasetSelection ? undefined : props.columns));
 const sortBy = computed(() => props.sortBy);
 const sort = computed(() => props.sort);
-const filterLabels = computed(() =>
-	[
-		...scopeFilterFieldChips(query.value.scope, reference).filter(
-			(chip) => chip.field === "period",
-		),
-		...scopeFilterChips(query.value.scope, reference),
-		...reportFilterChips(query.value, reference),
-	].map((chip) => chip.label),
-);
+const filterChips = computed(() => [
+	...scopeFilterFieldChips(query.value.scope, reference).filter(
+		(chip) => chip.field === "period",
+	),
+	...scopeFilterChips(query.value.scope, reference),
+	...reportFilterChips(query.value, reference),
+]);
+const filterLabels = computed(() => filterChips.value.map((chip) => chip.label));
 const controller = useQuickExport(query, table, columns, title, sortBy, sort, filterLabels);
 const {
 	open,
@@ -120,7 +120,12 @@ defineExpose({ open: openDialog });
 		<div class="quick-export-intro form-fields">
 			<p class="muted">导出在后台生成，完成后可在页面右下角的任务中下载。</p>
 			<p class="content-long-text">
-				范围：{{ title }} · {{ filterLabels.join("；") || "全部有权查看的结果" }}
+				范围：{{ title }} ·
+				<template v-for="(chip, index) in filterChips" :key="chip.key">
+					<span v-if="index">；</span>
+					<span v-tip="chip.tip">{{ chip.label }}</span>
+				</template>
+				<template v-if="!filterChips.length">全部有权查看的结果</template>
 			</p>
 			<p class="quick-export-match-count" aria-live="polite">
 				<SkeletonBlock

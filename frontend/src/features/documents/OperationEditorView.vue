@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { vTip } from "../../directives/tip";
 import DisclosureIcon from "../../components/ui/DisclosureIcon.vue";
 import { RouterLink } from "vue-router";
 import { personDestination } from "../../lib/nativeNavigation";
@@ -33,7 +34,7 @@ import { unitLabel, sortByUnit } from "../../lib/units";
 import { formatQuantity, formatQuantityWithUnit } from "../../lib/formatQuantity";
 import { operationSectionLocation } from "./operationModel";
 import { useReferenceData } from "../../services/contracts";
-import { warehouseLabel } from "../../lib/warehouseLabel";
+import { locationTip, warehouseLabel } from "../../lib/warehouseLabel";
 import DocumentLoadingState from "../../components/ui/DocumentLoadingState.vue";
 import { showToast } from "../../services/toast";
 import PopupMenu from "../../components/ui/PopupMenu.vue";
@@ -1336,9 +1337,16 @@ async function lifecycle() {
 						</p>
 						<ul class="review-location-totals">
 							<li v-for="group in locationTotals" :key="group.location">
-								<strong>{{
-									warehouseLabel(group.location, reference.warehouses)
-								}}</strong>
+								<strong
+									v-tip="locationTip(group.location, reference.warehouses)"
+									>{{
+										warehouseLabel(
+											group.location,
+											reference.warehouses,
+											"未选择库位",
+										)
+									}}</strong
+								>
 								<span>{{ group.items }} 种物品 · {{ group.lines }} 条明细</span>
 								<span>{{ group.summary || "暂无数量" }}</span>
 							</li>

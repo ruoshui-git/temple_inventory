@@ -320,6 +320,7 @@ export function useActivitiesController(
       .map((chip) => ({
         key: chip.key,
         field: chip.field,
+        tip: chip.tip,
         label:
           chip.field === "period"
             ? chip.label.replace(/^日期：/, "活动日期：")
@@ -339,6 +340,7 @@ export function useActivitiesController(
       .map((chip) => ({
         key: chip.key,
         field: chip.field,
+        tip: chip.tip,
         label: chip.label,
         remove: () => {
           Object.assign(inherited.value, chip.reset);

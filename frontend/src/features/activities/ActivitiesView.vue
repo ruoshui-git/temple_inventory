@@ -391,6 +391,7 @@ function openDetailsRow() {
 					v-for="chip in inheritedChips"
 					:key="chip.key"
 					:label="chip.label"
+					:tip="chip.tip"
 					@edit="editFilter(chip.field)"
 					@remove="chip.remove()"
 				/>

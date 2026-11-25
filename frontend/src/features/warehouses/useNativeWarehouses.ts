@@ -4,6 +4,7 @@ import {
   useReferenceData,
   type LocationNode,
 } from "../../services/contracts";
+import { locationLevels, warehouseOption } from "../../lib/warehouseLabel";
 import { matchesWords } from "../../lib/searchMatch";
 import { newReportQuery } from "../../lib/reportContract";
 import {
@@ -18,6 +19,15 @@ import { showToast } from "../../services/toast";
 import { useFormValidation } from "../../composables/useFormValidation";
 import { useConfirm } from "../../services/confirm";
 export type NativeWarehouse = LocationNode;
+
+export function warehouseTreeLabel(row: NativeWarehouse | undefined) {
+  if (!row) return "";
+  const { code, name } = locationLevels(row.name, [row]).at(-1) || {
+    code: row.label,
+    name: "",
+  };
+  return [code, name].filter(Boolean).join(" ");
+}
 
 /** The location API takes the native Warehouse Type, not the presenter kind. */
 const warehouseTypes = { area: "Area", room: "Room", shelf: "Shelf" } as const;
@@ -152,12 +162,7 @@ export function useNativeWarehouses(
             (row.name !== editing.value.name && !inside(row, editing.value)))
         );
       })
-      .map((row) => ({
-        value: row.name,
-        label: row.label,
-        detail: row.path,
-        keywords: row.search_text,
-      }));
+      .map((row) => warehouseOption(row.name, tree.value?.rows || []));
   });
   const visibleRows = computed(() => {
     const rows = tree.value?.rows || [],
@@ -166,7 +171,13 @@ export function useNativeWarehouses(
       ? rows.filter((row) =>
           matchesWords(
             term,
-            [row.search_text, row.full_label, row.path_names?.join(" ")]
+            [
+              row.path,
+              row.label,
+              row.search_text,
+              row.full_label,
+              row.path_names?.join(" "),
+            ]
               .filter(Boolean)
               .join(" "),
           ),
@@ -545,7 +556,7 @@ export function useNativeWarehouses(
     )
       return;
     const accepted = await useConfirm().confirm({
-      title: `删除位置「${row.full_label || row.label}」？`,
+      title: `删除位置「${warehouseTreeLabel(row)}」？`,
       message: "此操作不能撤销。仅未使用的位置可以删除。",
       confirmLabel: "删除",
       cancelLabel: "取消",

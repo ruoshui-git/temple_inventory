@@ -632,9 +632,24 @@ it("keeps selected scope values editable while toolbar chips summarize fields", 
     { name: "Cloth", label: "布料" },
   ];
   reference.warehouses = [
-    { name: "A02", label: "位置 A02" },
-    { name: "A04", label: "位置 A04" },
-    { name: "A07", label: "位置 A07" },
+    {
+      name: "A02",
+      label: "T2/A02",
+      path_segments: ["T2", "A02"],
+      path_names: ["第2寺院", "阅览室"],
+    },
+    {
+      name: "A04",
+      label: "T2/A04",
+      path_segments: ["T2", "A04"],
+      path_names: ["第2寺院", "办公室"],
+    },
+    {
+      name: "A07",
+      label: "T2/A07",
+      path_segments: ["T2", "A07"],
+      path_names: ["第2寺院", "A07"],
+    },
   ];
   const chips = scopeFilterFieldChips(
     {
@@ -660,7 +675,8 @@ it("keeps selected scope values editable while toolbar chips summarize fields", 
     {
       key: "field:warehouses",
       field: "warehouses",
-      label: "仓库 / 位置：位置 A02、位置 A04 + 1 项",
+      label: "仓库 / 位置：T2/A02、T2/A04 + 1 项",
+      tip: "T2 第2寺院 › A02 阅览室\nT2 第2寺院 › A04 办公室\nT2 第2寺院 › A07",
     },
   ]);
 

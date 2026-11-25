@@ -843,18 +843,12 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 												<DisclosureIcon variant="inline" />
 												<span
 													class="data-table-group-name"
-													:title="entry.label"
+													:title="
+														entry.warehouse ? undefined : entry.label
+													"
 													><LocationLabel
-														v-if="
-															[
-																'location',
-																'warehouse',
-																'source',
-																'destination',
-																'source_warehouse',
-																'destination_warehouse',
-															].includes(entry.labelColumn || '')
-														"
+														v-if="entry.warehouse"
+														:warehouse="entry.warehouse"
 														:label="entry.label"
 													/><template v-else>{{
 														entry.label
@@ -930,18 +924,14 @@ function activateGroupKey(entry: DataTableGroup, event: KeyboardEvent) {
 													<DisclosureIcon variant="inline" />
 													<span
 														class="data-table-group-name"
-														:title="entry.label"
+														:title="
+															entry.warehouse
+																? undefined
+																: entry.label
+														"
 														><LocationLabel
-															v-if="
-																[
-																	'location',
-																	'warehouse',
-																	'source',
-																	'destination',
-																	'source_warehouse',
-																	'destination_warehouse',
-																].includes(entry.labelColumn || '')
-															"
+															v-if="entry.warehouse"
+															:warehouse="entry.warehouse"
 															:label="entry.label"
 														/><template v-else>{{
 															entry.label

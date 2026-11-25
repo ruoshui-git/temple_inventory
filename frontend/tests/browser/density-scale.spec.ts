@@ -443,8 +443,8 @@ for (const viewport of [
               expect(rowHeight).toBeLessThanOrEqual(33);
             }
             if (density === "xcompact" || density === "compact") {
-              await expect(row.locator(".browse-grow strong")).toBeVisible();
-              const name = row.locator(".browse-grow strong");
+              await expect(row.locator(".warehouse-tree-label")).toBeVisible();
+              const name = row.locator(".warehouse-tree-label");
               const type = row.locator(".browse-grow small");
               const boxes = await Promise.all([
                 name.boundingBox(),

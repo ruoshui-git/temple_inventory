@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { locationTip } from "../../lib/warehouseLabel";
+import { vTip } from "../../directives/tip";
 import PageHeader from "../../components/ui/PageHeader.vue";
 import { computed, watch } from "vue";
 import type { useConfiguration } from "./useConfiguration";
@@ -26,6 +28,7 @@ const {
 } = c;
 const locationLabel = (name: string) =>
 	name ? status.value?.candidates?.find((row) => row.value === name)?.label || name : "尚未配置";
+const warehouseTip = (name: string) => locationTip(name, status.value?.candidates || []);
 watch([field, warehouse], () => c.clearPreview());
 </script>
 <template>
@@ -100,7 +103,7 @@ watch([field, warehouse], () => c.clearPreview());
 				<dl class="configuration-pointers">
 					<template v-for="pointer in status.pointers" :key="pointer.field"
 						><dt>{{ pointer.label }}</dt>
-						<dd>
+						<dd v-tip="warehouseTip(pointer.current)">
 							{{ locationLabel(pointer.current)
 							}}<small v-if="pointer.current" class="muted"
 								>ERPNext 名称：{{ pointer.current }}</small
@@ -151,8 +154,12 @@ watch([field, warehouse], () => c.clearPreview());
 				>
 				<section v-if="preview" class="configuration-impact">
 					<h3>{{ preview.label }}</h3>
-					<p>当前引用：{{ locationLabel(preview.current) }}</p>
-					<p>替代节点：{{ locationLabel(preview.replacement) }}</p>
+					<p v-tip="warehouseTip(preview.current)">
+						当前引用：{{ locationLabel(preview.current) }}
+					</p>
+					<p v-tip="warehouseTip(preview.replacement)">
+						替代节点：{{ locationLabel(preview.replacement) }}
+					</p>
 					<p>
 						可读取范围：{{ preview.visible_nodes }} 个节点，{{
 							preview.visible_leaves
@@ -164,7 +171,11 @@ watch([field, warehouse], () => c.clearPreview());
 						title="同时核对其它配置引用"
 						:count="preview.affected_references.length"
 					>
-						<p v-for="other in preview.affected_references" :key="other.field">
+						<p
+							v-for="other in preview.affected_references"
+							v-tip="warehouseTip(other.warehouse)"
+							:key="other.field"
+						>
 							{{
 								status.pointers.find((pointer) => pointer.field === other.field)
 									?.label

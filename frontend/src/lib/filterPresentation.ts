@@ -1,4 +1,5 @@
-import { warehouseLabel } from "./warehouseLabel";
+import type { TooltipValue } from "./tooltip";
+import { locationTip, warehouseLabel } from "./warehouseLabel";
 import type { BrowseScope } from "./browseQuery";
 import { periodLabels } from "./browseQuery";
 import type { ReferenceData } from "../services/contracts";
@@ -10,6 +11,11 @@ export type ScopeFilterField = Exclude<
   keyof BrowseScope,
   "period" | "uncategorized"
 >;
+const warehouseFields = new Set<ScopeFilterField>([
+  "warehouses",
+  "sources",
+  "destinations",
+]);
 const scopeFilterLabels: Record<ScopeFilterField, string> = {
   item: "物品",
   activity: "活动",
@@ -21,6 +27,24 @@ const scopeFilterLabels: Record<ScopeFilterField, string> = {
   destinations: "去向位置",
   tracking: "物品追踪",
 };
+export function warehouseFilterTip(
+  values: readonly string[],
+  reference: ReferenceData,
+) {
+  const tips = [...new Set(values)]
+    .map((value) => locationTip(value, reference.warehouses))
+    .filter((tip) => tip !== undefined);
+  if (tips.length < 2) return tips[0];
+  return tips
+    .map((tip) =>
+      typeof tip === "string"
+        ? tip
+        : tip.location.levels
+            .map(({ code, name }) => [code, name].filter(Boolean).join(" "))
+            .join(" › "),
+    )
+    .join("\n");
+}
 export function scopeValueLabel(
   field: ScopeFilterField,
   value: string,
@@ -69,13 +93,19 @@ export function scopeFilterChips(scope: BrowseScope, reference: ReferenceData) {
             : selected
               ? [selected]
               : [];
-      return values.map((value) => ({
-        key: `${field}:${value}`,
-        field,
-        value,
-        label: `${scopeFilterLabels[field]}：${scopeValueLabel(field, value, reference)}`,
-        icon: field === "kinds" ? movementIcon(String(value)) : undefined,
-      }));
+      return values.map((value) => {
+        const tip = warehouseFields.has(field)
+          ? locationTip(value, reference.warehouses)
+          : undefined;
+        return {
+          key: `${field}:${value}`,
+          field,
+          value,
+          label: `${scopeFilterLabels[field]}：${scopeValueLabel(field, value, reference)}`,
+          icon: field === "kinds" ? movementIcon(String(value)) : undefined,
+          ...(tip ? { tip } : {}),
+        };
+      });
     },
   );
   if (scope.uncategorized)
@@ -103,6 +133,7 @@ export function scopeFilterFieldChips(
     field: ScopeFilterField | "period";
     label: string;
     icon?: string;
+    tip?: TooltipValue;
   }> = (Object.keys(scopeFilterLabels) as ScopeFilterField[]).flatMap(
     (field) => {
       const selected = scope[field];
@@ -129,15 +160,19 @@ export function scopeFilterFieldChips(
                 : value,
         );
       const remaining = values.length - visible.length;
+      const tip =
+        reference && warehouseFields.has(field)
+          ? warehouseFilterTip(values, reference)
+          : undefined;
       return [
         {
           key: `field:${field}`,
           field,
+          ...(tip ? { tip } : {}),
           label: `${scopeFilterLabels[field]}：${visible.join("、")}${remaining ? ` + ${remaining} 项` : ""}`,
-          icon:
-            field === "kinds" && values.length === 1
-              ? movementIcon(String(values[0]))
-              : undefined,
+          ...(field === "kinds" && values.length === 1
+            ? { icon: movementIcon(String(values[0])) }
+            : {}),
         },
       ];
     },

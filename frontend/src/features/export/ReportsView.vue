@@ -29,7 +29,7 @@ import {
 	sortableColumnsForView,
 } from "../../lib/reportContract";
 import { nextGroupByField, removeGroupByField } from "../../lib/groupBy";
-import { groupImpliedColumns } from "../../lib/groupColumns";
+import { groupImpliedColumns, visibleGroupExportColumns } from "../../lib/groupColumns";
 import { computed, ref, watch } from "vue";
 import { clearScopeField, scopeFilterFieldChips } from "../../lib/filterPresentation";
 import { sitePeriodSummary } from "../../lib/sitePeriod";
@@ -175,7 +175,7 @@ const exportColumns = computed(() => {
 	const order = reportPrefs?.order.value.length
 		? reportPrefs.order.value
 		: columns.map((column) => String(column.id));
-	return exportFields(columns, order, visible);
+	return exportFields(columns, order, visibleGroupExportColumns(visible, query.value.groupBy));
 });
 function sortReport(field: string) {
 	if (!availableSortColumns.value.includes(field)) return;
@@ -646,6 +646,7 @@ function setGroup(index: number, value: string) {
 					v-for="chip in scopeChips"
 					:key="chip.key"
 					:label="scopeChipLabel(chip)"
+					:tip="chip.tip"
 					@edit="editFilter(chip.field)"
 					@remove="clearScopeField(query.scope, chip.field)"
 				/>
@@ -666,6 +667,7 @@ function setGroup(index: number, value: string) {
 				<template v-for="chip in chips" :key="chip.key">
 					<BrowseChip
 						:label="chip.summary || chip.label"
+						:tip="chip.tip"
 						:removable="!chip.fixed"
 						@edit="openFilters"
 						@remove="Object.assign(query, chip.reset)"

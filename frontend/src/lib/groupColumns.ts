@@ -5,6 +5,7 @@ const impliedByGroup: Record<string, readonly string[]> = {
     "locations",
     "warehouse",
     "warehouse_label",
+    "warehouse_name",
     "warehouse_native_name",
   ],
   batch: ["batches", "batch_no"],
@@ -24,4 +25,14 @@ export function groupImpliedColumns(groupBy: readonly string[]): string[] {
     for (const column of impliedByGroup[key] ?? []) columns.add(column);
   }
   return [...columns];
+}
+
+/** Location group headings show the code, so the hidden name column contributes no export field. */
+export function visibleGroupExportColumns(
+  visible: string[],
+  groupBy: readonly string[],
+): string[] {
+  return groupBy.includes("location")
+    ? visible.filter((id) => id !== "warehouse_name")
+    : visible;
 }

@@ -25,6 +25,12 @@ export const productBatchColumns: DataColumn[] = [
     export: ["warehouse"],
   },
   {
+    id: "warehouse_name",
+    label: "库位名称",
+    defaultVisible: false,
+    export: ["warehouse_name"],
+  },
+  {
     id: "available",
     quantity: true,
     label: "可用数量",
@@ -90,6 +96,12 @@ export const productLocationColumns: DataColumn[] = [
     defaultVisible: true,
     sortable: true,
     export: ["warehouse"],
+  },
+  {
+    id: "warehouse_name",
+    label: "库位名称",
+    defaultVisible: false,
+    export: ["warehouse_name"],
   },
   {
     id: "available",

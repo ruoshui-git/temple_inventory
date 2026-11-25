@@ -280,6 +280,7 @@ const countTableRows = computed<DataTableEntry[]>(() => {
 				? warehouseLabels.value.get(key) || key
 				: grouped[0]?.item_name || names[key] || key,
 			labelColumn: "item_name",
+			warehouse: location ? key : undefined,
 			countColumn: "item_name",
 			depth: 0,
 			count: groupCounts.value.get(key) || grouped.length,
@@ -513,8 +514,11 @@ function itemImage(row: CountRow) {
 			</div>
 			<p v-for="(row, index) in removed" :key="index">
 				{{ row.item_name || names[row.item_code] || row.item_code }} ·
-				<LocationLabel :label="warehouseLabel(row.warehouse, reference.warehouses)" /> ·
-				{{ row.batch_no || "无批次" }} ·
+				<LocationLabel
+					:warehouse="row.warehouse"
+					:label="warehouseLabel(row.warehouse, reference.warehouses)"
+				/>
+				· {{ row.batch_no || "无批次" }} ·
 				{{ row.actual_qty ?? "未核对" }}
 				{{ unitLabel(String(row.stock_uom || "")) }}
 			</p>
@@ -565,6 +569,7 @@ function itemImage(row: CountRow) {
 								>
 								<small class="count-card-location"
 									><LocationLabel
+										:warehouse="row.warehouse"
 										:label="
 											warehouseLabel(row.warehouse, reference.warehouses)
 										"
@@ -720,6 +725,7 @@ function itemImage(row: CountRow) {
 			<template #cell="{ column, row }">
 				<LocationLabel
 					v-if="column.id === 'location'"
+					:warehouse="String(row.warehouse || '')"
 					:label="warehouseLabel(String(row.warehouse || ''), reference.warehouses)"
 				/>
 				<div v-else-if="column.id === 'image'" class="count-item-thumbnail">
@@ -843,6 +849,7 @@ function itemImage(row: CountRow) {
 			<template #group-label="{ group }">
 				<LocationLabel
 					v-if="isSerialDetailGroup(group)"
+					:warehouse="serialDetailValue(group).warehouse"
 					:label="
 						warehouseLabel(serialDetailValue(group).warehouse, reference.warehouses)
 					"
@@ -968,6 +975,7 @@ function itemImage(row: CountRow) {
 		>
 			<p>
 				<LocationLabel
+					:warehouse="historyTarget.warehouse"
 					:label="warehouseLabel(historyTarget.warehouse, reference.warehouses)"
 				/><template v-if="historyTarget.batch_no">
 					· {{ historyTarget.batch_no }}</template
@@ -998,6 +1006,7 @@ function itemImage(row: CountRow) {
 				}}
 				·
 				<LocationLabel
+					:warehouse="notesTarget.warehouse"
 					:label="warehouseLabel(notesTarget.warehouse, reference.warehouses)"
 				/>
 			</p>

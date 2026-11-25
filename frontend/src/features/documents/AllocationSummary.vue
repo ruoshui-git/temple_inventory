@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { vTip } from "../../directives/tip";
 import { computed, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
 import DataTable from "../../components/ui/DataTable.vue";
@@ -10,7 +11,7 @@ import { formatConversion } from "../../lib/conversionText";
 import type { DataColumn, DataTableEntry, DataTableGroup } from "../../lib/dataTable";
 import { routeTarget } from "../../lib/routeRegistry";
 import { sortByUnit, unitLabel } from "../../lib/units";
-import { warehouseLabel, warehouseTitle } from "../../lib/warehouseLabel";
+import { locationTip, warehouseLabel } from "../../lib/warehouseLabel";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
 import { enteredQty } from "../../lib/quantityConversion";
 import {
@@ -216,6 +217,7 @@ const tableRows = computed<DataTableEntry<AllocationRow>[]>(() => {
 			kind: "group",
 			id,
 			label: warehouseLabel(place, reference.warehouses),
+			warehouse: place,
 			labelColumn: "item_name",
 			countColumn: "item_name",
 			depth: 0,
@@ -325,7 +327,7 @@ function itemFor(row: Record<string, unknown>) {
 				@click="toggleGroup(`location:${place}`)"
 			>
 				<span class="allocation-phone-group-heading">
-					<strong :title="warehouseTitle(place, reference.warehouses)">{{
+					<strong v-tip="locationTip(place, reference.warehouses)">{{
 						warehouseLabel(place, reference.warehouses)
 					}}</strong>
 					<span
@@ -399,7 +401,15 @@ function itemFor(row: Record<string, unknown>) {
 									:to="routeTarget('batch-detail', { name: detail })"
 									>{{ detail }}</RouterLink
 								>
-								<span v-else>{{ detail }}</span>
+								<span
+									v-else
+									v-tip="
+										detail.startsWith('调入 ')
+											? locationTip(line.location, reference.warehouses)
+											: undefined
+									"
+									>{{ detail }}</span
+								>
 							</template>
 						</div>
 						<div v-if="lineSerials(line).length" class="allocation-serial-summary">

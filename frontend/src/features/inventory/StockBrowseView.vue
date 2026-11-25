@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { locationTip } from "../../lib/warehouseLabel";
+import { vTip } from "../../directives/tip";
 import { formatSiteDateTime } from "../../lib/nativeTime";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
@@ -11,7 +13,7 @@ import BrowseFilters from "../../components/filters/BrowseFilters.vue";
 import ItemStatusFilter from "../../components/filters/ItemStatusFilter.vue";
 import GroupByFilter from "../../components/filters/GroupByFilter.vue";
 import { removeGroupByField } from "../../lib/groupBy";
-import { groupImpliedColumns } from "../../lib/groupColumns";
+import { groupImpliedColumns, visibleGroupExportColumns } from "../../lib/groupColumns";
 import { groupLabels } from "../../lib/reportContract";
 import ReportTable from "../../components/ui/ReportTable.vue";
 import BrowseResultSummary from "../../components/ui/BrowseResultSummary.vue";
@@ -289,11 +291,12 @@ function rowMeta(item: StockItem) {
 }
 const stockExportVisible = computed(() => {
 	const columns = inventoryColumns.value;
-	return tablePreferences?.effectiveVisible.value.length
+	const visible = tablePreferences?.effectiveVisible.value.length
 		? tablePreferences.effectiveVisible.value
 		: columns
 				.filter((column) => column.defaultVisible !== false || column.required)
 				.map((column) => String(column.id));
+	return visibleGroupExportColumns(visible, quickReportQuery.value.groupBy);
 });
 const stockExportOrder = computed(() =>
 	tablePreferences?.order.value.length
@@ -407,6 +410,7 @@ function acceptBrowseLocation(name: string) {
 					v-for="chip in appliedChips"
 					:key="chip.key"
 					:label="chip.label"
+					:tip="chip.tip"
 					@edit="editFilter(chip.field)"
 					@remove="chip.remove()"
 				/>
@@ -702,7 +706,15 @@ function acceptBrowseLocation(name: string) {
 										:aria-expanded="section.group.expanded"
 										@click="groupPages.toggleGroup(section.group.id)"
 									>
-										<strong>{{ section.group.label }}</strong>
+										<strong
+											v-tip="
+												locationTip(
+													section.group.warehouse,
+													reference.warehouses,
+												)
+											"
+											>{{ section.group.label }}</strong
+										>
 										<span>{{ section.group.count }} 项</span>
 									</button>
 									<GroupTotals

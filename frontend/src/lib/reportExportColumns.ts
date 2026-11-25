@@ -148,6 +148,25 @@ const quantityFields = new Set([
   "net",
 ]);
 
+/** The projection supplies this optional value on per-location stock rows. */
+export function reportLocationFields(
+  tableId: string,
+  columns: readonly string[],
+): string[] {
+  if (!["locations", "positions", "batches"].includes(tableId))
+    return [...columns];
+  const code = columns.includes("warehouse_label")
+    ? "warehouse_label"
+    : "warehouse";
+  return columns.flatMap((field) =>
+    field === code
+      ? [field, "warehouse_name"]
+      : field === "warehouse_name"
+        ? []
+        : [field],
+  );
+}
+
 /** Data columns used by ReportTable are the table's export declaration. */
 export function reportExportColumns(
   table: ReportTable,
@@ -160,7 +179,7 @@ export function reportExportColumns(
   );
   const fields = [
     ...(hasItem && !table.columns.includes("image") ? ["image"] : []),
-    ...table.columns,
+    ...reportLocationFields(table.id, table.columns),
   ];
   return fields
     .filter((field) => field !== "id" && !hidden.includes(field))
@@ -169,7 +188,7 @@ export function reportExportColumns(
       label:
         tableLabels[tableId]?.[field] ||
         (field === "image" ? "图片" : reportColumnLabels[field] || field),
-      defaultVisible: field !== "serial_nos",
+      defaultVisible: field !== "serial_nos" && field !== "warehouse_name",
       export: field === "image" ? [] : [field],
       quantity: quantityFields.has(field),
     }));

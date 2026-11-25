@@ -2,7 +2,9 @@ import { computed, onBeforeUnmount, ref, watch } from "vue";
 import {
   useInventoryServices,
   useReferenceData,
+  type LocationNode,
 } from "../../services/contracts";
+import { warehouseOption } from "../../lib/warehouseLabel";
 import { useUpdateBlocker } from "../../lib/updateSafety";
 import { showToast } from "../../services/toast";
 import { useFormValidation } from "../../composables/useFormValidation";
@@ -17,16 +19,14 @@ export interface ConfigurationStatus {
   blockers: { code: string; message: string }[];
   warnings: { code: string; message: string }[];
   pointers: { field: string; label: string; current: string; issue: string }[];
-  candidates: {
+  candidates: (LocationNode & {
     value: string;
     label: string;
-    search_text?: string;
-    path_names?: string[];
     group: boolean;
     parent: string;
     type: string;
     version: string;
-  }[];
+  })[];
 }
 export interface RepairPreview {
   field: string;
@@ -87,14 +87,11 @@ export function useConfiguration(changed: () => void) {
   const options = computed(() =>
     (status.value?.candidates || [])
       .filter((row) => row.group === groups.has(field.value))
-      .map((row) => ({
-        value: row.value,
-        label: row.label,
-        detail: `ERPNext 名称：${row.value}`,
-        keywords: [row.search_text, ...(row.path_names ?? [])]
-          .filter(Boolean)
-          .join(" "),
-      })),
+      .map((row) =>
+        warehouseOption(row.value, status.value?.candidates || [], {
+          label: row.label,
+        }),
+      ),
   );
   async function load() {
     const current = ++generation;

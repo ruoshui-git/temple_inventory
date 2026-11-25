@@ -34,11 +34,16 @@ const props = defineProps<{
 	stale?: boolean;
 	compact?: boolean;
 }>();
+const physicalLocations = computed(() =>
+	isStockItemRow(props.row)
+		? props.row.locations.filter((location) => Number(location.available) > 0)
+		: [],
+);
 const compactSummary = computed(() => {
 	const row = props.row;
 	if (!isStockItemRow(row)) return "—";
 	if (props.column.id === "locations") {
-		const physical = row.locations.filter((location) => Number(location.available) > 0);
+		const physical = physicalLocations.value;
 		if (physical.length === 1)
 			return warehouseLabel(
 				physical[0]!.location,
@@ -65,19 +70,36 @@ const compactSummary = computed(() => {
 	>
 		{{ stockName(row) }}
 	</RouterLink>
-	<span v-if="row.disabled" class="badge neutral">已停用</span>
+	<span v-if="row.disabled && column.id === 'item_name'" class="badge neutral">已停用</span>
 	<template v-else-if="column.id === 'item_code'">{{ stockCode(row) }}</template>
 	<template v-else-if="column.id === 'stock_uom'"
 		><UnitText :name="row.uom || row.stock_uom"
 	/></template>
 	<template v-else-if="column.id === 'category'">{{ row.category || "未分类" }}</template>
-	<LocationLabel
-		v-else-if="column.id === 'warehouse_label'"
-		:label="stockComponentDetail(row, 'warehouse_label', reference.siteDate) || '—'"
-	/>
+	<template v-else-if="column.id === 'warehouse_label'">
+		<template v-if="isStockItemRow(row) && row.locations.length">
+			<template v-for="(place, index) in row.locations" :key="place.location">
+				<span v-if="index">；</span>
+				<LocationLabel :warehouse="place.location" :label="place.label" />
+			</template>
+		</template>
+		<LocationLabel
+			v-else
+			:warehouse="String(row.warehouse || '')"
+			:label="stockComponentDetail(row, 'warehouse_label', reference.siteDate) || '—'"
+		/>
+	</template>
+	<template v-else-if="column.id === 'warehouse_name'">{{
+		stockLocationDetail(row, "warehouse_name") || "—"
+	}}</template>
 	<template v-else-if="column.id === 'batch_no'">{{
 		stockComponentDetail(row, "batch_no", reference.siteDate) || "—"
 	}}</template>
+	<LocationLabel
+		v-else-if="compact && column.id === 'locations' && physicalLocations.length === 1"
+		:warehouse="physicalLocations[0]?.location"
+		:label="compactSummary"
+	/>
 	<template v-else-if="compact && (column.id === 'locations' || column.id === 'batches')">{{
 		compactSummary
 	}}</template>
@@ -101,7 +123,9 @@ const compactSummary = computed(() => {
 		stockComponentDetail(row, "batch_no", reference.siteDate) || "—"
 	}}</template>
 	<template v-else-if="column.id === 'locations'"
-		><LocationLabel :label="stockLocationLabel(row, reference)"
+		><LocationLabel
+			:warehouse="String(row.warehouse || '')"
+			:label="stockLocationLabel(row, reference)"
 	/></template>
 	<template v-else-if="column.id === 'warehouse_native_name'">{{
 		stockLocationDetail(row, "nativeName") || "—"

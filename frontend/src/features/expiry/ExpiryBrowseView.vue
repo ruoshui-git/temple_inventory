@@ -11,7 +11,7 @@ import UiButton from "../../components/ui/UiButton.vue";
 import BrowseFilters from "../../components/filters/BrowseFilters.vue";
 import GroupByFilter from "../../components/filters/GroupByFilter.vue";
 import { removeGroupByField } from "../../lib/groupBy";
-import { groupImpliedColumns } from "../../lib/groupColumns";
+import { groupImpliedColumns, visibleGroupExportColumns } from "../../lib/groupColumns";
 import { groupLabels } from "../../lib/reportContract";
 import Overlay from "../../components/ui/Overlay.vue";
 import ExpiryBrowseFilters from "./ExpiryBrowseFilters.vue";
@@ -274,7 +274,11 @@ const expiryExportOrder = computed(() =>
 		: expiryColumns.map((column) => String(column.id)),
 );
 const expiryExportColumns = computed(() =>
-	exportFields(expiryColumns, expiryExportOrder.value, expiryExportVisible.value),
+	exportFields(
+		expiryColumns,
+		expiryExportOrder.value,
+		visibleGroupExportColumns(expiryExportVisible.value, query.value.groupBy),
+	),
 );
 // Cards and phone rows read the same visible, ordered columns as the table.
 const visibleColumns = computed(() => orderedVisibleColumns(expiryColumns, tablePreferences));
@@ -545,6 +549,7 @@ function canExpiryAction() {
 					v-for="chip in c.scopeChips.value"
 					:key="chip.key"
 					:label="chip.label"
+					:tip="chip.tip"
 					@edit="editFilter(chip.field)"
 					@remove="c.removeScope(chip.field)"
 				/>
@@ -552,6 +557,7 @@ function canExpiryAction() {
 					v-for="chip in chips"
 					:key="chip.key"
 					:label="chip.summary || chip.label"
+					:tip="chip.tip"
 					:removable="!chip.fixed"
 					@edit="editFilter(chip.field)"
 					@remove="Object.assign(query, chip.reset)"
