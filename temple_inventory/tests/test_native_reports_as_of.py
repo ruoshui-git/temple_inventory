@@ -27,6 +27,10 @@ class NativeReportsAsOfTests(NativeReportTestCase):
 		return {(row["warehouse"], row["batch_no"]): row for row in report_page(query)["rows"]}
 
 	def test_as_of_reads_ledger_balances_at_the_boundary_for_plain_items(self):
+		from temple_inventory import warehouses
+
+		room = frappe.get_doc("Warehouse", self.room_a)
+		warehouses.rename_location(room.name, "阅览室", "A01", str(room.modified))
 		self.post(self.dated(self.movement(quantity=10), "2026-10-01"))
 		self.post(self.dated(self.movement("Transfer", 4, self.a, self.b), "2026-10-06"))
 		before = self.locations("2026-10-05")
@@ -35,6 +39,9 @@ class NativeReportsAsOfTests(NativeReportTestCase):
 		after = self.locations("2026-10-06")
 		self.assertEqual(after[(self.a, "")]["stock_qty"], 6)
 		self.assertEqual(after[(self.b, "")]["stock_qty"], 4)
+		matches = self.locations("2026-10-06", search="阅览室 \uff2101")
+		self.assertEqual(set(matches), {(self.a, "")})
+		self.assertEqual(matches[(self.a, "")]["warehouse_name"], "阅览室")
 		self.assertEqual(self.locations("2026-10-06 00:00:00")[(self.a, "")]["stock_qty"], 10)
 
 	def test_as_of_includes_a_pair_whose_stock_has_since_left_and_ignores_bin_state(self):

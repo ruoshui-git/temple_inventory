@@ -2,7 +2,6 @@
 
 import copy
 import json
-import re
 import tempfile
 from collections import defaultdict
 
@@ -10,6 +9,7 @@ import frappe
 from frappe.permissions import get_role_permissions
 from frappe.utils import get_datetime, get_time, getdate, now_datetime, nowdate
 
+from temple_inventory.location_search import matching_locations, normalize
 from temple_inventory.native_balances import (
 	batch_rows_at,
 	entry_bundle,
@@ -27,6 +27,7 @@ from temple_inventory.native_stock import (
 )
 from temple_inventory.report_query import as_of_moment, in_period, resolved_period
 from temple_inventory.uom_labels import uom_label
+from temple_inventory.warehouse_names import distinct_location_name
 
 
 class _PreloadedRow(dict):
@@ -148,6 +149,13 @@ class ReportContext:
 			self.warehouses, physical_root=self.settings.physical_root_warehouse, settings=self.settings
 		)
 		self.location_labels = {row["name"]: row["label"] for row in presented}
+		self.location_names = {
+			row["name"]: distinct_location_name(row["path_segments"], row["path_names"]) for row in presented
+		}
+		self.search_terms = {key: normalize(query[key]).strip() for key in ("search", "relatedSearch")}
+		self.location_search_matches = {
+			key: matching_locations(term, presented) for key, term in self.search_terms.items()
+		}
 		self.location_paths = {row["name"]: row["path"] for row in presented}
 		self.native_location_names = {row["name"]: row["native_name"] for row in presented}
 		if not get_role_permissions("Temple Inventory Settings").get("read"):
@@ -716,12 +724,12 @@ class ReportContext:
 				return False
 		return True
 
-	def matches_search(self, values, *, related=False, item_code=None, serial_values=()):
-		def normalize(value):
-			return re.sub(r"\s*/\s*", "/", str(value or "")).casefold()
-
-		term = normalize(self.query["relatedSearch" if related else "search"].strip())
-		if not term or any(term in normalize(value) for value in values):
+	def matches_search(self, values, *, related=False, item_code=None, serial_values=(), locations=()):
+		key = "relatedSearch" if related else "search"
+		term = self.search_terms[key]
+		if not term or any(location in self.location_search_matches[key] for location in locations):
+			return True
+		if any(term in normalize(value) for value in values):
 			return True
 		if term in {normalize(value) for value in serial_values}:
 			return True
@@ -758,25 +766,11 @@ class ReportContext:
 				row.get("reviewer"),
 				row.get("time"),
 				row.get("date"),
-				row.get("source_warehouse_label"),
-				row.get("source_warehouse_path"),
-				row.get("destination_warehouse_label"),
-				row.get("destination_warehouse_path"),
-				row.get("warehouse_label"),
-				row.get("warehouse_path"),
 			)
 		item_values = [
 			row.get("item_code"),
 			row.get("item_name"),
 			row.get("category_label") or row.get("category"),
-		]
-		location_values = [
-			row.get("source_warehouse_label"),
-			row.get("source_warehouse_path"),
-			row.get("destination_warehouse_label"),
-			row.get("destination_warehouse_path"),
-			row.get("warehouse_label"),
-			row.get("warehouse_path"),
 		]
 		batch_values = [row.get("batch_no")]
 		kind_labels = KIND_LABELS
@@ -793,11 +787,10 @@ class ReportContext:
 			row.get("date"),
 		]
 		if query.get("dataset") == "counts":
-			return [*item_values, *location_values, *batch_values, *common, row.get("reason")]
+			return [*item_values, *batch_values, *common, row.get("reason")]
 		if query.get("dataset") in ("movements", "loans"):
 			return [
 				*item_values,
-				*location_values,
 				*batch_values,
 				*common,
 				row.get("original_loan"),
@@ -805,7 +798,7 @@ class ReportContext:
 				LOAN_STATUS_LABELS.get(row.get("loan_status")),
 				row.get("stock_uom_label") or row.get("stock_uom"),
 			]
-		return [*item_values, *location_values, *batch_values, *common]
+		return [*item_values, *batch_values, *common]
 
 	def barcode_matches(self, related=False):
 		"""Items with a barcode containing the search term, read once per request."""
@@ -881,6 +874,7 @@ class ReportContext:
 			return False
 		return not apply_search or self.matches_search(
 			self.search_values_for_line(row),
+			locations=locations,
 			item_code=row.get("item_code"),
 			serial_values=(row.get("serial_nos") or "").split("、"),
 		)
@@ -1074,12 +1068,11 @@ def stock_rows(context, *, item_codes=None):
 					code,
 					item.item_name,
 					context.item_fields(item).get("category_label"),
-					context.label(warehouse),
-					context.location_fields(warehouse).get("warehouse_path"),
 					batch_name,
 					expiry,
 				],
 				item_code=code,
+				locations=(warehouse,),
 				serial_values=serials_by_location[(code, warehouse)],
 			):
 				continue
@@ -1116,6 +1109,7 @@ def stock_rows(context, *, item_codes=None):
 					**context.item_fields(item),
 					"warehouse": warehouse,
 					"warehouse_label": context.label(warehouse),
+					"warehouse_name": context.location_names.get(warehouse, ""),
 					**context.location_fields(warehouse),
 					"batch_no": batch_name or "",
 					"serial_nos": "、".join(serials_by_location[(code, warehouse)])
@@ -1740,6 +1734,7 @@ def settlement_rows(context):
 			continue
 		if not in_period(row["date"], context.related_period) or not context.matches_search(
 			context.search_values_for_line(row),
+			locations=(row.get("source_warehouse"), row.get("destination_warehouse"), row.get("warehouse")),
 			related=True,
 			item_code=row.get("item_code"),
 			serial_values=(row.get("serial_nos") or "").split("、"),
@@ -2103,10 +2098,9 @@ def historical_rows(context):
 				item.name,
 				item.item_name,
 				context.item_fields(item).get("category_label"),
-				context.label(value.warehouse),
-				context.location_fields(value.warehouse).get("warehouse_path"),
 			],
 			item_code=item.name,
+			locations=(value.warehouse,),
 		):
 			continue
 		code, warehouse = value.item_code, value.warehouse
@@ -2114,6 +2108,7 @@ def historical_rows(context):
 			**context.item_fields(item),
 			"warehouse": warehouse,
 			"warehouse_label": context.label(warehouse),
+			"warehouse_name": context.location_names.get(warehouse, ""),
 			**context.location_fields(warehouse),
 			"period_from": start,
 			"period_to": end,
@@ -2332,6 +2327,7 @@ def activity_relations(context, activity_name, *, lifetime=False):
 		if in_period(row["date"], context.related_period)
 		and context.matches_search(
 			context.search_values_for_line(row),
+			locations=(row.get("source_warehouse"), row.get("destination_warehouse"), row.get("warehouse")),
 			related=True,
 			item_code=row.get("item_code"),
 			serial_values=(row.get("serial_nos") or "").split("、"),

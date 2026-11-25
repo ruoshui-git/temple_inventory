@@ -55,6 +55,7 @@ class NativeWarehouseTests(NativeDocumentTests):
 						"full_label",
 						"path",
 						"path_segments",
+						"path_names",
 						"search_text",
 					)
 				}
@@ -73,6 +74,10 @@ class NativeWarehouseTests(NativeDocumentTests):
 		)
 		self.assertEqual(baseline[room][1]["path"], f"SA/Snapshot room {self.token}")
 		self.assertEqual(baseline[room][1]["path_segments"], ["SA", f"Snapshot room {self.token}"])
+		self.assertEqual(
+			baseline[room][1]["path_names"], [f"Snapshot area {self.token}", f"Snapshot room {self.token}"]
+		)
+		self.assertEqual(baseline[direct][1]["path_names"], baseline[room][1]["path_names"])
 		self.assertEqual(baseline[room][1]["local_label"], f"Snapshot room {self.token}")
 		self.assertEqual(baseline[room][1]["label"], f"SA/Snapshot room {self.token}")
 		self.assertEqual(baseline[room][1]["full_label"], f"Snapshot room {self.token}")
@@ -131,6 +136,14 @@ class NativeWarehouseTests(NativeDocumentTests):
 			after = snapshot()
 		self.assertEqual(after[room][1]["local_label"], f"Renamed room {self.token}")
 		self.assertEqual(after[room][1]["path"], f"Snapshot second {self.token}/SR")
+		self.assertEqual(
+			after[leaf][1]["path_names"],
+			[f"Snapshot second {self.token}", f"Renamed room {self.token}", f"Snapshot shelf {self.token}"],
+		)
+
+	def test_location_code_validation_uses_desk_field_label(self):
+		with self.assertRaisesRegex(frappe.ValidationError, "代码最多 60 字"):
+			warehouses.create_location("Room", "Valid name", self.physical, "x" * 61)
 
 	def test_system_location_group_is_presented_with_leaf_labels_without_group_path(self):
 		rows = native_topology._visible_warehouses()

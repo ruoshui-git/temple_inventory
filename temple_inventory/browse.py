@@ -702,6 +702,7 @@ def _inventory_page(query=None, start=0, page_length=30, refresh=False):
 				{
 					"location": warehouse,
 					"label": row.get("warehouse_label") or warehouse,
+					"warehouse_name": row.get("warehouse_name") or "",
 					"path": row.get("warehouse_path") or "",
 					"nativeName": row.get("warehouse_native_name") or "",
 					"available": 0,

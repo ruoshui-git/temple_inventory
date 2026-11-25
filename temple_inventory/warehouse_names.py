@@ -41,22 +41,34 @@ def derive_local_label(warehouse_name, parent, *, direct=False, label="", short_
 
 
 def build_paths(rows, *, excluded_roots=(), direct_owners=None):
-	"""Build presenter path segments, omitting special roots and aliasing direct leaves."""
+	"""Build aligned code and name paths, omitting roots and aliasing direct leaves."""
 	direct_owners = direct_owners or {}
-	paths = {}
+	paths, path_names = {}, {}
 	for name, row in rows.items():
-		parts, seen, cursor = [], set(), row
+		parts, names, seen, cursor = [], [], set(), row
 		while cursor and cursor.name not in seen:
 			seen.add(cursor.name)
 			if cursor.name not in excluded_roots and not cint(cursor.get("ti_direct_storage")):
 				parts.insert(0, local_label(cursor))
+				names.insert(0, _location_segment_name(cursor))
 			cursor = rows.get(cursor.parent_warehouse)
 		if name in direct_owners:
 			owner_name = direct_owners[name]
 			owner = rows.get(owner_name)
-			parts = paths.get(owner.name, [local_label(owner)] if owner else [])
+			parts = paths.get(owner_name, [local_label(owner)] if owner else [])
+			names = path_names.get(owner_name, [_location_segment_name(owner)] if owner else [])
 		paths[name] = parts
-	return paths
+		path_names[name] = names
+	return paths, path_names
+
+
+def _location_segment_name(row):
+	return str(row.get("ti_label") or str(row.get("warehouse_name") or row.name).rsplit("/", 1)[-1])
+
+
+def distinct_location_name(path_segments, path_names):
+	"""Return the location's own name when it adds information to the code."""
+	return path_names[-1] if path_names and path_names[-1] != path_segments[-1] else ""
 
 
 def full_label(row, rows, owner_name=""):

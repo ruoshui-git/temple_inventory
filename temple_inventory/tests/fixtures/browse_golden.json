@@ -512,6 +512,7 @@
           {
             "location": "<fixture-7>",
             "label": "Native Test A Room <fixture-token>",
+            "warehouse_name": "",
             "path": "Native Test A Room <fixture-token>",
             "nativeName": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
             "available": 10.0,
@@ -532,6 +533,7 @@
           {
             "location": "<fixture-8>",
             "label": "Native Test B Room <fixture-token>",
+            "warehouse_name": "",
             "path": "Native Test B Room <fixture-token>",
             "nativeName": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test B Room <fixture-token> · 直接存放",
             "available": 3.0,
@@ -552,6 +554,7 @@
           {
             "location": "<fixture-10>",
             "label": "Native Test Damaged <fixture-token>",
+            "warehouse_name": "",
             "path": "Native Test Damaged <fixture-token>",
             "nativeName": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Damaged <fixture-token>",
             "available": 0,
@@ -572,6 +575,7 @@
           {
             "location": "<fixture-9>",
             "label": "Native Test Lease Leaf <fixture-token>",
+            "warehouse_name": "",
             "path": "Native Test Lease Leaf <fixture-token>",
             "nativeName": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Lease Leaf <fixture-token>",
             "available": 0,
@@ -791,6 +795,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-7>",
         "warehouse_label": "Native Test A Room <fixture-token>",
+        "warehouse_name": "",
         "warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
         "warehouse_path": "Native Test A Room <fixture-token>"
       },
@@ -818,6 +823,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-8>",
         "warehouse_label": "Native Test B Room <fixture-token>",
+        "warehouse_name": "",
         "warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test B Room <fixture-token> · 直接存放",
         "warehouse_path": "Native Test B Room <fixture-token>"
       },
@@ -845,6 +851,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-10>",
         "warehouse_label": "Native Test Damaged <fixture-token>",
+        "warehouse_name": "",
         "warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Damaged <fixture-token>",
         "warehouse_path": "Native Test Damaged <fixture-token>"
       },
@@ -872,6 +879,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-9>",
         "warehouse_label": "Native Test Lease Leaf <fixture-token>",
+        "warehouse_name": "",
         "warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Lease Leaf <fixture-token>",
         "warehouse_path": "Native Test Lease Leaf <fixture-token>"
       }
@@ -1529,6 +1537,7 @@
           "stock_uom_label": "个",
           "warehouse": "<fixture-7>、<fixture-8>",
           "warehouse_label": "Native Test A Room <fixture-token>",
+          "warehouse_name": "",
           "warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
           "warehouse_path": "Native Test A Room <fixture-token>"
         }
@@ -2208,6 +2217,7 @@
           "stock_uom_label": "个",
           "warehouse": "<fixture-7>、<fixture-8>",
           "warehouse_label": "Native Test A Room <fixture-token>",
+          "warehouse_name": "",
           "warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
           "warehouse_path": "Native Test A Room <fixture-token>"
         }
@@ -2750,6 +2760,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-7>",
         "warehouse_label": "Native Test A Room <fixture-token>",
+        "warehouse_name": "",
         "warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
         "warehouse_path": "Native Test A Room <fixture-token>"
       },
@@ -2777,6 +2788,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-8>",
         "warehouse_label": "Native Test B Room <fixture-token>",
+        "warehouse_name": "",
         "warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test B Room <fixture-token> · 直接存放",
         "warehouse_path": "Native Test B Room <fixture-token>"
       },
@@ -2804,6 +2816,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-10>",
         "warehouse_label": "Native Test Damaged <fixture-token>",
+        "warehouse_name": "",
         "warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Damaged <fixture-token>",
         "warehouse_path": "Native Test Damaged <fixture-token>"
       },
@@ -2831,6 +2844,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-9>",
         "warehouse_label": "Native Test Lease Leaf <fixture-token>",
+        "warehouse_name": "",
         "warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Lease Leaf <fixture-token>",
         "warehouse_path": "Native Test Lease Leaf <fixture-token>"
       }
@@ -3141,6 +3155,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-7>",
         "warehouse_label": "Native Test A Room <fixture-token>",
+        "warehouse_name": "",
         "warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
         "warehouse_path": "Native Test A Room <fixture-token>"
       },
@@ -3167,6 +3182,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-8>",
         "warehouse_label": "Native Test B Room <fixture-token>",
+        "warehouse_name": "",
         "warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test B Room <fixture-token> · 直接存放",
         "warehouse_path": "Native Test B Room <fixture-token>"
       },
@@ -3193,6 +3209,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-10>",
         "warehouse_label": "Native Test Damaged <fixture-token>",
+        "warehouse_name": "",
         "warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Damaged <fixture-token>",
         "warehouse_path": "Native Test Damaged <fixture-token>"
       },
@@ -3219,6 +3236,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-9>",
         "warehouse_label": "Native Test Lease Leaf <fixture-token>",
+        "warehouse_name": "",
         "warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Lease Leaf <fixture-token>",
         "warehouse_path": "Native Test Lease Leaf <fixture-token>"
       }
@@ -3529,6 +3547,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-7>",
         "warehouse_label": "Native Test A Room <fixture-token>",
+        "warehouse_name": "",
         "warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test A Room <fixture-token> · 直接存放",
         "warehouse_path": "Native Test A Room <fixture-token>"
       },
@@ -3556,6 +3575,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-8>",
         "warehouse_label": "Native Test B Room <fixture-token>",
+        "warehouse_name": "",
         "warehouse_native_name": "Native Test Root <fixture-token>/Native Test Physical <fixture-token>/Native Test B Room <fixture-token> · 直接存放",
         "warehouse_path": "Native Test B Room <fixture-token>"
       },
@@ -3583,6 +3603,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-10>",
         "warehouse_label": "Native Test Damaged <fixture-token>",
+        "warehouse_name": "",
         "warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Damaged <fixture-token>",
         "warehouse_path": "Native Test Damaged <fixture-token>"
       },
@@ -3610,6 +3631,7 @@
         "stock_uom_label": "个",
         "warehouse": "<fixture-9>",
         "warehouse_label": "Native Test Lease Leaf <fixture-token>",
+        "warehouse_name": "",
         "warehouse_native_name": "Native Test Root <fixture-token>/Native Test System Locations <fixture-token>/Native Test Lease Leaf <fixture-token>",
         "warehouse_path": "Native Test Lease Leaf <fixture-token>"
       }

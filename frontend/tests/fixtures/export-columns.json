@@ -30,6 +30,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
+        "warehouse_name",
         "warehouse_native_name"
       ],
       "history": [
@@ -165,6 +166,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
+        "warehouse_name",
         "warehouse_native_name"
       ],
       "metadata": [
@@ -217,6 +219,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
+        "warehouse_name",
         "warehouse_native_name"
       ],
       "records": [
@@ -316,6 +319,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
+        "warehouse_name",
         "warehouse_native_name"
       ],
       "history": [
@@ -451,6 +455,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
+        "warehouse_name",
         "warehouse_native_name"
       ],
       "metadata": [
@@ -503,6 +508,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
+        "warehouse_name",
         "warehouse_native_name"
       ],
       "records": [
@@ -605,6 +611,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
+        "warehouse_name",
         "warehouse_native_name"
       ],
       "history": [
@@ -740,6 +747,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
+        "warehouse_name",
         "warehouse_native_name"
       ],
       "metadata": [
@@ -792,6 +800,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
+        "warehouse_name",
         "warehouse_native_name"
       ],
       "records": [
@@ -891,6 +900,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
+        "warehouse_name",
         "warehouse_native_name"
       ],
       "history": [
@@ -1026,6 +1036,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
+        "warehouse_name",
         "warehouse_native_name"
       ],
       "metadata": [
@@ -1078,6 +1089,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
+        "warehouse_name",
         "warehouse_native_name"
       ],
       "records": [
@@ -1177,6 +1189,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
+        "warehouse_name",
         "warehouse_native_name"
       ],
       "history": [
@@ -1312,6 +1325,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
+        "warehouse_name",
         "warehouse_native_name"
       ],
       "metadata": [
@@ -1364,6 +1378,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
+        "warehouse_name",
         "warehouse_native_name"
       ],
       "records": [
@@ -1465,6 +1480,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
+        "warehouse_name",
         "warehouse_native_name"
       ],
       "history": [
@@ -1600,6 +1616,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
+        "warehouse_name",
         "warehouse_native_name"
       ],
       "metadata": [
@@ -1652,6 +1669,7 @@
         "stock_uom",
         "warehouse",
         "warehouse_label",
+        "warehouse_name",
         "warehouse_native_name"
       ],
       "records": [
@@ -1753,6 +1771,7 @@
         "stock_uom": "库存单位",
         "warehouse": "库位",
         "warehouse_label": "库位",
+        "warehouse_name": "库位名称",
         "warehouse_native_name": "ERPNext 库位"
       },
       "history": {
@@ -1888,6 +1907,7 @@
         "stock_uom": "库存单位",
         "warehouse": "库位",
         "warehouse_label": "库位",
+        "warehouse_name": "库位名称",
         "warehouse_native_name": "ERPNext 库位"
       },
       "metadata": {
@@ -1940,6 +1960,7 @@
         "stock_uom": "库存单位",
         "warehouse": "库位",
         "warehouse_label": "库位",
+        "warehouse_name": "库位名称",
         "warehouse_native_name": "ERPNext 库位"
       },
       "records": {
@@ -2039,6 +2060,7 @@
         "stock_uom": "库存单位",
         "warehouse": "盘点库位",
         "warehouse_label": "库位",
+        "warehouse_name": "库位名称",
         "warehouse_native_name": "ERPNext 库位"
       },
       "history": {
@@ -2174,6 +2196,7 @@
         "stock_uom": "库存单位",
         "warehouse": "盘点库位",
         "warehouse_label": "库位",
+        "warehouse_name": "库位名称",
         "warehouse_native_name": "ERPNext 库位"
       },
       "metadata": {
@@ -2226,6 +2249,7 @@
         "stock_uom": "库存单位",
         "warehouse": "盘点库位",
         "warehouse_label": "库位",
+        "warehouse_name": "库位名称",
         "warehouse_native_name": "ERPNext 库位"
       },
       "records": {
@@ -2328,6 +2352,7 @@
         "stock_uom": "库存单位",
         "warehouse": "位置",
         "warehouse_label": "库位",
+        "warehouse_name": "库位名称",
         "warehouse_native_name": "ERPNext 库位"
       },
       "history": {
@@ -2463,6 +2488,7 @@
         "stock_uom": "库存单位",
         "warehouse": "库位",
         "warehouse_label": "库位",
+        "warehouse_name": "库位名称",
         "warehouse_native_name": "ERPNext 库位"
       },
       "metadata": {
@@ -2515,6 +2541,7 @@
         "stock_uom": "库存单位",
         "warehouse": "库位",
         "warehouse_label": "库位",
+        "warehouse_name": "库位名称",
         "warehouse_native_name": "ERPNext 库位"
       },
       "records": {
@@ -2614,6 +2641,7 @@
         "stock_uom": "库存单位",
         "warehouse": "库位",
         "warehouse_label": "库位",
+        "warehouse_name": "库位名称",
         "warehouse_native_name": "ERPNext 库位"
       },
       "history": {
@@ -2749,6 +2777,7 @@
         "stock_uom": "库存单位",
         "warehouse": "库位",
         "warehouse_label": "库位",
+        "warehouse_name": "库位名称",
         "warehouse_native_name": "ERPNext 库位"
       },
       "metadata": {
@@ -2801,6 +2830,7 @@
         "stock_uom": "库存单位",
         "warehouse": "库位",
         "warehouse_label": "库位",
+        "warehouse_name": "库位名称",
         "warehouse_native_name": "ERPNext 库位"
       },
       "records": {
@@ -2900,6 +2930,7 @@
         "stock_uom": "库存单位",
         "warehouse": "库位",
         "warehouse_label": "库位",
+        "warehouse_name": "库位名称",
         "warehouse_native_name": "ERPNext 库位"
       },
       "history": {
@@ -3035,6 +3066,7 @@
         "stock_uom": "库存单位",
         "warehouse": "库位",
         "warehouse_label": "库位",
+        "warehouse_name": "库位名称",
         "warehouse_native_name": "ERPNext 库位"
       },
       "metadata": {
@@ -3087,6 +3119,7 @@
         "stock_uom": "库存单位",
         "warehouse": "库位",
         "warehouse_label": "库位",
+        "warehouse_name": "库位名称",
         "warehouse_native_name": "ERPNext 库位"
       },
       "records": {
@@ -3188,6 +3221,7 @@
         "stock_uom": "库存单位",
         "warehouse": "库位",
         "warehouse_label": "库位",
+        "warehouse_name": "库位名称",
         "warehouse_native_name": "ERPNext 库位"
       },
       "history": {
@@ -3323,6 +3357,7 @@
         "stock_uom": "库存单位",
         "warehouse": "库位",
         "warehouse_label": "库位",
+        "warehouse_name": "库位名称",
         "warehouse_native_name": "ERPNext 库位"
       },
       "metadata": {
@@ -3375,6 +3410,7 @@
         "stock_uom": "库存单位",
         "warehouse": "库位",
         "warehouse_label": "库位",
+        "warehouse_name": "库位名称",
         "warehouse_native_name": "ERPNext 库位"
       },
       "records": {

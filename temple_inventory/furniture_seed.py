@@ -331,7 +331,7 @@ def _ensure_expected_state(data, *, apply=False):
 		{"action": "unchanged" if area else "create", "label": "第2寺院", "short_label": "T2"}
 	)
 	if area and frappe.db.get_value("Warehouse", area, "ti_short_label") != "T2":
-		frappe.throw("现有第2寺院 Warehouse 简称不为 T2")
+		frappe.throw("现有第2寺院 Warehouse 代码不为 T2")
 	functional = _existing_location(area, "功能区域") if area else None
 	storage = _existing_location(area, "专用库房") if area else None
 	for label, existing in (("功能区域", functional), ("专用库房", storage)):
@@ -341,7 +341,7 @@ def _ensure_expected_state(data, *, apply=False):
 		if room and frappe.db.get_value("Warehouse", room, "warehouse_type") != "Room":
 			frappe.throw(f"現有 {code} 不是 Room 类型")
 		if room and frappe.db.get_value("Warehouse", room, "ti_short_label") != short:
-			frappe.throw(f"现有 {code} Warehouse 简称不符合 seed：{short}")
+			frappe.throw(f"现有 {code} Warehouse 代码不符合 seed：{short}")
 		leaf = (
 			frappe.db.get_value("Warehouse", {"parent_warehouse": room, "ti_direct_storage": 1}, "name")
 			if room

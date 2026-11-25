@@ -10,6 +10,7 @@ from temple_inventory import (
 	browse,
 	catalog,
 	native_api,
+	warehouses,
 )
 from temple_inventory.tests.test_native_documents import NativeDocumentTests
 
@@ -278,3 +279,32 @@ class CatalogPickersTests(NativeDocumentTests):
 		)
 		with self.assertRaises(frappe.ValidationError):
 			catalog.receipt_batches([{**row, "expiry_date": add_days(nowdate(), 60)}])
+
+	def test_outbound_picker_searches_the_matching_location_before_paging(self):
+		room = frappe.get_doc("Warehouse", self.room_a)
+		warehouses.rename_location(room.name, "阅览室", "A01", str(room.modified))
+		self.receipt(3)
+		self.submit(self.create(self.movement(quantity=4, target=self.b)))
+		for timestamp in (None, str(frappe.utils.now_datetime())):
+			with self.subTest(timestamp=timestamp):
+				args = {"item_codes": [self.item], "timestamp": timestamp, "page_length": 1}
+				page = catalog.picker_rows(search="阅览室 \uff2101", **args)
+				self.assertEqual(page["matched_count"], 1)
+				self.assertIsNone(page["next_start"])
+				self.assertEqual(
+					[(row["warehouse"], row["picker_quantity"]) for row in page["results"]], [(self.a, 3)]
+				)
+				self.assertEqual(
+					catalog.picker_rows(search="阅览室", warehouses=[self.b], **args)["matched_count"], 0
+				)
+				self.assertEqual(
+					catalog.picker_rows(search="阅览室", purpose="count", **args)["matched_count"], 0
+				)
+				first = catalog.picker_rows(search=self.item, **args)
+				second = catalog.picker_rows(search=self.item, start=first["next_start"], **args)
+				self.assertEqual(first["matched_count"], 2)
+				self.assertEqual(
+					{first["results"][0]["warehouse"], second["results"][0]["warehouse"]}, {self.a, self.b}
+				)
+		selected = catalog.operation_items([self.item])["items"][0]
+		self.assertEqual({row["warehouse"] for row in selected["stock"]}, {self.a, self.b})

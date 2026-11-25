@@ -321,7 +321,7 @@
     "dt": "Warehouse",
     "fieldname": "ti_short_label",
     "fieldtype": "Data",
-    "label": "简称",
+    "label": "代码",
     "insert_after": "ti_label",
     "module": "Temple Inventory",
     "name": "Warehouse-ti_short_label"

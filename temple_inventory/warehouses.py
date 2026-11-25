@@ -39,7 +39,7 @@ def _protected(settings):
 def _write_name(label, short_label, parent, physical_root, *, direct=False):
 	value = native_name(label, short_label, parent, physical_root, direct=direct)
 	if len(value) > 140:
-		frappe.throw("生成的仓库路径超过 140 字，请缩短名称或简称")
+		frappe.throw("生成的仓库路径超过 140 字，请缩短名称或代码")
 	return value
 
 
@@ -197,7 +197,7 @@ def validate_native_warehouse(doc, method=None):
 						"name": ["!=", doc.name or ""],
 					},
 				):
-					frappe.throw("生成的仓库路径已存在，请调整名称或简称", frappe.DuplicateEntryError)
+					frappe.throw("生成的仓库路径已存在，请调整名称或代码", frappe.DuplicateEntryError)
 	if cint(doc.ti_direct_storage):
 		if doc.warehouse_type:
 			frappe.throw("直接存放叶子不设置仓库类型")
@@ -300,7 +300,7 @@ def _insert_location(kind, label, parent, short_label=None):
 		frappe.throw("请选择区域、房间或货位")
 	label, short_label = str(label or "").strip(), str(short_label or "").strip()
 	if not label or len(label) > 140 or len(short_label) > 60:
-		frappe.throw("请填写名称（不超过 140 字）；简称最多 60 字")
+		frappe.throw("请填写名称（不超过 140 字）；代码最多 60 字")
 	parent_doc = _check_parent(parent, kind, physical, settings)
 
 	def insert_node(node_parent, node_kind, group, direct=False):
@@ -353,7 +353,7 @@ def rename_location(name, label, short_label=None, version=None):
 	_, _, doc = _lock_location(name, version)
 	label, short_label = str(label or "").strip(), str(short_label or "").strip()
 	if not label or len(label) > 140 or len(short_label) > 60:
-		frappe.throw("请填写名称（不超过 140 字）；简称最多 60 字")
+		frappe.throw("请填写名称（不超过 140 字）；代码最多 60 字")
 	doc.ti_label, doc.ti_short_label = label, short_label
 	doc.save()
 	return tree()

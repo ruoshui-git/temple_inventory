@@ -1237,6 +1237,7 @@ class Projection(AbstractContextManager):
 						"warehouse_native_name",
 					),
 					sums,
+					maximums=("warehouse_name",),
 				)
 				self.main_table = view
 		elif not restored and dataset == "movements":

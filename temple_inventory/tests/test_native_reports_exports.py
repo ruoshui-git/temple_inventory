@@ -17,7 +17,16 @@ from frappe.utils import nowdate
 from openpyxl import load_workbook
 from pypdf import PdfReader
 
-from temple_inventory import browse, catalog, counts, exports, native_api, native_files, report_sources
+from temple_inventory import (
+	browse,
+	catalog,
+	counts,
+	exports,
+	native_api,
+	native_files,
+	report_sources,
+	warehouses,
+)
 from temple_inventory.export_columns import contract as export_contract
 from temple_inventory.export_columns import label as export_label
 from temple_inventory.printing import PDF_CELL_EXTRA_PT, PDF_PAGE_WIDTH_PT, PDF_TEXT_MARGIN
@@ -121,6 +130,29 @@ class NativeReportsExportsTests(NativeReportTestCase):
 				"ensure_ascii=False, indent=2, sort_keys=True))' > frontend/tests/fixtures/export-columns.json"
 			),
 		)
+
+	def test_location_name_export_is_opt_in_and_follows_location_search(self):
+		from temple_inventory.export_columns import default_columns
+
+		room = frappe.get_doc("Warehouse", self.room_a)
+		warehouses.rename_location(room.name, "阅览室", "A01", str(room.modified))
+		self.receipt(3)
+		self.submit(self.create(self.movement(quantity=4, target=self.b)))
+		query = self.query("inventory", "locations", search="阅览室 \uff2101")
+		for table in ("locations", "positions"):
+			self.assertNotIn("warehouse_name", default_columns("inventory", table))
+			with patch("temple_inventory.exports._enqueue"):
+				request = exports.request_export(query, table, columns=["warehouse_label", "warehouse_name"])
+			self.assertEqual(
+				json.loads(frappe.get_doc("Inventory Export Request", request["name"]).columns_json),
+				["warehouse_label", "warehouse_name"],
+			)
+			with Projection(query) as projection:
+				projection.build()
+				rows = list(exports._export_rows(projection, table))
+				self.assertEqual(
+					[(row["warehouse_label"], row["warehouse_name"]) for row in rows], [("A01", "阅览室")]
+				)
 
 	def test_loan_history_accepts_outstanding_export_column(self):
 		self.receipt(12)

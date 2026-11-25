@@ -2,7 +2,7 @@
 
 import frappe
 
-from temple_inventory import catalog, native_api
+from temple_inventory import catalog, native_api, warehouses
 from temple_inventory.projections import report_page
 from temple_inventory.report_query import validate_query
 from temple_inventory.tests.helpers import NativeReportTestCase
@@ -132,3 +132,35 @@ class SearchScopeTests(NativeReportTestCase):
 		self.assertNotIn(
 			line_name, {row["document"] for row in self._search("movements", "records", line_name)}
 		)
+
+	def test_location_words_match_one_visible_path_in_reports(self):
+		area_name = "第2寺院" + self.token
+		area_code = f"T2-{self.token}"
+		warehouses.create_location("Area", area_name, self.physical, area_code)
+		area = frappe.db.get_value("Warehouse", {"parent_warehouse": self.physical, "ti_label": area_name})
+		for room_name, name, code in ((self.room_a, "阅览室 / 左边", "A01"), (self.room_b, "办公室", "B01")):
+			room = frappe.get_doc("Warehouse", room_name)
+			warehouses.move_location(room.name, area, str(room.modified))
+			room.reload()
+			warehouses.rename_location(room.name, name, code, str(room.modified))
+		self.receipt(5)
+		transfer = self.submit(self.create(self.movement("Transfer", 2, self.a, self.b)))
+		for term in (
+			"左边 \uff2101",
+			"a01",
+			f"{area_code} 阅览室",
+			"第2寺院 阅览室",
+			"阅览室/左边",
+			f"\uff342-{self.token} \uff0f \uff2101",
+		):
+			with self.subTest(term=term):
+				rows = self._search("inventory", "locations", term)
+				self.assertEqual({row["warehouse"] for row in rows}, {self.a})
+				self.assertEqual(rows[0]["warehouse_name"], "阅览室 / 左边")
+				for view in ("lines", "records"):
+					self.assertIn(
+						transfer.name, {row["document"] for row in self._search("movements", view, term)}
+					)
+		for term in ("A01 办公室", f"A01 {self.item}", "实体库房", "直接存放"):
+			self.assertEqual(self._search("movements", "lines", term), [])
+		self.assertTrue(self._search("inventory", "summary", f"\uff34\uff29{self.item[2:]}"))

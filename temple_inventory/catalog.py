@@ -420,6 +420,43 @@ def _query_boolean(value, label):
 	frappe.throw(f"{label}筛选值无效")
 
 
+def _item_search_filters(search):
+	if not search:
+		return None
+	term = f"%{str(search).strip()}%"
+	return [
+		["Item", "item_code", "like", term],
+		["Item", "item_name", "like", term],
+		["Item", "description", "like", term],
+		["Item", "item_group", "like", term],
+		["Item Barcode", "barcode", "like", term],
+	]
+
+
+def _picker_items(filters, search=""):
+	return frappe.get_list(
+		"Item",
+		filters=filters,
+		or_filters=_item_search_filters(search),
+		fields=["name", "item_name"],
+		order_by="item_name asc, name asc",
+		limit_page_length=0,
+	)
+
+
+def _picker_items_at_locations(warehouses, item_filters, *, timestamp=None):
+	"""Get readable stock candidates for the location side of the picker search."""
+	filters = {"warehouse": ["in", sorted(warehouses)]}
+	if not timestamp:
+		filters["actual_qty"] = [">", 0]
+	if item_filters.get("name"):
+		filters["item_code"] = item_filters["name"]
+	codes = frappe.get_all("Bin", filters=filters, pluck="item_code", distinct=True, limit_page_length=0)
+	if not codes:
+		return []
+	return _picker_items({**item_filters, "name": ["in", codes]})
+
+
 def _picker_flatten_items(items, purpose, only_stock):
 	quantity_key = "damaged" if purpose == "damaged" else "available"
 	flat = []
@@ -594,16 +631,7 @@ def search_items(
 		if item_codes is not None:
 			positive &= set(selected)
 		filters["name"] = ["in", sorted(positive) or [""]]
-	or_filters = None
-	if search:
-		term = f"%{str(search).strip()}%"
-		or_filters = [
-			["Item", "item_code", "like", term],
-			["Item", "item_name", "like", term],
-			["Item", "description", "like", term],
-			["Item", "item_group", "like", term],
-			["Item Barcode", "barcode", "like", term],
-		]
+	or_filters = _item_search_filters(search)
 	from frappe.query_builder.functions import Count
 
 	permitted_items = frappe.qb.get_query(
@@ -684,6 +712,7 @@ def picker_rows(
 		{
 			"dataset": "inventory",
 			"view": "locations",
+			"search": str(search or "") if purpose in ("outbound", "damaged") else "",
 			"scope": {
 				"warehouses": warehouses or [],
 				"categories": categories or [],
@@ -731,7 +760,15 @@ def picker_rows(
 				}
 			)
 		return {"results": results, "matched_count": page["matched_count"], "next_start": page["next_start"]}
-	if not timestamp:
+	matching_warehouses = target_context.location_search_matches["search"] & target_context.selected
+	if purpose == "outbound":
+		matching_warehouses -= target_context.leased | target_context.damaged
+	elif purpose == "damaged":
+		matching_warehouses &= target_context.damaged
+	else:
+		matching_warehouses.clear()
+	item_matches = set()
+	if not timestamp or matching_warehouses:
 		item_filters = {"disabled": 0, "is_stock_item": 1}
 		if item_codes is not None:
 			selected_codes = frappe.parse_json(item_codes) if isinstance(item_codes, str) else item_codes
@@ -745,24 +782,15 @@ def picker_rows(
 			if _query_boolean(uncategorized, "无分类"):
 				groups.add(target_context.category_root)
 			item_filters["item_group"] = ["in", sorted(groups) or [""]]
-		or_filters = None
-		if search:
-			term = f"%{str(search).strip()}%"
-			or_filters = [
-				["Item", "item_code", "like", term],
-				["Item", "item_name", "like", term],
-				["Item", "description", "like", term],
-				["Item", "item_group", "like", term],
-				["Item Barcode", "barcode", "like", term],
-			]
-		items = frappe.get_list(
-			"Item",
-			filters=item_filters,
-			or_filters=or_filters,
-			fields=["name", "item_name"],
-			order_by="item_name asc, name asc",
-			limit_page_length=0,
-		)
+		items = _picker_items(item_filters, search)
+		if matching_warehouses:
+			item_matches = {row.name for row in items}
+			items.extend(
+				row
+				for row in _picker_items_at_locations(matching_warehouses, item_filters, timestamp=timestamp)
+				if row.name not in item_matches
+			)
+	if not timestamp:
 		item_names = [row.name for row in items]
 		bins = frappe.get_all(
 			"Bin",
@@ -776,6 +804,12 @@ def picker_rows(
 		)
 		eligible = set()
 		for row in bins:
+			if (
+				matching_warehouses
+				and row.item_code not in item_matches
+				and row.warehouse not in matching_warehouses
+			):
+				continue
 			if purpose == "damaged":
 				if row.warehouse in target_context.damaged:
 					eligible.add((row.item_code, row.warehouse))
@@ -797,7 +831,7 @@ def picker_rows(
 		page_pairs = eligible[start : start + page_length]
 		page_codes = sorted({item_code for item_code, _warehouse in page_pairs})
 		page = search_items(
-			search=search,
+			search="" if matching_warehouses else search,
 			page_length=len(page_codes) or 1,
 			warehouses=warehouses,
 			categories=categories,
@@ -813,6 +847,9 @@ def picker_rows(
 			"matched_count": len(eligible),
 			"next_start": start + page_length if start + page_length < len(eligible) else None,
 		}
+	if matching_warehouses:
+		item_codes = [row.name for row in items]
+		search = ""
 	flat = []
 	item_start = 0
 	while True:
@@ -820,83 +857,20 @@ def picker_rows(
 			search=search,
 			start=item_start,
 			page_length=100,
-			warehouses=[] if purpose == "inbound" else warehouses,
+			warehouses=warehouses,
 			categories=categories,
 			uncategorized=uncategorized,
 			in_stock_only=False,
 			item_codes=item_codes,
 			timestamp=timestamp,
 		)
-		for item in page["results"]:
-			stocks = item.get("stock") or []
-			quantity_key = "damaged" if purpose == "damaged" else "available"
-			if purpose == "inbound":
-				warehouse = target_warehouses[0] if target_warehouses else ""
-				target_stocks = [row for row in stocks if row.get("warehouse") == warehouse]
-				picker_quantity = sum(float(row.get("available", 0) or 0) for row in target_stocks)
-				if cint(only_stock) and picker_quantity <= 0:
-					continue
-				flat.append(
-					{
-						**item,
-						"stock": target_stocks,
-						"warehouse": warehouse,
-						"warehouse_label": target_context.label(warehouse) if warehouse else "",
-						"picker_quantity": picker_quantity,
-						"batch_choices": [
-							{"batch_no": row["batch_no"], "qty": row.get("available", 0)}
-							for row in target_stocks
-							if row.get("batch_no")
-						],
-					}
-				)
-				continue
-			by_warehouse = {}
-			for stock in stocks:
-				if (purpose == "count" and (not cint(only_stock) or stock.get("available", 0) > 0)) or (
-					purpose != "count" and stock.get(quantity_key, 0) > 0
-				):
-					warehouse = stock.get("warehouse", "")
-					entry = by_warehouse.get(warehouse)
-					if entry is None:
-						entry = {**stock, "batch_choices": []}
-						entry.pop("batch_no", None)
-						entry.pop("expiry_date", None)
-						entry.pop("manufacturing_date", None)
-						entry[quantity_key] = 0
-						by_warehouse[warehouse] = entry
-					entry[quantity_key] = float(entry.get(quantity_key, 0) or 0) + float(
-						stock.get(quantity_key, 0) or 0
-					)
-					if stock.get("batch_no"):
-						entry["batch_choices"].append(
-							{"batch_no": stock["batch_no"], "qty": stock.get(quantity_key, 0)}
-						)
-			locations = list(by_warehouse.values())
-			if locations:
-				for stock in locations:
-					flat.append(
-						{
-							**item,
-							"stock": [stock],
-							"warehouse": stock.get("warehouse", ""),
-							"warehouse_label": stock.get("warehouse_label", ""),
-							"picker_quantity": stock.get("damaged", 0)
-							if purpose == "damaged"
-							else stock.get("available", 0),
-						}
-					)
-			elif purpose == "count" and not cint(only_stock):
-				flat.append(
-					{
-						**item,
-						"stock": [],
-						"warehouse": "",
-						"warehouse_label": "",
-						"picker_quantity": 0,
-						"batch_choices": [],
-					}
-				)
+		for row in _picker_flatten_items(page["results"], purpose, bool(cint(only_stock))):
+			if (
+				not matching_warehouses
+				or row["item_code"] in item_matches
+				or row["warehouse"] in matching_warehouses
+			):
+				flat.append(row)
 		if page["next_start"] is None:
 			break
 		item_start = page["next_start"]

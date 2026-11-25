@@ -47,6 +47,33 @@ class PrintingTests(NativeDocumentTests):
 		self.assertIn("礼堂折叠椅", text)
 		self.assertIn(self.item, text)
 
+	def test_record_print_uses_the_location_code_then_distinct_name(self):
+		from temple_inventory import warehouses
+
+		room = frappe.get_doc("Warehouse", self.room_a)
+		warehouses.rename_location(room.name, "阅览室", "A01", str(room.modified))
+		draft = self.create(self.movement(quantity=3))
+		doc = frappe.get_doc("Stock Entry", draft["name"])
+		payload = ti_record(doc)
+		self.assertEqual(payload["scope"], "A01 阅览室")
+		self.assertEqual(payload["lines"][0]["location"], "A01 阅览室")
+		self.assertIn("A01 阅览室", print_record_html("Stock Entry", doc.name)["html"])
+
+	def test_record_print_title_names_sites_when_several_locations_are_involved(self):
+		from temple_inventory import warehouses
+
+		site = "第2寺院" + frappe.generate_hash(length=6)
+		code = "T2" + frappe.generate_hash(length=4)
+		warehouses.create_location("Area", site, self.physical, code)
+		area = frappe.db.get_value("Warehouse", {"parent_warehouse": self.physical, "ti_label": site})
+		for name in (self.room_a, self.room_b):
+			warehouses.move_location(name, area, str(frappe.db.get_value("Warehouse", name, "modified")))
+		data = self.movement(quantity=3)
+		data["items"].append({**data["items"][0], "t_warehouse": self.b})
+		payload = ti_record(frappe.get_doc("Stock Entry", self.create(data)["name"]))
+		self.assertEqual(payload["scope"], f"{code} {site}")
+		self.assertTrue(all(line["location"].startswith(f"{code}/") for line in payload["lines"]))
+
 	def test_shipped_slip_fits_thirty_one_lines_on_at_most_two_letter_pages(self):
 		data = self.movement()
 		data["items"] = [

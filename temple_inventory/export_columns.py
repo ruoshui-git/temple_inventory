@@ -18,6 +18,7 @@ LABELS = {
 	"activity": "活动编号",
 	"warehouse": "库位",
 	"warehouse_label": "库位",
+	"warehouse_name": "库位名称",
 	"warehouse_native_name": "ERPNext 库位",
 	"origin_warehouse_native_name": "原位置 ERPNext 库位",
 	"source_warehouse": "来源位置",
@@ -422,11 +423,12 @@ DATASET_DEFAULT_COLUMNS = {
 # identifiers carried by the native projection are never accepted from a client.
 EXTRA_COLUMNS = {
 	"summary": {"document_count"},
-	"locations": {"manufacturing_date", "warehouse", "warehouse_native_name", "serial_nos"},
-	"positions": {"warehouse", "warehouse_native_name"},
+	"locations": {"manufacturing_date", "warehouse", "warehouse_name", "warehouse_native_name", "serial_nos"},
+	"positions": {"warehouse", "warehouse_name", "warehouse_native_name"},
 	"batches": {
 		"manufacturing_date",
 		"warehouse_label",
+		"warehouse_name",
 		"warehouse_native_name",
 		"available",
 		"loaned",

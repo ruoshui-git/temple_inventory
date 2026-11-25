@@ -221,6 +221,7 @@ def ti_record(doc):
 	from temple_inventory.native_stock import MOVEMENT_LABELS
 	from temple_inventory.native_topology import present_locations
 	from temple_inventory.uom_labels import uom_label
+	from temple_inventory.warehouse_names import distinct_location_name
 
 	data = native_api.serialize(doc)
 	category_root = item_group_root()
@@ -239,14 +240,26 @@ def ti_record(doc):
 		],
 		limit_page_length=0,
 	)
-	labels = {row["name"]: row["label"] for row in present_locations(warehouses, settings=settings)}
+	labels = {}
+	for row in present_locations(warehouses, settings=settings):
+		name = distinct_location_name(row["path_segments"], row["path_names"])
+		labels[row["name"]] = f"{row['label']} {name}" if name else row["label"]
+
 	parents = {row["name"]: row.get("parent_warehouse") for row in warehouses}
+
+	def location(name):
+		return labels.get(name, name)
 
 	def top_location(name):
 		current = name
 		while current and parents.get(current) and parents[current] != settings.physical_root_warehouse:
 			current = parents[current]
 		return labels.get(current or name, labels.get(name, name))
+
+	def heading(names):
+		"""One location in full; several only as their sites, so the title stays one line."""
+		places = list(dict.fromkeys(location(name) for name in names))
+		return places[0] if len(places) == 1 else "、".join(dict.fromkeys(top_location(n) for n in names))
 
 	kind = data.get("kind") or ("Reconcile" if doc.doctype == "Stock Reconciliation" else "")
 	kind_label = "盘点" if doc.doctype == "Stock Reconciliation" else MOVEMENT_LABELS.get(kind, kind)
@@ -258,11 +271,10 @@ def ti_record(doc):
 		location_names = sorted(
 			{row.get("warehouse") for row in doc.get("items", []) if row.get("warehouse")}
 		)
-		scope = "、".join(dict.fromkeys(top_location(name) for name in location_names))
+		scope = heading(location_names)
 		from_label, to_label = "", ""
 	else:
-		from_label = "、".join(dict.fromkeys(top_location(name) for name in from_names))
-		to_label = "、".join(dict.fromkeys(top_location(name) for name in to_names))
+		from_label, to_label = heading(from_names), heading(to_names)
 		scope = (
 			f"{from_label} → {to_label}"
 			if kind == "Transfer"
@@ -321,8 +333,8 @@ def ti_record(doc):
 			row.get("item_code", "") + "\0" + str(row.get("warehouse", "")) + "\0" + str(batch), {}
 		)
 		qty = row.get("transfer_qty") or row.get("qty") or 0
-		line_from = top_location(row.get("s_warehouse")) if row.get("s_warehouse") else ""
-		line_to = top_location(row.get("t_warehouse")) if row.get("t_warehouse") else ""
+		line_from = location(row.get("s_warehouse")) if row.get("s_warehouse") else ""
+		line_to = location(row.get("t_warehouse")) if row.get("t_warehouse") else ""
 		line_location = f"{line_from} → {line_to}" if line_from and line_to else line_to or line_from
 		book = review.get("baseline_qty")
 		actual = review.get("actual_qty")

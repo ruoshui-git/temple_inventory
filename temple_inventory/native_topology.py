@@ -288,7 +288,7 @@ def present_locations(rows, *, physical_root=None, settings=None):
 		if cint(row.get("ti_direct_storage")):
 			owners[name] = row.parent_warehouse
 			direct_by_parent.setdefault(row.parent_warehouse, []).append(row)
-	paths = build_paths(
+	paths, path_names = build_paths(
 		rows,
 		excluded_roots=(physical_root, settings.root_warehouse, settings.system_root_warehouse),
 		direct_owners=owners,
@@ -301,10 +301,11 @@ def present_locations(rows, *, physical_root=None, settings=None):
 		kind = _derived_kind(row, direct_by_parent, rows, systems)
 		direct = direct_by_parent.get(name, [])
 		missing_direct = kind in {"room", "shelf"} and cint(row.is_group) and not direct
-		path = paths[name]
+		path, names = paths[name], path_names[name]
 		if is_direct:
 			kind = _derived_kind(rows.get(owner_name) or row, direct_by_parent, rows, systems)
 			path = paths.get(owner_name, path)
+			names = path_names.get(owner_name, names)
 		full = full_label(row, rows, owner_name if is_direct else "")
 		ancestor_terms = []
 		ancestor = rows.get(row.parent_warehouse)
@@ -337,6 +338,7 @@ def present_locations(rows, *, physical_root=None, settings=None):
 				"full_label": full,
 				"path": compact_path,
 				"path_segments": path,
+				"path_names": names,
 				"native_name": str(row.get("warehouse_name") or ""),
 				"search_text": search_text,
 				"kind": kind,

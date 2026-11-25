@@ -20,11 +20,9 @@ class NativeReportsFiltersTests(NativeReportTestCase):
 	def test_report_search_ignores_spaces_around_location_path_slashes(self):
 		from temple_inventory.report_sources import ReportContext
 
-		context = object.__new__(ReportContext)
-		context.query = {"search": "T2 / F / A01", "relatedSearch": ""}
-		self.assertTrue(context.matches_search(["T2/F/A01"]))
-		context.query["search"] = "T2/F/A01"
-		self.assertTrue(context.matches_search(["T2 / F / A01"]))
+		for search, field in (("T2 / F / A01", "T2/F/A01"), ("T2/F/A01", "T2 / F / A01")):
+			context = ReportContext(self.query("inventory", "locations", search=search))
+			self.assertTrue(context.matches_search([field]))
 
 	def test_document_record_views_drop_category_scope(self):
 		for dataset, view in (
@@ -135,6 +133,7 @@ class NativeReportsFiltersTests(NativeReportTestCase):
 			item_fields=lambda item: {"item_code": item.name, "item_name": item.item_name},
 			matches_search=lambda _values, **_kwargs: True,
 			label=lambda warehouse: warehouse,
+			location_names={},
 			location_fields=lambda _warehouse: {},
 		)
 		with patch("temple_inventory.report_sources.stock_pairs", return_value=pairs):

@@ -95,7 +95,7 @@ class NativeReportsProjectionsTests(NativeReportTestCase):
 			"SHELF-1": frappe._dict(
 				name="SHELF-1",
 				warehouse_name="T1/FY/S1",
-				ti_label="第一层",
+				ti_label="第一层 / 左边",
 				ti_short_label="S1",
 				parent_warehouse="ROOM-1",
 				warehouse_type="Shelf",
@@ -105,6 +105,7 @@ class NativeReportsProjectionsTests(NativeReportTestCase):
 				name="DIRECT-1",
 				warehouse_name=f"T1/FY{DIRECT_STORAGE_SUFFIX}",
 				ti_label="FY",
+				ti_short_label="stale-code",
 				parent_warehouse="ROOM-1",
 				warehouse_type="",
 				is_group=0,
@@ -136,6 +137,20 @@ class NativeReportsProjectionsTests(NativeReportTestCase):
 		self.assertIn("FY", presented["ROOM-2"]["search_text"])
 		self.assertIn("T2", presented["ROOM-2"]["search_text"])
 		self.assertTrue(presented["DIRECT-1"]["storable"])
+
+		self.assertEqual(presented["PHYSICAL"]["path_names"], [])
+		self.assertEqual(presented["DIRECT-1"]["path_segments"], ["T1", "FY"])
+		self.assertEqual(presented["DIRECT-1"]["path_names"], ["第一寺院", "FY"])
+		self.assertEqual(presented["SHELF-1"]["path_names"], ["第一寺院", "FY", "第一层 / 左边"])
+
+		restricted = {name: rows[name] for name in ("ROOM-1", "DIRECT-1", "SHELF-1")}
+		restricted = {row["name"]: row for row in present_locations(restricted, settings=settings)}
+		self.assertEqual(restricted["DIRECT-1"]["path_segments"], ["FY"])
+		self.assertEqual(restricted["DIRECT-1"]["path_names"], ["FY"])
+		self.assertEqual(restricted["SHELF-1"]["path_names"], ["FY", "第一层 / 左边"])
+		leaf_only = present_locations([rows["DIRECT-1"]], settings=settings)[0]
+		self.assertEqual(leaf_only["path_segments"], [])
+		self.assertEqual(leaf_only["path_names"], [])
 
 	def test_repeated_allocations_authorize_item_images_once_per_report_context(self):
 		from temple_inventory.native_files import attachments
