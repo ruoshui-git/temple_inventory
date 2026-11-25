@@ -1288,6 +1288,50 @@ describe("native movement editor integration", () => {
       loanActivity: "ACT-A",
     });
   });
+  it("keeps the requested loan order when an earlier loan answers last", async () => {
+    const base = service();
+    let answerFirst = () => {};
+    const first = new Promise<void>((resolve) => (answerFirst = resolve));
+    const call = vi.fn(async (method, args) => {
+      if (method !== "native_api.loan_detail") return base(method, args);
+      const name = String(args.name);
+      if (name === "LOAN-A") await first;
+      return {
+        name,
+        doctype: "Stock Entry",
+        kind: "Loan",
+        docstatus: 1,
+        items: [
+          {
+            name: `LINE-${name}`,
+            item_code: "ITEM-A",
+            s_warehouse: "ROOM-A",
+            t_warehouse: "LEASED",
+            stock_uom: "Nos",
+            uom: "Nos",
+            conversion_factor: 1,
+            allocations: [{ batch_no: "", outstanding_qty: 2 }],
+          },
+        ],
+      };
+    });
+    const { controller: c } = setup(
+      () =>
+        useOperationEditor({
+          kind: "Return",
+          originalLoan: JSON.stringify(["LOAN-A", "LOAN-B"]),
+        }),
+      call,
+    );
+    await flushPromises();
+    answerFirst();
+    await flushPromises();
+    expect(c.draft.value.loanName).toBe("LOAN-A");
+    expect(c.draft.value.items.map((line) => line.loanName)).toEqual([
+      "LOAN-A",
+      "LOAN-B",
+    ]);
+  });
   it("prefills one Return from loans with different borrowers and activities", async () => {
     const base = service();
     const call = vi.fn(async (method, args) => {

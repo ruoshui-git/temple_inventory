@@ -39,6 +39,12 @@ import {
   type AttachmentEntry,
 } from "../attachments/useAttachments";
 import { showToast } from "../../services/toast";
+type SelectedAllocation = {
+  original_loan_line: string;
+  batch_no: string;
+  qty: number;
+};
+
 export function useOperationEditor(props: {
   kind?: OperationKind;
   identity?: NativeIdentity;
@@ -639,10 +645,9 @@ export function useOperationEditor(props: {
         const byLoan = new Map<string, typeof rows>();
         for (const row of rows)
           byLoan.set(row.loan, [...(byLoan.get(row.loan) || []), row]);
-        await Promise.all(
-          [...byLoan].map(([name, allocations]) =>
-            appendLoan(name, allocations, signal),
-          ),
+        await appendLoans(
+          [...byLoan].map(([name, allocations]) => ({ name, allocations })),
+          signal,
         );
         initialItemsApplied = true;
       }
@@ -659,10 +664,9 @@ export function useOperationEditor(props: {
         } catch {
           // Existing single-loan prefill values are plain names.
         }
-        await Promise.all(
-          [...new Set(loanNames)].map((name) =>
-            appendLoan(name, undefined, signal),
-          ),
+        await appendLoans(
+          [...new Set(loanNames)].map((name) => ({ name })),
+          signal,
         );
       }
       if (draft.value.items.some((line) => line.loanName))
@@ -771,13 +775,34 @@ export function useOperationEditor(props: {
       if (active()) busy.value = false;
     }
   }
-  async function appendLoan(
+  async function appendLoan(name: string) {
+    await appendLoans([{ name }]);
+  }
+  // Load loans together, then add their lines in the requested order: the first
+  // loan also becomes the draft's loan, so response timing must not choose it.
+  async function appendLoans(
+    loans: { name: string; allocations?: SelectedAllocation[] }[],
+    signal?: AbortSignal,
+  ) {
+    const results = await Promise.allSettled(
+      loans.map(({ name, allocations }) =>
+        loanAdditions(name, allocations, signal),
+      ),
+    );
+    if (!active()) return;
+    results.forEach((result, index) => {
+      if (result.status === "rejected" || !result.value) return;
+      draft.value.loanName ||= loans[index]!.name;
+      draft.value.items.push(...result.value);
+    });
+    const failure = results.find(
+      (result): result is PromiseRejectedResult => result.status === "rejected",
+    );
+    if (failure) throw failure.reason;
+  }
+  async function loanAdditions(
     name: string,
-    selectedAllocations?: {
-      original_loan_line: string;
-      batch_no: string;
-      qty: number;
-    }[],
+    selectedAllocations?: SelectedAllocation[],
     signal?: AbortSignal,
   ) {
     if (!name || !active()) return;
@@ -855,9 +880,7 @@ export function useOperationEditor(props: {
         });
       }
     }
-    if (!active()) return;
-    draft.value.loanName ||= name;
-    draft.value.items.push(...additions);
+    return additions;
   }
   async function loadLoanDetail(
     name: string,
