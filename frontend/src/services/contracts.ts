@@ -10,6 +10,7 @@ export interface LocationNode {
   short_label: string;
   full_label: string;
   path: string;
+  path_segments?: string[];
   search_text: string;
   kind: "area" | "room" | "shelf" | "system";
   owner: string;
@@ -356,6 +357,7 @@ export interface BootstrapData {
     short_label: string;
     full_label: string;
     path: string;
+    path_segments?: string[];
     search_text: string;
     kind: "area" | "room" | "shelf" | "system";
     owner: string;

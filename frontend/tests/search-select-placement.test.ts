@@ -17,10 +17,16 @@ function rect(top: number) {
     toJSON() {},
   } as DOMRect;
 }
-async function showAt(top: number) {
+async function showAt(
+  top: number,
+  options: { value: string; label: string }[] = [
+    { value: "厨房", label: "厨房" },
+    { value: "仓库", label: "仓库" },
+  ],
+) {
   const wrapper = mount(SearchSelect, {
     attachTo: document.body,
-    props: { label: "入库位置", modelValue: "", options: ["厨房", "仓库"] },
+    props: { label: "入库位置", modelValue: "", options },
   });
   wrapper.get("input[role=combobox]").element.getBoundingClientRect = () =>
     rect(top);
@@ -46,6 +52,17 @@ afterEach(() => {
 });
 
 describe("SearchSelect popup placement", () => {
+  it("matches a compact location path when the query includes slash spaces", async () => {
+    const { wrapper } = await showAt(180, [
+      { value: "WH-1", label: "T2/F/A01" },
+    ]);
+    await wrapper.get('input[role="combobox"]').setValue("T2 / F / A01");
+    await flushPromises();
+    expect(document.querySelector('[role="option"]')?.textContent).toContain(
+      "T2/F/A01",
+    );
+  });
+
   it("anchors the listbox to the input bottom with a four pixel gap", async () => {
     const { list } = await showAt(180);
     expect(Number.parseFloat(list.style.top)).toBe(224);

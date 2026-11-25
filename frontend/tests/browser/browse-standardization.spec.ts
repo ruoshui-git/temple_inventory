@@ -17,7 +17,7 @@ async function expectSiteAndLeaf(
   leaf: string,
 ) {
   await expect(locator).toHaveAttribute("title", title);
-  await expect(locator.locator(".location-label-site")).toHaveText(`${site} /`);
+  await expect(locator.locator(".location-label-site")).toHaveText(`${site}/`);
   await expect(locator.locator(".location-label-tail")).toContainText(leaf);
   const leafVisible = await locator.evaluate((element, target) => {
     const tail = element.querySelector(".location-label-tail");
@@ -52,8 +52,8 @@ async function prepare(page: Page, textScale: number, withMore = false) {
   const longT2 = {
     ...sampleWarehouses.find((row) => row.name === "ROOM-A")!,
     name: "LONG-T2",
-    label: "T2 / OUT / FY / 北侧器材储物架第一层",
-    path: "T2 / OUT / FY / 北侧器材储物架第一层",
+    label: "T2/OUT/FY/北侧器材储物架第一层",
+    path: "T2/OUT/FY/北侧器材储物架第一层",
     local_label: "北侧器材储物架第一层",
     short_label: "S1",
     full_label: "北侧器材储物架第一层",
@@ -64,8 +64,8 @@ async function prepare(page: Page, textScale: number, withMore = false) {
   const longT1 = {
     ...longT2,
     name: "LONG-T1",
-    label: "T1 / OUT / FY / 南侧器材储物架第二层",
-    path: "T1 / OUT / FY / 南侧器材储物架第二层",
+    label: "T1/OUT/FY/南侧器材储物架第二层",
+    path: "T1/OUT/FY/南侧器材储物架第二层",
     local_label: "南侧器材储物架第二层",
   };
   let release!: () => void;
@@ -390,7 +390,7 @@ test("stock and movement browse omit retired full-location columns at 1280px", a
   const stockLocation = page.locator(".location-label").first();
   await expectSiteAndLeaf(
     stockLocation,
-    "T2 / OUT / FY / 北侧器材储物架第一层",
+    "T2/OUT/FY/北侧器材储物架第一层",
     "T2",
     "北侧器材储物架第一层",
   );
@@ -402,13 +402,13 @@ test("stock and movement browse omit retired full-location columns at 1280px", a
   const listLocation = page.locator(".location-label").first();
   await expect(listLocation).toHaveAttribute(
     "title",
-    "T2 / OUT / FY / 北侧器材储物架第一层",
+    "T2/OUT/FY/北侧器材储物架第一层",
   );
-  await expect(listLocation.locator(".location-label-site")).toHaveText("T2 /");
+  await expect(listLocation.locator(".location-label-site")).toHaveText("T2/");
   await page.getByRole("button", { name: "卡片视图" }).click();
   await expectSiteAndLeaf(
     page.locator(".location-label").first(),
-    "T2 / OUT / FY / 北侧器材储物架第一层",
+    "T2/OUT/FY/北侧器材储物架第一层",
     "T2",
     "北侧器材储物架第一层",
   );
@@ -434,7 +434,7 @@ test("stock and movement browse omit retired full-location columns at 1280px", a
   const movementLabel = page.locator(".location-label").first();
   await expectSiteAndLeaf(
     movementLabel,
-    "T2 / OUT / FY / 北侧器材储物架第一层",
+    "T2/OUT/FY/北侧器材储物架第一层",
     "T2",
     "北侧器材储物架第一层",
   );
@@ -446,7 +446,7 @@ test("stock and movement browse omit retired full-location columns at 1280px", a
   await page.goto("/inventory/movements?view=items");
   await expectSiteAndLeaf(
     page.locator(".location-label").first(),
-    "T2 / OUT / FY / 北侧器材储物架第一层",
+    "T2/OUT/FY/北侧器材储物架第一层",
     "T2",
     "北侧器材储物架第一层",
   );

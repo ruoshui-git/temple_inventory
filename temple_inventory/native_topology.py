@@ -313,7 +313,9 @@ def present_locations(rows, *, physical_root=None, settings=None):
 				filter(None, (str(ancestor.get("ti_label") or ""), str(ancestor.get("ti_short_label") or "")))
 			)
 			ancestor = rows.get(ancestor.parent_warehouse)
+		compact_path = "/".join(path)
 		search_terms = [
+			compact_path,
 			" / ".join(path),
 			full,
 			str(row.warehouse_name or ""),
@@ -325,7 +327,7 @@ def present_locations(rows, *, physical_root=None, settings=None):
 		storable = bool(is_direct or (not cint(row.is_group) and not is_direct) or direct)
 		if missing_direct:
 			storable = False
-		label = " / ".join(path) or local_label(row)
+		label = compact_path or local_label(row)
 		items.append(
 			{
 				"name": name,
@@ -333,7 +335,8 @@ def present_locations(rows, *, physical_root=None, settings=None):
 				"local_label": str(row.get("ti_label") or ""),
 				"short_label": str(row.get("ti_short_label") or ""),
 				"full_label": full,
-				"path": " / ".join(path),
+				"path": compact_path,
+				"path_segments": path,
 				"native_name": str(row.get("warehouse_name") or ""),
 				"search_text": search_text,
 				"kind": kind,

@@ -8,11 +8,12 @@ import {
 } from "../src/lib/warehouseLabel";
 const room: LocationNode = {
   name: "ROOM-A",
-  label: "T2 / A02",
+  label: "T2/A02",
   local_label: "演示室甲",
   short_label: "T2 / A02",
   full_label: "演示室甲",
-  path: "T2 / A02",
+  path: "T2/A02",
+  path_segments: ["T2", "A02"],
   search_text: "T2 A02 演示室甲",
   kind: "room",
   owner: "",
@@ -39,17 +40,17 @@ const direct: LocationNode = {
 };
 describe("warehouse presenter readers", () => {
   it("uses the full canonical path for labels", () => {
-    expect(warehouseLabel(room.name, [room, direct])).toBe("T2 / A02");
-    expect(warehouseLabel(direct.name, [room, direct])).toBe("T2 / A02");
+    expect(warehouseLabel(room.name, [room, direct])).toBe("T2/A02");
+    expect(warehouseLabel(direct.name, [room, direct])).toBe("T2/A02");
     expect(warehouseTitle(direct.name, [room, direct])).toBe(
-      "T2 / A02 · 演示室甲",
+      "T2/A02 · 演示室甲",
     );
   });
   it("adds the location's own name only when the codes path does not show it", () => {
     expect(warehouseName(room.name, [room])).toBe("演示室甲");
     const unnamed = { ...room, full_label: "A02" };
     expect(warehouseName(unnamed.name, [unnamed])).toBe("");
-    expect(warehouseTitle(unnamed.name, [unnamed])).toBe("T2 / A02");
+    expect(warehouseTitle(unnamed.name, [unnamed])).toBe("T2/A02");
     expect(warehouseName("UNKNOWN", [room])).toBe("");
   });
   it("uses explicit labels only when a presenter row is unavailable", () => {
@@ -61,19 +62,21 @@ describe("warehouse presenter readers", () => {
     const first = {
       ...room,
       name: "ROOM-T1",
-      label: "T1 / A14",
-      path: "T1 / A14",
+      label: "T1/A14",
+      path: "T1/A14",
+      path_segments: ["T1", "A14"],
       search_text: "T1 A14 演示室甲",
     };
     const second = {
       ...room,
       name: "ROOM-T2",
-      label: "T2 / A14",
-      path: "T2 / A14",
+      label: "T2/A14",
+      path: "T2/A14",
+      path_segments: ["T2", "A14"],
       search_text: "T2 A14 演示室甲",
     };
-    expect(warehouseLabel(first.name, [first, second])).toBe("T1 / A14");
-    expect(warehouseLabel(second.name, [first, second])).toBe("T2 / A14");
+    expect(warehouseLabel(first.name, [first, second])).toBe("T1/A14");
+    expect(warehouseLabel(second.name, [first, second])).toBe("T2/A14");
     expect(warehouseSearchText(first.name, [first, second])).toContain("T1");
     expect(warehouseSearchText(second.name, [first, second])).toContain("T2");
   });

@@ -132,15 +132,16 @@ const selectedOption = computed(() =>
 const selected = computed(
 	() => props.selectedLabel || selectedOption.value?.label || props.modelValue || "",
 );
+const normalizeSearch = (value: string) => value.toLocaleLowerCase().replace(/\s*\/\s*/g, "/");
 const matches = computed(() =>
 	props.remote
 		? options.value
 		: !typed.value
 			? options.value
 			: options.value.filter((o) =>
-					`${o.label} ${o.value} ${o.detail || ""} ${o.keywords || ""}`
-						.toLocaleLowerCase()
-						.includes(query.value.trim().toLocaleLowerCase()),
+					normalizeSearch(
+						`${o.label} ${o.value} ${o.detail || ""} ${o.keywords || ""}`,
+					).includes(normalizeSearch(query.value.trim())),
 				),
 );
 const virtual = computed(() => matches.value.length > 100);
@@ -352,7 +353,7 @@ defineExpose({
 							@click="!option.disabled && choose(option.value)"
 						>
 							<LocationLabel
-								v-if="option.label.includes(' / ')"
+								v-if="option.label.includes('/')"
 								:label="option.label"
 							/>
 							<template v-else>{{ option.label }}</template

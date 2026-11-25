@@ -9,7 +9,7 @@ This document owns user-visible behavior, interaction and language. [DESIGN_SYST
 - 库存列表 has a 截至 filter (mega filter; chip `截至：现在` by default): a past date (end of that day) or date and time, site time, never in the future. Rows then come from the ERPNext ledger at that moment (locations, batches, serials, 借出/损坏), expiry status is judged on that date, a theme-colored notice bar `正在查看 … 的历史库存` offers 回到现在, and stock-changing actions are hidden. Exports list 截至 and add it to the filename; 生成时间 stays the generation time.
 - 库存列表 shows 位置 and 批次 as separate chip columns, each hideable; 效期 is hidden by default (cards keep the status badge). 管理与设置 and other 更多 groups show at most three equal-width cards per row.
 - 效期 names the expiry concept and compound columns (date + status); the date itself is 到期日期 in columns, filters, sort and exports, with 剩余天数 and 到期状态.
-- Hierarchy filters use `local_label` as the primary name and `full_label` as accessible title; search uses `search_text`. Warehouse cells, chips and selector options use canonical `label`, which is the full codes-only path (`path`); hierarchy filters and trees keep `local_label`. Keep native warehouse keys in routes and writes.
+- Hierarchy filters use `local_label` as the primary name and `full_label` as accessible title; search uses `search_text`. Warehouse cells, chips and selector options use canonical `label`, the full path with compact `/` separators (`path`); `path_segments` preserves segment boundaries when a local label itself contains `/`. Hierarchy filters and trees keep `local_label`. Keep native warehouse keys in routes and writes.
 - Category is optional. Hide root categories in ordinary labels/selectors. Category filters combine selected subtrees with an independent exact-match `无分类` option. Renaming updates linked Items; native permission, child and link guards control deletion.
 - Environment branding comes from `temple_inventory_environment`: `development`, `sample`, `staging` or `production`. Missing config defaults to development only on `developer_mode`, otherwise production; unknown values default to production. Visible labels are 开发, 演示, 预发布. Production has no environment badge. See [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) for colors.
 
@@ -116,6 +116,7 @@ This document owns user-visible behavior, interaction and language. [DESIGN_SYST
 
 ## Changelog
 
+- 2026-11-25: location paths display compact slash separators (`T2/F/A01`), keep the site and cut from the left on narrow screens as before; search treats spaced and compact slash input alike.
 - 2026-11-22: closing a dialog, sheet or image viewer no longer undoes a search or filter typed right after it; navigation waits for the overlay's own Back to land.
 - 2026-11-22: location labels are the full codes-only path (`T2 / F / A01`, site kept on narrow screens), so repeated room codes across sites stay distinct; 完整位置 columns are removed. ERPNext Warehouse names use compact paths (`T2/F/A01 - O`); an explicit admin sync renames Warehouse documents to match, and relabels keep them in sync afterwards. 盘点调整 on zero-valued Items submits (zero valuation allowed as for 期初库存).
 - 2026-11-17: new 单位 filter (Item stock unit, multi-select) on 库存、效期、货物流动、借用、盘点记录、活动、草稿、损坏待处理、报表/导出 and the 盘点 editor.

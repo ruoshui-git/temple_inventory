@@ -15,10 +15,8 @@ export function warehouseLabel(
 export function warehouseName(name: unknown, nodes: LocationNode[]): string {
   const node = nodes.find((row) => row.name === name);
   if (!node?.full_label) return "";
-  const segments = node.label.split(" / ");
-  return node.full_label === segments[segments.length - 1]
-    ? ""
-    : node.full_label;
+  const lastSegment = node.path_segments?.at(-1);
+  return node.full_label === (lastSegment || node.label) ? "" : node.full_label;
 }
 
 /** Tooltip text: the canonical path followed by the location's own name. */

@@ -48,7 +48,15 @@ class NativeWarehouseTests(NativeDocumentTests):
 			rows = native_topology._visible_warehouses()
 			presented = {
 				row["name"]: {
-					key: row[key] for key in ("label", "local_label", "full_label", "path", "search_text")
+					key: row[key]
+					for key in (
+						"label",
+						"local_label",
+						"full_label",
+						"path",
+						"path_segments",
+						"search_text",
+					)
 				}
 				for row in native_topology.present_locations(rows)
 			}
@@ -63,9 +71,10 @@ class NativeWarehouseTests(NativeDocumentTests):
 			baseline[leaf][0],
 			f"SA/Snapshot room {self.token}/Snapshot shelf {self.token}{DIRECT_STORAGE_SUFFIX}",
 		)
-		self.assertEqual(baseline[room][1]["path"], f"SA / Snapshot room {self.token}")
+		self.assertEqual(baseline[room][1]["path"], f"SA/Snapshot room {self.token}")
+		self.assertEqual(baseline[room][1]["path_segments"], ["SA", f"Snapshot room {self.token}"])
 		self.assertEqual(baseline[room][1]["local_label"], f"Snapshot room {self.token}")
-		self.assertEqual(baseline[room][1]["label"], f"SA / Snapshot room {self.token}")
+		self.assertEqual(baseline[room][1]["label"], f"SA/Snapshot room {self.token}")
 		self.assertEqual(baseline[room][1]["full_label"], f"Snapshot room {self.token}")
 		self.assertIn(f"Snapshot area {self.token}", baseline[room][1]["search_text"])
 		self.assertEqual(baseline[self.system_root][1]["path"], "")
@@ -76,11 +85,11 @@ class NativeWarehouseTests(NativeDocumentTests):
 		self.assertIn(DIRECT_STORAGE_SUFFIX, baseline[direct][1]["search_text"])
 		self.assertEqual(
 			baseline[shelf][1]["path"],
-			f"SA / Snapshot room {self.token} / Snapshot shelf {self.token}",
+			f"SA/Snapshot room {self.token}/Snapshot shelf {self.token}",
 		)
 		self.assertEqual(
 			baseline[shelf][1]["label"],
-			f"SA / Snapshot room {self.token} / Snapshot shelf {self.token}",
+			f"SA/Snapshot room {self.token}/Snapshot shelf {self.token}",
 		)
 		self.assertEqual(baseline[shelf][1]["local_label"], f"Snapshot shelf {self.token}")
 		self.assertEqual(baseline[shelf][1]["full_label"], f"Snapshot shelf {self.token}")

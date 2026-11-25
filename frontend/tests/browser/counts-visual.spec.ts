@@ -51,7 +51,7 @@ const baselineRows = reviewRows.map((row) => ({
   actual_qty: null,
   review_state: "Unreviewed",
 }));
-const countPath = "T2 / OUT / FY / 北侧器材储物架第一层";
+const countPath = "T2/OUT/FY/北侧器材储物架第一层";
 const longCountLocation = {
   ...sampleWarehouses.find((row) => row.name === "ROOM-A")!,
   name: "LONG-COUNT",
@@ -220,7 +220,7 @@ test("fixture count editor and detail render the review layouts at desktop and p
     await expect(rows.first()).toBeVisible();
     const location = page.locator(`.location-label[title="${countPath}"]`);
     await expect(location).toHaveAttribute("title", countPath);
-    await expect(location.locator(".location-label-site")).toHaveText("T2 /");
+    await expect(location.locator(".location-label-site")).toHaveText("T2/");
     await expect(location.locator(".location-label-tail")).toContainText(
       "北侧器材储物架第一层",
     );

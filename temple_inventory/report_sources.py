@@ -2,6 +2,7 @@
 
 import copy
 import json
+import re
 import tempfile
 from collections import defaultdict
 
@@ -716,10 +717,13 @@ class ReportContext:
 		return True
 
 	def matches_search(self, values, *, related=False, item_code=None, serial_values=()):
-		term = self.query["relatedSearch" if related else "search"].strip().casefold()
-		if not term or any(term in str(value or "").casefold() for value in values):
+		def normalize(value):
+			return re.sub(r"\s*/\s*", "/", str(value or "")).casefold()
+
+		term = normalize(self.query["relatedSearch" if related else "search"].strip())
+		if not term or any(term in normalize(value) for value in values):
 			return True
-		if term in {str(value or "").casefold() for value in serial_values}:
+		if term in {normalize(value) for value in serial_values}:
 			return True
 		# A scanned or typed barcode finds its Item on every item-based page.
 		return bool(item_code) and item_code in self.barcode_matches(related)
