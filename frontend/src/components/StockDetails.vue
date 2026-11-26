@@ -146,8 +146,10 @@ const batchPreferences =
 				<template #trigger>
 					<InventoryIcon name="warehouse" />
 					<span class="stock-detail-trigger-label">
+						<!-- This chip opens the locations popover on hover; a second tip would cover it. -->
 						<LocationLabel
 							v-if="physicalLocations.length === 1"
+							:tooltip="false"
 							:warehouse="physicalLocations[0]?.location"
 							:label="
 								warehouseLabel(

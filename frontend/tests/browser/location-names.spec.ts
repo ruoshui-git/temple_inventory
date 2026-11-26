@@ -305,6 +305,11 @@ for (const width of [1440, 390]) {
           .getByRole("cell", { name: "—", exact: true })
           .last(),
       ).toBeVisible();
+      // The desktop 位置 chip opens the locations popover on hover; it carries no second tip.
+      if (!phone)
+        await expect(
+          table.locator(".stock-detail-trigger-label .location-label").first(),
+        ).not.toHaveAttribute("data-inventory-tip", "");
       const label = table
         .locator(".location-label")
         .filter({ hasText: code })
@@ -357,8 +362,9 @@ for (const width of [1440, 390]) {
       await expect(
         page.getByRole("heading", { name: "A01 阅览室", exact: true }).last(),
       ).toBeVisible();
+      // The heading names the room; the path above the details lists its ancestors.
       await expect(page.locator(".warehouse-detail-path")).toHaveText(
-        /T2 第2寺院.*›.*FUN 功能区域.*›.*A01 阅览室/,
+        /^\s*T2 第2寺院\s*›\s*FUN 功能区域\s*$/,
       );
       await page.screenshot({
         path: info.outputPath(`warehouse-detail-${layout}.png`),

@@ -110,7 +110,9 @@ const selectedPath = computed(() => {
 			ancestors.set(path.length, ancestor.name);
 		parent = ancestor.parent;
 	}
-	return levels.map((level, index) => ({ ...level, target: ancestors.get(index + 1) }));
+	return levels
+		.slice(0, -1)
+		.map((level, index) => ({ ...level, target: ancestors.get(index + 1) }));
 });
 function selectPath(name: string) {
 	if (isMobile.value || props.detail) emit("warehouse", name);
@@ -236,7 +238,11 @@ function parentLabel(name?: string) {
 							@click="isMobile ? emit('warehouse', row.name) : c.select(row.name)"
 						>
 							<span class="warehouse-tree-label">
-								<b class="inventory-tooltip-code">{{ ownLevel(row).code }}</b>
+								<!-- System groups (总仓库, 实体库房) have names, not codes. -->
+								<b v-if="row.kind !== 'system'" class="inventory-tooltip-code">{{
+									ownLevel(row).code
+								}}</b>
+								<span v-else>{{ ownLevel(row).code }}</span>
 								<span v-if="ownLevel(row).name">{{
 									ownLevel(row).name
 								}}</span> </span
@@ -286,7 +292,6 @@ function parentLabel(name?: string) {
 									}}</span>
 								</template>
 							</p>
-							<p v-if="selected.short_label">代码 {{ selected.short_label }}</p>
 						</div>
 						<div class="warehouse-detail-actions">
 							<UiButton v-if="deleteBusy" variant="danger" :loading="true" disabled
