@@ -51,7 +51,6 @@ const {
 	tree,
 	selected,
 	visibleRows,
-	expanded,
 	loading,
 	error,
 	search,
@@ -76,12 +75,6 @@ function kindIcon(value: string) {
 		({ area: "area", room: "room", shelf: "shelf" } as Record<string, string>)[value] ||
 		"warehouse"
 	);
-}
-function toggle(name: string) {
-	const next = new Set(expanded.value);
-	if (next.has(name)) next.delete(name);
-	else next.add(name);
-	expanded.value = next;
 }
 function addChild(row: { name: string }, kind: "area" | "room" | "shelf") {
 	c.select(row.name);
@@ -217,14 +210,14 @@ function parentLabel(name?: string) {
 						:aria-label="warehouseTreeLabel(row)"
 					>
 						<button
-							v-if="row.is_group"
+							v-if="row.has_children"
+							type="button"
 							class="browse-link warehouse-toggle"
 							:aria-label="
-								(expanded.has(row.name) ? '收起' : '展开') +
-								warehouseTreeLabel(row)
+								(row.expanded ? '收起' : '展开') + warehouseTreeLabel(row)
 							"
-							:aria-expanded="expanded.has(row.name)"
-							@click="toggle(row.name)"
+							:aria-expanded="row.expanded"
+							@click="c.toggleRow(row.name)"
 						>
 							<DisclosureIcon variant="inline" /></button
 						><span v-else class="warehouse-toggle" aria-hidden="true"></span>

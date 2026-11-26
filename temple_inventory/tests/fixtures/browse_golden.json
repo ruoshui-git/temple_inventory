@@ -1439,7 +1439,7 @@
       }
     ],
     "empty_count": 0,
-    "empty_labels": [],
+    "empty_locations": [],
     "item_count": 1,
     "snapshot": "<volatile>",
     "query": {
@@ -1683,7 +1683,9 @@
         "stock_uom_label": "个",
         "item_names": [
           "Native test item"
-        ]
+        ],
+        "item_code": "<fixture-1>",
+        "image": ""
       },
       {
         "activity": "<fixture-11>",
@@ -1728,7 +1730,9 @@
         "stock_uom_label": "个",
         "item_names": [
           "Native test item"
-        ]
+        ],
+        "item_code": "<fixture-1>",
+        "image": ""
       },
       {
         "activity": "<fixture-11>",
@@ -1773,7 +1777,9 @@
         "stock_uom_label": "个",
         "item_names": [
           "Native test item"
-        ]
+        ],
+        "item_code": "<fixture-1>",
+        "image": ""
       },
       {
         "activity": "<fixture-11>",
@@ -1818,7 +1824,9 @@
         "stock_uom_label": "个",
         "item_names": [
           "Native test item"
-        ]
+        ],
+        "item_code": "<fixture-1>",
+        "image": ""
       },
       {
         "activity": "<fixture-11>",
@@ -1863,7 +1871,9 @@
         "stock_uom_label": "个",
         "item_names": [
           "Native test item"
-        ]
+        ],
+        "item_code": "<fixture-1>",
+        "image": ""
       }
     ],
     "totals": [

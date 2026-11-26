@@ -186,7 +186,7 @@ it("renders named dashboard records and activity context from its API-shaped fix
     true,
   );
   const named = movements[0]!
-    .get("span")
+    .get(".dashboard-record-text")
     .element.firstChild!.textContent!.trim();
   expect(named.length).toBeGreaterThan(0);
   fixtureDashboardScenario.missingContext = true;

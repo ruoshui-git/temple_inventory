@@ -337,17 +337,26 @@ for (const width of [1440, 390]) {
       await prepare(page);
       await page.goto("/inventory/stock/warehouses");
       const search = page.getByRole("searchbox", { name: "搜索仓库" });
-      await search.fill("A02");
-      await expect(
-        page
-          .getByRole("group", { name: "A02", exact: true })
-          .locator(".warehouse-tree-label"),
-      ).toHaveText("A02");
-      await search.fill("阅览室 Ｔ２");
-      const readingRoom = page
-        .getByRole("button", { name: /A01.*阅览室/ })
-        .last();
+      const readingRoom = page.getByRole("group", {
+        name: "A01 阅览室",
+        exact: true,
+      });
+      const officeRoom = page.getByRole("group", { name: "A02", exact: true });
       await expect(readingRoom).toBeVisible();
+      await search.fill("A02");
+      await expect(readingRoom).toHaveCount(0);
+      await expect(officeRoom.locator(".warehouse-tree-label")).toHaveText(
+        "A02",
+      );
+      await search.fill("阅览室 Ｔ２");
+      await expect(officeRoom).toHaveCount(0);
+      await expect(readingRoom).toBeVisible();
+      await expect(readingRoom.locator("button.warehouse-toggle")).toHaveCount(
+        0,
+      );
+      await expect(
+        readingRoom.locator("span.warehouse-toggle"),
+      ).toHaveAttribute("aria-hidden", "true");
       await expect(
         page.getByRole("group", { name: "T2 第2寺院", exact: true }),
       ).toBeVisible();
@@ -358,7 +367,9 @@ for (const width of [1440, 390]) {
         await page.screenshot({
           path: info.outputPath("warehouse-tree-phone.png"),
         });
-      await readingRoom.click();
+      await readingRoom
+        .getByRole("button", { name: "A01 阅览室 房间" })
+        .click();
       await expect(
         page.getByRole("heading", { name: "A01 阅览室", exact: true }).last(),
       ).toBeVisible();

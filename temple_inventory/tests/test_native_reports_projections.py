@@ -37,11 +37,11 @@ class NativeReportsProjectionsTests(NativeReportTestCase):
 		warehouse.save()
 
 		result = browse.dashboard_card("distribution", refresh=True)
-		self.assertEqual(result["empty_count"], len(result["empty_labels"]))
-		self.assertEqual(result["empty_labels"], [room_label])
-		self.assertNotIn(f"Native Test B Room {self.token}", result["empty_labels"])
-		self.assertNotIn(f"Native Test Lease Leaf {self.token}", result["empty_labels"])
-		self.assertNotIn(f"Native Test Damaged {self.token}", result["empty_labels"])
+		self.assertEqual(result["empty_count"], len(result["empty_locations"]))
+		self.assertEqual(result["empty_locations"], [{"id": empty_leaf, "label": room_label}])
+		by_category = browse.dashboard_card("distribution", distribution="category")
+		self.assertEqual(by_category["empty_count"], 0)
+		self.assertEqual(by_category["empty_locations"], [])
 
 	def test_location_presenter_uses_full_path_for_repeated_room_codes_and_direct_leaves(self):
 		from temple_inventory.native_topology import present_locations

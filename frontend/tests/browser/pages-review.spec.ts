@@ -206,7 +206,7 @@ test("dashboard inventory overview labels empty totals after loading", async ({
             matched_count: 0,
             item_count: 0,
             empty_count: 0,
-            empty_labels: [],
+            empty_locations: [],
             expiry_preview_limit: 6,
             expired_count: 0,
             damaged_item_count: 0,

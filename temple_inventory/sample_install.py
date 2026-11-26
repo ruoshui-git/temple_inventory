@@ -636,8 +636,8 @@ def verify_development_sample(*, require_images=True, data="full"):
 	if dashboard_inventory["totals"] != page["summary"]:
 		raise AssertionError("Dashboard and browse inventory totals differ")
 	distribution = browse.dashboard_card("distribution")
-	if distribution["empty_count"] != len(distribution["empty_labels"]):
-		raise AssertionError("Dashboard empty-location count differs from its labels")
+	if distribution["empty_count"] != len(distribution["empty_locations"]):
+		raise AssertionError("Dashboard empty-location count differs from the location list length")
 	if distribution["rows"] != sorted(
 		distribution["rows"], key=lambda row: (-row["item_count"], row["label"], row["id"])
 	):

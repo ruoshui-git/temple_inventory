@@ -410,7 +410,7 @@ def _dashboard_card(card, scope, movement_period, distribution, refresh=False):
 				for key, values in groups.items()
 			]
 			rows.sort(key=lambda row: (-row["item_count"], row["label"], row["id"]))
-			empty_labels = []
+			empty_locations = []
 			if distribution == "location":
 				from temple_inventory.native_topology import present_locations
 
@@ -422,20 +422,20 @@ def _dashboard_card(card, scope, movement_period, distribution, refresh=False):
 						settings=projection.context.settings,
 					)
 				}
-				empty_labels = sorted(
-					[
-						labels[name]
+				empty_locations = sorted(
+					(
+						{"id": name, "label": labels[name]}
 						for name in available_scope_leaves(projection.context)
 						if name in projection.context.physical
 						and name not in stocked_locations
 						and name in labels
-					],
-					key=str.casefold,
+					),
+					key=lambda row: (row["label"].casefold(), row["id"]),
 				)
 			return {
 				"rows": rows,
-				"empty_count": len(empty_labels),
-				"empty_labels": empty_labels,
+				"empty_count": len(empty_locations),
+				"empty_locations": empty_locations,
 				"item_count": len(items),
 				"snapshot": projection.context.snapshot,
 				"query": projection.query,
@@ -561,6 +561,7 @@ def _document_card(query, refresh=False):
 			"group by json_extract(payload, '$.doctype'), json_extract(payload, '$.document') "
 			"order by max(date) desc, max(identity) desc limit 5"
 		).fetchall()
+		is_movement = query["dataset"] == "movements"
 		if preview_documents:
 			conditions = " or ".join(
 				"(json_extract(payload, '$.doctype')=? and json_extract(payload, '$.document')=?)"
@@ -604,7 +605,7 @@ def _document_card(query, refresh=False):
 		if preview_documents:
 			lines = projection.db.execute(
 				f"select payload from rows where table_id=? and ({conditions}) order by date desc, identity desc",
-				("lines" if query["dataset"] == "movements" else "outcomes", *parameters),
+				("lines" if is_movement else "outcomes", *parameters),
 			)
 			for (payload,) in lines:
 				line = json.loads(payload)
@@ -613,6 +614,8 @@ def _document_card(query, refresh=False):
 				if line["item_code"] not in codes:
 					codes.append(line["item_code"])
 				names = current.setdefault("item_names", [])
+				if is_movement and not names:
+					current["item_code"] = line["item_code"]
 				if line["item_name"] not in names:
 					names.append(line["item_name"])
 		for row in rows:
@@ -620,6 +623,10 @@ def _document_card(query, refresh=False):
 				row["item_codes"].sort()
 			row["item_count"] = len(row.get("item_names", []))
 			row["item_names"] = row.get("item_names", [])[:2]
+			if is_movement:
+				row["image"] = ""
+		if is_movement and rows:
+			add_authorized_page_images(projection.context, rows)
 		kind_counts = {
 			kind if kind is not None else "null": count
 			for kind, count in projection.db.execute(

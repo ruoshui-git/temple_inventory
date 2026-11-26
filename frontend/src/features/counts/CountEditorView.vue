@@ -257,6 +257,7 @@ function toggleReadOnlyGroup(id: string) {
 	collapsedReadOnlyGroups.value = next;
 }
 const readOnlyColumns: DataColumn[] = [
+	{ id: "image", label: "图片", kind: "thumb", defaultVisible: true, export: [] },
 	{ id: "item_name", label: "物品", kind: "primary", defaultVisible: true },
 	{ id: "warehouse", label: "位置", kind: "text", defaultVisible: true },
 	{ id: "batch_no", label: "批次", kind: "code", defaultVisible: true },
@@ -952,7 +953,10 @@ async function back() {
 				@toggle-group="toggleReadOnlyGroup"
 			>
 				<template #cell="{ column, row }">
-					<div v-if="column.id === 'item_name'" class="count-readonly-item">
+					<div v-if="column.id === 'image'" class="count-item-thumbnail">
+						<ItemImage :item="deskItem(row)" />
+					</div>
+					<div v-else-if="column.id === 'item_name'" class="count-readonly-item">
 						<strong>{{
 							row.ti_display_item_name ||
 							row.item_name ||
@@ -1011,46 +1015,59 @@ async function back() {
 			</p>
 			<p>{{ values.posting_date }} {{ formatSiteTime(values.posting_time) }}</p>
 			<div v-if="!deskOrigin" class="count-confirmation-rows">
-				<p v-for="row in reviewedRows" :key="c.countKey(row)">
-					{{ c.names[row.item_code] || row.item_code }} ·
-					<LocationLabel
-						:warehouse="String(row.warehouse || '')"
-						:label="warehouseLabel(row.warehouse, c.reference.warehouses)"
-					/>
-					· {{ row.batch_no || "无批次" }} · 账面 {{ row.baseline_qty }} · 实点
-					{{ row.actual_qty ?? "待核对" }} {{ unitLabel(row.stock_uom) }} · 差异
-					<span
-						v-if="row.actual_qty !== null"
-						:class="[
-							'stock-effect',
-							row.actual_qty > row.baseline_qty
-								? 'is-increase'
-								: row.actual_qty < row.baseline_qty
-									? 'is-decrease'
-									: 'is-neutral',
-						]"
-						>{{
-							row.actual_qty > row.baseline_qty
-								? "+"
-								: row.actual_qty < row.baseline_qty
-									? "−"
-									: ""
-						}}{{ formatQuantity(Math.abs(row.actual_qty - row.baseline_qty)) }}</span
-					><span v-else>待核对</span>
-					<span v-if="row.reason"> · 原因 {{ row.reason }}</span>
-				</p>
+				<div
+					v-for="row in reviewedRows"
+					:key="c.countKey(row)"
+					class="count-confirmation-row"
+				>
+					<div class="count-item-thumbnail"><ItemImage :item="deskItem(row)" /></div>
+					<p>
+						{{ c.names[row.item_code] || row.item_code }} ·
+						<LocationLabel
+							:warehouse="String(row.warehouse || '')"
+							:label="warehouseLabel(row.warehouse, c.reference.warehouses)"
+						/>
+						· {{ row.batch_no || "无批次" }} · 账面 {{ row.baseline_qty }} · 实点
+						{{ row.actual_qty ?? "待核对" }} {{ unitLabel(row.stock_uom) }} · 差异
+						<span
+							v-if="row.actual_qty !== null"
+							:class="[
+								'stock-effect',
+								row.actual_qty > row.baseline_qty
+									? 'is-increase'
+									: row.actual_qty < row.baseline_qty
+										? 'is-decrease'
+										: 'is-neutral',
+							]"
+							>{{
+								row.actual_qty > row.baseline_qty
+									? "+"
+									: row.actual_qty < row.baseline_qty
+										? "−"
+										: ""
+							}}{{
+								formatQuantity(Math.abs(row.actual_qty - row.baseline_qty))
+							}}</span
+						><span v-else>待核对</span>
+						<span v-if="row.reason"> · 原因 {{ row.reason }}</span>
+					</p>
+				</div>
 				<p v-if="!reviewedRows.length" class="muted">尚无已核对行。</p>
 			</div>
 			<div v-else v-for="(row, index) in values.items" :key="String(row.name || index)">
-				<p>
-					{{ row.item_code }} ·
-					<LocationLabel
-						:warehouse="String(row.warehouse || '')"
-						:label="warehouseLabel(row.warehouse, c.reference.warehouses)"
-					/>
-					· {{ row.batch_no || "库存明细" }} · 账面 {{ row.current_qty ?? "未记录" }} ·
-					实点 {{ row.qty }} {{ unitLabel(row.stock_uom) }}
-				</p>
+				<div class="count-confirmation-row">
+					<div class="count-item-thumbnail"><ItemImage :item="deskItem(row)" /></div>
+					<p>
+						{{ row.item_code }} ·
+						<LocationLabel
+							:warehouse="String(row.warehouse || '')"
+							:label="warehouseLabel(row.warehouse, c.reference.warehouses)"
+						/>
+						· {{ row.batch_no || "库存明细" }} · 账面
+						{{ row.current_qty ?? "未记录" }} · 实点 {{ row.qty }}
+						{{ unitLabel(row.stock_uom) }}
+					</p>
+				</div>
 				<NativeCountAllocations :row="row" />
 			</div>
 			<TransactionContext :draft="context" :activity-label="activityLabel" mode="display" />
@@ -1196,6 +1213,11 @@ async function back() {
 	height: var(--p-table-thumbnail);
 	flex: 0 0 var(--p-table-thumbnail);
 	overflow: hidden;
+}
+.count-confirmation-row {
+	display: flex;
+	align-items: center;
+	gap: var(--p-control-gap);
 }
 .native-count-card-list {
 	display: grid;

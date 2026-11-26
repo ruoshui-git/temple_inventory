@@ -3,7 +3,7 @@ import PageHeader from "../../components/ui/PageHeader.vue";
 import LocationLabel from "../../components/ui/LocationLabel.vue";
 import { vTip } from "../../directives/tip";
 import { warehouseFilterTip } from "../../lib/filterPresentation";
-import { warehouseLabel } from "../../lib/warehouseLabel";
+import { locationTip, warehouseLabel } from "../../lib/warehouseLabel";
 import { computed, ref, useId } from "vue";
 import { RouterLink } from "vue-router";
 import { useResponsiveLayout } from "../../composables/useResponsiveLayout";
@@ -13,6 +13,7 @@ import BrowseFilters from "../../components/filters/BrowseFilters.vue";
 import FilterPanel from "../../components/ui/FilterPanel.vue";
 import PeriodFilter from "../../components/ui/PeriodFilter.vue";
 import UiButton from "../../components/ui/UiButton.vue";
+import ItemImage from "../../components/ItemImage.vue";
 import ItemLine from "../../components/ui/ItemLine.vue";
 import ReturnToTop from "../../components/ui/ReturnToTop.vue";
 import PopupMenu from "../../components/ui/PopupMenu.vue";
@@ -77,6 +78,8 @@ const {
 	queryForDataset,
 } = props.controller;
 const distributionTop = computed(() => distribution.value.slice(0, 8));
+const movementTiles = computed(() => movementSummary.value.filter((row) => row.count > 0));
+const emptyMovementKinds = computed(() => movementSummary.value.filter((row) => row.count === 0));
 function dashboardUnitEntries(row: {
 	quantities?: { uom: string; qty: number; effect?: number }[];
 }) {
@@ -524,10 +527,18 @@ function datasetChanged(dataset: ReportDataset) {
 								v-for="bar in distributionTop"
 								:key="bar.id"
 								class="chart-bar"
+								v-tip="
+									filters.distribution === 'location' &&
+									locationTip(bar.id, reference.warehouses)
+								"
 								:disabled="blocked('distribution')"
 								@click="distributionDrill(bar)"
 							>
-								<span>{{ bar.label }}</span
+								<span
+									v-tip.overflow="
+										filters.distribution === 'category' && bar.label
+									"
+									>{{ bar.label }}</span
 								><span class="chart-bar-track"
 									><span
 										:style="{
@@ -549,10 +560,18 @@ function datasetChanged(dataset: ReportDataset) {
 									v-for="bar in distributionRest"
 									:key="bar.id"
 									class="chart-bar"
+									v-tip="
+										filters.distribution === 'location' &&
+										locationTip(bar.id, reference.warehouses)
+									"
 									:disabled="blocked('distribution')"
 									@click="distributionDrill(bar)"
 								>
-									<span>{{ bar.label }}</span
+									<span
+										v-tip.overflow="
+											filters.distribution === 'category' && bar.label
+										"
+										>{{ bar.label }}</span
 									><span class="chart-bar-track"
 										><span
 											:style="{
@@ -576,11 +595,12 @@ function datasetChanged(dataset: ReportDataset) {
 							</summary>
 							<ul>
 								<li
-									v-for="(label, index) in sections.distribution.result
-										.empty_labels"
-									:key="`${label}-${index}`"
+									v-for="location in sections.distribution.result
+										.empty_locations"
+									:key="location.id"
+									v-tip="locationTip(location.id, reference.warehouses)"
 								>
-									<span>{{ label }}</span
+									<span>{{ location.label }}</span
 									><b>0</b>
 								</li>
 							</ul>
@@ -732,9 +752,9 @@ function datasetChanged(dataset: ReportDataset) {
 							default-area="dashboard"
 						/><small>日期仅影响本卡片</small></template
 					>
-					<div class="movement-summary">
+					<div v-if="movementTiles.length" class="movement-summary">
 						<div
-							v-for="row in movementSummary"
+							v-for="row in movementTiles"
 							:key="row.kind"
 							class="dashboard-movement-card"
 						>
@@ -784,39 +804,66 @@ function datasetChanged(dataset: ReportDataset) {
 							</div>
 						</div>
 					</div>
+					<div v-if="emptyMovementKinds.length" class="dashboard-movement-chips">
+						<RouterLink
+							v-for="row in emptyMovementKinds"
+							:key="row.kind"
+							class="dashboard-movement-chip"
+							:to="movementTileDestination(row.kind)"
+							:aria-label="`${row.label}，${row.count} 笔记录`"
+						>
+							<span class="chip">{{ row.label }} {{ row.count }}</span>
+						</RouterLink>
+					</div>
 					<h3>最近记录</h3>
 					<div class="browse-rank-list">
-						<RouterLink
+						<div
 							v-for="row in sections.movement.result.rows"
 							:key="`${row.doctype}/${row.document}`"
 							class="browse-rank-row"
-							:to="documentDestination(row.doctype!, row.document!)"
-							v-tip.overflow="
-								row.item_names?.join('、') ||
-								row.item_name ||
-								movementLabels[row.kind || ''] ||
-								'库存记录'
-							"
-							:aria-label="`${row.item_names?.join('、') || row.item_name || movementLabels[row.kind || ''] || '库存记录'}，${row.document}`"
 						>
-							<span
-								>{{
-									summarizeItems(
-										row.item_names || (row.item_name ? [row.item_name] : []),
-										Number(row.item_count || 0) || (row.item_name ? 1 : 0),
-									)
-								}}<small
-									>{{ movementLabels[row.kind || ""] || "其他类型" }} ·
-									{{ row.document }} · {{ row.date }} ·
-									{{ row.activity_title || "未关联活动" }}</small
-								></span
+							<div class="dashboard-record-image">
+								<ItemImage
+									:item="{
+										code: row.item_code || '',
+										name: row.item_names?.[0] || row.item_name || '',
+										image: row.image || '',
+									}"
+									:thumbnail-size="24"
+									:target-size="24"
+								/>
+							</div>
+							<RouterLink
+								class="dashboard-record-link"
+								:to="documentDestination(row.doctype!, row.document!)"
+								v-tip.overflow="
+									row.item_names?.join('、') ||
+									row.item_name ||
+									movementLabels[row.kind || ''] ||
+									'库存记录'
+								"
+								:aria-label="`${row.item_names?.join('、') || row.item_name || movementLabels[row.kind || ''] || '库存记录'}，${row.document}`"
 							>
-							<UnitValues
-								:entries="dashboardUnitEntries(row)"
-								label="最近记录数量"
-								class="dashboard-record-values"
-							/>
-						</RouterLink>
+								<span class="dashboard-record-text"
+									>{{
+										summarizeItems(
+											row.item_names ||
+												(row.item_name ? [row.item_name] : []),
+											Number(row.item_count || 0) || (row.item_name ? 1 : 0),
+										)
+									}}<small
+										>{{ movementLabels[row.kind || ""] || "其他类型" }} ·
+										{{ row.document }} · {{ row.date }} ·
+										{{ row.activity_title || "未关联活动" }}</small
+									></span
+								>
+								<UnitValues
+									:entries="dashboardUnitEntries(row)"
+									label="最近记录数量"
+									class="dashboard-record-values"
+								/>
+							</RouterLink>
+						</div>
 					</div>
 					<p v-if="!sections.movement.result.rows.length">期间没有流动记录。</p>
 				</DashboardSection>

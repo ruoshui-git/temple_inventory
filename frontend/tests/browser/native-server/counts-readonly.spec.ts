@@ -145,7 +145,9 @@ async function capture(page: Page, route: string, label: string) {
       await expect(page.locator(".count-workspace")).toHaveCount(0);
     } else {
       await expect(page.locator(".count-readonly")).toBeVisible();
-      await expect(page.locator(".count-readonly th")).toHaveCount(8);
+      const headers = page.locator(".count-readonly th");
+      await expect(headers).toHaveCount(9);
+      await expect(headers.first()).toHaveText("图片");
       await expect(page.locator(".count-summary-strip .metric")).toHaveCount(5);
       await expect(
         page.locator(".count-readonly-table .data-table-group-row").first(),

@@ -1453,9 +1453,12 @@ body:has(.browse-page) {
 	opacity: 1;
 	color: var(--p-muted);
 }
-.dashboard .expiry-grid,
-.dashboard .movement-summary {
+.dashboard .expiry-grid {
 	grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+	align-items: stretch;
+}
+.dashboard .movement-summary {
+	grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr));
 	align-items: stretch;
 }
 .dashboard .dashboard-segmented {
@@ -1582,16 +1585,47 @@ body:has(.browse-page) {
 	inset: 0;
 	content: "";
 }
-.dashboard-movement-tile:focus-visible {
+.dashboard-movement-tile:focus-visible,
+.dashboard-movement-chip:focus-visible {
 	outline: 2px solid var(--p-accent);
 	outline-offset: 2px;
+}
+.dashboard-movement-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--p-space-1) var(--p-space-2);
+	margin-block: var(--p-space-4);
+}
+.dashboard-movement-chip {
+	display: inline-flex;
+	min-height: var(--p-control);
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--p-radius-pill);
+	text-decoration: none;
+}
+.dashboard-movement-chip .chip {
+	display: inline-flex;
+	min-height: var(--p-control);
+	align-items: center;
+	padding-block: 0;
+	color: var(--p-muted);
+	font-size: var(--p-small);
+	white-space: nowrap;
+}
+@media (pointer: coarse) {
+	.dashboard-movement-chip {
+		min-width: var(--p-touch-target);
+		min-height: var(--p-touch-target);
+	}
 }
 @media (hover: hover) {
 	.dashboard-movement-card:has(.dashboard-movement-tile:hover) {
 		border-color: color-mix(in srgb, var(--p-accent) 45%, var(--p-border));
 		background: var(--p-soft);
 	}
-	.dashboard .browse-rank-row[href]:hover {
+	.dashboard-movement-chip:hover .chip,
+	.dashboard .dashboard-movement .browse-rank-row:has(.dashboard-record-link:hover) {
 		color: var(--p-accent-strong);
 		background: var(--p-soft);
 	}
@@ -1663,6 +1697,11 @@ body:has(.browse-page) {
 }
 .dashboard .chart-bar {
 	grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
+}
+.dashboard-distribution .chart-bar > span:first-child {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 @media (prefers-reduced-motion: reduce) {
 	.dashboard-grid .browse-card {
@@ -3461,10 +3500,51 @@ body:has(.browse-page) {
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
-.dashboard .dashboard-movement .browse-rank-row > span:first-child {
-	min-width: 0;
+/* The record link stretches over the whole row (as before the thumbnail); the thumbnail
+   and the unit disclosure sit above it so they keep their own actions. */
+.dashboard .dashboard-movement .browse-rank-row {
+	position: relative;
+	display: grid;
+	grid-template-columns: 24px minmax(0, 1fr);
 }
-.dashboard .dashboard-movement .browse-rank-row > span:first-child:not(small) {
+.dashboard-record-image {
+	position: relative;
+	z-index: 1;
+	width: 24px;
+	height: 24px;
+}
+.dashboard .dashboard-record-image .item-image-button {
+	min-height: 0;
+}
+@media (pointer: coarse) {
+	.dashboard .dashboard-record-image .item-image-button {
+		width: var(--p-touch-target);
+		height: var(--p-touch-target);
+		margin: calc((24px - var(--p-touch-target)) / 2);
+		aspect-ratio: auto;
+	}
+}
+.dashboard-record-link {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	min-width: 0;
+	gap: var(--p-space-1) var(--p-space-2);
+	color: inherit;
+	text-decoration: none;
+}
+.dashboard-record-link::after {
+	position: absolute;
+	inset: 0;
+	content: "";
+}
+.dashboard-record-link .unit-values-more {
+	position: relative;
+	z-index: 1;
+}
+.dashboard-record-text {
+	min-width: 0;
+	flex: 1 1 10em;
 	display: -webkit-box;
 	-webkit-box-orient: vertical;
 	-webkit-line-clamp: 2;

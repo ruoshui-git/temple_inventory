@@ -78,7 +78,7 @@ export interface DashboardResult {
   matched_count: number;
   item_count: number;
   empty_count: number;
-  empty_labels: string[];
+  empty_locations: { id: string; label: string }[];
   expiry_preview_limit: number;
   expired_count: number;
   damaged_item_count: number;
@@ -143,7 +143,7 @@ export function useDashboardController(navigate: (query: ReportQuery) => void) {
     matched_count: 0,
     item_count: 0,
     empty_count: 0,
-    empty_labels: [],
+    empty_locations: [],
     expiry_preview_limit: 5,
     expired_count: 0,
     damaged_item_count: 0,

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { nativeUiSession } from "./fixtures/nativeUi";
+import { nativeUiSession, sampleWarehouses } from "./fixtures/nativeUi";
 import { newReportQuery } from "../../src/lib/reportContract";
 
 test("phone dashboard keeps create actions in four columns and secondary actions reachable", async ({
@@ -291,7 +291,7 @@ test("movement tiles are scoped browse links with a separate unit disclosure", a
             matched_count: 5,
             item_count: 0,
             empty_count: 0,
-            empty_labels: [],
+            empty_locations: [],
             expiry_preview_limit: 5,
             expired_count: 0,
             damaged_item_count: 0,
@@ -356,6 +356,148 @@ test("movement tiles are scoped browse links with a separate unit disclosure", a
     });
     await disclosure.click();
     await expect(disclosure).toHaveText("+1 单位");
+  }
+});
+
+test("compact movement chips and warehouse tooltips work on desktop and touch", async ({
+  browser,
+  baseURL,
+}) => {
+  for (const viewport of [
+    { width: 1280, height: 800 },
+    { width: 390, height: 844 },
+  ]) {
+    const hasTouch = viewport.width === 390;
+    const context = await browser.newContext({
+      baseURL,
+      viewport,
+      hasTouch,
+      isMobile: hasTouch,
+      reducedMotion: "reduce",
+    });
+    try {
+      const page = await context.newPage();
+      const warehouses = sampleWarehouses.map((warehouse) =>
+        warehouse.name === "SHELF-1"
+          ? {
+              ...warehouse,
+              path_segments: ["T1", "R1", "S1"],
+              path_names: ["演示区", "演示室甲", "演示架1"],
+            }
+          : warehouse,
+      );
+      await nativeUiSession(page, 100, { warehouses });
+      await page.route(
+        "**/api/method/temple_inventory.item_images.thumbnail?item=RICE&**",
+        (route) =>
+          route.fulfill({
+            path: "../temple_inventory/setup/sample_assets/images/generated/P23.webp",
+          }),
+      );
+      await page.route(
+        "**/api/method/temple_inventory.browse.dashboard_card",
+        async (route) => {
+          const { card } = route.request().postDataJSON();
+          await route.fulfill({
+            json: {
+              message: {
+                query: newReportQuery(
+                  card === "movement" ? "movements" : "inventory",
+                ),
+                snapshot: "2026-10-16 12:00",
+                ...(card === "distribution"
+                  ? {
+                      rows: [
+                        { id: "SHELF-1", label: "T1/R1/S1", item_count: 3 },
+                      ],
+                      item_count: 3,
+                      empty_count: 1,
+                      empty_locations: [
+                        { id: "ROOM-B-DIRECT", label: "演示室乙" },
+                      ],
+                    }
+                  : {}),
+                ...(card === "movement"
+                  ? {
+                      kind_counts: { Issue: 1 },
+                      matched_count: 1,
+                      totals: [
+                        {
+                          kind: "Issue",
+                          stock_qty: 3,
+                          stock_uom: "Nos",
+                          available_effect: -3,
+                        },
+                      ],
+                      rows: [
+                        {
+                          doctype: "Stock Entry",
+                          document: "MAT-STE-2026-00001",
+                          kind: "Issue",
+                          item_names: ["大米", "茶叶"],
+                          item_count: 2,
+                          item_code: "RICE",
+                          image: "/private/files/rice.webp",
+                          date: "2026-10-16",
+                          activity_title: "周末供餐",
+                          quantities: [{ uom: "Nos", qty: 3, effect: -3 }],
+                        },
+                      ],
+                    }
+                  : {}),
+              },
+            },
+          });
+        },
+      );
+      await page.goto("/inventory/");
+      const chip = page.getByRole("link", { name: "入库，0 笔记录" });
+      await expect(chip).toBeVisible();
+      await page.evaluate(
+        () => (document.documentElement.dataset.tiDensity = "compact"),
+      );
+      const size = await chip.evaluate((link) => {
+        const root = getComputedStyle(document.documentElement);
+        return {
+          visual: link.querySelector(".chip")!.getBoundingClientRect().height,
+          target: link.getBoundingClientRect().height,
+          control: parseFloat(root.getPropertyValue("--p-control")),
+          touch: parseFloat(root.getPropertyValue("--p-touch-target")),
+        };
+      });
+      expect(size.visual).toBeLessThanOrEqual(size.control + 4);
+      expect(size.target).toBeGreaterThanOrEqual(
+        hasTouch ? size.touch : size.control,
+      );
+      const thumbnail = page.getByRole("button", { name: "放大查看大米图片" });
+      await expect(thumbnail).toHaveCSS("height", "24px");
+      await thumbnail.scrollIntoViewIfNeeded();
+      await expect(thumbnail.locator(".async-image--loaded")).toBeVisible();
+
+      if (!hasTouch) {
+        await page.locator(".dashboard-distribution .chart-bar").hover();
+        const tip = page.getByRole("tooltip");
+        await expect(tip).toContainText("演示区");
+        await expect(tip).toContainText("演示室甲");
+        await expect(tip).toContainText("演示架1");
+        await page.keyboard.press("Escape");
+        await expect(tip).toBeHidden();
+      }
+
+      if (process.env.TI_DASHBOARD_SHOTS) {
+        await page
+          .locator('[data-section="movement"]')
+          .evaluate(
+            (section, block) => section.scrollIntoView({ block }),
+            hasTouch ? "start" : "center",
+          );
+        await page.screenshot({
+          path: `${process.env.TI_DASHBOARD_SHOTS}/dashboard-${viewport.width}x${viewport.height}-compact.png`,
+        });
+      }
+    } finally {
+      await context.close();
+    }
   }
 });
 

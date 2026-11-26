@@ -9,7 +9,7 @@ const reviewRows = [
   {
     item_code: "ITEM-A",
     item_name: "礼堂椅",
-    image: "",
+    image: "/files/count-fixture-chair.webp",
     warehouse: "LONG-COUNT",
     batch_no: null,
     stock_uom: "Nos",
@@ -21,8 +21,8 @@ const reviewRows = [
   },
   {
     item_code: "ITEM-B",
-    item_name: "舞台灯",
-    image: "",
+    item_name: "红色灯笼",
+    image: "/files/count-fixture-lantern.webp",
     warehouse: "ROOM-B-DIRECT",
     batch_no: null,
     stock_uom: "Nos",
@@ -81,6 +81,7 @@ const detailDocument = {
       name: "COUNT-LINE-A",
       item_code: "ITEM-A",
       item_name: "礼堂椅",
+      ti_display_image: reviewRows[0]!.image,
       warehouse: "A02-DIRECT",
       qty: 6,
       current_qty: 4,
@@ -89,7 +90,7 @@ const detailDocument = {
     {
       name: "COUNT-LINE-B",
       item_code: "ITEM-B",
-      item_name: "舞台灯",
+      item_name: "红色灯笼",
       warehouse: "ROOM-B-DIRECT",
       qty: 5,
       current_qty: 7,
@@ -209,6 +210,17 @@ test("fixture count editor and detail render the review layouts at desktop and p
     else message = {};
     await route.fulfill({ json: { message } });
   });
+  await page.route(
+    "**/api/method/temple_inventory.item_images.thumbnail**",
+    (route) => {
+      const item = new URL(route.request().url()).searchParams.get("item");
+      return route.fulfill({
+        path: `../temple_inventory/setup/sample_assets/images/general/${
+          item === "ITEM-A" ? "ITM-000022.webp" : "ITM-000025.webp"
+        }`,
+      });
+    },
+  );
 
   for (const [width, height] of [
     [1440, 900],
@@ -320,7 +332,7 @@ test("fixture count editor and detail render the review layouts at desktop and p
   }
 
   for (const [width, height] of [
-    [1440, 900],
+    [1280, 800],
     [390, 844],
   ]) {
     await page.setViewportSize({ width, height });
@@ -333,6 +345,19 @@ test("fixture count editor and detail render the review layouts at desktop and p
     await expect(
       page.locator(".count-readonly-table .stock-effect").first(),
     ).toBeVisible();
+    const images = page.locator(
+      ".count-readonly-table .count-item-thumbnail img",
+    );
+    await expect(images).toHaveCount(2);
+    await expect
+      .poll(() =>
+        images.evaluateAll((elements) =>
+          elements.every(
+            (element) => (element as HTMLImageElement).naturalWidth > 0,
+          ),
+        ),
+      )
+      .toBe(true);
     await page.screenshot({
       path: test.info().outputPath(`count-detail-${width}x${height}.png`),
     });

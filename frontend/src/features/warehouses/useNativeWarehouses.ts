@@ -127,6 +127,21 @@ export function useNativeWarehouses(
   const stockSummary = ref<{ stock_uom: string; stock_qty: number }[]>([]);
   const stockSummaryLoading = ref(false);
   const stockSummaryError = ref("");
+  // Search opens every matching branch; branches collapsed during a search belong to that term,
+  // so a new term starts fully open and Back restores the same rows.
+  const searchTerm = computed(() => search.value.trim());
+  const collapsedSearch = ref<{ term: string; names: string[] }>({
+    term: "",
+    names: [],
+  });
+  const searchCollapsed = computed(
+    () =>
+      new Set(
+        collapsedSearch.value.term === searchTerm.value
+          ? collapsedSearch.value.names
+          : [],
+      ),
+  );
   const browseState = useBrowseState(
     "warehouses",
     () => props.name || "tree",
@@ -134,11 +149,20 @@ export function useNativeWarehouses(
       expanded: [...expanded.value],
       selectedName: selectedName.value,
       search: search.value,
+      collapsedSearch: collapsedSearch.value,
     }),
     (value) => {
       expanded.value = new Set((value.expanded || []) as string[]);
       selectedName.value = String(value.selectedName || "");
       search.value = String(value.search || "");
+      const collapsed = value.collapsedSearch as
+        { term?: unknown; names?: unknown } | undefined;
+      collapsedSearch.value = {
+        term: String(collapsed?.term || ""),
+        names: Array.isArray(collapsed?.names)
+          ? collapsed.names.map(String)
+          : [],
+      };
     },
     () => !loading.value,
   );
@@ -164,9 +188,27 @@ export function useNativeWarehouses(
       })
       .map((row) => warehouseOption(row.name, tree.value?.rows || []));
   });
+  function rowExpanded(name: string) {
+    return searchTerm.value
+      ? !searchCollapsed.value.has(name)
+      : expanded.value.has(name);
+  }
+  function toggleRow(name: string) {
+    if (!searchTerm.value) {
+      const next = new Set(expanded.value);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      expanded.value = next;
+      return;
+    }
+    const next = new Set(searchCollapsed.value);
+    if (next.has(name)) next.delete(name);
+    else next.add(name);
+    collapsedSearch.value = { term: searchTerm.value, names: [...next] };
+  }
   const visibleRows = computed(() => {
     const rows = tree.value?.rows || [],
-      term = search.value.trim();
+      term = searchTerm.value;
     const matches = term
       ? rows.filter((row) =>
           matchesWords(
@@ -183,23 +225,33 @@ export function useNativeWarehouses(
           ),
         )
       : [];
-    return rows
-      .filter((row) => !row.direct)
-      .filter((row) => {
-        const ancestors = rows.filter(
-          (parent) => inside(row, parent) && !parent.direct,
-        );
-        if (term)
-          return matches.some(
+    const visibleNodes = rows.filter(
+      (row) =>
+        !row.direct &&
+        (!term ||
+          matches.some(
             (match) => match.name === row.name || inside(match, row),
-          );
-        return ancestors.every((parent) => expanded.value.has(parent.name));
-      })
-      .map((row) => ({
-        ...row,
-        depth: rows.filter((parent) => inside(row, parent) && !parent.direct)
-          .length,
-      }));
+          )),
+    );
+    const byNestingOrder = [...visibleNodes].sort((a, b) => a.lft - b.lft);
+    const treeRows = visibleNodes.map((row) => ({
+      row,
+      ancestors: byNestingOrder.filter((parent) => inside(row, parent)),
+    }));
+    const parentsWithChildren = new Set(
+      treeRows.map(({ ancestors }) => ancestors.at(-1)?.name),
+    );
+    return treeRows.flatMap(({ row, ancestors }) => {
+      if (!ancestors.every((parent) => rowExpanded(parent.name))) return [];
+      return [
+        {
+          ...row,
+          depth: ancestors.length,
+          has_children: parentsWithChildren.has(row.name),
+          expanded: rowExpanded(row.name),
+        },
+      ];
+    });
   });
   function retain() {
     if (!active() || !dirty.value) return true;
@@ -652,6 +704,7 @@ export function useNativeWarehouses(
     selected,
     selectedName,
     visibleRows,
+    toggleRow,
     expanded,
     select,
     stockQuery,

@@ -13,6 +13,7 @@ import {
 /** Development entry only. The product imports the service contract, never this adapter. */
 import type {
   InventoryServices,
+  LocationNode,
   ReportPage,
   NamedView,
   ExportJob,
@@ -32,6 +33,7 @@ import { conversionAccess, conversionFactorError } from "./conversionModel";
 import { createPreviewUnit } from "./conversionModel";
 import { reactive } from "vue";
 import { dashboardData } from "./dashboardModel";
+import { matchesWarehouse } from "./browseModel";
 import { newReportQuery } from "../../src/lib/reportContract";
 import type { ReviewSession } from "./reviewModel";
 import { previewDate } from "./model";
@@ -423,6 +425,8 @@ function dashboardCard(args: Record<string, unknown>) {
       count: row.count,
     })),
     item_count: data.stock.length,
+    empty_count: 0,
+    empty_locations: [] as { id: string; label: string }[],
     matched_count: 0,
     expired_count: data.buckets
       .slice(0, 3)
@@ -443,20 +447,39 @@ function dashboardCard(args: Record<string, unknown>) {
     }));
   }
   if (card === "distribution") {
+    const byLocation = args.distribution !== "category";
     const groups = new Map<string, Set<string>>();
     for (const item of data.stock)
       for (const location of item.locations) {
         if (location.available <= 0) continue;
-        const key =
-          args.distribution === "category" ? item.category : location.location;
+        const key = byLocation ? location.location : item.category;
         if (!groups.has(key)) groups.set(key, new Set());
         groups.get(key)!.add(item.code);
       }
+    const tree: { rows: LocationNode[]; physical_root: string } =
+      fixtureWarehouseCall("warehouses.tree", {});
+    const labels = new Map(tree.rows.map((row) => [row.name, row.label]));
     result.rows = [...groups].map(([id, codes]) => ({
       id,
-      label: id,
+      label: byLocation ? labels.get(id) || id : id,
       item_count: codes.size,
     }));
+    if (byLocation) {
+      const root = tree.rows.find((row) => row.name === tree.physical_root)!;
+      result.empty_locations = tree.rows
+        .filter(
+          (row) =>
+            !row.is_group &&
+            !row.disabled &&
+            row.lft > root.lft &&
+            row.rgt < root.rgt &&
+            !groups.has(row.name) &&
+            matchesWarehouse(row.owner || row.name, scope.warehouses, session),
+        )
+        .map((row) => ({ id: row.name, label: row.label }))
+        .sort((a, b) => a.label.localeCompare(b.label));
+      result.empty_count = result.empty_locations.length;
+    }
   }
   if (card === "expiry" || card === "reminders") {
     for (const status of ["expired", "upcoming"]) {
@@ -512,6 +535,10 @@ function dashboardCard(args: Record<string, unknown>) {
       return {
         doctype: rows[0]!.documentType || "Stock Entry",
         document: name,
+        item_code: rows[0]!.code,
+        image:
+          session.stock.find((item) => item.code === rows[0]!.code)
+            ?.images?.[0] || "",
         item_count: new Set(rows.map((row) => row.itemName)).size,
         item_names: [...new Set(rows.map((row) => row.itemName))].slice(0, 2),
         kind: rows[0]!.kind,
@@ -555,6 +582,8 @@ function dashboardCard(args: Record<string, unknown>) {
   }
   if (fixtureDashboardScenario.empty) {
     result.rows = [];
+    result.empty_count = 0;
+    result.empty_locations = [];
     result.expiry_rows = { expired: [], upcoming: [] };
     result.kind_counts = {};
     result.totals = [];

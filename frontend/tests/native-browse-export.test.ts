@@ -766,7 +766,13 @@ describe("native dashboard cards", () => {
             args?.card === "distribution" && args.distribution !== "category"
               ? 2
               : 0,
-          empty_labels: ["空位置甲", "空位置乙"],
+          empty_locations:
+            args?.card === "distribution" && args.distribution !== "category"
+              ? [
+                  { id: "EMPTY-A", label: "空位置甲" },
+                  { id: "EMPTY-B", label: "空位置乙" },
+                ]
+              : [],
           expiry_preview_limit: 5,
           expiry_rows: {
             expired: [

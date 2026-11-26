@@ -27,7 +27,7 @@ function countRow(
   return {
     item_code: itemCode,
     item_name: itemName,
-    image: "",
+    image: itemCode.startsWith("CHECK-") ? `/files/${itemCode}.png` : "",
     warehouse,
     batch_no: null,
     stock_uom: "Nos",
@@ -265,13 +265,14 @@ describe("count confirmation summary", () => {
     expect(wrapper.findAll(".native-count-card")).toHaveLength(0);
     expect(wrapper.findAll(".native-count-card-input")).toHaveLength(0);
     expect(wrapper.find(".count-readonly").text()).toContain("已提交物品");
-    expect(
-      wrapper
-        .find(
-          ".count-readonly tbody tr[data-row-id]:not(.data-table-group-row) td:nth-child(5)",
-        )
-        .text(),
-    ).toBe("3");
+    const table = wrapper.get(".count-readonly-table");
+    const actualColumn = table
+      .findAll("th")
+      .findIndex((cell) => cell.text() === "实点");
+    const cells = table
+      .get("tbody tr[data-row-id]:not(.data-table-group-row)")
+      .findAll("td");
+    expect(cells[actualColumn]?.text()).toBe("3");
     expect(wrapper.find(".count-readonly").text()).toContain("+1 个");
   });
 
@@ -332,7 +333,14 @@ describe("count confirmation summary", () => {
     expect(text).toContain("实点 7 个 · 差异 0");
     expect(text).toContain("实点 3 个 · 差异 +1");
     expect(
-      dialog!.querySelectorAll(".count-confirmation-rows > p"),
+      dialog!.querySelectorAll(
+        ".count-confirmation-rows .count-confirmation-row",
+      ),
+    ).toHaveLength(3);
+    expect(
+      dialog!.querySelectorAll(
+        ".count-confirmation-rows .count-item-thumbnail .item-image-button",
+      ),
     ).toHaveLength(3);
   });
 });

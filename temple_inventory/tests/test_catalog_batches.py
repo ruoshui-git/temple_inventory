@@ -1,5 +1,6 @@
 """Native supporting records, full-dataset search and dashboard integration."""
 
+import base64
 from datetime import timedelta
 from unittest.mock import patch
 from uuid import uuid4
@@ -293,6 +294,57 @@ class CatalogBatchesTests(NativeDocumentTests):
 		quantity = recent["quantities"][0]
 		self.assertEqual((quantity["uom"], quantity["qty"]), ("Nos", 10))
 		self.assertGreater(quantity["effect"], 0)
+
+	def test_dashboard_recent_record_loads_only_the_first_named_items_authorized_image(self):
+		other_item = frappe.get_doc(
+			{
+				"doctype": "Item",
+				"item_code": f"TI-OTHER-{self.token}",
+				"item_name": "Other native test item",
+				"stock_uom": "Nos",
+				"item_group": "All Item Groups",
+				"is_stock_item": 1,
+			}
+		).insert()
+		data = self.movement(quantity=4)
+		data["items"].append({**data["items"][0], "item_code": other_item.name})
+		self.submit(self.create(data))
+		scope = {"warehouses": [self.root]}
+		row = browse.dashboard_card("movement", scope, refresh=True)["rows"][0]
+		self.assertEqual(set(row["item_names"]), {"Native test item", other_item.item_name})
+		code = {"Native test item": self.item, other_item.item_name: other_item.name}[row["item_names"][0]]
+		self.assertEqual(row["item_code"], code)
+		self.assertEqual(row["image"], "")
+
+		file = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": f"dashboard-primary-{self.token}.png",
+				"content": base64.b64decode(
+					"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII="
+				),
+				"is_private": 1,
+				"attached_to_doctype": "Item",
+				"attached_to_name": code,
+				"attached_to_field": "image",
+			}
+		).insert()
+		catalog.set_item_image(code, str(frappe.get_doc("Item", code).modified), file.name)
+		add_images = browse.add_authorized_page_images
+		with patch.object(browse, "add_authorized_page_images", wraps=add_images) as add:
+			row = browse.dashboard_card("movement", scope, refresh=True)["rows"][0]
+		add.assert_called_once()
+		self.assertEqual(row["image"], file.file_url)
+
+		def deny_preview_item(context, rows):
+			# Model an Item read check denying an Item already included in the projection.
+			with patch.object(context, "item", return_value=None):
+				return add_images(context, rows)
+
+		with patch.object(browse, "add_authorized_page_images", side_effect=deny_preview_item):
+			row = browse.dashboard_card("movement", scope)["rows"][0]
+		self.assertEqual(row["item_code"], code)
+		self.assertEqual(row["image"], "")
 
 	def test_multi_batch_native_loan_keeps_original_line_and_per_batch_outcomes(self):
 		from temple_inventory.projections import report_page
