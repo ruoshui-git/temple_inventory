@@ -190,7 +190,8 @@ stack_drift() {
 }
 
 sync_stack() {
-	local image=$1 next=$root/.stack-next cid file changed=0 stamp backup_path source installed
+	local image=$1 next=$root/.stack-next cid file changed=0 keep_reader=0 stamp backup_path source installed
+	local -a files=(common.sh backup-common.sh deploy.sh backup.sh bootstrap.sh restore-drill.sh compose.yaml)
 	rm -rf -- "$next"
 	mkdir -m 700 -- "$next"
 	cid=$(docker create "$image") || die "stack update refused: could not create image container"
@@ -203,17 +204,33 @@ sync_stack() {
 		rm -rf -- "$next"
 		die "stack update refused: could not remove extraction container"
 	fi
-	for file in common.sh backup-common.sh deploy.sh backup.sh bootstrap.sh restore-drill.sh compose.yaml; do
+	if [[ -e $next/backupstore.py ]] || grep -Fq backupstore.py "$next/backup-common.sh"; then
+		files=(backupstore.py "${files[@]}")
+	elif [[ -e $root/backupstore.py ]]; then
+		# Keep pack backup entry points and the deploy guard that protects them.
+		# The pre-pack common.sh and bootstrap.sh use the same interfaces.
+		keep_reader=1
+		files=(common.sh bootstrap.sh compose.yaml)
+	fi
+	for file in "${files[@]}"; do
 		source=$next/$file
 		[[ -s $source ]] || { rm -rf -- "$next"; die "stack update refused: missing or empty $file"; }
 		if [[ $file == *.sh ]]; then bash -n "$source" || { rm -rf -- "$next"; die "stack update refused: invalid shell syntax in $file"; }; fi
+		if [[ $file == *.py ]] && ! python3 -c 'import ast, pathlib, sys; ast.parse(pathlib.Path(sys.argv[1]).read_text())' "$source"; then
+			rm -rf -- "$next"
+			die "stack update refused: invalid Python syntax in $file"
+		fi
 	done
 	if [[ ! -s $next/compose.yaml ]]; then rm -rf -- "$next"; die "stack update refused: invalid compose.yaml"; fi
 	if command -v docker >/dev/null && ! IMAGE=$image docker compose -f "$next/compose.yaml" --env-file "$root/.env" --env-file "$root/image.env" config -q >/dev/null 2>&1; then
 		rm -rf -- "$next"
 		die "stack update refused: docker compose rejected compose.yaml"
 	fi
-	for file in common.sh backup-common.sh deploy.sh backup.sh bootstrap.sh restore-drill.sh compose.yaml; do
+	if (( keep_reader )) && [[ ${KUFANG_STACK_SYNCED:-} != "$image" ]]; then
+		log "keeping installed backup reader, writer, drill and deploy sync guard for $image"
+		printf '%s backup-reader-retained %s\n' "$(date -u +%FT%TZ)" "$image" >>state/history
+	fi
+	for file in "${files[@]}"; do
 		installed=$root/$file
 		if [[ ! -f $installed ]] || ! cmp -s "$next/$file" "$installed"; then changed=1; fi
 	done
@@ -221,7 +238,7 @@ sync_stack() {
 	stamp=$(date -u +%Y%m%dT%H%M%SZ)
 	backup_path=$root/stack-backup/$stamp
 	mkdir -p -- "$backup_path"
-	for file in common.sh backup-common.sh deploy.sh backup.sh bootstrap.sh restore-drill.sh compose.yaml; do
+	for file in "${files[@]}"; do
 		installed=$root/$file
 		if [[ ! -f $installed ]] || ! cmp -s "$next/$file" "$installed"; then
 			if [[ -f $installed ]]; then cp -p -- "$installed" "$backup_path/$file"; fi
@@ -258,13 +275,10 @@ deploy() {
 		return
 	fi
 	docker image inspect --format 'revision {{index .Config.Labels "org.opencontainers.image.revision"}}' "$new"
-	ts=$(date -u +%Y%m%dT%H%M%SZ)
 	if [[ $ENVIRONMENT == production ]]; then
-		dir=$root/backups/$ts
-		# A backup failure aborts before changing the running site. Every recovery
-		# command below therefore refers to a complete, uploaded backup set.
+		# A backup failure aborts before changing the running site.
 		mkdir -p logs
-		create_backup "$current" "$ts" >>"$root/logs/backup.log" 2>&1
+		create_backup "$current" "" deploy >>"$root/logs/backup.log" 2>&1
 		dir=$(cat state/last-backup)
 		printf '%s\n' "$current" >state/previous
 		trap 'production_failure "$current" "$dir" "$new"' ERR
@@ -272,6 +286,7 @@ deploy() {
 		stop_jobs
 		stop_web
 	else
+		ts=$(date -u +%Y%m%dT%H%M%SZ)
 		dir=$backup_volume/$ts
 		volume_backup "$dir"
 		trap 'recover "$current" "$dir" "$new"' ERR
@@ -302,19 +317,19 @@ deploy() {
 }
 
 reinstall() {
-	local new=$1 confirm=$2 current ts dir
+	local new=$1 confirm=$2 current ts dir cleanup
 	[[ $ENVIRONMENT == staging || $ENVIRONMENT == production ]] || die "reinstall is staging/production-only"
 	[[ $confirm == "$SITE_NAME" ]] || die "--confirm-site must exactly match $SITE_NAME"
 	[[ $new =~ $image_pattern ]] || die "image must match $image_pattern"
 	[[ -n ${ADMIN_PASSWORD:-} ]] || die "ADMIN_PASSWORD is empty in .env"
 	current=$(current_image)
-	ts=$(date -u +%Y%m%dT%H%M%SZ)
 	if [[ $ENVIRONMENT == production ]]; then
 		mkdir -p logs
-		create_backup "$current" "$ts" >>"$root/logs/backup.log" 2>&1
+		create_backup "$current" "" deploy >>"$root/logs/backup.log" 2>&1
 		dir=$(cat state/last-backup)
 		printf '%s\n' "$current" >state/previous
 	else
+		ts=$(date -u +%Y%m%dT%H%M%SZ)
 		dir=$backup_volume/$ts
 		volume_backup "$dir"
 	fi
@@ -340,7 +355,9 @@ reinstall() {
 		find public/files private/files -mindepth 1 -delete
 	'
 	# Always remove the opt-in, including on a failed seed/bootstrap operation.
-	trap 'bench_with "$new" --site "$SITE_NAME" set-config temple_inventory_sample_site 0 || true' EXIT
+	printf -v cleanup 'bench_with %q --site %q set-config temple_inventory_sample_site 0 || true' "$new" "$SITE_NAME"
+	# shellcheck disable=SC2064 # Bind the quoted image and site at registration.
+	trap "$cleanup" EXIT
 	bench_with "$new" --site "$SITE_NAME" set-config temple_inventory_sample_site 1
 	bench_with "$new" --site "$SITE_NAME" execute temple_inventory.sample_install.prepare_development_sample_site \
 		--kwargs '{"data": "empty", "company": "Org", "abbr": "O", "country": "United States", "currency": "USD"}'
@@ -426,6 +443,19 @@ case ${args[0]:-} in
 	status) [[ ${#args[@]} == 1 ]] || die "usage: status"; status ;;
 	refresh) [[ ${#args[@]} == 1 && $ENVIRONMENT == staging ]] || die "refresh is staging-only"; lock; refresh ;;
 	stop) [[ ${#args[@]} == 1 && $ENVIRONMENT == staging ]] || die "stop is staging-only"; lock; compose stop ;;
+	backup-local)
+		[[ -z ${SSH_ORIGINAL_COMMAND:-} && ${#args[@]} == 1 ]] || die "usage: backup-local"
+		lock
+		mkdir -p logs
+		create_backup "$(current_image)" "" local-only >>"$root/logs/backup.log" 2>&1
+		cat state/last-backup
+		;;
+	fetch-backup)
+		[[ -z ${SSH_ORIGINAL_COMMAND:-} && ${#args[@]} == 2 && ${args[1]} =~ $backup_timestamp ]] ||
+			die "usage: fetch-backup UTC_TIMESTAMP"
+		lock
+		fetch_backup "$ENVIRONMENT" "${args[1]}"
+		;;
 	restore) [[ -z ${SSH_ORIGINAL_COMMAND:-} && ${#args[@]} == 2 ]] || die "usage: restore BACKUP_DIR"; lock; restore "${args[1]}" ;;
-	*) die "usage: deploy IMAGE | reinstall IMAGE --confirm-site SITE | status | refresh | stop | restore BACKUP_DIR" ;;
+	*) die "usage: deploy IMAGE | reinstall IMAGE --confirm-site SITE | status | refresh | stop | backup-local | fetch-backup UTC_TIMESTAMP | restore BACKUP_DIR" ;;
 esac

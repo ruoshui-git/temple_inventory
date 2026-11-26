@@ -38,12 +38,15 @@ uses the same files from `deploy/stack/`, installed separately:
   edge/{compose.yaml,nonprod.yaml,production.yaml,.env}
   <env>/compose.yaml                 project kufang-<env>
   <env>/{common,backup-common,deploy,bootstrap,backup,restore-drill}.sh
+  <env>/backupstore.py               file manifest, archive rebuild and retention
   <env>/.env                        SITE_NAME, DB_ROOT_PASSWORD, ADMIN_PASSWORD; mode 0600
   <env>/ENVIRONMENT                 exactly sample, staging or production
   <env>/image.env                   IMAGE=<immutable digest>
   <env>/state/{current,previous,history,deploy.lock}
   <env>/credentials.txt             bootstrap logins; mode 0600
   <env>/backups/<UTC>/               host backup sets; private
+  <env>/backups/blobs/<source-env>/   verified plaintext blobs for the retained sets
+  <env>/backups/packs/<source-env>/   verified age packs for the retained sets
   <env>/logs/backup.log
 ```
 
@@ -94,7 +97,8 @@ sudo install -d -o kufang-deploy -g kufang-deploy -m 700 "/srv/kufang/$ENV_NAME"
 sudo install -o kufang-deploy -g kufang-deploy -m 755 \
   /tmp/ti-release/deploy/stack/*.sh "/srv/kufang/$ENV_NAME/"
 sudo install -o kufang-deploy -g kufang-deploy -m 644 \
-  /tmp/ti-release/deploy/stack/compose.yaml "/srv/kufang/$ENV_NAME/"
+  /tmp/ti-release/deploy/stack/compose.yaml \
+  /tmp/ti-release/deploy/stack/backupstore.py "/srv/kufang/$ENV_NAME/"
 sudo -u kufang-deploy env ENV_NAME="$ENV_NAME" SITE="$SITE" bash <<'SETUP'
 set -eu
 cd "/srv/kufang/$ENV_NAME"
@@ -195,7 +199,8 @@ for `production/`. Never copy the old `ubuntu` credentials blindly. Existing
 `inventory/` backups are left untouched. Validate access as the service user:
 
 ```sh
-sudo -u kufang-deploy rclone lsf b2:temple-inventory-backups/production/ --dirs-only
+sudo -u kufang-deploy rclone rc --loopback operations/list \
+  fs=b2:temple-inventory-backups remote=production opt='{"dirsOnly":true}'
 ```
 
 Use an image already built by Sample (make the GHCR package public so no pull
@@ -236,12 +241,16 @@ site. It does not create fresh sample data.
 ## Stack scripts on hosts
 
 The first install of each `/srv/kufang/<env>` stack remains a one-time manual
-install from `deploy/stack/`, including `compose.yaml`. After that, every
-`deploy IMAGE` extracts and validates those seven stack files from the
-selected image, backs up changed copies under `stack-backup/`, and installs
-them atomically before continuing. Deploying an older digest restores the
-scripts from that image; operators can also copy files back from a timestamped
-`stack-backup/` directory. `status` prints the history, including `stack-updated` lines.
+install from `deploy/stack/`, including `compose.yaml` and `backupstore.py`. After
+that, every `deploy IMAGE` extracts and validates the stack files from the selected
+image, backs up changed copies under `stack-backup/`, and installs them before
+continuing. When an older image predates the pack reader, the host keeps its
+installed `backupstore.py`, `backup-common.sh`, `backup.sh`, `restore-drill.sh`
+and `deploy.sh`. This preserves pack support and the nightly writer's
+local-only guard. `status` shows the `backup-reader-retained` and
+`stack-updated` history entries. Operators copying files back from
+`stack-backup/` should keep those files together once the environment uses
+deduplicated backups.
 
 The dispatcher, edge compose YAML, production systemd units, and all `.env`
 files remain host-managed and are never installed automatically. Deploys print a
@@ -370,49 +379,169 @@ Manual `restore` runs locally as the operator, rather than through a CI key.
 
 ## Backups and restore drill
 
-Production deployment runs `backup.sh` before migration and aborts if any local
-or B2 backup operation fails. The script runs as `kufang-deploy`, runs
-`bench backup --with-files --compress`, copies the set out of the sites volume
-using `docker compose cp`, and uploads to:
+Production runs the same backup before migration and on the nightly timer.
+Deployment requires a locally restorable set and a published B2 completion
+marker before touching the site. Attempt record cleanup, Bench cleanup
+and retention errors are logged after the backup path is recorded in
+`state/last-backup`. A deploy or reinstall can continue at that point.
+The nightly service returns an error so the timer's failure alert still fires.
+
+As `kufang-deploy`, the script runs `bench backup --with-files --compress`,
+copies the output from the sites volume, and checks the attachment archives'
+gzip trailers, checksums and tar end blocks before publishing. Each archive
+accepts members under its own `./<site>/public/files/` or
+`./<site>/private/files/` directory and directory entries for their ancestors.
+Restore checks the same roots when it rebuilds the archives. The store uses
+this layout in `b2:temple-inventory-backups`.
 
 ```text
-b2:temple-inventory-backups/<env>/<UTC timestamp>/
+<env>/<UTC timestamp>/{database.sql.gz,site_config.json,image.txt,files.json,blobs.txt,SHA256SUMS}
+<env>/packs/<SHA-256 of pack bytes>.tar
 ```
 
-Each host set includes the database, public/private files, site configuration,
-image digest and checksums. The completion marker is uploaded last; staging
-ignores incomplete uploads. Backup data contains credentials/encryption keys
-and production business data. Enable client-side age encryption by setting
-`BACKUP_AGE_RECIPIENT` in the stack `.env` to an age public recipient. All six
-members, including `site_config.json` and `SHA256SUMS`, become `.age` files
-before upload; plaintext files are removed from the host backup directory.
-Install the Ubuntu `age` package on each backup host before enabling this
-setting (`sudo apt-get install age`). The stack calls the host binary so backup
-and restore work even while the running application image is older. Backups
-without a recipient retain the existing plaintext format and emit a warning.
+`files.json` preserves the original paths, metadata and member order from both
+Bench archives. Each sorted `blobs.txt` line pairs a plaintext blob SHA-256
+with its pack name. The writer verifies the newest complete set's committed
+list and reuses its pack references. All new contents go into one tar, which
+uploads before the set members. The completion marker uploads last. The
+writer downloads only metadata. Identical contents found only in an older
+complete set may be packed again.
 
-Generate the key pair on an operator-controlled workstation and put only the
-recipient in the host `.env` (mode 0600). Keep the private identity offline,
-with a separate protected recovery copy; never put it in the stack `.env`, on
-the deployment host, or in the backup bucket. To restore an encrypted set,
+Before uploading, the writer records the timestamp and any pack it is about
+to upload in `backups/.pending-attempt`. The next remote run checks that
+attempt against one B2 inventory. If the marker, expected members and
+committed pack references are present, the earlier upload succeeded and its
+remote set is kept. Otherwise the writer removes the incomplete set and
+immediately removes the recorded pack if no complete set references it.
+Errors reading or removing an attempt stop the run with the record intact.
+After reconciliation, the writer takes a fresh Bench snapshot using the
+current recipient. Failed attempts leave only the small record in the host
+backup directory.
+
+Staging selects the newest complete production set and fetches only packs
+needed to fill its cache. It verifies the pack hash and each extracted blob's
+hash and size. Verified data stays on disk across attempts and invocations.
+A corrupt cache entry triggers a download of its pack. Each failed attempt
+reselects from a fresh listing, up to three attempts per invocation. Staging
+installs the downloaded set only after it validates in full. Legacy full-archive
+sets can still be fetched and restored and follow the same retention schedule.
+
+Backup data contains credentials, encryption keys and production business data.
+For encryption, set `BACKUP_AGE_RECIPIENT` in the stack `.env` to an age public
+recipient. The pack is encrypted as a whole. Packs and encrypted set members
+end in `.age`. The plaintext `blobs.txt` is verified against the plaintext
+`blobs.txt.sha256` for retention and against the decrypted checksum manifest
+during restore. The pack store records its public recipient in
+`packs/age-recipient.txt` before any ciphertext pack can upload. Install the
+host `age` package before enabling encryption (`sudo apt-get install age`).
+A backup without a recipient uses the
+plaintext format and emits a warning.
+
+Generate the key pair on an operator-controlled workstation with
+`age-keygen -o backup-identity.txt`. Put the public `age1...` recipient in the
+host's mode-0600 `.env`. Keep the private identity offline with a separate
+protected recovery copy. For a restore, refresh, or drill of an encrypted set,
 temporarily make the identity readable to `kufang-deploy` and set
-`BACKUP_AGE_IDENTITY=/path/to/identity` for the restore command. Decryption
-uses a private temporary directory and verifies checksums before restoring.
-Remove the temporary identity copy after use. A staging refresh restores the newest production set, so once production is encrypted every refresh is such a controlled restore: without `BACKUP_AGE_IDENTITY` it stops with a clear error before touching staging. A recipient change affects only
-new backup sets, so retain the identity for every retained encrypted set.
-For example, on the offline workstation run `age-keygen -o backup-identity.txt`
-and copy the printed `age1...` recipient into `BACKUP_AGE_RECIPIENT` on the
-host. Do not copy `backup-identity.txt` to that host except for a controlled
-restore or drill.
+`BACKUP_AGE_IDENTITY=/path/to/identity` for the command. The script uses private
+disk-backed scratch to decrypt, verify, and rebuild the Bench archives. Remove
+the temporary identity copy after use. Changing a prefix's recipient requires
+a separate migration because retained sets share ciphertext. Keep the identities
+for any retained encrypted full-archive sets as well.
 
-Keep three local sets and delete remote sets
-older than 35 days. The backup log is `/srv/kufang/<env>/logs/backup.log`.
-Retention applies to the environment prefix and leaves legacy `inventory/`
-backups alone. Temporary volume copies are removed after a successful upload;
-staging retains three downloaded production sets. Incomplete local sets are
-kept for diagnosis and do not count toward the three complete retained sets;
-remove failed partial sets only after investigating the cause. A nonzero backup
-exit must alert the operator; inspect the log and systemd journal after failures.
+B2 keeps every set from the last 48 hours, the newest complete set per UTC
+day across today and the previous six days, and the newest complete set per ISO
+week across this week and the previous four weeks. The newest complete set is
+always kept. Older incomplete sets expire after 48 hours. Retention verifies
+each complete pack-backed set's list and commitment before deleting anything.
+For plaintext sets it also verifies the manifest and compares its digests.
+A listing or read error, a bad commitment, or a missing referenced pack stops
+the plan. An expired set's completion marker is removed and checked before
+purging its members, so the next run can finish an interrupted purge. Packs
+become eligible for removal 24 hours after upload, once no retained set
+references them. The writer sets the pack's modification time immediately
+before upload for rclone's B2 listing. The grace period applies to packs
+outside the writer's current attempt record. Packs are never repacked by
+retention.
+Permanent B2 deletion is scoped to the environment prefix. Older hidden pack
+versions remain subject to the bucket's lifecycle rules.
+
+The host retains three complete local sets, including the one recorded in
+`state/last-backup`. Staging keeps three production
+refresh sets separately. The plaintext cache stores blobs by digest. The
+encrypted cache stores only ciphertext packs, so a cold writer rebuilds missing
+local contents from its Bench backup. It can keep a different pack mapping in
+the local set, with its own checksums, and reuse those local packs on later
+backups. Local pruning runs even if B2 retention or Bench cleanup fails. The
+writer puts temporary Bench copies in `sites/.host-backups/` and removes them
+after publication. Before each attempt, it prunes older failed copies and
+leftovers for the current timestamp from that directory. Staging deploy and
+reinstall snapshots live separately in `sites/.deploy-backups/`.
+Backup and retention results are logged to `/srv/kufang/<env>/logs/backup.log`
+and the nightly exit status is available in the systemd journal.
+
+### Emergency local-only backup
+
+During a B2 outage, run `./deploy.sh backup-local` from the target stack as
+`kufang-deploy`. Only this local operator command selects local-only mode.
+The writer validates and keeps the local backup and its cache, skips all B2
+operations, logs a warning, and appends `local-only-backup <UTC timestamp>`
+to `state/history`. Production deploy and reinstall still require B2.
+Remove any old `BACKUP_LOCAL_ONLY` setting from `.env` and the service
+environment. Deploy and reinstall ignore it, and nightly `backup.sh` rejects
+`BACKUP_LOCAL_ONLY=1`. Run a normal backup when B2 returns. It reconciles any
+recorded attempt, then publishes a fresh set with any content B2 still lacks.
+
+2026-11-26 — Added archive validation, encrypted upload recovery, local-only backups, and timestamped B2 restores.
+
+2026-11-26 — Restricted local-only backups to operators, isolated temporary backups, and fixed the drill's restore target.
+
+2026-11-26 — Restricted restored attachment paths to Bench's file directories and based pack retention grace on upload time.
+
+2026-11-26 — Reclaimed space from failed uploads before taking a fresh snapshot and protected the last recorded backup during local retention.
+
+### B2 transaction and transfer budget
+
+Production has a 2,500-request daily Class B cap. Reaching it blocks downloads
+until the UTC reset. Verified staging cache entries survive that interruption.
+
+These estimates use 2,571 blobs, a ~490 MB first pack, a 1.7 MB database, and
+~0.35 MB of pack references per set. A typical set is ~2.7–2.9 MB including
+the file manifest. `M` is the size of the added image and tar framing. Each
+writer row includes the GC scan of 16 existing pack-backed sets. GC reads
+three metadata objects per plaintext set and two per encrypted set.
+Publication itself uses zero destination probes or listings.
+
+| Operation | Class B, plain / age | Class C | Uploaded / downloaded |
+| --- | ---: | ---: | --- |
+| Nightly, unchanged files | 50 / 35 | 8 | ~2.7–2.9 MB / ~15–18 MB plain or ~5.7 MB age |
+| Nightly, one new image | 50 / 35 | 9 | ~2.7–2.9 MB + M / same metadata |
+| Pre-deploy, unchanged files | 50 / 35 | 8 | ~2.7–2.9 MB / same metadata |
+| GC scan of 16 retained sets | 49 / 33 | 4 | 0 / ~15–18 MB plain or ~5.7 MB age |
+| First staging refresh | 9 / 10 | 6 | 0 / ~493 MB including one pack |
+| Later staging refresh | 7 / 8 cached, 9 / 10 with one missing pack | 4 cached, 6 with one missing pack | 0 / ~2.7–2.9 MB plus any missing pack |
+
+Class B includes downloads and one directory-root probe per scoped copy or
+filtered delete on the native rclone B2 backend. It does not include per-object
+metadata probes. Class C includes account authorization and one page per
+listing. Retries, extra pages, and reauthorization can increase those counts.
+For each expired complete set being deleted, add one root probe and six
+Class C calls for marker removal, confirmation, and purge. If the set was not
+included in the GC scan above, also add its metadata reads. Each expired
+incomplete set adds two Class C calls for purge. A batch of orphan packs adds
+one root probe and two Class C calls. The writer's age budget includes a read
+of the recipient binding. The first encrypted publication adds its own
+binding upload phase. Legacy sets have no pack metadata to download during GC.
+
+Promote the pack-capable release to staging while production still serves
+full-archive backups. Promotion refreshes first, then installs the reader.
+The first production deploy installs the reader and uploads the first pack
+before pruning expired sets. Allow about 500 MB of B2 headroom and 2.5–3 GB
+of free host disk space for the first write, alongside existing backups. The
+host space covers temporary Bench copies, split archives and pack creation.
+The next staging refresh downloads ~500 MB once and caches
+the verified contents. Later refreshes download their set metadata plus any
+missing packs. Rollback to a pre-pack image preserves the installed backup
+reader, nightly writer, restore drill and the deploy guard that protects them.
 
 Install and enable only the production instance, on the production host:
 
@@ -448,8 +577,45 @@ counts, and the `Org` company for sample and production sets. Run it regularly
 and retain the summary with the backup review. For sample or staging backups, run the command
 from that environment's stack directory.
 
-For a downloaded host backup set, use the matching image recorded in
-`image.txt`; `restore` verifies the set and uses its recorded image:
+### Recover a chosen production backup from B2
+
+On a replacement host, follow [First-time host setup](#first-time-host-setup-human-operated)
+and configure the `kufang-deploy` B2 remote with access to the `production/`
+prefix. Bootstrap and restore use a loopback HTTPS health check, so configure
+the replacement edge with a trusted `kufang.org` certificate. A protected copy
+of the Traefik ACME volume can supply the certificate before traffic cutover.
+Pick the exact complete UTC timestamp from the B2 listing. Use the installed
+pack-capable scripts as `kufang-deploy`.
+
+```sh
+cd /srv/kufang/production
+TS=REPLACE_WITH_UTC_TIMESTAMP
+# For an encrypted set, export the temporarily available offline identity.
+export BACKUP_AGE_IDENTITY=/run/secrets/backup-age-identity
+BACKUP_DIR=$(./deploy.sh fetch-backup "$TS")
+```
+
+`fetch-backup` validates the chosen set, downloads any packs missing from the
+cache, and prints its local directory. It accepts legacy sets and can run before
+the site is bootstrapped. If the target stack is empty, set `IMAGE` to an
+available immutable production image and run `./bootstrap.sh "$IMAGE"` to
+create the target site and database. Skip bootstrap if the target already has
+a site. Then restore the fetched set with its recorded image.
+
+```sh
+./deploy.sh restore "$BACKUP_DIR"
+./deploy.sh status
+```
+
+Use the same age identity for fetch and restore. Remove its temporary copy
+after recovery. `fetch-backup` runs directly on the host under the deployment lock.
+
+For an offline copy of a pack-backed backup, copy the set and its verified
+cache files. Use the sibling `blobs/<source-env>/` directory for plaintext
+blobs, or `packs/<source-env>/` for age packs named in that set's `blobs.txt`.
+Keep the `production-` prefix on a staging download's directory name so the
+scripts find the production cache. `restore` verifies the set and uses its
+recorded image.
 
 ```sh
 # On the target host; choose an existing complete backup timestamp.
@@ -567,5 +733,6 @@ scripts/heavy docker build -f deploy/Containerfile \
 Before installing changes, run ShellCheck on deployment scripts, actionlint,
 Compose config for all environments/edge overlays, the DNS unittest suite and
 `bash deploy/stack/tests/guards.sh`,
-`bash deploy/stack/tests/lifecycle.sh` and `bash deploy/stack/tests/failures.sh`. These are offline checks; a full recovery,
+`bash deploy/stack/tests/lifecycle.sh`, `bash deploy/stack/tests/failures.sh` and
+`bash deploy/stack/tests/backupstore.sh`. These are offline checks; a full recovery,
 mail-suppression, firewall, TLS and approval drill still needs authorized hosts.

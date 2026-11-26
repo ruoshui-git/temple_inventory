@@ -5,7 +5,7 @@ source_dir=$(dirname -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")")
 test_root=$(mktemp -d)
 trap 'rm -rf -- "$test_root"' EXIT
 mkdir -p "$test_root/sample/state" "$test_root/bin" "$test_root/plain" "$test_root/encrypted"
-cp "$source_dir/"*.sh "$test_root/sample/"
+cp "$source_dir/"*.sh "$source_dir/backupstore.py" "$test_root/sample/"
 printf 'sample\n' >"$test_root/sample/ENVIRONMENT"
 printf 'SITE_NAME=sample.kufang.online\nDB_ROOT_PASSWORD=dummy\n' >"$test_root/sample/.env"
 image=ghcr.io/ruoshui-git/temple_inventory@sha256:$(printf '%064d' 8)
@@ -46,7 +46,7 @@ fi
 mkdir -p "$test_root/failing"
 cp "$test_root/plain/"* "$test_root/failing/"
 real_age=$(declare -f age)
-age() { return 7; }
+age() { printf 'partial ciphertext\n' >"$4"; return 7; }
 if (encrypt_backup_set "$test_root/failing" age1fixture) >/dev/null 2>&1; then
 	echo 'FAIL: encryption failure was not reported' >&2
 	exit 1
@@ -70,17 +70,43 @@ unset BACKUP_AGE_IDENTITY
 cat >"$test_root/bin/docker" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
-printf '%s\n' "$*" >>"$DRILL_TEST_ROOT/docker-calls"
+printf 'SITE_NAME=%s %s\n' "$SITE_NAME" "$*" >>"$DRILL_TEST_ROOT/docker-calls"
 case " $* " in
-	*' up -d db redis-cache redis-queue '*) exit 42 ;;
+	*' up -d db redis-cache redis-queue '*) [[ ${DRILL_FAIL_STARTUP:-} != 1 ]] || exit 42 ;;
+	*' execute frappe.ping '*) [[ $* == *' --site drill-'* ]] && printf 'pong\n' ;;
+	*' execute frappe.db.sql '*) printf '[[5, 6, 7]]\n' ;;
+	*' execute frappe.get_all '*) printf '["Org"]\n' ;;
 esac
 STUB
 chmod +x "$test_root/bin/docker"
 export DRILL_TEST_ROOT=$test_root PATH="$test_root/bin:$PATH"
-if bash "$test_root/sample/restore-drill.sh" "$test_root/plain" >"$test_root/drill-output" 2>&1; then
+if DRILL_FAIL_STARTUP=1 bash "$test_root/sample/restore-drill.sh" "$test_root/plain" >"$test_root/drill-output" 2>&1; then
 	echo 'FAIL: restore drill unexpectedly continued after scratch startup failure' >&2
 	exit 1
 fi
 grep -q 'down --volumes --remove-orphans' "$test_root/docker-calls"
 grep -q 'scratch project torn down' "$test_root/drill-output"
 printf 'PASS: plaintext/encrypted backup sets, decrypt-before-checksum verification, and drill teardown trap\n'
+
+test_restore_drill_targets_disposable_site() {
+	local site
+	: >"$test_root/docker-calls"
+	bash "$test_root/sample/restore-drill.sh" "$test_root/plain" >"$test_root/drill-output" 2>&1
+	site=$(sed -n 's/^  site: //p' "$test_root/drill-output")
+	[[ $site =~ ^drill-[0-9a-f]{12}\.localhost$ ]]
+	grep -Fq -- "bench new-site $site " "$test_root/docker-calls"
+	if ! grep -Fq -- "bench --site $site restore " "$test_root/docker-calls"; then
+		echo 'restore drill restored into the live site name' >&2
+		exit 1
+	fi
+	grep -Fq -- "-e SITE_NAME=$site -e ENVIRONMENT backend python" "$test_root/docker-calls"
+	grep -Fq -- "bench --site $site set-maintenance-mode on" "$test_root/docker-calls"
+	grep -Fq -- "bench --site $site set-config host_name https://$site" "$test_root/docker-calls"
+	grep -Fq -- "bench --site $site execute frappe.ping" "$test_root/docker-calls"
+	if grep -Eq -- '(--site sample\.kufang\.online |^SITE_NAME=sample\.kufang\.online compose)' "$test_root/docker-calls"; then
+		echo 'restore drill used the live site name in its scratch project' >&2
+		exit 1
+	fi
+	printf 'PASS: drill restores database, files and site config into its disposable site\n'
+}
+test_restore_drill_targets_disposable_site

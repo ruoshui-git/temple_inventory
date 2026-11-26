@@ -24,7 +24,7 @@ EOF
 printf 'IMAGE=%s\n' "$(current_image)" >"$drill_image_env"
 
 drill_compose() {
-	docker compose --project-name "$drill_project" --project-directory "$drill_dir" \
+	SITE_NAME=$drill_site docker compose --project-name "$drill_project" --project-directory "$drill_dir" \
 		-f "$root/compose.yaml" --env-file "$drill_env" --env-file "$drill_image_env" "$@"
 }
 compose() { drill_compose "$@"; }
@@ -52,7 +52,7 @@ bench_with "$backup_image" new-site "$drill_site" --mariadb-user-host-login-scop
 	--db-root-username root --db-root-password "$DB_ROOT_PASSWORD" \
 	--admin-password "$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')" \
 	--install-app erpnext --install-app temple_inventory
-restore_host_backup "$backup_dir" "$backup_image"
+restore_host_backup "$backup_dir" "$backup_image" "$drill_site"
 
 ping_result=$(bench_with "$backup_image" --site "$drill_site" execute frappe.ping)
 # shellcheck disable=SC2016 # SQL identifiers are literal backticks.

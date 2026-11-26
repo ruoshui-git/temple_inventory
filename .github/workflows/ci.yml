@@ -20,7 +20,7 @@ jobs:
       - run: uvx ruff@0.14.10 check
       - run: uvx ruff@0.14.10 format --check
       - run: docker run --rm --entrypoint shellcheck -v "$PWD:/mnt" -w /mnt koalaman/shellcheck-alpine:v0.10.0 deploy/stack/*.sh deploy/stack/tests/*.sh
-      - run: bash deploy/stack/tests/guards.sh && bash deploy/stack/tests/lifecycle.sh && bash deploy/stack/tests/failures.sh
+      - run: bash deploy/stack/tests/guards.sh && bash deploy/stack/tests/lifecycle.sh && bash deploy/stack/tests/failures.sh && bash deploy/stack/tests/backup-security.sh && bash deploy/stack/tests/backupstore.sh
       - run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7
 
   frontend:

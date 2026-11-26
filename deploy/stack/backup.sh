@@ -8,4 +8,5 @@ source "$root/backup-common.sh"
 lock
 mkdir -p logs
 exec >>"$root/logs/backup.log" 2>&1
+[[ ${BACKUP_LOCAL_ONLY:-0} != 1 ]] || die "backup.sh refuses BACKUP_LOCAL_ONLY=1"
 create_backup "$(current_image)"

@@ -87,8 +87,10 @@ site_policy() {
 # development site. Rewrites credentials.txt for the seeded users.
 seed_sample() {
 	(
-	local image=$1 users user
-	trap 'bench_with "$image" --site "$SITE_NAME" set-config temple_inventory_sample_site 0 || true' EXIT
+	local image=$1 users user cleanup
+	printf -v cleanup 'bench_with %q --site %q set-config temple_inventory_sample_site 0 || true' "$image" "$SITE_NAME"
+	# shellcheck disable=SC2064 # Bind the quoted image and site at registration.
+	trap "$cleanup" EXIT
 	bench_with "$image" --site "$SITE_NAME" set-config temple_inventory_sample_site 1
 	bench_with "$image" --site "$SITE_NAME" execute temple_inventory.sample_install.prepare_development_sample_site \
 		--kwargs '{"data": "full"}'
