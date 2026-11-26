@@ -8,14 +8,24 @@ set -Eeuo pipefail
 # records that day and `fresh` rejects it once the day has passed.
 #
 #   sample-snapshot key [SEED_ARGS]        print the cache key
-#   sample-snapshot save SITE DIR          back up SITE with files into DIR
+#   sample-snapshot save SITE DIR [ANCHOR_DAY]  back up SITE with files into DIR
 #   sample-snapshot fresh DIR              succeed if DIR was seeded today
 #   sample-snapshot restore SITE DIR       restore DIR into SITE (needs MARIADB_ROOT_PASSWORD)
 #
 # Run inside the bench environment (the development container or CI).
 
 usage() {
-	sed -n '10,13s/^#   //p' "$app/scripts/sample-snapshot" >&2
+	cat >&2 <<'USAGE'
+sample-snapshot key [SEED_ARGS]
+sample-snapshot save SITE DIR [ANCHOR_DAY] (required for ci.localhost)
+sample-snapshot fresh DIR
+sample-snapshot restore SITE DIR
+sample-snapshot portable identity | lookup | day | oras-image | package | artifact-type
+sample-snapshot portable seed SITE
+sample-snapshot portable save SITE DIR ANCHOR_DAY
+sample-snapshot portable verify DIR [--identity JSON] [--remote] [--restore-volume DIR]
+sample-snapshot portable tag DIR
+USAGE
 	exit 2
 }
 
@@ -40,11 +50,24 @@ key() {
 	} | sha256sum | cut -c1-16
 }
 
-save() {
-	local site=$1 dir=$2 tmp
-	tmp=$(realpath -m -- "$dir.tmp")
-	rm -rf -- "$tmp"
-	mkdir -p -- "$tmp"
+check_anchor() {
+	local day
+	day=$(portable day) || return $?
+	if [[ -z $1 || $1 != "$day" ]]; then
+		echo "sample seed: seed crossed midnight in New York" >&2
+		return 1
+	fi
+}
+
+save() (
+	local site=$1 dir=$2 anchor=$3 tmp
+	[[ $site != ci.localhost || -n $anchor ]] || usage
+	if [[ -n $anchor ]]; then check_anchor "$anchor"; fi
+	dir=$(realpath -m -- "$dir")
+	umask 077
+	mkdir -p -- "$(dirname -- "$dir")"
+	tmp=$(mktemp -d -- "$dir.XXXXXXXX")
+	trap 'rm -rf -- "$tmp"' EXIT
 	bench --site "$site" backup --with-files --backup-path "$tmp"
 	(
 		cd -- "$tmp"
@@ -58,13 +81,18 @@ save() {
 	# them. Frappe creates the key on first use, so a site may not have one yet.
 	(umask 077 && env/bin/python -c 'import json, sys; print(json.load(open(sys.argv[1])).get("encryption_key", ""))' \
 		"sites/$site/site_config.json" >"$tmp/encryption_key")
-	# The seeded day and the site's time zone; restore only while that day lasts.
-	printf '%s %s\n' \
-		"$(bench --site "$site" execute frappe.utils.nowdate | tr -d '"')" \
-		"$(bench --site "$site" execute frappe.utils.get_system_timezone | tr -d '"')" >"$tmp/seeded"
+	if [[ -n $anchor ]]; then
+		check_anchor "$anchor"
+		printf '%s America/New_York\n' "$anchor" >"$tmp/seeded"
+	else
+		# Development resets also support custom seed arguments and sites.
+		printf '%s %s\n' \
+			"$(bench --site "$site" execute frappe.utils.nowdate | tr -d '"')" \
+			"$(bench --site "$site" execute frappe.utils.get_system_timezone | tr -d '"')" >"$tmp/seeded"
+	fi
 	rm -rf -- "$dir"
 	mv -- "$tmp" "$dir"
-}
+)
 
 fresh() {
 	local dir=$1 day zone
@@ -89,9 +117,62 @@ restore() {
 	bench --site "$site" clear-cache
 }
 
+portable() {
+	local python=$bench_root/env/bin/python
+	[[ -x $python ]] || python=python3
+	"$python" "$app/deploy/stack/seedstore.py" "$@"
+}
+
+portable_seed() {
+	local site=$1
+	[[ $site == ci.localhost || $site == sample.kufang.online ]] || usage
+	bench --site "$site" execute temple_inventory.sample_install.prepare_development_sample_site \
+		--kwargs '{"data": "full"}' | env/bin/python -c '
+import json
+import sys
+
+previous = ""
+for line in sys.stdin:
+	sys.stderr.write(previous)
+	previous = line
+try:
+	print(json.loads(previous)["seed_day"])
+except (ValueError, KeyError):
+	sys.stderr.write(previous)
+	sys.exit("sample seed: Bench did not report the seed anchor")
+'
+}
+
+portable_save() (
+	local site=$1 dir=$2 anchor=$3 version tmp
+	check_anchor "$anchor"
+	version=$(portable site "$site" capture)
+	dir=$(realpath -m -- "$dir")
+	umask 077
+	mkdir -p -- "$(dirname -- "$dir")"
+	tmp=$(mktemp -d -- "$dir.XXXXXXXX")
+	trap 'rm -rf -- "$tmp"' EXIT
+	bench --site "$site" backup --with-files --compress --ignore-backup-conf \
+		--backup-path-db "$tmp/database.sql.gz" --backup-path-files "$tmp/public-files.tgz" \
+		--backup-path-private-files "$tmp/private-files.tgz" --backup-path-conf "$tmp/site_config.json"
+	rm -- "$tmp/site_config.json"
+	portable write "$tmp" "$site" "$anchor" "$version"
+	mv -T -- "$tmp" "$dir"
+)
+
+if [[ ${1:-} == portable ]]; then
+	shift
+	case ${1:-} in
+		seed) [[ $# -eq 2 ]] || usage; portable_seed "$2" ;;
+		save) [[ $# -eq 4 ]] || usage; portable_save "$2" "$3" "$4" ;;
+		*) portable "$@" ;;
+	esac
+	exit
+fi
+
 case ${1:-} in
 	key) [[ $# -le 2 ]] || usage; key "${2:-}" ;;
-	save) [[ $# -eq 3 ]] || usage; save "$2" "$3" ;;
+	save) [[ $# -eq 3 || $# -eq 4 ]] || usage; save "$2" "$3" "${4:-}" ;;
 	fresh) [[ $# -eq 2 ]] || usage; fresh "$2" ;;
 	restore) [[ $# -eq 3 ]] || usage; restore "$2" "$3" ;;
 	*) usage ;;

@@ -10,7 +10,7 @@ import random
 import re
 from collections import defaultdict
 from contextvars import ContextVar
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 import frappe
@@ -2367,9 +2367,13 @@ def _generated_volume(company, rooms, catalog_data, costumes, *, movement_count=
 	}
 
 
-def install(company, *, data="full", attach_images=True, attach_files=True, generate_volume=False):
-	"""Install examples using one site-date anchor for every relative date."""
-	token = _SITE_DATE.set(getdate(nowdate()))
+def install(
+	company, *, data="full", attach_images=True, attach_files=True, generate_volume=False, seed_day=None
+):
+	"""Install examples using one New York date anchor for every relative date."""
+	from temple_inventory.sample_install import SAMPLE_ZONE
+
+	token = _SITE_DATE.set(seed_day or datetime.now(SAMPLE_ZONE).date())
 	try:
 		return _install(
 			company,

@@ -4,13 +4,16 @@
 
 import sys
 import traceback
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import frappe
-from frappe.utils import cint, getdate, nowdate
+from frappe.utils import cint, getdate
 
 VERSION = "2026.10.native-location-model-v11-serials"
+
+SAMPLE_ZONE = ZoneInfo("America/New_York")
 
 DEFAULT_SAMPLE_ITEM_GROUPS = ("Consumable", "Products", "Raw Material", "Services", "Sub Assemblies")
 DEFAULT_SAMPLE_WAREHOUSES = (
@@ -217,7 +220,7 @@ def _complete_setup_wizard():
 	disable_future_access()
 
 
-def install_sample_data(company=None, data="full"):
+def install_sample_data(company=None, data="full", *, seed_day=None):
 	"""Install real native samples on the exact authorized development site."""
 	assert_development_site()
 	if "System Manager" not in frappe.get_roles():
@@ -239,7 +242,7 @@ def install_sample_data(company=None, data="full"):
 		publish_realtime = frappe.publish_realtime
 		frappe.publish_realtime = lambda *args, **kwargs: None
 		try:
-			result = install(company, data=data, generate_volume=data == "full")
+			result = install(company, data=data, generate_volume=data == "full", seed_day=seed_day)
 		finally:
 			frappe.publish_realtime = publish_realtime
 			frappe.flags.ti_suppress_notifications = False
@@ -786,14 +789,15 @@ def prepare_development_sample_site(
 
 	from erpnext.setup.setup_wizard.setup_wizard import setup_complete
 
-	start = getdate(fiscal_year_start or f"{getdate(nowdate()).year}-01-01")
+	seed_day = datetime.now(SAMPLE_ZONE).date()
+	start = getdate(fiscal_year_start or f"{seed_day.year}-01-01")
 	end = getdate(fiscal_year_end or (start.replace(year=start.year + 1) - timedelta(days=1)))
 	args = frappe._dict(
 		{
 			"company_name": company,
 			"company_abbr": abbr,
 			"country": country,
-			"timezone": "America/New_York",
+			"timezone": SAMPLE_ZONE.key,
 			"currency": currency,
 			"chart_of_accounts": chart_of_accounts,
 			"domain": None,
@@ -805,7 +809,7 @@ def prepare_development_sample_site(
 	frappe.set_user("Administrator")
 	_progress("ERPNext Company、会计科目与默认设置：开始")
 	setup_complete(args)
-	frappe.db.set_single_value("System Settings", "time_zone", "America/New_York")
+	frappe.db.set_single_value("System Settings", "time_zone", SAMPLE_ZONE.key)
 	from temple_inventory.patches.align_user_time_zones import align_user_time_zones
 
 	align_user_time_zones()
@@ -822,8 +826,8 @@ def prepare_development_sample_site(
 	_remove_default_sample_records(company)
 	frappe.db.commit()
 
-	result = install_sample_data(company=company, data=data)
+	result = install_sample_data(company=company, data=data, seed_day=seed_day)
 	if data == "full":
 		_set_demo_passwords()
 	_progress(f"最终验证：完成（{result['transactions']} 个样例事务）")
-	return result
+	return {**result, "seed_day": seed_day.isoformat()}

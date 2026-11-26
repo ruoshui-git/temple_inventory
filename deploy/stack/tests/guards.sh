@@ -14,6 +14,7 @@ STUB
 chmod +x "$test_root/bin/docker"
 export PATH=$test_root/bin:$PATH
 image=ghcr.io/ruoshui-git/temple_inventory@sha256:$(printf '%064d' 0)
+seed_digest=sha256:$(printf '%064d' 1)
 checks=0
 refuse() {
 	: >"$DOCKER_CALLS"
@@ -58,6 +59,8 @@ for environment in sample staging production; do
 	refuse bash "$dir/deploy.sh" reinstall "$image"
 	refuse bash "$dir/deploy.sh" reinstall "$image" --confirm-site wrong.site
 	refuse bash "$dir/deploy.sh" status extra
+	refuse bash "$dir/deploy.sh" deploy "$image" invalid
+	if [[ $environment != sample ]]; then refuse bash "$dir/deploy.sh" deploy "$image" "$seed_digest"; fi
 	refuse bash "$dir/bootstrap.sh" "$image" extra
 	refuse bash "$dir/backup.sh" extra
 	if [[ $environment != staging ]]; then
@@ -68,6 +71,11 @@ for environment in sample staging production; do
 	# A valid status without any installed image is permitted without Docker.
 	: >"$DOCKER_CALLS"
 	bash "$dir/deploy.sh" status >/dev/null
+	if [[ $environment == sample ]]; then
+		[[ $(SSH_ORIGINAL_COMMAND='status seed-digest' bash "$dir/deploy.sh") == 'seed-digest: supported' ]]
+	else
+		refuse bash "$dir/deploy.sh" status seed-digest
+	fi
 	[[ ! -s $DOCKER_CALLS ]] || exit 1
 	checks=$((checks + 1))
 done
@@ -75,6 +83,8 @@ refuse env SSH_ORIGINAL_COMMAND='production deploy invalid' bash "$source_dir/di
 refuse env SSH_ORIGINAL_COMMAND='staging restore /tmp/backup' bash "$source_dir/dispatch.sh" --allow-env staging
 refuse env SSH_ORIGINAL_COMMAND="staging reinstall $image --confirm-site staging.kufang.online" bash "$source_dir/dispatch.sh" --allow-env staging
 refuse env SSH_ORIGINAL_COMMAND='sample status; id' bash "$source_dir/dispatch.sh" --allow-env staging
+refuse env SSH_ORIGINAL_COMMAND='sample status seed-digest' bash "$source_dir/dispatch.sh" --allow-env staging
+refuse env SSH_ORIGINAL_COMMAND='staging status seed-digest' bash "$source_dir/dispatch.sh" --allow-env staging
 refuse env SSH_ORIGINAL_COMMAND='../../tmp status' bash "$source_dir/dispatch.sh"
 for environment in sample production; do
 	refuse env SSH_ORIGINAL_COMMAND="$environment promote $image" bash "$source_dir/dispatch.sh" --allow-env "$environment"
@@ -84,6 +94,9 @@ for invalid in 'staging promote' 'staging promote ghcr.io/ruoshui-git/temple_inv
 	refuse env SSH_ORIGINAL_COMMAND="$invalid" bash "$source_dir/dispatch.sh" --allow-env staging
 done
 sed "s|^script=/srv/kufang/|script=$test_root/|" "$source_dir/dispatch.sh" >"$test_root/dispatch.sh"
+for command in 'status seed-digest' 'sample status seed-digest'; do
+	[[ $(SSH_ORIGINAL_COMMAND="$command" bash "$test_root/dispatch.sh" --allow-env sample) == 'seed-digest: supported' ]]
+done
 cat >"$test_root/staging/deploy.sh" <<'STUB'
 #!/usr/bin/env bash
 set -eu
@@ -92,4 +105,13 @@ printf '%s\n' "$@"
 STUB
 chmod +x "$test_root/staging/deploy.sh"
 [[ $(SSH_ORIGINAL_COMMAND="staging promote $image" bash "$test_root/dispatch.sh" --allow-env staging) == "promote"$'\n'"$image" ]]
+cp -p "$test_root/staging/deploy.sh" "$test_root/sample/deploy.sh"
+for command in "deploy $image" "sample deploy $image"; do
+	dispatched=$(SSH_ORIGINAL_COMMAND="$command $seed_digest" bash "$test_root/dispatch.sh" --allow-env sample)
+	[[ $dispatched == "deploy"$'\n'"$image"$'\n'"$seed_digest" ]]
+done
+for invalid in "deploy $image latest" "deploy $image $seed_digest extra" \
+	"staging deploy $image $seed_digest" "production deploy $image $seed_digest" "staging promote $image $seed_digest"; do
+	refuse env SSH_ORIGINAL_COMMAND="$invalid" bash "$test_root/dispatch.sh"
+done
 printf 'PASS: %s offline guard checks; no Docker calls\n' "$checks"

@@ -6,6 +6,13 @@ on:
   push:
     branches-ignore: [main]
   workflow_call:
+    inputs:
+      capture_sample_seed:
+        type: boolean
+        default: false
+    outputs:
+      seed_artifact:
+        value: ${{ jobs.backend.outputs.seed_artifact }}
   workflow_dispatch:
 
 permissions:
@@ -19,8 +26,9 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uvx ruff@0.14.10 check
       - run: uvx ruff@0.14.10 format --check
-      - run: docker run --rm --entrypoint shellcheck -v "$PWD:/mnt" -w /mnt koalaman/shellcheck-alpine:v0.10.0 deploy/stack/*.sh deploy/stack/tests/*.sh
+      - run: docker run --rm --entrypoint shellcheck -v "$PWD:/mnt" -w /mnt koalaman/shellcheck-alpine:v0.10.0 deploy/stack/*.sh deploy/stack/tests/*.sh scripts/sample-snapshot
       - run: bash deploy/stack/tests/guards.sh && bash deploy/stack/tests/lifecycle.sh && bash deploy/stack/tests/failures.sh && bash deploy/stack/tests/backup-security.sh && bash deploy/stack/tests/backupstore.sh
+      - run: python3 deploy/stack/tests/test_seedstore.py
       - run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7
 
   frontend:
@@ -92,6 +100,8 @@ jobs:
           retention-days: 7
 
   backend:
+    outputs:
+      seed_artifact: ${{ steps.seed-upload.outcome == 'success' && steps.seed-name.outputs.name || '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     services:
@@ -180,8 +190,8 @@ jobs:
       - uses: actions/cache/restore@v4
         with:
           path: ~/sample-snapshot
-          key: sample-snapshot-${{ steps.snapshot.outputs.key }}-${{ github.run_id }}
-          restore-keys: sample-snapshot-${{ steps.snapshot.outputs.key }}-
+          key: sample-snapshot-v2-${{ steps.snapshot.outputs.key }}-${{ github.run_id }}
+          restore-keys: sample-snapshot-v2-${{ steps.snapshot.outputs.key }}-
       - name: Install apps and sample data
         id: seed
         working-directory: /home/runner/frappe-bench
@@ -193,15 +203,45 @@ jobs:
             $snapshot restore ci.localhost ~/sample-snapshot
           else
             bench --site ci.localhost install-app erpnext temple_inventory
-            bench --site ci.localhost execute temple_inventory.sample_install.prepare_development_sample_site
-            $snapshot save ci.localhost ~/sample-snapshot
-            echo "saved=1" >>"$GITHUB_OUTPUT"
+            seed_day=$($snapshot portable seed ci.localhost)
+            echo "day=$seed_day" >>"$GITHUB_OUTPUT"
           fi
+      - name: Capture clean portable seed before native tests
+        id: seed-bundle
+        if: inputs.capture_sample_seed && steps.seed.outputs.day != ''
+        continue-on-error: true
+        working-directory: /home/runner/frappe-bench
+        env:
+          SEED_DAY: ${{ steps.seed.outputs.day }}
+        run: |
+          apps/temple_inventory/scripts/sample-snapshot portable save ci.localhost "$RUNNER_TEMP/sample-seed" "$SEED_DAY"
+      - name: Name this attempt's seed artifact
+        id: seed-name
+        if: steps.seed-bundle.outcome == 'success'
+        run: echo "name=sample-seed-$GITHUB_RUN_ATTEMPT" >>"$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        id: seed-upload
+        if: steps.seed-bundle.outcome == 'success'
+        continue-on-error: true
+        with:
+          name: ${{ steps.seed-name.outputs.name }}
+          path: ${{ runner.temp }}/sample-seed/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 2
+      - name: Save the Bench test snapshot
+        id: snapshot-save
+        if: steps.seed.outputs.day != ''
+        continue-on-error: true
+        working-directory: /home/runner/frappe-bench
+        env:
+          SEED_DAY: ${{ steps.seed.outputs.day }}
+        run: apps/temple_inventory/scripts/sample-snapshot save ci.localhost ~/sample-snapshot "$SEED_DAY"
       - uses: actions/cache/save@v4
-        if: steps.seed.outputs.saved == '1'
+        if: steps.snapshot-save.outcome == 'success'
         with:
           path: ~/sample-snapshot
-          key: sample-snapshot-${{ steps.snapshot.outputs.key }}-${{ github.run_id }}
+          key: sample-snapshot-v2-${{ steps.snapshot.outputs.key }}-${{ github.run_id }}
       - name: Native inventory tests
         working-directory: /home/runner/frappe-bench
         run: bench --site ci.localhost execute temple_inventory.tests.test_native_inventory.run
@@ -293,8 +333,8 @@ jobs:
       - uses: actions/cache/restore@v4
         with:
           path: ~/sample-snapshot
-          key: sample-snapshot-${{ steps.snapshot.outputs.key }}-${{ github.run_id }}
-          restore-keys: sample-snapshot-${{ steps.snapshot.outputs.key }}-
+          key: sample-snapshot-v2-${{ steps.snapshot.outputs.key }}-${{ github.run_id }}
+          restore-keys: sample-snapshot-v2-${{ steps.snapshot.outputs.key }}-
       - name: Install apps and sample data
         id: seed
         working-directory: /home/runner/frappe-bench
@@ -306,15 +346,22 @@ jobs:
             $snapshot restore ci.localhost ~/sample-snapshot
           else
             bench --site ci.localhost install-app erpnext temple_inventory
-            bench --site ci.localhost execute temple_inventory.sample_install.prepare_development_sample_site
-            $snapshot save ci.localhost ~/sample-snapshot
-            echo "saved=1" >>"$GITHUB_OUTPUT"
+            seed_day=$($snapshot portable seed ci.localhost)
+            echo "day=$seed_day" >>"$GITHUB_OUTPUT"
           fi
+      - name: Save the Bench test snapshot
+        id: snapshot-save
+        if: steps.seed.outputs.day != ''
+        continue-on-error: true
+        working-directory: /home/runner/frappe-bench
+        env:
+          SEED_DAY: ${{ steps.seed.outputs.day }}
+        run: apps/temple_inventory/scripts/sample-snapshot save ci.localhost ~/sample-snapshot "$SEED_DAY"
       - uses: actions/cache/save@v4
-        if: steps.seed.outputs.saved == '1'
+        if: steps.snapshot-save.outcome == 'success'
         with:
           path: ~/sample-snapshot
-          key: sample-snapshot-${{ steps.snapshot.outputs.key }}-${{ github.run_id }}
+          key: sample-snapshot-v2-${{ steps.snapshot.outputs.key }}-${{ github.run_id }}
       - name: Start web and worker
         working-directory: /home/runner/frappe-bench
         run: |

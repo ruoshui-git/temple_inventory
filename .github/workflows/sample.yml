@@ -2,7 +2,7 @@ name: Sample
 
 # Every push to main: test and build an immutable image in parallel, then
 # release and deploy the tested digest if the commit is still at main.
-# Deploys are serialized and the host reinstalls and reseeds the sample site.
+# Deploys are serialized and the host prefers a verified clean sample seed.
 on:
   push:
     branches: [main]
@@ -17,6 +17,8 @@ env:
 jobs:
   ci:
     uses: ./.github/workflows/ci.yml
+    with:
+      capture_sample_seed: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
   image:
     if: github.ref == 'refs/heads/main'
@@ -81,9 +83,56 @@ jobs:
             --tag "$IMAGE_NAME:sha-$GITHUB_SHA" --tag "$IMAGE_NAME:main" "$IMAGE_REF"
           echo "ref=$IMAGE_REF" >>"$GITHUB_OUTPUT"
 
+  publish-seed:
+    needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.ci.outputs.seed_artifact != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.ci.outputs.seed_artifact }}
+          path: ${{ runner.temp }}/sample-seed
+      - name: Check seed integrity and day
+        id: seed
+        run: |
+          snapshot=scripts/sample-snapshot
+          tag=$($snapshot portable tag "$RUNNER_TEMP/sample-seed")
+          {
+            echo "ref=$($snapshot portable package):$tag"
+            echo "type=$($snapshot portable artifact-type)"
+            echo "oras=$($snapshot portable oras-image)"
+          } >>"$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Publish portable seed to GHCR
+        id: push
+        env:
+          SEED_REF: ${{ steps.seed.outputs.ref }}
+          SEED_TYPE: ${{ steps.seed.outputs.type }}
+          ORAS_IMAGE: ${{ steps.seed.outputs.oras }}
+        run: |
+          published=$(docker run --rm --env DOCKER_CONFIG=/auth \
+            -v "${DOCKER_CONFIG:-$HOME/.docker}:/auth:ro" \
+            -v "$RUNNER_TEMP/sample-seed:/bundle:ro" -w /bundle "$ORAS_IMAGE" \
+            push --format json --artifact-type "$SEED_TYPE" -a "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            "$SEED_REF" manifest.json:application/json database.sql.gz:application/gzip \
+            public-files.tgz:application/gzip private-files.tgz:application/gzip)
+          digest=$(jq -er '.digest | select(test("^sha256:[0-9a-f]{64}$"))' <<<"$published")
+          echo "digest=$digest" >>"$GITHUB_OUTPUT"
+
   deploy:
-    needs: release
-    if: needs.release.outputs.ref != ''
+    needs: [release, publish-seed]
+    if: ${{ !cancelled() && needs.release.result == 'success' && needs.release.outputs.ref != '' }}
     runs-on: ubuntu-latest
     environment:
       name: sample
@@ -110,12 +159,21 @@ jobs:
           KNOWN_HOSTS: ${{ secrets.SAMPLE_SSH_KNOWN_HOSTS }}
           TARGET: ${{ secrets.SAMPLE_SSH_USER }}@${{ secrets.SAMPLE_SSH_HOST }}
           IMAGE_REF: ${{ needs.release.outputs.ref }}
+          SEED_DIGEST: ${{ needs.publish-seed.result == 'success' && needs.publish-seed.outputs.digest || '' }}
         run: |
           install -d -m 700 ~/.ssh
           printf '%s\n' "$SSH_KEY" >~/.ssh/id_ed25519
           printf '%s\n' "$KNOWN_HOSTS" >~/.ssh/known_hosts
           chmod 600 ~/.ssh/id_ed25519
-          ssh -o BatchMode=yes -o ServerAliveInterval=30 "$TARGET" deploy "$IMAGE_REF"
+          sample_ssh=(ssh -o BatchMode=yes -o ServerAliveInterval=30 "$TARGET")
+          seed_args=()
+          # Old dispatchers and old entry points both reject this read-only probe.
+          if [[ -n "$SEED_DIGEST" ]] &&
+            capability=$("${sample_ssh[@]}" status seed-digest 2>/dev/null) &&
+            [[ "$capability" == 'seed-digest: supported' ]]; then
+            seed_args+=("$SEED_DIGEST")
+          fi
+          "${sample_ssh[@]}" deploy "$IMAGE_REF" "${seed_args[@]}"
       - name: Public health check
         if: steps.main.outputs.current == 'true'
         run: curl -fsS --retry 6 --retry-delay 10 https://sample.kufang.online/api/method/ping | grep -q pong

@@ -4,6 +4,7 @@ import hashlib
 import json
 import tempfile
 import unittest
+from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
@@ -212,6 +213,31 @@ class NativeSampleAttachmentTests(NativeDocumentTests):
 
 
 class SampleGeneratorUnitTests(unittest.TestCase):
+	def test_default_fiscal_year_follows_new_york_at_year_rollover(self):
+		from erpnext.setup.setup_wizard import setup_wizard
+
+		from temple_inventory import sample_install
+
+		for utc_hour, year in ((4, 2026), (5, 2027)):
+			instant = datetime(2027, 1, 1, utc_hour, tzinfo=UTC)
+			with (
+				self.subTest(instant=instant),
+				patch.object(sample_install, "datetime") as clock,
+				patch.object(sample_install, "assert_development_site"),
+				patch.object(frappe.db, "exists", return_value=False),
+				patch.object(frappe, "set_user"),
+				patch.object(
+					setup_wizard, "setup_complete", side_effect=RuntimeError("stop before site writes")
+				) as setup,
+				self.assertRaisesRegex(RuntimeError, "stop before site writes"),
+			):
+				clock.now.side_effect = instant.astimezone
+				sample_install.prepare_development_sample_site()
+			args = setup.call_args.args[0]
+			self.assertEqual(args.fy_start_date, f"{year}-01-01")
+			self.assertEqual(args.fy_end_date, f"{year}-12-31")
+			self.assertEqual(args.timezone, "America/New_York")
+
 	def test_realistic_catalog_preserves_name_batch_unit_and_category_rhythms(self):
 		rows = native_samples.generated_product_rows()
 		self.assertEqual(len(rows), 436)

@@ -16,6 +16,10 @@ fi
 volume_backup() {
 	local dir=$1
 	compose exec -T backend bench --site "$SITE_NAME" backup --with-files --compress --backup-path "$dir"
+	if [[ $ENVIRONMENT == sample ]]; then
+		# Bench may generate a decryption key after it saves its own config copy.
+		compose exec -T backend install -m 600 "sites/$SITE_NAME/site_config.json" "$dir/rollback-site-config.json"
+	fi
 }
 
 hold_failed_site() {
@@ -25,28 +29,42 @@ hold_failed_site() {
 }
 
 recover() {
-	local previous=$1 dir=$2 failed=$3 restored=1
+	local previous=$1 dir=$2 failed=$3 restored=1 config_ready=0
 	trap - ERR
 	set +e
 	log "FAILED: restoring $dir with $previous"
+	if [[ $ENVIRONMENT == sample ]]; then
+		release_sample_download
+		sample_config "$previous" "$dir" rollback || config_ready=$?
+	fi
 	maintenance "$previous" on
 	stop_jobs
 	stop_web
 	# Both containers use the same sites volume; don't start any web/jobs until
 	# the database and files have been restored together.
-	# shellcheck disable=SC2016
-	IMAGE=$previous compose run --rm --no-deps -T -e DIR="$dir" -e SITE_NAME -e DB_ROOT_PASSWORD backend bash -c '
+	if [[ $ENVIRONMENT != sample ]] || { ((config_ready == 0)) && clear_sample_files "$previous"; }; then
+		# shellcheck disable=SC2016
+		IMAGE=$previous compose run --rm --no-deps -T -e DIR="$dir" -e SITE_NAME -e DB_ROOT_PASSWORD -e ENVIRONMENT backend bash -c '
 		set -euo pipefail
 		cd "$DIR"
 		shopt -s nullglob
 		db=(*-database.sql.gz); all=(*-files.tgz); private=(*-private-files.tgz); public=()
-		for file in "${all[@]}"; do [[ $file == *-private-files.tgz ]] || public+=("$file"); done
+		if [[ $ENVIRONMENT == sample ]]; then
+			db+=(*-database-enc.sql.gz); all+=(*-files-enc.tgz); private+=(*-private-files-enc.tgz)
+		fi
+		for file in "${all[@]}"; do
+			[[ $file == *-private-files.tgz || $file == *-private-files-enc.tgz ]] || public+=("$file")
+		done
 		[[ ${#db[@]} == 1 && ${#public[@]} == 1 && ${#private[@]} == 1 ]]
 		bench --site "$SITE_NAME" restore "$DIR/${db[0]}" \
 			--with-public-files "$DIR/${public[0]}" --with-private-files "$DIR/${private[0]}" \
 			--db-root-username root --db-root-password "$DB_ROOT_PASSWORD" --force
 	'
-	restored=$?
+		restored=$?
+		if ((restored == 0)) && [[ $ENVIRONMENT == sample ]]; then
+			sample_config "$previous" "$dir" rollback || restored=$?
+		fi
+	fi
 	if ((restored == 0)) && site_policy "$previous" && start_web "$previous" &&
 		maintenance "$previous" off && healthy "$previous" && start_jobs "$previous"; then
 		log "recovered on $previous"
@@ -81,81 +99,244 @@ prune_volume_backups() {
 }
 
 sample_snapshot=/home/frappe/frappe-bench/sites/.sample-snapshot
+sample_stage=/home/frappe/frappe-bench/sites/.sample-seed-stage
+sample_cli=/home/frappe/frappe-bench/apps/temple_inventory/scripts/sample-snapshot
 
-# A seeded site depends only on the app source (tests and built frontend aside)
-# and the framework versions, so pushes that change neither reuse the snapshot.
+sample_command() {
+	local image=$1 bundle=$2
+	shift 2
+	local -a mount=()
+	[[ -z $bundle ]] || mount=(-v "$bundle:/sample-seed:ro")
+	# Even a read-only preflight must avoid rewriting the live assets link.
+	IMAGE=$image compose run --rm --no-deps -T "${mount[@]}" --entrypoint env backend "$sample_cli" portable "$@"
+}
+
 seed_key() {
-	local image=$1
-	{
-		# shellcheck disable=SC2016
-		IMAGE=$image compose run --rm --no-deps -T backend bash -c '
-			set -euo pipefail
-			cd apps/temple_inventory
-			find temple_inventory -type f ! -path "*/__pycache__/*" ! -path "temple_inventory/tests/*" \
-				! -path "temple_inventory/public/frontend/*" ! -path temple_inventory/www/inventory.html -print0 |
-				sort -z | xargs -0 sha256sum
-		'
-		docker image inspect --format \
-			'{{index .Config.Labels "org.kufang.frappe-version"}} {{index .Config.Labels "org.kufang.erpnext-version"}}' \
-			"$image"
-	} | sha256sum | cut -c1-16
+	sample_command "$1" "" lookup
 }
 
-# Seeded dates are relative to the seeding day, so a snapshot serves that day only.
-fresh_snapshot() {
-	local image=$1 key=$2 seeded snapshot_key day zone
-	seeded=$(IMAGE=$image compose run --rm --no-deps -T backend cat "$sample_snapshot/seeded" 2>/dev/null) || return 1
-	read -r snapshot_key day zone <<<"$seeded"
-	[[ $snapshot_key == "$key" && -n $zone && $(TZ=$zone date +%F) == "$day" ]]
+oras_seed() {
+	local limit=$1 image=$2 work=$3 status=0
+	shift 3
+	local name="kufang-seed-${work##*.}"
+	timeout --kill-after=5s "$limit" docker run --rm --name "$name" \
+		--user "$(id -u):$(id -g)" --cap-drop ALL --security-opt no-new-privileges \
+		--read-only -v "$work/bundle:/bundle" "$image" "$@" || status=$?
+	# Terminating the Docker client on timeout can leave its container running.
+	if ((status)); then timeout 10s docker rm -f "$name" >/dev/null 2>&1 || true; fi
+	return "$status"
 }
 
-save_snapshot() {
-	local image=$1 key=$2
-	log "save seeded snapshot $key"
-	# shellcheck disable=SC2016
-	IMAGE=$image compose run --rm --no-deps -T -e SITE_NAME -e KEY="$key" -e SNAPSHOT="$sample_snapshot" \
-		backend bash -c '
-		set -euo pipefail
-		rm -rf "$SNAPSHOT.tmp"
-		mkdir -p "$SNAPSHOT.tmp"
-		bench --site "$SITE_NAME" backup --with-files --backup-path "$SNAPSHOT.tmp"
-		day=$(bench --site "$SITE_NAME" execute frappe.utils.nowdate | tr -d "\"")
-		zone=$(bench --site "$SITE_NAME" execute frappe.utils.get_system_timezone | tr -d "\"")
-		cd "$SNAPSHOT.tmp"
-		# Private first: once it is renamed, only the public archive ends in -files.tar.
-		mv -- ./*-database.sql.gz database.sql.gz
-		mv -- ./*-private-files.tar private.tar
-		mv -- ./*-files.tar public.tar
-		rm -f -- ./*-site_config_backup.json
-		printf "%s %s %s\n" "$KEY" "$day" "$zone" >seeded
-		rm -rf "$SNAPSHOT"
-		mv "$SNAPSHOT.tmp" "$SNAPSHOT"
-	'
+fetch_sample_snapshot() {
+	local image=$1 work=$2 digest=$3 identity=$4 pin package size free filesystem
+	filesystem=$(stat -f -c %T -- "$work") || return $?
+	[[ $filesystem != tmpfs && $filesystem != ramfs ]] || return 1
+	free=$(df -B1 --output=avail -- "$work" | tail -n 1) || return $?
+	((free > 512 * 1024 * 1024)) || return 1
+	mkdir -m 755 -- "$work/bundle" || return $?
+	pin=$(sample_command "$image" "" oras-image) || return $?
+	package=$(sample_command "$image" "" package) || return $?
+	# Bound the manifest separately, then inspect a digest-pinned layer list.
+	# Remove the OCI manifest before the portable payload verification.
+	(ulimit -f 64 && oras_seed 30s "$pin" "$work" manifest fetch "$package@$digest") \
+		>"$work/bundle/.oci-manifest" || return $?
+	chmod 644 "$work/bundle/.oci-manifest" || return $?
+	size=$(sample_command "$image" "$work/bundle" oci-size /sample-seed/.oci-manifest) || return $?
+	[[ $size =~ ^[0-9]+$ ]] && ((free > size + 512 * 1024 * 1024)) || return 1
+	rm -- "$work/bundle/.oci-manifest" || return $?
+	oras_seed 180s "$pin" "$work" pull "$package@$digest" --output /bundle >&2 || return $?
+	chmod 644 -- "$work/bundle/"{manifest.json,database.sql.gz,public-files.tgz,private-files.tgz} || return $?
+	sample_command "$image" "$work/bundle" verify /sample-seed --identity "$identity" --remote --restore-volume sites
 }
 
-# Sample shows exactly what the deployed commit installs: nothing from earlier
-# deploys or visitors survives. Site config (database login, maintenance) stays.
-reseed_sample() {
-	local image=$1 key
-	key=$(seed_key "$image")
-	log "wipe files"
-	wipe_site_files "$image"
-	if fresh_snapshot "$image" "$key"; then
-		log "restore seeded snapshot $key"
-		bench_with "$image" --site "$SITE_NAME" restore "$sample_snapshot/database.sql.gz" \
-			--with-public-files "$sample_snapshot/public.tar" --with-private-files "$sample_snapshot/private.tar" \
-			--db-root-username root --db-root-password "$DB_ROOT_PASSWORD" --force
-		bench_with "$image" --site "$SITE_NAME" clear-cache
-		bench_with "$image" purge-jobs --site "$SITE_NAME"
-		return
+prepare_sample_snapshot() {
+	local image=$1 digest=$2 identity lookup
+	identity=$(seed_key "$image") || return $?
+	lookup=$(python3 -c 'import json,sys; data=json.loads(sys.argv[1]); print(data["tag"], data["day"], data["zone"])' "$identity") || return $?
+	read -r sample_tag sample_day sample_zone <<<"$lookup"
+	[[ $sample_tag =~ ^v[0-9]+-[0-9a-f]{64}-[0-9]{4}-[0-9]{2}-[0-9]{2}$ && -n $sample_zone ]] || return 1
+	# Ignore caches from deployments that resolved mutable registry tags.
+	sample_cache=$sample_snapshot/pinned-$sample_tag
+	if sample_required=$(sample_command "$image" "" verify "$sample_cache" --identity "$identity" --restore-volume sites); then
+		log "verified local seed $sample_tag"
+		sample_source=$sample_cache
+		return 0
 	fi
+	[[ -n $digest ]] || return 1
+	sample_work=$(mktemp -d -- "$root/.sample-seed.XXXXXXXX") || return $?
+	if sample_required=$(fetch_sample_snapshot "$image" "$sample_work" "$digest" "$identity"); then
+		log "verified GHCR seed $digest ($sample_tag)"
+		sample_remote=$sample_work/bundle
+		sample_source=/sample-seed
+		return 0
+	fi
+	release_sample_download
+	return 1
+}
+
+release_sample_download() {
+	if [[ -n $sample_work ]]; then
+		if rm -rf -- "$sample_work"; then
+			sample_work=
+		else
+			log "could not clear sample seed download"
+		fi
+	fi
+	sample_remote=
+}
+
+cleanup_sample_work() {
+	release_sample_download
+	if [[ -n $sample_stage_image ]]; then
+		IMAGE=$sample_stage_image compose run --rm --no-deps -T --entrypoint env backend rm -rf -- "$sample_stage" ||
+			log "could not clear sample seed staging volume"
+	fi
+	rm -f -- state/sample-credentials.tmp
+}
+
+sample_config() {
+	local image=$1 dir=$2 mode=$3
+	# Use the complete config saved after Bench backup and before maintenance.
+	# shellcheck disable=SC2016
+	IMAGE=$image compose run --rm --no-deps -T --entrypoint env \
+		-e SITE_NAME -e SAMPLE_BACKUP_DIR="$dir" backend python3 -c '
+import json, os, sys, tempfile
+from pathlib import Path
+
+path = Path("sites") / os.environ["SITE_NAME"] / "site_config.json"
+backup = Path(os.environ["SAMPLE_BACKUP_DIR"]) / "rollback-site-config.json"
+config = json.loads(backup.read_text())
+mode = sys.argv[1]
+if mode != "rollback":
+	try:
+		target = json.loads(path.read_text())
+	except (OSError, ValueError):
+		sys.exit("sample site configuration is unreadable")
+	if not isinstance(target, dict) or {
+		key: value for key, value in target.items() if key != "maintenance_mode"
+	} != {key: value for key, value in config.items() if key != "maintenance_mode"}:
+		sys.exit("sample site configuration changed since the rollback backup")
+	if mode == "check":
+		sys.exit(0)
+	config.pop("encryption_key", None)
+config["maintenance_mode"] = 1
+config["temple_inventory_sample_site"] = 0
+with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, delete=False) as output:
+	tmp = Path(output.name)
+try:
+	tmp.write_text(json.dumps(config))
+	tmp.replace(path)
+finally:
+	tmp.unlink(missing_ok=True)
+' "$mode"
+}
+
+clear_sample_files() {
+	local image=$1
+	wipe_site_files "$image" || return $?
+	# Bench copies these archives into the site before extraction and can leave
+	# them behind when extraction fails.
+	IMAGE=$image compose run --rm --no-deps -T --entrypoint env backend \
+		rm -f -- "sites/$SITE_NAME/public-files.tgz" "sites/$SITE_NAME/private-files.tgz"
+}
+
+finish_sample_seed() {
+	local image=$1 mode=$2 users
+	maintenance "$image" on || return $?
+	bench_with "$image" purge-jobs --site "$SITE_NAME" || return $?
+	bench_with "$image" --site "$SITE_NAME" clear-cache || return $?
+	bench_with "$image" --site "$SITE_NAME" set-config temple_inventory_sample_site 0 || return $?
+	site_policy "$image" || return $?
+	users=$(sample_command "$image" "" site "$SITE_NAME" "$mode") || return $?
+	python3 - "$SITE_NAME" "$users" >state/sample-credentials.tmp <<'PY'
+import json
+import sys
+from datetime import UTC, datetime
+
+print(f"# {sys.argv[1]} logins, verified {datetime.now(UTC).isoformat()}")
+for user in json.loads(sys.argv[2]):
+	print(f"{user} admin")
+PY
+}
+
+restore_sample_snapshot() {
+	local image=$1 dir=$2
+	local -a mount=()
+	[[ -z $sample_remote ]] || mount=(-v "$sample_remote:/sample-seed:ro")
+	sample_config "$image" "$dir" check || return $?
+	clear_sample_files "$image" || return $?
+	# Recheck just before importing in case stopping the site crossed midnight.
+	[[ $(TZ=$sample_zone date +%F) == "$sample_day" ]] || return 1
+	# Bench uses root to recreate this site database, and imports as the site's DB user.
+	IMAGE=$image compose run --rm --no-deps -T "${mount[@]}" backend bench --site "$SITE_NAME" \
+		restore "$sample_source/database.sql.gz" \
+		--with-public-files "$sample_source/public-files.tgz" \
+		--with-private-files "$sample_source/private-files.tgz" \
+		--db-root-username root --db-root-password "$DB_ROOT_PASSWORD" --force || return $?
+	sample_config "$image" "$dir" portable || return $?
+	finish_sample_seed "$image" restore
+}
+
+reseed_sample() {
+	local image=$1 dir=$2 anchor
+	if [[ -n $sample_source ]] && restore_sample_snapshot "$image" "$dir"; then
+		return 0
+	fi
+	if [[ -n $sample_source ]]; then
+		log "seed restore failed or expired; reinstalling"
+		if [[ -z $sample_remote ]]; then
+			IMAGE=$image compose run --rm --no-deps -T --entrypoint env backend rm -rf -- "$sample_source" ||
+				log "could not discard failed local seed"
+		fi
+		release_sample_download
+		sample_source=
+		sample_config "$image" "$dir" rollback
+	fi
+	log "wipe files"
+	clear_sample_files "$image"
 	log "reinstall"
 	bench_with "$image" --site "$SITE_NAME" reinstall --yes \
 		--db-root-username root --db-root-password "$DB_ROOT_PASSWORD" --admin-password admin
+	# Reinstall can finish with only Frappe if the failed restore left no readable app list.
+	bench_with "$image" --site "$SITE_NAME" install-app erpnext temple_inventory
 	bench_with "$image" purge-jobs --site "$SITE_NAME"
 	log "seed"
-	seed_sample "$image"
-	save_snapshot "$image" "$key"
+	bench_with "$image" --site "$SITE_NAME" set-config temple_inventory_sample_site 1
+	anchor=$(sample_command "$image" "" seed "$SITE_NAME") || return $?
+	finish_sample_seed "$image" local
+	sample_stage_image=$image
+	if [[ $anchor == "$sample_day" && -n $sample_tag ]] &&
+		IMAGE=$image compose run --rm --no-deps -T --entrypoint env backend rm -rf -- "$sample_stage" &&
+		sample_command "$image" "" save "$SITE_NAME" "$sample_stage" "$anchor"; then
+		sample_source=$sample_stage
+	else
+		log "local seed snapshot unavailable"
+	fi
+}
+
+promote_sample_snapshot() {
+	local image=$1
+	[[ -n $sample_source && $sample_source != "$sample_cache" ]] || return 0
+	[[ $(TZ=$sample_zone date +%F) == "$sample_day" ]] || return 0
+	local -a mount=()
+	[[ -z $sample_remote ]] || mount=(-v "$sample_remote:/sample-seed:ro")
+	sample_stage_image=$image
+	# shellcheck disable=SC2016
+	IMAGE=$image compose run --rm --no-deps -T "${mount[@]}" --entrypoint bash backend -c '
+		set -euo pipefail
+		source=$1 stage=$2 cache=$3
+		umask 077
+		mkdir -p "${cache%/*}"
+		if [[ $source != "$stage" ]]; then
+			rm -rf -- "$stage"
+			mkdir "$stage"
+			cp -- "$source/"{manifest.json,database.sql.gz,public-files.tgz,private-files.tgz} "$stage/"
+		fi
+		rm -rf -- "$cache"
+		mv -T -- "$stage" "$cache"
+		find "${cache%/*}" -mindepth 1 -maxdepth 1 ! -name "${cache##*/}" -exec rm -rf -- {} +
+	' -- "$sample_source" "$sample_stage" "$sample_cache" || return $?
+	sample_stage_image=
 }
 
 stack_drift() {
@@ -266,7 +447,7 @@ sync_stack() {
 }
 
 deploy() {
-	local new=$1 current ts dir
+	local new=$1 digest=$2 current ts dir rollback
 	[[ $new =~ $image_pattern ]] || die "image must match $image_pattern"
 	docker pull -q "$new" >/dev/null
 	sync_stack "$new"
@@ -280,6 +461,12 @@ deploy() {
 		return
 	fi
 	docker image inspect --format 'revision {{index .Config.Labels "org.opencontainers.image.revision"}}' "$new"
+	if [[ $ENVIRONMENT == sample ]]; then
+		sample_work='' sample_source='' sample_remote='' sample_tag='' sample_day='' sample_zone=''
+		sample_stage_image='' sample_cache='' sample_required=''
+		trap cleanup_sample_work EXIT
+		prepare_sample_snapshot "$new" "$digest" || log "portable seed unavailable; will reinstall and seed"
+	fi
 	if [[ $ENVIRONMENT == production ]]; then
 		# A backup failure aborts before changing the running site.
 		mkdir -p logs
@@ -294,28 +481,44 @@ deploy() {
 		ts=$(date -u +%Y%m%dT%H%M%SZ)
 		dir=$backup_volume/$ts
 		volume_backup "$dir"
-		trap 'recover "$current" "$dir" "$new"' ERR
+		if [[ $ENVIRONMENT == sample && -n $sample_source ]] &&
+			{ ! sample_command "$new" "" headroom sites "$sample_required" ||
+				[[ $(TZ=$sample_zone date +%F) != "$sample_day" ]]; }; then
+			log "portable seed no longer fits or is out of date; will reinstall and seed"
+			release_sample_download
+			sample_source=
+		fi
+		printf -v rollback 'recover %q %q %q' "$current" "$dir" "$new"
+		# shellcheck disable=SC2064 # Bind arguments before entering nested helpers.
+		trap "$rollback" ERR
 		maintenance "$current" on
 		stop_jobs
 		stop_web
 	fi
 	if [[ $ENVIRONMENT == sample ]]; then
-		reseed_sample "$new"
+		reseed_sample "$new" "$dir"
 	else
 		log "migrate"
 		bench_with "$new" --site "$SITE_NAME" migrate
+		site_policy "$new"
 	fi
-	site_policy "$new"
 	log "recreate services"
 	start_web "$new"
 	maintenance "$new" off
 	healthy "$new"
 	start_jobs "$new"
+	if [[ $ENVIRONMENT == sample ]]; then
+		mv -f -- state/sample-credentials.tmp credentials.txt
+	fi
 	trap - ERR
 	set_image "$new"
 	printf '%s\n' "$current" >state/previous
 	printf '%s\n' "$new" >state/current
 	printf '%s deployed %s\n' "$(date -u +%FT%TZ)" "$new" >>state/history
+	if [[ $ENVIRONMENT == sample ]]; then
+		promote_sample_snapshot "$new" || log "could not promote verified local seed cache"
+		release_sample_download
+	fi
 	[[ $ENVIRONMENT == production ]] || prune_volume_backups
 	prune_images "$new" "$current"
 	log "deployed $new"
@@ -508,13 +711,28 @@ status() {
 }
 
 case ${args[0]:-} in
-	deploy) [[ ${#args[@]} == 2 ]] || die "usage: deploy IMAGE"; lock; deploy "${args[1]}" ;;
+	deploy)
+		if [[ $ENVIRONMENT == sample && ${#args[@]} == 3 ]]; then
+			[[ ${args[2]} =~ ^sha256:[0-9a-f]{64}$ ]] || die "invalid sample seed digest"
+		else
+			[[ ${#args[@]} == 2 ]] || die "usage: deploy IMAGE"
+		fi
+		lock
+		deploy "${args[1]}" "${args[2]:-}"
+		;;
 	reinstall)
 		[[ ${#args[@]} == 4 && ${args[2]} == --confirm-site ]] || die "usage: reinstall IMAGE --confirm-site SITE"
 		lock
 		reinstall "${args[1]}" "${args[3]}"
 		;;
-	status) [[ ${#args[@]} == 1 ]] || die "usage: status"; status ;;
+	status)
+		if [[ $ENVIRONMENT == sample && ${#args[@]} == 2 && ${args[1]} == seed-digest ]]; then
+			printf 'seed-digest: supported\n'
+		else
+			[[ ${#args[@]} == 1 ]] || die "usage: status"
+			status
+		fi
+		;;
 	refresh) [[ ${#args[@]} == 1 && $ENVIRONMENT == staging ]] || die "refresh is staging-only"; lock; refresh ;;
 	promote)
 		[[ ${#args[@]} == 2 && $ENVIRONMENT == staging ]] || die "usage: promote IMAGE (staging only)"

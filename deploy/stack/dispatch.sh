@@ -28,10 +28,18 @@ fi
 case $action in
 	deploy|promote)
 		[[ $action != promote || $environment == staging ]] || die "promote is staging-only"
-		[[ ${#args[@]} == 3 && ${args[2]} =~ ^ghcr\.io/ruoshui-git/temple_inventory@sha256:[0-9a-f]{64}$ ]] ||
+		if [[ $action == deploy && $environment == sample && ${#args[@]} == 4 ]]; then
+			[[ ${args[3]} =~ ^sha256:[0-9a-f]{64}$ ]] || die "invalid sample seed digest"
+		else
+			[[ ${#args[@]} == 3 ]] || die "usage: ENV $action IMAGE (immutable ghcr digest)"
+		fi
+		[[ ${args[2]} =~ ^ghcr\.io/ruoshui-git/temple_inventory@sha256:[0-9a-f]{64}$ ]] ||
 			die "usage: ENV $action IMAGE (immutable ghcr digest)"
 		;;
-	status) [[ ${#args[@]} == 2 ]] || die "usage: ENV status" ;;
+	status)
+		[[ ${#args[@]} == 2 || ($environment == sample && ${#args[@]} == 3 && ${args[2]} == seed-digest) ]] ||
+			die "usage: ENV status"
+		;;
 	refresh|stop) [[ $environment == staging && ${#args[@]} == 2 ]] || die "action is staging-only" ;;
 	restore)
 		# Database restore is deliberately operator-only, never a CI key action.

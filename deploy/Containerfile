@@ -45,6 +45,10 @@ RUN if [ -x env/bin/pip ]; then \
 		-exec rm -rf {} + \
 	&& rm -rf /home/frappe/.cache /home/frappe/.npm /home/frappe/.local/share/pnpm/store \
 	&& echo "{}" > sites/common_site_config.json \
+	&& printf '%s %s\n%s %s\n' \
+		"${FRAPPE_VERSION}" "$(git -C apps/frappe rev-parse --verify HEAD)" \
+		"${ERPNEXT_VERSION}" "$(git -C apps/erpnext rev-parse --verify HEAD)" > seed-frameworks \
+	&& test "$(wc -w < seed-frameworks)" -eq 4 \
 	&& find apps -mindepth 1 -path "*/.git" -prune -exec rm -rf {} + \
 	&& chmod -R g=u /home/frappe/frappe-bench
 

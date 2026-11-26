@@ -98,16 +98,16 @@ class BenchTarInfo(tarfile.TarInfo):
 			raise ValueError(f"invalid Bench tar header: {exc}")
 
 
-def check_tar_end(raw, offset, archive):
+def check_tar_end(raw, offset, archive, *, limit=None):
 	block = tarfile.BLOCKSIZE
 	# TarFile stops after the first zero block. Require the second one and
 	# drain the zero padding to make GzipFile verify the trailer and CRC.
 	if raw.tell() != offset + block or raw.read(block) != bytes(block):
 		raise ValueError(f"missing tar end-of-archive blocks in {archive}")
 	while chunk := raw.read(1024 * 1024):
-		if chunk.strip(b"\0"):
+		if (limit is not None and raw.tell() > limit) or chunk.strip(b"\0"):
 			raise ValueError(f"invalid tar padding in {archive}")
-	if raw.tell() % block:
+	if (limit is not None and raw.tell() > limit) or raw.tell() % block:
 		raise ValueError(f"partial tar padding block in {archive}")
 
 

@@ -8,6 +8,8 @@ mkdir -p "$test_root/bin" "$test_root/staging/state" "$test_root/fixture" "$test
 cp "$source_dir/"*.sh "$source_dir/backupstore.py" "$test_root/staging/"
 export LIFECYCLE_ROOT=$test_root
 TEST_IMAGE=ghcr.io/ruoshui-git/temple_inventory@sha256:$(printf '%064d' 1)
+export SEED_KEY
+SEED_KEY=$(printf '%064d' 7)
 export TEST_IMAGE
 printf 'staging\n' >"$test_root/staging/ENVIRONMENT"
 printf 'SITE_NAME=staging.kufang.online\nDB_ROOT_PASSWORD=dummy\nADMIN_PASSWORD=fixture-admin\n' >"$test_root/staging/.env"
@@ -36,6 +38,28 @@ if [[ $* == *' config -q' ]]; then exit 0; fi
 case "$1" in
 	create) printf 'fixture-%s\n' "${2##*:}" ;;
 	rm) ;;
+	run)
+		case " $* " in
+			*' resolve ghcr.io/ruoshui-git/temple_inventory-seed:'*)
+				[[ ${SEED_MODE:-missing} != missing ]] || exit 1
+				printf 'sha256:%064d\n' 8
+				;;
+			*' manifest fetch ghcr.io/ruoshui-git/temple_inventory-seed@sha256:'*)
+				[[ ${SEED_MODE:-missing} != missing ]] || exit 1
+				printf '{}\n'
+				;;
+			*' pull ghcr.io/ruoshui-git/temple_inventory-seed@sha256:'*)
+				for arg; do
+					if [[ $arg == *:/bundle ]]; then
+						cp "$LIFECYCLE_ROOT/fixture/"{database.sql.gz,public-files.tgz,private-files.tgz} "${arg%:/bundle}/"
+						printf '{}\n' >"${arg%:/bundle}/manifest.json"
+					fi
+				done
+				printf 'Pulled seed fixture\n'
+				;;
+		esac
+		exit 0
+		;;
 	images) if [[ -n ${PRUNE_SAMPLE_IMAGE:-} ]]; then cat "$LIFECYCLE_ROOT/local-images"; fi ;;
 	rmi)
 		shift
@@ -106,6 +130,35 @@ case " $* " in
 		cd "$volume"
 		bash -c "${!#}"
 		;;
+	*' backup --with-files --compress --backup-path '*)
+		if [[ $ENVIRONMENT == sample ]]; then
+			backup=${!#}
+			backup=$volume/sites${backup#/home/frappe/frappe-bench/sites}
+			mkdir -p "$backup"
+			site_config=$volume/sites/$SITE_NAME/site_config.json
+			if [[ ${SEED_MODE:-} == fail_seed_encrypted ]]; then
+				touch "$backup/fixture-"{database-enc.sql.gz,files-enc.tgz,private-files-enc.tgz}
+				cp "$site_config" "$backup/fixture-site_config_backup-enc.json"
+				# Bench generates this key after writing its own config backup.
+				printf '{"db_name":"preserved","encryption_key":"old","backup_encryption_key":"generated"}\n' >"$site_config"
+			else
+				touch "$backup/fixture-"{database.sql.gz,files.tgz,private-files.tgz}
+				cp "$site_config" "$backup/fixture-site_config_backup.json"
+			fi
+			touch "$LIFECYCLE_ROOT/sample-backup-written"
+			if [[ ${SEED_MODE:-} == invalid ]]; then
+				if compgen -G "$LIFECYCLE_ROOT/sample/.sample-seed.*" >/dev/null; then
+					echo 'rejected seed scratch survived until backup' >&2
+					exit 85
+				fi
+			fi
+		fi
+		;;
+	*' exec -T backend install -m 600 '*'/rollback-site-config.json '*)
+		[[ -e $LIFECYCLE_ROOT/sample-backup-written ]]
+		target=${!#}
+		install -m 600 "$volume/${@: -2:1}" "$volume/sites${target#/home/frappe/frappe-bench/sites}"
+		;;
 	*' cp backend:'*)
 		destination=${!#}
 		case "$destination" in
@@ -115,12 +168,111 @@ case " $* " in
 			*) printf 'fixture\n' >"$destination" ;;
 		esac
 		;;
-	*' inspect '*) printf '%s\n' "$TEST_IMAGE" ;;
+	*' inspect '*)
+		if [[ -f $LIFECYCLE_ROOT/sample-recovered ]]; then
+			cat "$LIFECYCLE_ROOT/sample/state/current"
+		else
+			printf '%s\n' "$TEST_IMAGE"
+		fi
+		;;
 	*' ps -q backend '*) printf 'fixture-backend\n' ;;
 	*'SELECT COUNT(*) FROM '*) printf '[[0]]\n' ;;
 	*' frappe.get_all '*) cat "$LIFECYCLE_ROOT/demo-users.json" ;;
-	*'/.sample-snapshot/seeded '*) cat "$LIFECYCLE_ROOT/seeded" ;;
+	*' portable lookup '*)
+		day=$(TZ=America/New_York date +%F)
+		printf '{"key":"%s","tag":"v1-%s-%s","day":"%s","zone":"America/New_York"}\n' "$SEED_KEY" "$SEED_KEY" "$day" "$day"
+		;;
+	*' portable verify /home/frappe/frappe-bench/sites/.sample-snapshot/'*)
+		[[ ${SEED_MODE:-missing} == warm ]] || exit 1
+		printf '4096\n'
+		;;
+	*' portable verify /sample-seed '*)
+		[[ ${SEED_MODE:-missing} != invalid ]] || exit 1
+		printf '4096\n'
+		;;
+	*' portable headroom sites 4096 '*)
+		[[ ${!#} == 4096 ]]
+		[[ -e $LIFECYCLE_ROOT/sample-backup-written ]]
+		[[ ${SEED_MODE:-missing} != low_disk ]]
+		;;
+	*' portable oras-image '*) printf 'fixture-oras@sha256:%064d\n' 9 ;;
+	*' portable package '*) printf '%s\n' ghcr.io/ruoshui-git/temple_inventory-seed ;;
+	*' portable oci-size '*) printf '1024\n' ;;
+	*' portable seed '*)
+		case ${SEED_MODE:-} in
+			fail_seed|fail_seed_encrypted) printf '{invalid\n' >"$volume/sites/$SITE_NAME/site_config.json" ;;
+			fail_seed_no_key) printf '{"db_name":"unexpected","encryption_key":"unexpected"}\n' >"$volume/sites/$SITE_NAME/site_config.json" ;;
+		esac
+		[[ ${SEED_MODE:-missing} != fail_seed* ]] || exit 41
+		TZ=America/New_York date +%F
+		;;
+	*' portable site '*)
+		python3 -c 'import json,sys; print(json.dumps(["Administrator", *json.load(open(sys.argv[1]))]))' "$LIFECYCLE_ROOT/demo-users.json"
+		;;
+	*' restore /sample-seed/database.sql.gz '*)
+		touch "$volume/sites/$SITE_NAME/private/files/partial"
+		if [[ ${SEED_MODE:-} == changed_config ]]; then
+			printf '{"db_name":"unexpected"}\n' >"$volume/sites/$SITE_NAME/site_config.json"
+		fi
+		[[ ${SEED_MODE:-missing} != partial && ${SEED_MODE:-missing} != fail_seed* ]]
+		;;
+	*' -e SAMPLE_BACKUP_DIR='*' backend python3 -c '*)
+		cd "$volume"
+		args=("$@")
+		for arg; do
+			if [[ $arg == SAMPLE_BACKUP_DIR=* ]]; then
+				mounted=${arg#SAMPLE_BACKUP_DIR=/home/frappe/frappe-bench/sites}
+				export SAMPLE_BACKUP_DIR=$volume/sites$mounted
+			fi
+		done
+		python3 -c "${args[-2]}" "${args[-1]}"
+		;;
+	*' reinstall --yes '*)
+		if [[ $ENVIRONMENT == sample && -e $volume/sites/$SITE_NAME/private/files/partial ]]; then
+			echo 'partial attachments survived the fallback wipe' >&2
+			exit 83
+		fi
+		if [[ $ENVIRONMENT == sample ]]; then
+			if compgen -G "$LIFECYCLE_ROOT/sample/.sample-seed.*" >/dev/null; then
+				echo 'abandoned seed scratch survived until reinstall' >&2
+				exit 86
+			fi
+			python3 -c 'import json, sys; assert json.load(open(sys.argv[1]))["db_name"] == "preserved"' \
+				"$volume/sites/$SITE_NAME/site_config.json"
+		fi
+		;;
+	*' restore "$DIR/${db[0]}" '*)
+		[[ $ENVIRONMENT == sample && ! -e $volume/sites/$SITE_NAME/private/files/partial ]]
+		for arg; do
+			if [[ $arg == DIR=* ]]; then
+				mounted=${arg#DIR=/home/frappe/frappe-bench/sites}
+				export DIR=$volume/sites$mounted
+			fi
+		done
+		script=${!#}
+		script=${script//\/home\/frappe\/frappe-bench\/sites/$volume\/sites}
+		bench() {
+			[[ $* == *' restore '* ]] || return 81
+			cat "$SITE_CONFIG" >"$LIFECYCLE_ROOT/key-at-restore"
+			if [[ $* == *-database-enc.sql.gz* ]]; then
+				python3 -c 'import json, sys; assert json.load(open(sys.argv[1])).get("backup_encryption_key") == "generated", "missing generated backup key"' "$SITE_CONFIG" || return 84
+			fi
+			printf '{"encryption_key":"during-restore","db_name":"unexpected"}\n' >"$SITE_CONFIG"
+		}
+		export -f bench
+		SITE_CONFIG=$volume/sites/$SITE_NAME/site_config.json bash -c "$script"
+		touch "$LIFECYCLE_ROOT/sample-recovered"
+		;;
 esac
+STUB
+cat >"$test_root/bin/date" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ ${SEED_MODE:-} == rollover && ${TZ:-} == America/New_York && $* == +%F && ! -e $LIFECYCLE_ROOT/seed-day-read ]]; then
+	touch "$LIFECYCLE_ROOT/seed-day-read"
+	exec /bin/date -d yesterday +%F
+fi
+exec /bin/date "$@"
 STUB
 cat >"$test_root/bin/rclone" <<'STUB'
 #!/usr/bin/env bash
@@ -254,7 +406,7 @@ for environment in staging production; do
 	[[ ! -e $volume/sites/.restore ]]
 done
 printf 'PASS: staging replaces attachments, production overlays them, and restore scratch is cleared on success and failure\n'
-# Every sample deploy wipes files, reinstalls and reseeds instead of migrating.
+# Without a trusted digest, sample reinstalls without contacting the registry.
 NEW_IMAGE=ghcr.io/ruoshui-git/temple_inventory@sha256:$(printf '%064d' 2)
 mkdir -p "$test_root/sample/state"
 cp "$source_dir/"*.sh "$test_root/sample/"
@@ -262,6 +414,9 @@ printf 'sample\n' >"$test_root/sample/ENVIRONMENT"
 printf 'SITE_NAME=sample.kufang.online\nDB_ROOT_PASSWORD=dummy\n' >"$test_root/sample/.env"
 printf '%s\n' "$TEST_IMAGE" >"$test_root/sample/state/current"
 printf 'IMAGE=%s\n' "$TEST_IMAGE" >"$test_root/sample/image.env"
+sample_dir=$test_root/volumes/sample/sites/sample.kufang.online
+mkdir -p "$sample_dir/"{public,private}/files
+printf '{"db_name":"preserved"}\n' >"$sample_dir/site_config.json"
 for environment in sample staging; do
 	backup_path=$test_root/volumes/$environment/sites/.deploy-backups
 	for day in 01 02 03 04 05; do mkdir -p "$backup_path/202610${day}T000000Z"; done
@@ -273,7 +428,7 @@ printf 'host dispatch\n' >"$test_root/drift/dispatch"
 printf 'host compose\n' >"$test_root/drift/edge/nonprod.yaml"
 export KUFANG_DISPATCH_PATH=$test_root/drift/dispatch KUFANG_EDGE_PATH=$test_root/drift/edge
 export LOCK_PROBE=$test_root/sample/state/deploy.lock
-TEST_IMAGE=$NEW_IMAGE bash "$test_root/sample/deploy.sh" deploy "$NEW_IMAGE" >"$test_root/self-update-output"
+SEED_MODE=remote TEST_IMAGE=$NEW_IMAGE bash "$test_root/sample/deploy.sh" deploy "$NEW_IMAGE" >"$test_root/self-update-output"
 python3 - "$test_root" <<'PY'
 import json
 import pathlib
@@ -285,17 +440,18 @@ def first(fragment):
 assert not any(" migrate" in line for line in commands)
 assert first("set-maintenance-mode on") < first("stop scheduler queue-short queue-long") < first("stop backend websocket") < first(" reinstall --yes")
 assert first("set-maintenance-mode on") < first("find public/files private/files") < first(" reinstall --yes")
-assert first(" reinstall --yes") < first("purge-jobs") < first("prepare_development_sample_site")
-assert sum("prepare_development_sample_site" in line for line in commands) == 1
-assert sum('frappe.get_all --args ["User"]' in line for line in commands) == 1
+assert not any("temple_inventory-seed" in line for line in commands)
+assert first(" portable verify /home/frappe/frappe-bench/sites/.sample-snapshot/pinned-") < first(" backup --with-files") < first("set-maintenance-mode on")
+assert first(" reinstall --yes") < first("install-app erpnext temple_inventory") < first("purge-jobs") < first(" portable seed ")
+assert sum(" portable seed " in line for line in commands) == 1
+assert sum(" portable site " in line for line in commands) == 1
 assert not any("set-password" in line for line in commands)
-assert first("prepare_development_sample_site") < first("frappe.get_all") < first("-e KEY=") < first("set-maintenance-mode off")
+assert first(" portable seed ") < first(" portable site ") < first(" portable save ") < first("set-maintenance-mode off")
 credentials = (root / "sample/credentials.txt").read_text().splitlines()[1:]
 users = json.loads((root / "demo-users.json").read_text())
 assert users and credentials == ["Administrator admin", *(f"{user} admin" for user in users)]
-assert sorted(path.name for path in (root / "volumes/sample/sites/.deploy-backups").iterdir()) == [
-	"20261004T000000Z", "20261005T000000Z",
-]
+retained = sorted(path.name for path in (root / "volumes/sample/sites/.deploy-backups").iterdir())
+assert len(retained) == 2 and retained[0] == "20261005T000000Z"
 PY
 [[ $(cat "$test_root/sample/state/current") == "$NEW_IMAGE" ]]
 grep -q 'stack updated: common.sh' "$test_root/self-update-output"
@@ -317,10 +473,8 @@ grep -q 'stack: current' "$test_root/current-output"
 [[ $(grep -c ' stack-updated ' "$test_root/sample/state/history") == 1 ]]
 # A snapshot seeded today from the same source restores instead of reseeding.
 NEWER_IMAGE=ghcr.io/ruoshui-git/temple_inventory@sha256:$(printf '%064d' 3)
-key=$(printf '%s\n' "$NEWER_IMAGE" | sha256sum | cut -c1-16)
-printf '%s %s UTC\n' "$key" "$(TZ=UTC date +%F)" >"$test_root/seeded"
 : >"$test_root/calls"
-TEST_IMAGE=$NEWER_IMAGE bash "$test_root/sample/deploy.sh" deploy "$NEWER_IMAGE" >/dev/null
+SEED_MODE=warm TEST_IMAGE=$NEWER_IMAGE bash "$test_root/sample/deploy.sh" deploy "$NEWER_IMAGE" >/dev/null
 python3 - "$test_root" <<'PY'
 import pathlib
 import sys
@@ -328,11 +482,80 @@ root = pathlib.Path(sys.argv[1])
 commands = (root / "calls").read_text().splitlines()
 def first(fragment):
 	return next(i for i, line in enumerate(commands) if fragment in line)
-assert not any(" reinstall " in line or "prepare_development_sample_site" in line or "-e KEY=" in line for line in commands)
-assert first("find public/files private/files") < first(" restore /home/frappe/frappe-bench/sites/.sample-snapshot/database.sql.gz")
-assert first(".sample-snapshot/database.sql.gz") < first("clear-cache") < first("set-maintenance-mode off")
+assert not any(" reinstall " in line or " portable seed " in line or "temple_inventory-seed" in line for line in commands)
+assert first("--entrypoint env backend") < first(" backup --with-files") < first("set-maintenance-mode on")
+restore = first(" restore /home/frappe/frappe-bench/sites/.sample-snapshot/")
+assert first("find public/files private/files") < restore < first("clear-cache") < first("set-maintenance-mode off")
 PY
 [[ $(cat "$test_root/sample/state/current") == "$NEWER_IMAGE" ]]
+# Cold registry hit, failed verification, partial restore and failed fallback.
+mkdir -p "$sample_dir/"{public,private}/files
+COLD_IMAGE=ghcr.io/ruoshui-git/temple_inventory@sha256:$(printf '%064d' 11)
+SEED_DIGEST=sha256:$(printf '%064d' 7)
+for mode in missing remote invalid low_disk rollover partial changed_config fail_seed fail_seed_no_key fail_seed_encrypted; do
+	: >"$test_root/calls"
+	rm -rf -- "$test_root/volumes/sample/sites/.deploy-backups"
+	rm -f "$sample_dir/private/files/partial" "$test_root/sample-recovered" "$test_root/sample-backup-written"
+	export SEED_MODE=$mode
+	if [[ $mode == fail_seed || $mode == fail_seed_encrypted ]]; then
+		printf '{"db_name":"preserved","encryption_key":"old"}\n' >"$sample_dir/site_config.json"
+	else
+		printf '{"db_name":"preserved"}\n' >"$sample_dir/site_config.json"
+	fi
+	printf '%s\n' "$NEWER_IMAGE" >"$test_root/sample/state/current"
+	printf 'IMAGE=%s\n' "$NEWER_IMAGE" >"$test_root/sample/image.env"
+	if TEST_IMAGE=$COLD_IMAGE bash "$test_root/sample/deploy.sh" deploy "$COLD_IMAGE" "$SEED_DIGEST" >"$test_root/seed-output"; then
+		[[ $mode != fail_seed* ]]
+	else
+		[[ $mode == fail_seed* && -f $test_root/sample-recovered ]]
+		grep -q "recovered on $NEWER_IMAGE" "$test_root/seed-output"
+	fi
+	python3 - "$test_root" "$mode" "$SEED_DIGEST" <<'PYTHON'
+import json
+import pathlib
+import sys
+root, mode, digest = pathlib.Path(sys.argv[1]), *sys.argv[2:]
+commands = (root / "calls").read_text().splitlines()
+def index(fragment):
+	return next(i for i, command in enumerate(commands) if fragment in command)
+def count(fragment):
+	return sum(fragment in command for command in commands)
+registry = "ghcr.io/ruoshui-git/temple_inventory-seed"
+assert not count(f" resolve {registry}")
+assert index(f" manifest fetch {registry}@{digest}") < index(" backup --with-files")
+if mode != "missing":
+	assert index(f" pull {registry}@{digest}") < index(" portable verify /sample-seed ") < index(" backup --with-files")
+if mode not in {"missing", "invalid"}:
+	assert index(" backup --with-files") < index(" portable headroom sites 4096") < index("set-maintenance-mode on")
+assert count(" restore /sample-seed/") == int(mode not in {"missing", "invalid", "low_disk", "rollover"})
+assert count(" reinstall --yes") == int(mode != "remote")
+assert count(" portable seed ") == int(mode != "remote")
+assert count("find public/files private/files") == {
+	"missing": 1, "remote": 1, "invalid": 1, "low_disk": 1, "rollover": 1, "partial": 2,
+	"changed_config": 2, "fail_seed": 3, "fail_seed_no_key": 3, "fail_seed_encrypted": 3,
+}[mode]
+if mode == "remote":
+	assert index(" portable site ") < index("set-maintenance-mode off") < index('mv -T -- "$stage" "$cache"')
+elif mode.startswith("fail_seed"):
+	assert index(" portable seed ") < index('restore "$DIR/') < index("set-maintenance-mode off")
+	assert (root / "sample/state/current").read_text().strip().endswith("03")
+	for config_file in (
+		root / "key-at-restore",
+		root / "volumes/sample/sites/sample.kufang.online/site_config.json",
+	):
+		config = json.loads(config_file.read_text())
+		assert config["db_name"] == "preserved"
+		if mode in {"fail_seed", "fail_seed_encrypted"}:
+			assert config["encryption_key"] == "old"
+		else:
+			assert "encryption_key" not in config
+		if mode == "fail_seed_encrypted":
+			assert config["backup_encryption_key"] == "generated"
+assert not any((root / "sample").glob(".sample-seed.*"))
+PYTHON
+done
+unset SEED_MODE
+rm -f "$test_root/sample-recovered"
 OLDER_IMAGE=ghcr.io/ruoshui-git/temple_inventory@sha256:$(printf '%064d' 4)
 older_digest=${OLDER_IMAGE##*:}
 mkdir -p "$test_root/images/$older_digest/deploy/stack" "$test_root/images/$older_digest/deploy/edge"

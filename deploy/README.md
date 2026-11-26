@@ -218,17 +218,30 @@ IMAGE=ghcr.io/ruoshui-git/temple_inventory@sha256:REPLACE_WITH_64_LOWERCASE_HEX
 /srv/kufang/staging/bootstrap.sh "$IMAGE"
 ```
 
-Sample loads the full sample set and mutes email. Every Sample deploy starts
-fresh: it deletes uploaded files, reinstalls the site with the new image and
-reseeds the full set, so Sample shows exactly what the deployed commit installs
-and nothing from earlier deploys or visitors survives. After seeding it keeps
-one snapshot in `sites/.sample-snapshot`; a later deploy on the same day whose
-app source (tests and built frontend aside) and framework versions match
-restores that snapshot instead of reseeding, so frontend-only pushes are quick. Like the development site, it
-is a public demo: Administrator and every `*@example.com` demo user log in with
-the password `admin`. The full installer sets those demo passwords in one
-Bench invocation. Sample then reads the user list once to write
-`credentials.txt`. Production opts into the
+Sample loads the full demo dataset and mutes email. Deploying a different
+image wipes visitor uploads and replaces the database. Sample first checks
+its verified local snapshot in `sites/.sample-snapshot`. On a cache miss it
+can pull `ghcr.io/ruoshui-git/temple_inventory-seed@sha256:<digest>` using
+the digest supplied by the Sample deploy job. The cache accepts locally seeded
+snapshots and snapshots promoted from digest-pinned pulls. The key commits
+to the backend source, shipped seed media, seed arguments and exact Frappe
+and ERPNext commits. The day is the seed's starting date in America/New_York.
+The host checks payload sizes and hashes, attachment archive paths, and SQL
+client commands and file operations. It rechecks free space after the rollback
+backup is written and checks the date again just before restore.
+Downloads go under the sample stack directory on disk, outside the host's
+RAM-backed `/tmp`. The previous site stays live during seed preflight.
+
+A missing, stale or invalid seed triggers a clean reinstall and local seed.
+A failed restore also wipes candidate attachments before that fallback. If the
+fallback fails, sample restores the previous image, database, files and site
+configuration from the pre-deploy backup. A successful deploy verifies
+the sample status, apps, time zone, demo accounts and representative files.
+It writes `credentials.txt` from the verified accounts and keeps a verified
+snapshot for same-day deploys. Sample's Administrator and demo accounts use
+the public password `admin`.
+
+Production opts into the
 installer only during initial setup, uses `data="empty"`, company `Org`, abbr
 `O`, United States/USD, sets System Settings time zone `America/New_York`,
 disables any `*@example.com` users and then removes the sample-tooling opt-in.
@@ -259,6 +272,18 @@ local-only guard. `status` shows the `backup-reader-retained` and
 deduplicated backups. Staging uses the selected image's Compose file and keeps
 its installed promotion and backup scripts when that image predates
 `staging promote`.
+
+For the one-time seed digest rollout on the non-production host, install the
+reviewed sample entry point first, then the dispatcher. Verify that the final
+command prints `seed-digest: supported`.
+
+```sh
+sudo install -o kufang-deploy -g kufang-deploy -m 755 \
+  /tmp/ti-release/deploy/stack/deploy.sh /srv/kufang/sample/deploy.sh
+sudo install -o kufang-deploy -g kufang-deploy -m 755 \
+  /tmp/ti-release/deploy/stack/dispatch.sh /srv/kufang/bin/dispatch
+sudo -u kufang-deploy /srv/kufang/bin/dispatch sample status seed-digest
+```
 
 The dispatcher, edge compose YAML, production systemd units, and all `.env`
 files remain host-managed and are never installed automatically. Deploys print a
@@ -508,6 +533,26 @@ attachments.
 Backup and retention results are logged to `/srv/kufang/<env>/logs/backup.log`
 and the nightly exit status is available in the systemd journal.
 
+### Sample seed package
+
+On a cold backend CI run, CI captures the clean seed before the tests run.
+It checks that the seed contains only the public demo password hashes and no
+integration credentials, and omits site configuration and the field encryption
+key. CI skips capture when these checks fail or the seed crossed midnight.
+The Sample workflow publishes the artifact from its own successful CI run on
+pushes to `main`. The same run passes the published OCI digest after the host
+confirms support for it. When publication is skipped or fails or the host has
+an older entry point or dispatcher, deployment proceeds with the image alone.
+
+Make the dedicated `temple_inventory-seed` GHCR package public after the first
+publish so the sample host can pull it anonymously. Manage this package
+separately from the application image. Restrict write access to the repository's
+main Sample workflow and approved package maintainers. The host authorizes the
+artifact through the digest supplied over the existing Sample SSH channel.
+Tags are used for retention. Keep tags from the last seven New York days and delete
+older and untagged versions manually through GitHub Packages. GitHub Actions
+retains the corresponding run artifacts for two days.
+
 ### Emergency local-only backup
 
 During a B2 outage, run `./deploy.sh backup-local` from the target stack as
@@ -531,6 +576,10 @@ recorded attempt, then publishes a fresh set with any content B2 still lacks.
 2026-11-26 — Combined staging refresh and promotion, made staging attachment restores exact, cleaned restore scratch, reduced non-production volume retention to two, and removed redundant demo password resets.
 
 2026-11-26 — Rejected partial dumps before restore, cleared stale scratch before rebuilding archives, and protected both promotion images from concurrent pruning.
+
+2026-11-26 — Reused digest-pinned CI seed bundles from GHCR for cold sample deploys.
+
+2026-11-26 — Added a Sample host capability probe, blocked more SQL file operations and export credentials, and preserved newly generated rollback keys.
 
 ### B2 transaction and transfer budget
 
@@ -773,6 +822,7 @@ scripts/heavy docker build -f deploy/Containerfile \
 Before installing changes, run ShellCheck on deployment scripts, actionlint,
 Compose config for all environments/edge overlays, the DNS unittest suite and
 `bash deploy/stack/tests/guards.sh`,
-`bash deploy/stack/tests/lifecycle.sh`, `bash deploy/stack/tests/failures.sh` and
-`bash deploy/stack/tests/backupstore.sh`. These are offline checks; a full recovery,
-mail-suppression, firewall, TLS and approval drill still needs authorized hosts.
+`bash deploy/stack/tests/lifecycle.sh`, `bash deploy/stack/tests/failures.sh`,
+`bash deploy/stack/tests/backup-security.sh`, `bash deploy/stack/tests/backupstore.sh`
+and `python3 deploy/stack/tests/test_seedstore.py`. Full recovery, mail-suppression,
+firewall, TLS and approval drills require authorized hosts.

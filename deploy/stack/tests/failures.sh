@@ -37,7 +37,7 @@ esac
 case " $* " in
 	*' config -q '*) [[ $FAIL_SCENARIO != compose_reject ]] || exit 84 ;;
 	*' migrate '*) [[ $FAIL_SCENARIO != migrate && $FAIL_SCENARIO != recovery ]] || exit 41 ;;
-	*' reinstall --yes '*) [[ $FAIL_SCENARIO != reinstall ]] || exit 41 ;;
+	*' reinstall --yes '*) [[ $FAIL_SCENARIO != reinstall && $FAIL_SCENARIO != recovery ]] || exit 41 ;;
 	*' backup --with-files --compress '*) [[ $FAIL_SCENARIO != backup_staging ]] || exit 43 ;;
 	*' backend rm -rf -- '*)
 		[[ $FAIL_SCENARIO != volume_cleanup ]] || { echo "simulated Bench cleanup failure" >&2; exit 43; }
