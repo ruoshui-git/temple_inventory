@@ -1,9 +1,8 @@
 name: Sample
 
-# Every push to main: test, build one immutable image, deploy it to the sample
-# site, which the host reinstalls and reseeds from scratch. Deploys are
-# serialized; a newer commit waiting behind a running deploy replaces any older
-# pending one, so sample converges on the latest main.
+# Every push to main: test and build an immutable image in parallel, then
+# release and deploy the tested digest if the commit is still at main.
+# Deploys are serialized and the host reinstalls and reseeds the sample site.
 on:
   push:
     branches: [main]
@@ -20,7 +19,7 @@ jobs:
     uses: ./.github/workflows/ci.yml
 
   image:
-    needs: ci
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -42,19 +41,49 @@ jobs:
         with:
           context: .
           file: deploy/Containerfile
-          push: true
+          outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
           build-args: |
             FRAPPE_VERSION=${{ env.FRAPPE_VERSION }}
             ERPNEXT_VERSION=${{ env.ERPNEXT_VERSION }}
             REVISION=${{ github.sha }}
-          tags: |
-            ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
-            ${{ env.IMAGE_NAME }}:main
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  release:
+    needs: [ci, image]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    concurrency:
+      group: release-sample
+      cancel-in-progress: false
+    outputs:
+      ref: ${{ steps.tag.outputs.ref }}
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Tag the tested digest
+        id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE_REF: ${{ needs.image.outputs.ref }}
+        run: |
+          main_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)
+          if [[ "$main_sha" != "$GITHUB_SHA" ]]; then
+            echo 'A newer commit is at main. Skipping release.'
+            exit 0
+          fi
+          docker buildx imagetools create --prefer-index=false \
+            --tag "$IMAGE_NAME:sha-$GITHUB_SHA" --tag "$IMAGE_NAME:main" "$IMAGE_REF"
+          echo "ref=$IMAGE_REF" >>"$GITHUB_OUTPUT"
+
   deploy:
-    needs: image
+    needs: release
+    if: needs.release.outputs.ref != ''
     runs-on: ubuntu-latest
     environment:
       name: sample
@@ -63,12 +92,24 @@ jobs:
       group: deploy-sample
       cancel-in-progress: false
     steps:
+      - name: Check main after the deployment queue
+        id: main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          main_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)
+          if [[ "$main_sha" == "$GITHUB_SHA" ]]; then
+            echo "current=true" >>"$GITHUB_OUTPUT"
+          else
+            echo '::notice::A newer commit is at main; its own run deploys. Skipping this one.'
+          fi
       - name: Deploy over SSH
+        if: steps.main.outputs.current == 'true'
         env:
           SSH_KEY: ${{ secrets.SAMPLE_SSH_KEY }}
           KNOWN_HOSTS: ${{ secrets.SAMPLE_SSH_KNOWN_HOSTS }}
           TARGET: ${{ secrets.SAMPLE_SSH_USER }}@${{ secrets.SAMPLE_SSH_HOST }}
-          IMAGE_REF: ${{ needs.image.outputs.ref }}
+          IMAGE_REF: ${{ needs.release.outputs.ref }}
         run: |
           install -d -m 700 ~/.ssh
           printf '%s\n' "$SSH_KEY" >~/.ssh/id_ed25519
@@ -76,4 +117,5 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh -o BatchMode=yes -o ServerAliveInterval=30 "$TARGET" deploy "$IMAGE_REF"
       - name: Public health check
+        if: steps.main.outputs.current == 'true'
         run: curl -fsS --retry 6 --retry-delay 10 https://sample.kufang.online/api/method/ping | grep -q pong

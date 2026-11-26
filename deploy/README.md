@@ -344,7 +344,11 @@ after commit, so names stay in sync; before that, relabels change only
 
 ## Promotion
 
-1. Push main only after validation; Sample tests, builds and deploys one image.
+1. Push main after validation. Sample runs CI and pushes a candidate image by
+   digest in parallel. After CI passes, it checks that the commit is still at
+   main, adds the `sha-<sha>` and `main` tags to that digest, then queues the
+   sample deployment. The deploy job checks main again after the queue, deploys
+   the same digest and checks the public ping endpoint.
 2. Run `promote-staging.yml` from main. Its optional digest defaults to sample's
    current digest, read through `sample status` on the non-production host. It
    refreshes staging from the newest complete production B2 set, then deploys

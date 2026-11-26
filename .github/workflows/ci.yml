@@ -1,7 +1,7 @@
 name: CI
 
 # Runs on every branch push except main; the Sample workflow calls it for main so
-# a main commit is tested once, then built and deployed.
+# a main commit is tested once before its image can be released and deployed.
 on:
   push:
     branches-ignore: [main]
@@ -34,6 +34,12 @@ jobs:
         with:
           node-version: 24
       - run: corepack enable pnpm
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-${{ runner.arch }}-
       - run: pnpm install --frozen-lockfile
       - run: pnpm format:check
       - run: pnpm type-check
@@ -52,11 +58,23 @@ jobs:
         with:
           node-version: 24
       - run: corepack enable pnpm
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-${{ runner.arch }}-
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
       - run: pnpm install --frozen-lockfile
-      - name: Install CJK fonts
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium
+      - name: Install CJK fonts
+        # Playwright's --with-deps has already refreshed the apt indexes.
+        run: sudo apt-get install -y --no-install-recommends fonts-noto-cjk
       - name: Run Vite browser suite
         env:
           CI: true
@@ -103,13 +121,22 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-      - name: Install system packages
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mariadb-client redis-tools fonts-noto-cjk poppler-utils
       - name: Install bench
         run: |
           corepack enable pnpm
           npm install -g yarn
           pip install frappe-bench
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('temple_inventory/frontend/pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-${{ runner.arch }}-
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('temple_inventory/frontend/pnpm-lock.yaml') }}
       - name: Install Chromium for PDF tests
         working-directory: temple_inventory/frontend
         run: |
@@ -118,6 +145,9 @@ jobs:
           chromium_path=$(find "$HOME/.cache/ms-playwright" -type f -path '*/chrome-linux*/chrome' -print -quit)
           test -x "$chromium_path"
           echo "TI_CHROMIUM_PATH=$chromium_path" >>"$GITHUB_ENV"
+      - name: Install system packages
+        # Reuse the apt indexes refreshed by Playwright.
+        run: sudo apt-get install -y --no-install-recommends mariadb-client redis-tools fonts-noto-cjk poppler-utils
       - name: Create bench
         run: |
           bench init --frappe-branch "$FRAPPE_VERSION" --skip-redis-config-generation --skip-assets \
@@ -206,8 +236,6 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-      - name: Install system packages
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mariadb-client redis-tools fonts-noto-cjk
       - name: Install bench
         run: |
           corepack enable pnpm
@@ -217,18 +245,21 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.local/share/pnpm/store
-          key: pnpm-${{ runner.os }}-${{ hashFiles('temple_inventory/frontend/pnpm-lock.yaml') }}
-          restore-keys: pnpm-${{ runner.os }}-
+          key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('temple_inventory/frontend/pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-${{ runner.arch }}-
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('temple_inventory/frontend/pnpm-lock.yaml') }}
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('temple_inventory/frontend/pnpm-lock.yaml') }}
       - name: Install Playwright Chromium
         working-directory: temple_inventory/frontend
         run: |
           pnpm install --frozen-lockfile
           pnpm exec playwright install --with-deps chromium
+      - name: Install system packages
+        # Reuse the apt indexes refreshed by Playwright.
+        run: sudo apt-get install -y --no-install-recommends mariadb-client redis-tools fonts-noto-cjk
       - name: Create bench
         run: |
           bench init --frappe-branch "$FRAPPE_VERSION" --skip-redis-config-generation --skip-assets \
