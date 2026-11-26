@@ -1,10 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { nativeUiSession } from "./fixtures/nativeUi";
 
-const shots = "/tmp/codex-runs/followups-shots";
-mkdirSync(shots, { recursive: true });
 const thumbnail = fileURLToPath(
   new URL("./fixtures/barcode.png", import.meta.url),
 );
@@ -145,7 +142,9 @@ for (const width of [1440]) {
     expect(Math.abs(labelCentre - iconCentre)).toBeLessThanOrEqual(2);
     expect(icon!.height).toBeLessThanOrEqual(label!.height);
     expect(icon!.height).toBeLessThanOrEqual(16);
-    await page.screenshot({ path: `${shots}/sort-centre-${width}.png` });
+    await page.screenshot({
+      path: test.info().outputPath(`sort-centre-${width}.png`),
+    });
   });
 }
 
@@ -167,7 +166,9 @@ test("phone selection bar replaces the FAB on 库存 and exits from 取消", asy
   expect(barBox && navBox && barBox.y + barBox.height <= navBox.y + 1).toBe(
     true,
   );
-  await page.screenshot({ path: `${shots}/stock-phone-selection.png` });
+  await page.screenshot({
+    path: test.info().outputPath(`stock-phone-selection.png`),
+  });
   await cancel.click();
   await expect(bar).toBeHidden();
   await expect(page.locator(".browse-split-button")).toBeVisible();
@@ -188,7 +189,9 @@ test("phone selection bar replaces the FAB on 借用 and exits from 取消", asy
   const bar = page.locator(".stock-selection-actions");
   const cancel = bar.getByRole("button", { name: "取消", exact: true });
   await expect(cancel).toBeVisible();
-  await page.screenshot({ path: `${shots}/loans-phone-selection.png` });
+  await page.screenshot({
+    path: test.info().outputPath(`loans-phone-selection.png`),
+  });
   await cancel.click();
   await expect(bar).toBeHidden();
   await expect(page.locator(".browse-split-button")).toBeVisible();
@@ -239,7 +242,7 @@ for (const width of [1440, 390]) {
       "/files/damaged-item.png",
     );
     await page.screenshot({
-      path: `${shots}/damaged-${width}.png`,
+      path: test.info().outputPath(`damaged-${width}.png`),
       fullPage: true,
     });
   });

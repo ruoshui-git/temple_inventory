@@ -168,7 +168,7 @@ class BrowseGoldenTests(NativeDocumentTests):
 
 		payloads = _normalize(
 			payloads,
-			self.token,
+			(self.token, self.topology_token),
 			fixture_names,
 			batch,
 			self.item,
@@ -197,7 +197,7 @@ class BrowseGoldenTests(NativeDocumentTests):
 					self.fail(f"first golden difference: {_first_difference(actual, expected[endpoint])}")
 
 
-def _normalize(value, token, document_names, batch, item, root, *warehouses):
+def _normalize(value, tokens, document_names, batch, item, root, *warehouses):
 	# Fixture dates are relative to the run date; keep the offset so the golden holds on any day.
 	today = getdate(nowdate())
 
@@ -244,7 +244,9 @@ def _normalize(value, token, document_names, batch, item, root, *warehouses):
 			item_value = re.sub(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?", "<timestamp>", item_value)
 			item_value = re.sub(r"\d{1,2}:\d{2}:\d{2}(?:\.\d+)?", "<time>", item_value)
 			item_value = re.sub(r"\d{4}-\d{2}-\d{2}", relative_date, item_value)
-			return item_value.replace(token, "<fixture-token>")
+			for token in tokens:
+				item_value = item_value.replace(token, "<fixture-token>")
+			return item_value
 		return item_value
 
 	return visit(value)

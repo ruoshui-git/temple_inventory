@@ -51,7 +51,7 @@ class WarehouseRenameTests(NativeDocumentTests):
 			compact_warehouse_names.execute()
 			self.assertEqual(frappe.db.get_value("Warehouse", room, "warehouse_name"), first)
 			enqueue.assert_not_called()
-		self.assertEqual(first, f"Native Test A Room {self.token}")
+		self.assertEqual(first, f"Native Test A Room {self.topology_token}")
 		self.assertEqual(
 			frappe.db.get_value("Warehouse", leaf, "warehouse_name"),
 			first + warehouse_names.DIRECT_STORAGE_SUFFIX,

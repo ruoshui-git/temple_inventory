@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import {
   auditCjkFontType,
   fullNativeCapabilities,
@@ -9,12 +9,6 @@ import {
   showPhoneTable,
 } from "./fixtures/nativeUi";
 const font = requiredAuditCjkFont();
-const selectionShots = "/tmp/codex-runs/browse-cards-shots";
-const groupedCardShots = "/tmp/codex-runs/grouped-cards-shots";
-const backCardShots = "/tmp/codex-runs/frontend-back-cards-shots";
-mkdirSync(selectionShots, { recursive: true });
-mkdirSync(groupedCardShots, { recursive: true });
-mkdirSync(backCardShots, { recursive: true });
 async function setup(
   page: Page,
   scale = 100,
@@ -610,7 +604,9 @@ test("stock selection screenshots cover desktop and phone surfaces", async ({
   await page.goto("/inventory/stock");
   await page.getByRole("button", { name: "卡片视图", exact: true }).click();
   await expect(page.locator(".stock-card")).toHaveCount(20);
-  await page.screenshot({ path: `${selectionShots}/stock-normal-desktop.png` });
+  await page.screenshot({
+    path: test.info().outputPath(`stock-normal-desktop.png`),
+  });
   await page.setViewportSize({ width: 390, height: 844 });
   // The phone header may be stuck after the resize; its actions stay reachable either way.
   const phoneActions = page.getByRole("button", {
@@ -620,10 +616,12 @@ test("stock selection screenshots cover desktop and phone surfaces", async ({
   await page.getByRole("button", { name: "卡片视图", exact: true }).click();
   await expect(page.locator(".stock-card")).toHaveCount(20);
   await page.screenshot({
-    path: `${selectionShots}/stock-normal-phone-card.png`,
+    path: test.info().outputPath(`stock-normal-phone-card.png`),
   });
   await page.getByRole("button", { name: "列表视图", exact: true }).click();
-  await page.screenshot({ path: `${selectionShots}/stock-normal-phone.png` });
+  await page.screenshot({
+    path: test.info().outputPath(`stock-normal-phone.png`),
+  });
   await phoneActions.click();
   await page.getByRole("menuitem", { name: "选择", exact: true }).click();
   // Phones keep their own list/card choice (list by default).
@@ -632,14 +630,18 @@ test("stock selection screenshots cover desktop and phone surfaces", async ({
   await expect(
     page.getByRole("region", { name: "已选物品操作" }),
   ).toContainText("已选择 2 项");
-  await page.screenshot({ path: `${selectionShots}/stock-select-phone.png` });
+  await page.screenshot({
+    path: test.info().outputPath(`stock-select-phone.png`),
+  });
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(
     page.getByRole("region", { name: "已选物品操作" }).getByRole("button", {
       name: "归还",
     }),
   ).toBeVisible();
-  await page.screenshot({ path: `${selectionShots}/stock-select-desktop.png` });
+  await page.screenshot({
+    path: test.info().outputPath(`stock-select-desktop.png`),
+  });
 });
 
 test("stock grouped cards use lazy warehouse groups on desktop and phone", async ({
@@ -733,7 +735,7 @@ test("stock grouped cards use lazy warehouse groups on desktop and phone", async
   await page.getByRole("button", { name: /西-库房/ }).click();
   await expect(page.locator(".stock-card")).toHaveCount(3);
   await page.screenshot({
-    path: `${groupedCardShots}/grouped-location-desktop.png`,
+    path: test.info().outputPath(`grouped-location-desktop.png`),
   });
   await page.getByRole("button", { name: "选择", exact: true }).click();
   await page.locator(".browse-select-visible input").check();
@@ -741,11 +743,11 @@ test("stock grouped cards use lazy warehouse groups on desktop and phone", async
     page.getByRole("region", { name: "已选物品操作" }),
   ).toContainText("已选择 3 项");
   await page.screenshot({
-    path: `${groupedCardShots}/grouped-location-select-desktop.png`,
+    path: test.info().outputPath(`grouped-location-select-desktop.png`),
   });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({
-    path: `${groupedCardShots}/grouped-location-select-phone.png`,
+    path: test.info().outputPath(`grouped-location-select-phone.png`),
   });
 });
 
@@ -908,21 +910,21 @@ test("card thumbnails stay square at each density and viewport", async ({
   };
   await expectSquare();
   await page.screenshot({
-    path: `${backCardShots}/stock-default-desktop-1280.png`,
+    path: test.info().outputPath(`stock-default-desktop-1280.png`),
   });
   await page.evaluate(() => {
     document.documentElement.dataset.tiDensity = "compact";
   });
   await expectSquare();
   await page.screenshot({
-    path: `${backCardShots}/stock-compact-desktop-1280.png`,
+    path: test.info().outputPath(`stock-compact-desktop-1280.png`),
   });
   await page.addStyleTag({
     content:
       ".item-card-image{height:96px!important;aspect-ratio:auto!important}",
   });
   await firstImage.screenshot({
-    path: `${backCardShots}/card-before-square.png`,
+    path: test.info().outputPath(`card-before-square.png`),
   });
   await page
     .locator("style")
@@ -930,7 +932,7 @@ test("card thumbnails stay square at each density and viewport", async ({
     .evaluate((style) => style.remove());
   await expectSquare();
   await firstImage.screenshot({
-    path: `${backCardShots}/card-after-square.png`,
+    path: test.info().outputPath(`card-after-square.png`),
   });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "卡片视图", exact: true }).click();
@@ -939,14 +941,14 @@ test("card thumbnails stay square at each density and viewport", async ({
   });
   await expectSquare();
   await page.screenshot({
-    path: `${backCardShots}/stock-default-phone-390.png`,
+    path: test.info().outputPath(`stock-default-phone-390.png`),
   });
   await page.evaluate(() => {
     document.documentElement.dataset.tiDensity = "compact";
   });
   await expectSquare();
   await page.screenshot({
-    path: `${backCardShots}/stock-compact-phone-390.png`,
+    path: test.info().outputPath(`stock-compact-phone-390.png`),
   });
 });
 

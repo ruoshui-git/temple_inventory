@@ -1,6 +1,6 @@
-"""Native document integration: bench execute temple_inventory.tests.test_native_documents.run.
+"""Native document integration: bench execute temple_inventory.tests.test_native_inventory.run.
 
-Each case uses a savepoint and rolls back stock, settings, users and metadata.
+Each class rolls back its topology. Each case rolls back stock, settings, users and metadata.
 """
 
 # ruff: noqa: RUF001 — Chinese UI punctuation is intentional.
@@ -29,7 +29,153 @@ from temple_inventory import (
 )
 
 
-class NativeDocumentTests(unittest.TestCase):
+class NativeDocumentFixture(unittest.TestCase):
+	@classmethod
+	def setUpClass(cls):
+		frappe.set_user("Administrator")
+		frappe.db.savepoint("ti_native_topology")
+		cls.addClassCleanup(cls._rollback_fixture, "ti_native_topology")
+		cls.topology_token = frappe.generate_hash(length=10)
+		cls.company = frappe.db.get_single_value("Temple Inventory Settings", "company")
+		cls.company = cls.company or frappe.get_all("Company", pluck="name")[0]
+		for name in ("Area", "Room", "Shelf", "System"):
+			if not frappe.db.exists("Warehouse Type", name):
+				frappe.get_doc({"doctype": "Warehouse Type", "name": name}).insert()
+
+		def warehouse(label, parent=None, group=0, semantic_type="System", direct=0):
+			return (
+				frappe.get_doc(
+					{
+						"doctype": "Warehouse",
+						"warehouse_name": f"Native Test {label} {cls.topology_token}",
+						"ti_label": f"Native Test {label} {cls.topology_token}",
+						"company": cls.company,
+						"parent_warehouse": parent,
+						"is_group": group,
+						"warehouse_type": semantic_type,
+						"ti_direct_storage": direct,
+					}
+				)
+				.insert()
+				.name
+			)
+
+		cls.root = warehouse("Root", group=1)
+		cls.physical = warehouse("Physical", cls.root, 1)
+		cls.system_root = warehouse("System Locations", cls.root, 1)
+		cls.room_a = warehouse("A Room", cls.physical, 1, "Room")
+		cls.room_b = warehouse("B Room", cls.physical, 1, "Room")
+		cls.a = warehouse("A Direct", cls.room_a, semantic_type="", direct=1)
+		cls.b = warehouse("B Direct", cls.room_b, semantic_type="", direct=1)
+		cls.loan_leaf = warehouse("Lease Leaf", cls.system_root)
+		cls.damaged = warehouse("Damaged", cls.system_root)
+		settings = frappe.get_single("Temple Inventory Settings")
+		settings.company = cls.company
+		settings.root_warehouse = cls.root
+		settings.physical_root_warehouse = cls.physical
+		settings.system_root_warehouse = cls.system_root
+		settings.leased_warehouse = cls.loan_leaf
+		settings.damaged_warehouse = cls.damaged
+		settings.set("allowed_warehouses", [{"warehouse": cls.a}, {"warehouse": cls.b}])
+		settings.save()
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+		frappe.db.savepoint("ti_native_test")
+		self.addCleanup(self._rollback_fixture, "ti_native_test")
+		self.token = frappe.generate_hash(length=10)
+		self.item = (
+			frappe.get_doc(
+				{
+					"doctype": "Item",
+					"item_code": f"TI-NATIVE-{self.token}",
+					"item_name": "Native test item",
+					"stock_uom": "Nos",
+					"item_group": "All Item Groups",
+					"is_stock_item": 1,
+				}
+			)
+			.insert()
+			.name
+		)
+		activities.seed_activity_types()
+		self.activity = activities.save_activity(
+			{"title": f"Native Activity {self.token}", "activity_type": "TI-TYPE-OTHER"}
+		)
+
+	@staticmethod
+	def _rollback_fixture(savepoint):
+		frappe.set_user("Administrator")
+		frappe.db.rollback(save_point=savepoint)
+		frappe.db.release_savepoint(savepoint)
+		frappe.clear_document_cache("Temple Inventory Settings", "Temple Inventory Settings")
+		frappe.flags.warehouse_account_map = {}
+		frappe.local.message_log = []
+
+	def movement(self, kind="Receive", quantity=10, source=None, target=None, **header):
+		line = {
+			"item_code": self.item,
+			"qty": quantity,
+			"uom": "Nos",
+			"conversion_factor": 1,
+			"s_warehouse": source,
+			"t_warehouse": target or (self.a if kind == "Receive" else None),
+			"basic_rate": 10,
+		}
+		return {
+			"company": self.company,
+			"posting_date": nowdate(),
+			"ti_movement_kind": kind,
+			"items": [line],
+			**header,
+		}
+
+	def create(self, data, request_id=None):
+		return native_api.create_document("Stock Entry", request_id or str(uuid4()), data)
+
+	def submit(self, doc):
+		return native_api.submit_document("Stock Entry", doc.name, doc.version)
+
+	def receipt(self, quantity=10):
+		return self.submit(self.create(self.movement(quantity=quantity)))
+
+	def loan(self, quantity=5, borrower="测试借用方"):
+		self.receipt(quantity)
+		return self.submit(
+			self.create(
+				self.movement(
+					"Loan",
+					quantity,
+					self.a,
+					self.loan_leaf,
+					ti_borrower=borrower,
+					ti_activity=self.activity.name,
+				)
+			)
+		)
+
+	def settlement(self, loan, quantity=2, outcome="Returned", kind="Return"):
+		data = self.movement(
+			kind,
+			quantity,
+			self.loan_leaf,
+			self.b if outcome == "Returned" else self.damaged,
+			ti_borrower=loan.ti_borrower,
+			ti_activity=loan.ti_activity,
+		)
+		if kind == "Loss":
+			data["items"][0]["t_warehouse"] = None
+		data["items"][0].update(
+			{
+				"ti_original_loan": loan.name,
+				"ti_original_loan_line": loan["items"][0].name,
+				"ti_settlement_outcome": outcome,
+			}
+		)
+		return self.create(data)
+
+
+class NativeDocumentTests(NativeDocumentFixture):
 	def test_availability_errors_use_presenter_item_and_location_labels(self):
 		settings = frappe._dict()
 		visible = {
@@ -209,139 +355,6 @@ class NativeDocumentTests(unittest.TestCase):
 		# belongs to the HTTP session; this case exercises account authorization.
 		with patch("frappe.sessions.get_csrf_token", return_value="test-session-csrf"):
 			self.assertEqual(session.info()["user"], "Administrator")
-
-	def setUp(self):
-		frappe.set_user("Administrator")
-		frappe.db.savepoint("ti_native_test")
-		self.token = frappe.generate_hash(length=10)
-		self.company = frappe.db.get_single_value("Temple Inventory Settings", "company")
-		self.company = self.company or frappe.get_all("Company", pluck="name")[0]
-		for name in ("Area", "Room", "Shelf", "System"):
-			if not frappe.db.exists("Warehouse Type", name):
-				frappe.get_doc({"doctype": "Warehouse Type", "name": name}).insert()
-
-		def warehouse(label, parent=None, group=0, semantic_type="System", direct=0):
-			return (
-				frappe.get_doc(
-					{
-						"doctype": "Warehouse",
-						"warehouse_name": f"Native Test {label} {self.token}",
-						"ti_label": f"Native Test {label} {self.token}",
-						"company": self.company,
-						"parent_warehouse": parent,
-						"is_group": group,
-						"warehouse_type": semantic_type,
-						"ti_direct_storage": direct,
-					}
-				)
-				.insert()
-				.name
-			)
-
-		self.root = warehouse("Root", group=1)
-		self.physical = warehouse("Physical", self.root, 1)
-		self.system_root = warehouse("System Locations", self.root, 1)
-		self.room_a = warehouse("A Room", self.physical, 1, "Room")
-		self.room_b = warehouse("B Room", self.physical, 1, "Room")
-		self.a = warehouse("A Direct", self.room_a, semantic_type="", direct=1)
-		self.b = warehouse("B Direct", self.room_b, semantic_type="", direct=1)
-		self.loan_leaf = warehouse("Lease Leaf", self.system_root)
-		self.damaged = warehouse("Damaged", self.system_root)
-		settings = frappe.get_single("Temple Inventory Settings")
-		settings.company = self.company
-		settings.root_warehouse = self.root
-		settings.physical_root_warehouse = self.physical
-		settings.system_root_warehouse = self.system_root
-		settings.leased_warehouse = self.loan_leaf
-		settings.damaged_warehouse = self.damaged
-		settings.set("allowed_warehouses", [{"warehouse": self.a}, {"warehouse": self.b}])
-		settings.save()
-		self.item = (
-			frappe.get_doc(
-				{
-					"doctype": "Item",
-					"item_code": f"TI-NATIVE-{self.token}",
-					"item_name": "Native test item",
-					"stock_uom": "Nos",
-					"item_group": "All Item Groups",
-					"is_stock_item": 1,
-				}
-			)
-			.insert()
-			.name
-		)
-		activities.seed_activity_types()
-		self.activity = activities.save_activity(
-			{"title": f"Native Activity {self.token}", "activity_type": "TI-TYPE-OTHER"}
-		)
-
-	def tearDown(self):
-		frappe.set_user("Administrator")
-		frappe.db.rollback(save_point="ti_native_test")
-		frappe.clear_document_cache("Temple Inventory Settings", "Temple Inventory Settings")
-		frappe.local.message_log = []
-
-	def movement(self, kind="Receive", quantity=10, source=None, target=None, **header):
-		line = {
-			"item_code": self.item,
-			"qty": quantity,
-			"uom": "Nos",
-			"conversion_factor": 1,
-			"s_warehouse": source,
-			"t_warehouse": target or (self.a if kind == "Receive" else None),
-			"basic_rate": 10,
-		}
-		return {
-			"company": self.company,
-			"posting_date": nowdate(),
-			"ti_movement_kind": kind,
-			"items": [line],
-			**header,
-		}
-
-	def create(self, data, request_id=None):
-		return native_api.create_document("Stock Entry", request_id or str(uuid4()), data)
-
-	def submit(self, doc):
-		return native_api.submit_document("Stock Entry", doc.name, doc.version)
-
-	def receipt(self, quantity=10):
-		return self.submit(self.create(self.movement(quantity=quantity)))
-
-	def loan(self, quantity=5, borrower="测试借用方"):
-		self.receipt(quantity)
-		return self.submit(
-			self.create(
-				self.movement(
-					"Loan",
-					quantity,
-					self.a,
-					self.loan_leaf,
-					ti_borrower=borrower,
-					ti_activity=self.activity.name,
-				)
-			)
-		)
-
-	def settlement(self, loan, quantity=2, outcome="Returned", kind="Return"):
-		data = self.movement(
-			kind,
-			quantity,
-			self.loan_leaf,
-			self.b if outcome == "Returned" else self.damaged,
-			ti_borrower=loan.ti_borrower,
-			ti_activity=loan.ti_activity,
-		)
-		if kind == "Loss":
-			data["items"][0]["t_warehouse"] = None
-		data["items"][0].update(
-			{
-				"ti_original_loan": loan.name,
-				"ti_original_loan_line": loan["items"][0].name,
-				"ti_settlement_outcome": outcome,
-			}
-		)
-		return self.create(data)
 
 	def test_retry_creation_and_confirmation_affect_stock_once(self):
 		request_id = str(uuid4())

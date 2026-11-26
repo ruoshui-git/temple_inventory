@@ -5,6 +5,7 @@ import {
   type Locator,
 } from "@playwright/test";
 import { existsSync, readFileSync } from "node:fs";
+import { observeNativeRequests } from "./fixtures/nativeRoute";
 
 // Real Frappe HTTP and built assets: no native API responses are intercepted.
 let csrf = "";
@@ -853,16 +854,9 @@ test("routed native destinations load through their real services", async ({
       page_length: 1,
     })
   ).results[0].item_code;
-  const errors: string[] = [],
-    failed: string[] = [];
+  const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  page.on("response", (response) => {
-    if (
-      response.url().includes("/api/method/temple_inventory.") &&
-      response.status() >= 400
-    )
-      failed.push(`${new URL(response.url()).pathname}: ${response.status()}`);
-  });
+  const requests = observeNativeRequests(page);
   const routes = [
     "/",
     "/stock/expiry",
@@ -886,13 +880,13 @@ test("routed native destinations load through their real services", async ({
   ];
   for (const route of routes) {
     await page.goto(`/inventory${route}`);
-    await expect(page.locator("main h1").first()).toBeVisible();
-    await expect(page.getByRole("alert")).toHaveCount(0);
-    await page.waitForLoadState("networkidle");
+    await expect(page.locator("main h1").first(), route).toBeVisible();
     await expect(page.getByRole("alert"), route).toHaveCount(0);
+    await requests.settled();
+    await expect(page.getByRole("alert"), route).toHaveCount(0);
+    expect(requests.failed, route).toEqual([]);
   }
   expect(errors).toEqual([]);
-  expect(failed).toEqual([]);
 });
 
 test("native operation and count editors mount at mobile with large text", async ({

@@ -2,6 +2,7 @@ import { expect, test, type Browser, type Page } from "@playwright/test";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
+import { openNativeRoute } from "./fixtures/nativeRoute";
 
 // Real logins for the four role presets against a live site: no response is mocked.
 // Also the Sample smoke: NATIVE_BASE_URL=https://sample.kufang.online.
@@ -116,16 +117,8 @@ async function firstName(session: Session, doctype: string, docstatus: number) {
   return (await reply.json()).data[0]?.name as string | undefined;
 }
 
-async function loaded(page: Page) {
-  await expect(page.locator(".skeleton, [aria-busy='true']").first())
-    .toHaveCount(0, { timeout: 30000 })
-    .catch(() => undefined);
-  await page.waitForLoadState("networkidle").catch(() => undefined);
-}
-
 async function open(page: Page, path: string) {
-  await page.goto(`/inventory${path}`);
-  await loaded(page);
+  await openNativeRoute(page, `/inventory${path}`);
 }
 
 const primaryNav = (page: Page) =>
@@ -344,8 +337,10 @@ test("viewer browses and exports with no write offered", async ({
     ).toHaveCount(0);
   const draft = await firstName(viewer, "Stock Entry", 0);
   if (draft) {
+    await page.clock.install();
     await open(page, `/movements/${encodeURIComponent(draft)}`);
-    await page.waitForTimeout(1500);
+    await expect(page.locator(".form-record-tag")).toContainText(draft);
+    await page.clock.runFor(1500);
   }
   expect(writes, "a read-only view must never autosave").toEqual([]);
   for (const path of [
@@ -393,11 +388,13 @@ test("operator keeps counts read-only and movements usable", async ({
   ).toHaveCount(0);
   const draft = await firstName(operator, "Stock Reconciliation", 0);
   if (draft) {
+    await page.clock.install();
     await open(page, `/counts/${encodeURIComponent(draft)}`);
+    await expect(page.locator(".form-record-tag")).toContainText(draft);
     await expect(page.getByRole("button", { name: "复核并确认" })).toHaveCount(
       0,
     );
-    await page.waitForTimeout(1500);
+    await page.clock.runFor(1500);
   }
   expect(writes).toEqual([]);
   await open(page, "/movements/new/Receive");
@@ -459,6 +456,13 @@ test("manager creates and submits Opening Stock over HTTP; operator create is re
     version: managerDraft.version,
     data,
   });
+  await manager.page.clock.install();
+  const writes: string[] = [];
+  const recordWrite = (request: import("@playwright/test").Request) => {
+    if (/native_api\.(save|create)_document/.test(request.url()))
+      writes.push(request.url());
+  };
+  manager.page.on("request", recordWrite);
   await open(
     manager.page,
     `/counts/${encodeURIComponent(managerDraft.identity.name)}`,
@@ -471,7 +475,10 @@ test("manager creates and submits Opening Stock over HTTP; operator create is re
     name: managerDraft.identity.name,
   });
   expect(beforeIdle.version).toBe(managerSaved.version);
-  await manager.page.waitForTimeout(2000);
+  // Run the editor's debounce without waiting on wall time or the server write.
+  await manager.page.clock.runFor(2000);
+  expect(writes, "opening a draft must not request an autosave").toEqual([]);
+  manager.page.off("request", recordWrite);
   const afterIdle = await manager.ok("native_api.load_document", {
     doctype: "Stock Reconciliation",
     name: managerDraft.identity.name,
@@ -750,10 +757,10 @@ for (const key of Object.keys(accounts) as Key[]) {
         extra.push(["draft-count", `/counts/${encodeURIComponent(count)}`]);
       for (const [name, path] of [...reviewed, ...extra]) {
         await open(page, path);
-        await page.waitForTimeout(600);
         await page.screenshot({
           path: `${shots}/${key}-${width}-${name}.png`,
           fullPage: false,
+          animations: "disabled",
         });
         const controls = await page
           .locator(
@@ -764,10 +771,11 @@ for (const key of Object.keys(accounts) as Key[]) {
           .locator(".browse-header [aria-haspopup='menu']:visible")
           .first();
         if (await overflow.count()) {
-          await overflow.click().catch(() => undefined);
-          await page.waitForTimeout(250);
+          await overflow.click();
+          await expect(page.getByRole("menuitem").first()).toBeVisible();
           await page.screenshot({
             path: `${shots}/${key}-${width}-${name}-menu.png`,
+            animations: "disabled",
           });
           controls.push(...(await page.getByRole("menuitem").allInnerTexts()));
           await page.keyboard.press("Escape");

@@ -5,7 +5,7 @@ export default defineConfig({
   testDir: "tests/browser",
   testIgnore: ["**/native-server/**"],
   outputDir: process.env.NATIVE_UI_RESULTS || "/tmp/temple-inventory-native-ui",
-  workers: 1,
+  workers: 2,
   timeout: 45000,
   reporter: process.env.CI
     ? [["list"], ["html", { outputFolder: "playwright-report", open: "never" }]]

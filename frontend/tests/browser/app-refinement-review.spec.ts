@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -15,8 +15,6 @@ import { newReportQuery } from "../../src/lib/reportContract";
 const appRoot = fileURLToPath(new URL("../../..", import.meta.url));
 const publicRoot = path.join(appRoot, "temple_inventory/public/frontend");
 const indexPath = path.join(publicRoot, "index.html");
-const selectionShots = "/tmp/codex-runs/browse-mobile-shots";
-mkdirSync(selectionShots, { recursive: true });
 const fontPath = [
   process.env.TEMPLE_UI_CJK_FONT,
   process.env.NATIVE_UI_REVIEW_FONT,
@@ -411,7 +409,7 @@ for (const width of [1440, 390]) {
       fullPage: true,
     });
     await page.screenshot({
-      path: path.join(selectionShots, `sort-icons-${width}.png`),
+      path: test.info().outputPath(`sort-icons-${width}.png`),
     });
     await expect(
       page.getByRole("button", { name: "明细", exact: true }),
@@ -482,10 +480,7 @@ for (const width of [1440, 390]) {
           .getByRole("button", { name: "登记归还" }),
       ).toBeVisible();
       await page.screenshot({
-        path: path.join(
-          selectionShots,
-          `loans-records-select-${loanWidth}.png`,
-        ),
+        path: test.info().outputPath(`loans-records-select-${loanWidth}.png`),
       });
       await page.getByRole("button", { name: /^筛选(，|$)/ }).click();
       const loanStatusDisclosure = page.locator(
@@ -571,7 +566,7 @@ for (const width of [1440, 390]) {
         fullPage: true,
       });
       await page.screenshot({
-        path: path.join(selectionShots, `loans-header-hint-${loanWidth}.png`),
+        path: test.info().outputPath(`loans-header-hint-${loanWidth}.png`),
       });
       await page.getByRole("dialog", { name: /数量说明/ }).press("Escape");
       const summary = page.locator(".browse-result-summary-trigger");
@@ -590,7 +585,7 @@ for (const width of [1440, 390]) {
         .first()
         .check();
       await page.screenshot({
-        path: path.join(selectionShots, `loans-items-select-${loanWidth}.png`),
+        path: test.info().outputPath(`loans-items-select-${loanWidth}.png`),
       });
       expect(errors).toEqual([]);
     });
@@ -633,7 +628,7 @@ for (const width of [1440, 390]) {
       .first()
       .check();
     await page.screenshot({
-      path: path.join(selectionShots, `expiry-select-${width}.png`),
+      path: test.info().outputPath(`expiry-select-${width}.png`),
     });
     // Select mode makes thumbnails part of the row: tapping them selects, so no
     // separate enlarge control is offered until selection ends.

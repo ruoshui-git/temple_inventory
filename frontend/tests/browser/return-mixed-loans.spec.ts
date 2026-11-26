@@ -1,9 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { mkdirSync } from "node:fs";
 import { nativeUiSession } from "./fixtures/nativeUi";
-
-const shots = "/tmp/codex-runs/browse-mobile-shots";
-mkdirSync(shots, { recursive: true });
 
 const sessionMethods = [
   "session.info",
@@ -122,7 +118,7 @@ test("mixed-borrower Return editor and confirmation screenshots", async ({
     await expect(chips.nth(1)).toContainText("借用方 寺院志工服务组");
     await expect(page.locator(".operation-section")).toContainText("ITEM-1");
     await page.screenshot({
-      path: `${shots}/return-mixed-editor-${label}.png`,
+      path: test.info().outputPath(`return-mixed-editor-${label}.png`),
     });
     await page.getByRole("button", { name: "复核并确认" }).click();
     const dialog = page.locator(".ui-overlay");
@@ -131,7 +127,7 @@ test("mixed-borrower Return editor and confirmation screenshots", async ({
     );
     await expect(dialog).toContainText("原借出 L2 · 借用方 寺院志工服务组");
     await page.screenshot({
-      path: `${shots}/return-mixed-confirm-${label}.png`,
+      path: test.info().outputPath(`return-mixed-confirm-${label}.png`),
     });
     await dialog.getByRole("button", { name: "返回检查" }).click();
   }

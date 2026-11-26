@@ -1,7 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { fullNativeCapabilities, nativeUiSession } from "./fixtures/nativeUi";
 
-const shots = "/tmp/codex-runs/followups-shots";
 const viewports = [
   { name: "desktop", width: 1440, height: 900 },
   { name: "phone", width: 390, height: 844 },
@@ -111,7 +110,7 @@ test.describe("default filter chips", () => {
           page.getByRole("button", { name: "恢复默认", exact: true }),
         ).toHaveCount(0);
         await page.screenshot({
-          path: `${shots}/chips-${slug}-${viewport.name}.png`,
+          path: test.info().outputPath(`chips-${slug}-${viewport.name}.png`),
           fullPage: false,
         });
       }
@@ -192,7 +191,7 @@ test.describe("default filter chips", () => {
     await openDateFilter(page);
     await page.getByLabel("流动日期时间范围预设").selectOption("last_30_days");
     await page.screenshot({
-      path: `${shots}/date-filter-set-default-desktop.png`,
+      path: test.info().outputPath(`date-filter-set-default-desktop.png`),
     });
     await page.getByRole("button", { name: "设为默认", exact: true }).click();
     await expect.poll(() => saved).toBeDefined();
@@ -204,7 +203,7 @@ test.describe("default filter chips", () => {
     await page.goto("/inventory/settings");
     await expect(page.getByLabel("货物流动")).toHaveValue("last_30_days");
     await page.screenshot({
-      path: `${shots}/settings-default-after-set-desktop.png`,
+      path: test.info().outputPath(`settings-default-after-set-desktop.png`),
       fullPage: true,
     });
   });
@@ -249,6 +248,8 @@ test.describe("default filter chips", () => {
     await expect(page.getByRole("tooltip")).toHaveText(
       "自定义日期不会随时间更新，只能将预设范围设为默认",
     );
-    await page.screenshot({ path: `${shots}/date-filter-custom-phone.png` });
+    await page.screenshot({
+      path: test.info().outputPath(`date-filter-custom-phone.png`),
+    });
   });
 });

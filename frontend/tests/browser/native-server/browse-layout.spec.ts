@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { openNativeRoute, resizeNativeBrowse } from "./fixtures/nativeRoute";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
@@ -15,14 +16,8 @@ test.beforeEach(async ({ page }) => {
   expect(response.ok()).toBe(true);
 });
 
-async function settled(page: Page, path: string) {
-  await page.goto(path);
-  await page.locator("h1").first().waitFor();
-  await page.waitForLoadState("networkidle");
-}
-
 async function capture(page: Page, name: string, width: number, height = 844) {
-  await page.setViewportSize({ width, height });
+  await resizeNativeBrowse(page, width, height);
   await page.evaluate(() => {
     window.scrollTo(0, 0);
     for (const element of document.querySelectorAll<HTMLElement>("*")) {
@@ -30,8 +25,8 @@ async function capture(page: Page, name: string, width: number, height = 844) {
       element.scrollLeft = 0;
     }
   });
-  await page.waitForTimeout(350);
   await page.screenshot({
+    animations: "disabled",
     path: test.info().outputPath(`${name}-${width}.png`),
   });
 }
@@ -62,10 +57,19 @@ function groupedPath(
 }
 
 async function captureGroup(page: Page, name: string, width = 1440) {
-  await page.setViewportSize({ width, height: width < 1024 ? 844 : 900 });
+  await resizeNativeBrowse(page, width, width < 1024 ? 844 : 900);
+  await expect(
+    page
+      .locator(
+        width < 1024
+          ? ".mobile-operation-group-heading"
+          : ".data-table-group-row",
+      )
+      .first(),
+  ).toBeVisible();
   await page.evaluate(() => window.scrollTo(0, 0));
-  await page.waitForTimeout(350);
   await page.screenshot({
+    animations: "disabled",
     path: join(groupShots, `${name}-${width}.png`),
     fullPage: true,
   });
@@ -223,7 +227,7 @@ async function assertChipBaselines(
 test("browse table chips stay single-line and browse pages retain their phone layouts", async ({
   page,
 }) => {
-  await settled(page, "/inventory/stock");
+  await openNativeRoute(page, "/inventory/stock");
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByRole("button", { name: "表格视图" }).click();
   await page.getByRole("button", { name: "显示字段" }).first().click();
@@ -251,8 +255,12 @@ test("browse table chips stay single-line and browse pages retain their phone la
   );
   await capture(page, "stock", 1440, 900);
   await capture(page, "stock", 390);
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.waitForTimeout(350);
+  await resizeNativeBrowse(page, 1440, 900);
+  await expect(
+    page
+      .getByRole("region", { name: "库存物品", exact: true })
+      .getByRole("table"),
+  ).toBeVisible();
 
   // Stale results disable the selection bar's actions until the refresh lands.
   await page.getByRole("button", { name: "选择", exact: true }).click();
@@ -266,6 +274,7 @@ test("browse table chips stay single-line and browse pages retain their phone la
     (route) => {
       blocked = route;
     },
+    { times: 1 },
   );
   await page
     .locator("input[data-browse-search]")
@@ -276,13 +285,13 @@ test("browse table chips stay single-line and browse pages retain their phone la
     .first();
   await expect(stockAction).toBeVisible();
   await expect(stockAction).toBeDisabled();
-  expect(blocked).toBeTruthy();
+  await expect.poll(() => Boolean(blocked)).toBe(true);
   await blocked!.abort();
   await expect(page.locator(".browse-refresh-notice")).toBeVisible();
   await capture(page, "refresh-failure", 1440, 900);
   await capture(page, "refresh-failure", 390);
 
-  await settled(page, "/inventory/movements?view=records");
+  await openNativeRoute(page, "/inventory/movements?view=records");
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByRole("button", { name: "显示字段" }).first().click();
   await page
@@ -322,12 +331,12 @@ test("browse table chips stay single-line and browse pages retain their phone la
     ["expiry", "/inventory/stock/expiry"],
     ["pending", "/inventory/stock/damaged"],
   ] as const) {
-    await settled(page, path);
+    await openNativeRoute(page, path);
     await capture(page, name, 1440, 900);
     await capture(page, name, 390);
   }
 
-  await settled(page, "/inventory/loans");
+  await openNativeRoute(page, "/inventory/loans");
   // Record chips live in the table; phones open record lists as rows.
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByRole("button", { name: "借还流动" }).click();
@@ -443,7 +452,7 @@ test("group labels remain visible across browse groupings and phone toggles", as
   ] as const;
 
   for (const [name, path, dataset, view, groupBy] of matrix) {
-    await settled(page, groupedPath(path, dataset, view, [...groupBy]));
+    await openNativeRoute(page, groupedPath(path, dataset, view, [...groupBy]));
     await page.setViewportSize({ width: 1440, height: 900 });
     await expect(
       page.locator(".data-table-group-row").first(),
@@ -487,7 +496,7 @@ test("group labels remain visible across browse groupings and phone toggles", as
     }
   }
 
-  await settled(
+  await openNativeRoute(
     page,
     groupedPath("/inventory/movements?view=items", "movements", "summary", [
       "item",
@@ -520,7 +529,7 @@ test("group labels remain visible across browse groupings and phone toggles", as
     ],
     ["loan-phone", "/inventory/loans", "loans", "items"],
   ] as const) {
-    await settled(page, groupedPath(path, dataset, view, ["item"]));
+    await openNativeRoute(page, groupedPath(path, dataset, view, ["item"]));
     await page.setViewportSize({ width: 390, height: 844 });
     const toggle = page
       .locator(".mobile-operation-group-heading .browse-group-trigger")

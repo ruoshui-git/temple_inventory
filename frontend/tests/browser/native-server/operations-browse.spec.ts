@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { openNativeRoute, resizeNativeBrowse } from "./fixtures/nativeRoute";
 import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -26,22 +27,16 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-async function settled(page: Page, path: string) {
-  await page.goto(path);
-  await page.locator("h1").first().waitFor();
-  await page.waitForLoadState("networkidle");
-}
-
 async function capture(
   page: Page,
   name: string,
   width: number,
   height: number,
 ) {
-  await page.setViewportSize({ width, height });
+  await resizeNativeBrowse(page, width, height);
   await page.evaluate(() => window.scrollTo(0, 0));
-  await page.waitForTimeout(300);
   await page.screenshot({
+    animations: "disabled",
     path: test.info().outputPath(`${name}-${width}x${height}.png`),
   });
 }
@@ -58,7 +53,7 @@ test("fresh movement browse uses the saved account period", async ({
     )
       requestedPeriod = request.postDataJSON().query.scope.period.key;
   });
-  await settled(page, "/inventory/movements");
+  await openNativeRoute(page, "/inventory/movements");
   expect(requestedPeriod).toBe("this_month");
   await page.getByRole("button", { name: /^筛选/ }).click();
   await page.locator('details[data-filter-field="period"] > summary').click();
@@ -74,7 +69,7 @@ test("fresh movement browse uses the saved account period", async ({
 test("loan scope, movement effects and multi-location records render at desktop and phone widths", async ({
   page,
 }) => {
-  await settled(page, "/inventory/loans");
+  await openNativeRoute(page, "/inventory/loans");
   await page.getByRole("button", { name: /^筛选(，|$)/ }).click();
   await page.locator('[data-filter-field="loanStatus"] > summary').click();
   await page
@@ -87,7 +82,7 @@ test("loan scope, movement effects and multi-location records render at desktop 
   await capture(page, "loans-all-scope-filters", 1440, 900);
   await capture(page, "loans-all-scope-filters", 390, 844);
 
-  await settled(page, "/inventory/movements?view=items");
+  await openNativeRoute(page, "/inventory/movements?view=items");
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByRole("button", { name: "显示字段" }).first().click();
   await page
@@ -136,7 +131,10 @@ test("loan scope, movement effects and multi-location records render at desktop 
   const allTime = encodeURIComponent(
     JSON.stringify({ scope: { period: { key: "all", from: "", to: "" } } }),
   );
-  await settled(page, `/inventory/movements?view=records&query=${allTime}`);
+  await openNativeRoute(
+    page,
+    `/inventory/movements?view=records&query=${allTime}`,
+  );
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.locator("input[data-browse-search]").fill(record.document);
   await expect(page.getByText(record.document, { exact: true })).toBeVisible();
@@ -156,7 +154,7 @@ test("loan scope, movement effects and multi-location records render at desktop 
     view: "summary",
     groupBy: ["item"],
   };
-  await settled(
+  await openNativeRoute(
     page,
     `/inventory/movements?view=items&query=${encodeURIComponent(JSON.stringify(grouped))}`,
   );
@@ -166,7 +164,7 @@ test("loan scope, movement effects and multi-location records render at desktop 
   await capture(page, "movements-grouped-item-summaries", 390, 844);
 
   const groupedByKind = { ...grouped, groupBy: ["kind"] };
-  await settled(
+  await openNativeRoute(
     page,
     `/inventory/movements?view=items&query=${encodeURIComponent(JSON.stringify(groupedByKind))}`,
   );

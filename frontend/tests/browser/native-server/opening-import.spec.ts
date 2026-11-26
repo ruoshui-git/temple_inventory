@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { execFileSync } from "node:child_process";
+import { observeNativeRequests } from "./fixtures/nativeRoute";
 // Real HTTP and the real browser: a Manager imports Opening Stock end to end.
 // The workbook is written to the OS temp dir; OPENING_IMPORT_SHOTS saves screenshots.
 import { mkdtempSync } from "node:fs";
@@ -105,9 +106,11 @@ b.save(sys.argv[1])`,
   const ledgerBefore = await call("catalog.operation_items", {
     item_codes: [plain.item_code],
   });
+  const requests = observeNativeRequests(page);
   await page.goto("/inventory/imports/opening");
   await expect(page.getByText("期初日期").first()).toBeVisible();
-  await page.waitForTimeout(1000);
+  await expect(page.getByLabel("时间")).toBeVisible();
+  await requests.settled();
   if (shots) await page.screenshot({ path: `${shots}/1440-start.png` });
   await page.getByLabel("时间").fill("00:00:01");
   await page.locator('input[type="file"]').setInputFiles(file);
@@ -115,7 +118,11 @@ b.save(sys.argv[1])`,
   await expect(page.getByText("无法导入").first()).toBeVisible({
     timeout: 30000,
   });
-  await page.waitForTimeout(1500);
+  const previewTable = page.locator(".import-preview table");
+  await expect(
+    previewTable.getByRole("row").filter({ hasText: plain.item_code }).first(),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "确认导入" })).toBeEnabled();
   if (shots)
     await page.screenshot({
       path: `${shots}/1440-preview.png`,
@@ -128,7 +135,10 @@ b.save(sys.argv[1])`,
     ledgerBefore.items[0].stock,
   );
   await page.setViewportSize({ width: 390, height: 900 });
-  await page.waitForTimeout(800);
+  await expect(
+    page.locator(".import-cards").getByText(plain.item_code).first(),
+  ).toBeVisible();
+  await expect(previewTable).toHaveCount(0);
   if (shots)
     await page.screenshot({ path: `${shots}/390-preview.png`, fullPage: true });
   expect(
@@ -139,16 +149,24 @@ b.save(sys.argv[1])`,
     ),
   ).toBeLessThanOrEqual(0);
   await page.setViewportSize({ width: 1440, height: 1100 });
+  await expect(previewTable).toBeVisible();
   await page.getByRole("button", { name: "确认导入" }).click();
-  await page.waitForTimeout(600);
-  if (shots) await page.screenshot({ path: `${shots}/1440-confirm.png` });
-  await page.getByLabel(/跳过/).check();
-  await page.getByRole("button", { name: "提交导入" }).click();
-  await expect(page.getByText("导入完成")).toBeVisible({ timeout: 120000 });
-  await page.waitForTimeout(800);
+  const confirmation = page.getByRole("dialog", { name: "确认导入期初库存" });
+  await expect(confirmation.getByLabel(/跳过/)).toBeVisible();
+  if (shots)
+    await page.screenshot({
+      path: `${shots}/1440-confirm.png`,
+      animations: "disabled",
+    });
+  await confirmation.getByLabel(/跳过/).check();
+  await confirmation.getByRole("button", { name: "提交导入" }).click();
+  await expect(page.getByRole("heading", { name: "导入完成" })).toBeVisible({
+    timeout: 120000,
+  });
+  const link = page.getByRole("link", { name: /MAT-RECO/ }).first();
+  await expect(link).toBeVisible();
   if (shots)
     await page.screenshot({ path: `${shots}/1440-result.png`, fullPage: true });
-  const link = page.getByRole("link", { name: /MAT-RECO/ }).first();
   const name = (await link.innerText()).trim();
   const native = await call("native_api.load_document", {
     doctype: "Stock Reconciliation",
@@ -162,7 +180,13 @@ b.save(sys.argv[1])`,
   await expect(page.getByText("期初数量").first()).toBeVisible({
     timeout: 30000,
   });
-  await page.waitForTimeout(1200);
+  await expect(page.locator(".opening-status")).toHaveCount(0);
+  await expect(
+    page.locator(".opening-readonly").getByRole("table"),
+  ).toBeVisible();
+  await requests.settled();
+  expect(requests.failed).toEqual([]);
+  await expect(page.getByRole("alert")).toHaveCount(0);
   if (shots)
     await page.screenshot({
       path: `${shots}/1440-document.png`,

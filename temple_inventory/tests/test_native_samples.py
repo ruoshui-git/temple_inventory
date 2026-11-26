@@ -279,6 +279,18 @@ class SampleGeneratorUnitTests(unittest.TestCase):
 			native_samples._balance_change(balances, "item", "leaf-a", -2, "lot-1")
 
 
+class NativeSampleCatalogTests(unittest.TestCase):
+	def test_seeded_costumes_preserve_source_identity_and_opening_stock(self):
+		verified = sample_install.verify_development_sample(require_images=False, data="real")
+		self.assertEqual(verified["costume_items"], 96)
+		self.assertTrue(verified["costume_stock_verified"])
+		sources = [row["source_code"] for row in sample_media.costume_catalog()]
+		codes = frappe.get_all("Item Barcode", filters={"barcode": ["in", sources]}, pluck="parent")
+		self.assertEqual(len(codes), 96)
+		for code in codes:
+			self.assertRegex(code, r"^ITM-\d{6}$")
+
+
 class NativeSampleTests(NativeDocumentTests):
 	def test_generated_uoms_keep_chinese_units_and_never_use_labels_as_native_names(self):
 		generated = {
@@ -329,9 +341,11 @@ class NativeSampleTests(NativeDocumentTests):
 		settings.save()
 		frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)
 		sample_install._remove_default_sample_records(company.name)
-		costumes = sample_media.costume_catalog()
+		# Exercise the native opening installer with two distinct costume rows.
+		# NativeSampleCatalogTests checks every source row against the shared seed.
 		test_costumes = [
-			{**row, "source_code": f"TEST-{self.token}-{row['source_code']}"} for row in costumes
+			{**row, "source_code": f"TEST-{self.token}-{row['source_code']}"}
+			for row in sample_media.costume_catalog()[:2]
 		]
 		with (
 			patch.object(native_samples, "REQUEST_PREFIX", "temple-native-test:" + self.token + ":"),
@@ -347,9 +361,12 @@ class NativeSampleTests(NativeDocumentTests):
 				"Native History Seed " + self.token,
 			),
 			patch.object(native_samples, "costume_catalog", return_value=test_costumes),
-			patch.object(sample_media, "costume_catalog", return_value=test_costumes),
 		):
 			result = native_samples.install(company.name, attach_images=False, attach_files=False)
+			for name in sample_install.DEFAULT_SAMPLE_WAREHOUSES:
+				self.assertFalse(
+					frappe.db.exists("Warehouse", {"company": company.name, "warehouse_name": name})
+				)
 			affinity = result["rooms"].get("AFFINITY", {})
 			physical = set(result["rooms"].get("PHYSICAL_LEAVES", []))
 			self.assertTrue(affinity)
@@ -367,7 +384,7 @@ class NativeSampleTests(NativeDocumentTests):
 				self.assertGreaterEqual(len(placements), 1)
 				self.assertLessEqual(len(placements), 3)
 				self.assertTrue(set(placements) <= physical)
-			self.assertEqual(result["items"], 167)
+			self.assertEqual(result["items"], 71 + len(test_costumes))
 			self.assertEqual(result["images"], 0)
 			serial_item = frappe.get_doc("Item", result["item_codes"]["N-SERIAL"])
 			self.assertEqual(serial_item.item_name, "无线话筒")
@@ -429,17 +446,17 @@ class NativeSampleTests(NativeDocumentTests):
 					for row in serial_count.items
 				)
 			)
-			costumes = test_costumes
 			barcode_to_parent = {
 				row.barcode: row.parent
 				for row in frappe.get_all(
 					"Item Barcode",
-					filters={"barcode": ["in", [row["source_code"] for row in costumes]]},
+					filters={"barcode": ["in", [row["source_code"] for row in test_costumes]]},
 					fields=["barcode", "parent"],
 				)
 			}
-			self.assertEqual(len(barcode_to_parent), 96)
-			for source in costumes:
+			self.assertEqual(len(barcode_to_parent), len(test_costumes))
+			self.assertEqual(len(set(barcode_to_parent.values())), len(test_costumes))
+			for source in test_costumes:
 				code = barcode_to_parent[source["source_code"]]
 				self.assertRegex(code, r"^ITM-\d{6}$")
 				item = frappe.get_doc("Item", code)
@@ -450,7 +467,7 @@ class NativeSampleTests(NativeDocumentTests):
 				self.assertEqual(get_stock_balance(code, warehouse), source["quantity"])
 			self.assertEqual(
 				result["costume_item_codes"],
-				{source["source_code"]: barcode_to_parent[source["source_code"]] for source in costumes},
+				{source["source_code"]: barcode_to_parent[source["source_code"]] for source in test_costumes},
 			)
 			self.assertTrue(configuration.status()["ready"])
 			entries = [frappe.get_doc("Stock Entry", name) for name in result["stock_entries"]]
@@ -621,10 +638,3 @@ class NativeSampleTests(NativeDocumentTests):
 				get_stock_balance(result["item_codes"]["G-000001"], result["rooms"]["DEMO_B"]),
 				0,
 			)
-			settings.reload()
-			settings.sample_data_status = "Installed"
-			settings.sample_data_version = sample_install.VERSION
-			settings.save(ignore_permissions=True)
-			verified = sample_install.verify_development_sample(require_images=False, data="real")
-			self.assertEqual(verified["costume_items"], 96)
-			self.assertTrue(verified["costume_stock_verified"])

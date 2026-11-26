@@ -1,8 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fullNativeCapabilities, nativeUiSession } from "./fixtures/nativeUi";
-const selectionShots = "/tmp/codex-runs/browse-mobile-shots";
-mkdirSync(selectionShots, { recursive: true });
 
 async function setup(page: Page, scale = 100, density = "balanced") {
   const font =
@@ -241,7 +239,7 @@ for (const width of [390, 1440]) {
       page.locator(".notice-bar").filter({ hasText: "损坏物资待处理" }),
     ).toBeVisible();
     await page.screenshot({
-      path: `${selectionShots}/damaged-${width}.png`,
+      path: test.info().outputPath(`damaged-${width}.png`),
       fullPage: true,
     });
   });

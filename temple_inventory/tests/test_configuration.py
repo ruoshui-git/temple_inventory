@@ -93,7 +93,12 @@ class ConfigurationTests(NativeDocumentTests):
 		get_doc = frappe.get_doc
 
 		def unique_native_names(*args, **kwargs):
-			if args and isinstance(args[0], dict) and args[0].get("doctype") == "Warehouse":
+			if (
+				args
+				and isinstance(args[0], dict)
+				and args[0].get("doctype") == "Warehouse"
+				and "warehouse_name" in args[0]
+			):
 				args = (
 					{**args[0], "warehouse_name": args[0]["warehouse_name"] + " " + self.token},
 					*args[1:],

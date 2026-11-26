@@ -1,9 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mkdirSync } from "node:fs";
 import { nativeUiSession } from "./fixtures/nativeUi";
-
-const shots = "/tmp/codex-runs/split-pill-shots";
-mkdirSync(shots, { recursive: true });
 
 async function prepare(page: Page) {
   await nativeUiSession(page, 100, {
@@ -96,13 +92,17 @@ for (const viewport of [
           (viewport.name === "coarse" && density === "compact" && scale === 100)
         ) {
           await page.screenshot({
-            path: `${shots}/split-${viewport.name}-${density}-${scale}.png`,
+            path: test
+              .info()
+              .outputPath(`split-${viewport.name}-${density}-${scale}.png`),
           });
         }
       }
     }
     if (viewport.name === "phone") {
-      await page.screenshot({ path: `${shots}/split-phone-fab.png` });
+      await page.screenshot({
+        path: test.info().outputPath(`split-phone-fab.png`),
+      });
       const menu = await trigger.boundingBox();
       expect(menu?.height).toBe(48);
     }

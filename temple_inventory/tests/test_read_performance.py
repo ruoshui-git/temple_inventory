@@ -1,6 +1,5 @@
 """Query-count guards for read paths with large per-row costs."""
 
-import unittest
 from collections import Counter
 from unittest.mock import patch
 
@@ -8,27 +7,15 @@ import frappe
 
 from temple_inventory import browse, catalog, native_api, native_stock
 from temple_inventory.projections import report_page
-from temple_inventory.tests.test_native_documents import NativeDocumentTests
+from temple_inventory.tests.test_native_documents import NativeDocumentFixture
 
 
-class ReadPerformanceTests(unittest.TestCase):
-	movement = NativeDocumentTests.movement
-	create = NativeDocumentTests.create
-	submit = NativeDocumentTests.submit
-	receipt = NativeDocumentTests.receipt
-	loan = NativeDocumentTests.loan
-
+class ReadPerformanceTests(NativeDocumentFixture):
 	MEMO_STATE = (
 		"temple_inventory_memos",
 		"inventory_permission_signatures",
 		"inventory_configuration_signature",
 	)
-
-	def setUp(self):
-		NativeDocumentTests.setUp(self)
-
-	def tearDown(self):
-		NativeDocumentTests.tearDown(self)
 
 	def _operator(self, name):
 		user = frappe.get_doc(

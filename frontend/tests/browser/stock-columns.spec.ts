@@ -1,10 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mkdirSync } from "node:fs";
-import { join } from "node:path";
 import { nativeUiSession } from "./fixtures/nativeUi";
-
-const shots = "/tmp/codex-runs/r7-stock-columns-shots";
-mkdirSync(shots, { recursive: true });
 
 function location(
   code: string,
@@ -118,7 +113,7 @@ test("stock table shows 位置 and 批次 as separate columns without 效期 by 
   await expect(headers.filter({ hasText: "效期" })).toHaveCount(0);
   await expect(table.locator("tbody tr")).toHaveCount(2);
   await page.screenshot({
-    path: join(shots, "stock-table-location-batch.png"),
+    path: test.info().outputPath("stock-table-location-batch.png"),
   });
 
   await page.getByRole("button", { name: "显示字段" }).first().click();
@@ -133,7 +128,9 @@ test("stock table shows 位置 and 批次 as separate columns without 效期 by 
   await expect(
     table.locator("thead th").filter({ hasText: "位置" }).first(),
   ).toBeVisible();
-  await page.screenshot({ path: join(shots, "stock-table-batch-hidden.png") });
+  await page.screenshot({
+    path: test.info().outputPath("stock-table-batch-hidden.png"),
+  });
 });
 
 test("the phone 更多 sheet opens the stock export dialog", async ({ page }) => {
@@ -145,7 +142,9 @@ test("the phone 更多 sheet opens the stock export dialog", async ({ page }) =>
   const dialog = page.locator(".quick-export-dialog");
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText("导出", { exact: true }).first()).toBeVisible();
-  await page.screenshot({ path: join(shots, "stock-phone-export.png") });
+  await page.screenshot({
+    path: test.info().outputPath("stock-phone-export.png"),
+  });
 });
 
 test("phone stock column settings share the summary controls row", async ({

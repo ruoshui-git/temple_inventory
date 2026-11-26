@@ -83,8 +83,12 @@ class NativeWarehouseTests(NativeDocumentTests):
 		self.assertEqual(baseline[room][1]["full_label"], f"Snapshot room {self.token}")
 		self.assertIn(f"Snapshot area {self.token}", baseline[room][1]["search_text"])
 		self.assertEqual(baseline[self.system_root][1]["path"], "")
-		self.assertEqual(baseline[self.loan_leaf][1]["full_label"], f"Native Test Lease Leaf {self.token}")
-		self.assertEqual(baseline[self.damaged][1]["full_label"], f"Native Test Damaged {self.token}")
+		self.assertEqual(
+			baseline[self.loan_leaf][1]["full_label"], f"Native Test Lease Leaf {self.topology_token}"
+		)
+		self.assertEqual(
+			baseline[self.damaged][1]["full_label"], f"Native Test Damaged {self.topology_token}"
+		)
 		for field in ("label", "local_label", "full_label", "path"):
 			self.assertEqual(baseline[direct][1][field], baseline[room][1][field])
 		self.assertIn(DIRECT_STORAGE_SUFFIX, baseline[direct][1]["search_text"])
@@ -149,7 +153,9 @@ class NativeWarehouseTests(NativeDocumentTests):
 		rows = native_topology._visible_warehouses()
 		presented = {row["name"]: row for row in native_topology.present_locations(rows)}
 		self.assertIn(self.system_root, presented)
-		self.assertEqual(presented[self.loan_leaf]["local_label"], "Native Test Lease Leaf " + self.token)
+		self.assertEqual(
+			presented[self.loan_leaf]["local_label"], "Native Test Lease Leaf " + self.topology_token
+		)
 		self.assertNotIn("System Locations", presented[self.loan_leaf]["path"])
 		self.assertEqual(
 			presented[self.loan_leaf]["native_name"],

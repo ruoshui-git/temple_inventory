@@ -2,7 +2,6 @@ import { expect, test, type Page } from "@playwright/test";
 import { nativeUiSession } from "./fixtures/nativeUi";
 
 // Export UX: the 导出 action lives in the 更多 menu on phones, and the job continues in the tray.
-const shots = "/tmp/codex-runs/r7-export-ux-shots";
 const exportJob = (
   status: string,
   progress: number,
@@ -89,7 +88,9 @@ test.describe("phone export from the 更多 menu", () => {
       await expect(dialog).toBeVisible();
       await expect(dialog).toContainText("共 24 行");
       await dialog.page().screenshot({
-        path: `${shots}/phone-${name.toLowerCase()}-export-dialog.png`,
+        path: test
+          .info()
+          .outputPath(`phone-${name.toLowerCase()}-export-dialog.png`),
       });
     });
   }
@@ -107,7 +108,9 @@ test.describe("phone export from the 更多 menu", () => {
     await expect(pill).toContainText("正在导出 1 项");
     await pill.click();
     await expect(page.getByRole("region", { name: "后台任务" })).toBeVisible();
-    await page.screenshot({ path: `${shots}/phone-tray-running.png` });
+    await page.screenshot({
+      path: test.info().outputPath(`phone-tray-running.png`),
+    });
     await page.keyboard.press("Escape");
     await expect(page.getByRole("region", { name: "后台任务" })).toHaveCount(0);
     await pill.click();
@@ -116,7 +119,9 @@ test.describe("phone export from the 更多 menu", () => {
         .getByRole("region", { name: "后台任务" })
         .getByRole("button", { name: "下载", exact: true }),
     ).toBeVisible({ timeout: 15000 });
-    await page.screenshot({ path: `${shots}/phone-tray-completed.png` });
+    await page.screenshot({
+      path: test.info().outputPath(`phone-tray-completed.png`),
+    });
   });
 });
 
@@ -135,7 +140,9 @@ test.describe("desktop export tray", () => {
     await expect(pill).toContainText("正在导出 1 项");
     await pill.click();
     await expect(page.getByRole("region", { name: "后台任务" })).toBeVisible();
-    await page.screenshot({ path: `${shots}/desktop-tray-running.png` });
+    await page.screenshot({
+      path: test.info().outputPath(`desktop-tray-running.png`),
+    });
     await pill.click();
     await expect(pill).toContainText("1 项任务已完成", { timeout: 15000 });
     await pill.click();
@@ -144,7 +151,9 @@ test.describe("desktop export tray", () => {
         .getByRole("region", { name: "后台任务" })
         .getByRole("button", { name: "下载", exact: true }),
     ).toBeVisible();
-    await page.screenshot({ path: `${shots}/desktop-tray-completed.png` });
+    await page.screenshot({
+      path: test.info().outputPath(`desktop-tray-completed.png`),
+    });
     // The page stays usable: the More menu opens again after the tray was used.
     await page.getByRole("button", { name: "更多操作", exact: true }).click();
     await expect(

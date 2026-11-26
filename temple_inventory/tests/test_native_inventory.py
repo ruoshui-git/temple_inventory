@@ -36,6 +36,7 @@ from temple_inventory.tests.test_native_reports_loans import NativeReportsLoansT
 from temple_inventory.tests.test_native_reports_projections import NativeReportsProjectionsTests
 from temple_inventory.tests.test_native_samples import (
 	NativeSampleAttachmentTests,
+	NativeSampleCatalogTests,
 	NativeSampleTests,
 	SampleGeneratorUnitTests,
 	SampleMediaTests,
@@ -93,6 +94,7 @@ def run(test_name=None):
 		SampleMediaTests,
 		SampleGeneratorUnitTests,
 		NativeSampleAttachmentTests,
+		NativeSampleCatalogTests,
 		NativeSampleTests,
 		TablePreferenceTests,
 		NotificationTests,
@@ -132,7 +134,7 @@ def run(test_name=None):
 		with patch.object(
 			frappe.db, "commit", side_effect=AssertionError("native inventory tests may not commit")
 		):
-			result = unittest.TextTestRunner(verbosity=2).run(suite)
+			result = unittest.TextTestRunner(verbosity=2, durations=20).run(suite)
 		if not result.wasSuccessful():
 			raise AssertionError("Native inventory integration tests failed")
 	finally:
