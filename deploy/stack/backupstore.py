@@ -300,6 +300,10 @@ def check_set(directory, encrypted):
 		return
 	for name, digest in read_checksums(directory / "SHA256SUMS", expected - {"SHA256SUMS"}).items():
 		check_checksum(directory, name, digest)
+	with gzip.open(directory / "database.sql.gz", "rb") as dump:
+		# Match the first 256 decompressed bytes inspected by Bench on restore.
+		if b"Partial Backup" in dump.read(256):
+			raise ValueError("partial database backup: database.sql.gz")
 	if BLOB_LIST in expected:
 		read_refs(directory / BLOB_LIST)
 

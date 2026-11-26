@@ -34,6 +34,7 @@ uses the same files from `deploy/stack/`, installed separately:
 
 ```text
 /srv/kufang/                         kufang-deploy home
+  .image-prune.lock                  serializes image protection and pruning across stacks
   bin/dispatch                      SSH forced-command dispatcher
   edge/{compose.yaml,nonprod.yaml,production.yaml,.env}
   <env>/compose.yaml                 project kufang-<env>
@@ -43,6 +44,7 @@ uses the same files from `deploy/stack/`, installed separately:
   <env>/ENVIRONMENT                 exactly sample, staging or production
   <env>/image.env                   IMAGE=<immutable digest>
   <env>/state/{current,previous,history,deploy.lock}
+  staging/state/protected-images    candidate and recovery digests during promotion
   <env>/credentials.txt             bootstrap logins; mode 0600
   <env>/backups/<UTC>/               host backup sets; private
   <env>/backups/blobs/<source-env>/   verified plaintext blobs for the retained sets
@@ -224,7 +226,9 @@ one snapshot in `sites/.sample-snapshot`; a later deploy on the same day whose
 app source (tests and built frontend aside) and framework versions match
 restores that snapshot instead of reseeding, so frontend-only pushes are quick. Like the development site, it
 is a public demo: Administrator and every `*@example.com` demo user log in with
-the password `admin` (also listed in `credentials.txt`). Production opts into the
+the password `admin`. The full installer sets those demo passwords in one
+Bench invocation. Sample then reads the user list once to write
+`credentials.txt`. Production opts into the
 installer only during initial setup, uses `data="empty"`, company `Org`, abbr
 `O`, United States/USD, sets System Settings time zone `America/New_York`,
 disables any `*@example.com` users and then removes the sample-tooling opt-in.
@@ -234,23 +238,27 @@ Never commit that password: this repository is public.
 `sample_install.py` explicitly allows this opt-in without developer mode.
 Seeding sample data on a non-development site requires site config
 `temple_inventory_sample_site=1`; the bootstrap sets this opt-in for sample.
-Staging restores the latest complete production backup, mutes email, sets its
-own host name and disables scheduler delivery before exposing the restored
-site. It does not create fresh sample data.
+Staging restores the latest complete production backup. It empties the site's
+`public/files` and `private/files` directories before restoring, so attachments
+deleted in production disappear from staging too. Staging mutes email, clears
+restored mail credentials and pending messages, sets its own host name and
+disables scheduler delivery before exposing the restored site.
 
 ## Stack scripts on hosts
 
 The first install of each `/srv/kufang/<env>` stack remains a one-time manual
 install from `deploy/stack/`, including `compose.yaml` and `backupstore.py`. After
-that, every `deploy IMAGE` extracts and validates the stack files from the selected
-image, backs up changed copies under `stack-backup/`, and installs them before
-continuing. When an older image predates the pack reader, the host keeps its
+that, `deploy IMAGE` and `staging promote IMAGE` extract and validate stack files
+from the selected image, back up changed copies under `stack-backup/`, and
+install them before continuing. When an older image predates the pack reader, the host keeps its
 installed `backupstore.py`, `backup-common.sh`, `backup.sh`, `restore-drill.sh`
 and `deploy.sh`. This preserves pack support and the nightly writer's
 local-only guard. `status` shows the `backup-reader-retained` and
 `stack-updated` history entries. Operators copying files back from
 `stack-backup/` should keep those files together once the environment uses
-deduplicated backups.
+deduplicated backups. Staging uses the selected image's Compose file and keeps
+its installed promotion and backup scripts when that image predates
+`staging promote`.
 
 The dispatcher, edge compose YAML, production systemd units, and all `.env`
 files remain host-managed and are never installed automatically. Deploys print a
@@ -258,6 +266,13 @@ files remain host-managed and are never installed automatically. Deploys print a
 differ; review and install those changes by hand. Code merged to `main` can now
 change host scripts run by `kufang-deploy`; production deploys remain approval-gated
 and dispatch stays manual.
+
+Before the first run of the updated staging workflow, install the reviewed
+`deploy/stack/` scripts, `compose.yaml` and `backupstore.py` to
+`/srv/kufang/staging/`. Install `dispatch.sh` as `/srv/kufang/bin/dispatch`
+on the non-production host. Use the ownership and modes in the initial host
+setup. The old dispatcher and staging entry point need this update to recognize
+`staging promote`.
 
 ## Empty reinstall and furniture seed (operator)
 
@@ -351,9 +366,10 @@ after commit, so names stay in sync; before that, relabels change only
    the same digest and checks the public ping endpoint.
 2. Run `promote-staging.yml` from main. Its optional digest defaults to sample's
    current digest, read through `sample status` on the non-production host. It
-   refreshes staging from the newest complete production B2 set, then deploys
-   the selected image and checks the public ping endpoint. Refresh is
-   destructive to staging's existing data.
+   runs `staging promote IMAGE`, which replaces staging data with the newest
+   complete production B2 backup, migrates to the selected image and brings
+   up web and worker services once under one deployment lock. The workflow
+   then checks the public ping endpoint.
 3. Exercise staging against the restored production data. Then run
    `deploy-production.yml` from main with the full digest. Its first job checks
    staging history for a successful deployment of that exact digest. The
@@ -370,15 +386,17 @@ From an operator workstation with an appropriate forced-command key:
 
 ```sh
 ssh -i credentials/deploy/staging kufang-deploy@40.160.91.166 sample status
+ssh -i credentials/deploy/staging kufang-deploy@40.160.91.166 staging promote "$IMAGE"
 ssh -i credentials/deploy/staging kufang-deploy@40.160.91.166 staging refresh
 ssh -i credentials/deploy/staging kufang-deploy@40.160.91.166 staging deploy "$IMAGE"
 ssh -i credentials/deploy/staging kufang-deploy@40.160.91.166 staging stop
 ssh -i credentials/deploy/production kufang-deploy@PRODUCTION_HOST production status
 ```
 
-`refresh` and `stop` are staging-only. `stop` shuts down the staging project
-without removing volumes; the next refresh brings it back on demand. Refresh
-before deploying a stopped staging stack.
+`promote`, `refresh` and `stop` are staging-only. `stop` shuts down the staging
+project without removing volumes. Either `promote` or `refresh` starts a
+stopped stack on demand. For a manual deploy of a stopped staging stack,
+refresh it first.
 Manual `restore` runs locally as the operator, rather than through a CI key.
 
 ## Backups and restore drill
@@ -478,8 +496,15 @@ the local set, with its own checksums, and reuse those local packs on later
 backups. Local pruning runs even if B2 retention or Bench cleanup fails. The
 writer puts temporary Bench copies in `sites/.host-backups/` and removes them
 after publication. Before each attempt, it prunes older failed copies and
-leftovers for the current timestamp from that directory. Staging deploy and
-reinstall snapshots live separately in `sites/.deploy-backups/`.
+leftovers for the current timestamp from that directory. Sample and staging
+keep the two newest pre-deploy or pre-reinstall volume backups in
+`sites/.deploy-backups/`. The next successful deploy, reinstall or promotion
+prunes older copies automatically. Capture skips Bench's partial dumps, and set
+validation rejects the partial-backup marker after decryption when needed.
+Restores clear stale `sites/.restore` scratch before rebuilding archives and
+clean it up on exit, including after a preparation failure. Staging refresh and
+promotion finish archive preparation before enabling maintenance or replacing
+attachments.
 Backup and retention results are logged to `/srv/kufang/<env>/logs/backup.log`
 and the nightly exit status is available in the systemd journal.
 
@@ -502,6 +527,10 @@ recorded attempt, then publishes a fresh set with any content B2 still lacks.
 2026-11-26 — Restricted restored attachment paths to Bench's file directories and based pack retention grace on upload time.
 
 2026-11-26 — Reclaimed space from failed uploads before taking a fresh snapshot and protected the last recorded backup during local retention.
+
+2026-11-26 — Combined staging refresh and promotion, made staging attachment restores exact, cleaned restore scratch, reduced non-production volume retention to two, and removed redundant demo password resets.
+
+2026-11-26 — Rejected partial dumps before restore, cleared stale scratch before rebuilding archives, and protected both promotion images from concurrent pruning.
 
 ### B2 transaction and transfer budget
 
@@ -536,8 +565,8 @@ one root probe and two Class C calls. The writer's age budget includes a read
 of the recipient binding. The first encrypted publication adds its own
 binding upload phase. Legacy sets have no pack metadata to download during GC.
 
-Promote the pack-capable release to staging while production still serves
-full-archive backups. Promotion refreshes first, then installs the reader.
+Install the pack-capable staging scripts and promote the pack-capable release
+while production still serves full-archive backups.
 The first production deploy installs the reader and uploads the first pack
 before pruning expired sets. Allow about 500 MB of B2 headroom and 2.5–3 GB
 of free host disk space for the first write, alongside existing backups. The
@@ -654,12 +683,19 @@ page reading 系统维护中，请稍后再试. When the backend is up with main
 enabled, visitors see the app's Chinese 系统正在更新 page
 (`temple_inventory/maintenance.py`), which retries every 30 seconds.
 Only a healthy deployment records a successful history entry.
-Images are pruned while retaining current and previous images, including those
-recorded by the other local environment. Persistent volumes are never pruned.
+Images are pruned while retaining current and previous images and active
+promotion images across local environments. Install the updated `common.sh`
+on both sample and staging so sample pruning reads staging's image protection.
+Persistent volumes are never pruned.
 
 Sample and staging retain volume pre-deployment backups. Failures after
 migration or reinstall starts restore the backup with the previous image automatically,
 check recovery health and exit nonzero so CI still reports the failed deploy.
+Staging promotion uses the downloaded production set and its recorded image
+for recovery, skipping the pre-deploy volume backup. A failed promotion uses
+the same prepared archives for recovery, checks recovery health, records a
+failed deployment and exits nonzero. Incomplete recovery leaves staging in
+maintenance.
 If automatic recovery reports incomplete, keep the site out of use, inspect
 `state/history`, service logs and backup contents before attempting recovery.
 A failed pull or backup leaves the running deployment intact and aborts before

@@ -64,7 +64,7 @@ current_image() {
 	printf '%s\n' "$image"
 }
 set_image() {
-	printf 'IMAGE=%s\n' "$1" >image.env.tmp
+	printf 'IMAGE=%s\n' "$1" >image.env.tmp || return $?
 	mv image.env.tmp image.env
 }
 maintenance() { bench_with "$1" --site "$SITE_NAME" set-maintenance-mode "$2"; }
@@ -74,10 +74,10 @@ stop_jobs() { compose stop scheduler queue-short queue-long; }
 stop_web() { compose stop backend websocket; }
 site_policy() {
 	local image=$1
-	bench_with "$image" --site "$SITE_NAME" set-config host_name "https://$SITE_NAME"
-	bench_with "$image" --site "$SITE_NAME" set-config temple_inventory_environment "$ENVIRONMENT"
+	bench_with "$image" --site "$SITE_NAME" set-config host_name "https://$SITE_NAME" || return $?
+	bench_with "$image" --site "$SITE_NAME" set-config temple_inventory_environment "$ENVIRONMENT" || return $?
 	if [[ $ENVIRONMENT != production ]]; then
-		bench_with "$image" --site "$SITE_NAME" set-config mute_emails 1
+		bench_with "$image" --site "$SITE_NAME" set-config mute_emails 1 || return $?
 	fi
 	if [[ $ENVIRONMENT == staging ]]; then
 		bench_with "$image" --site "$SITE_NAME" disable-scheduler
@@ -87,20 +87,18 @@ site_policy() {
 # development site. Rewrites credentials.txt for the seeded users.
 seed_sample() {
 	(
-	local image=$1 users user cleanup
+	local image=$1 users logins cleanup
 	printf -v cleanup 'bench_with %q --site %q set-config temple_inventory_sample_site 0 || true' "$image" "$SITE_NAME"
 	# shellcheck disable=SC2064 # Bind the quoted image and site at registration.
 	trap "$cleanup" EXIT
 	bench_with "$image" --site "$SITE_NAME" set-config temple_inventory_sample_site 1
 	bench_with "$image" --site "$SITE_NAME" execute temple_inventory.sample_install.prepare_development_sample_site \
 		--kwargs '{"data": "full"}'
+	# The full installer sets every seeded account's password before returning.
 	users=$(bench_with "$image" --site "$SITE_NAME" execute frappe.get_all --args '["User"]' \
 		--kwargs '{"filters": {"name": ["like", "%@example.com"]}, "pluck": "name"}')
-	printf '# %s logins, seeded %s\nAdministrator admin\n' "$SITE_NAME" "$(date -u +%FT%TZ)" >credentials.txt
-	for user in $(python3 -c 'import json, sys; print(" ".join(json.loads(sys.argv[1])))' "$users"); do
-		bench_with "$image" --site "$SITE_NAME" set-password "$user" admin
-		printf '%s admin\n' "$user" >>credentials.txt
-	done
+	logins=$(python3 -c 'import json, sys; print("\n".join(f"{user} admin" for user in json.loads(sys.argv[1])))' "$users")
+	printf '# %s logins, seeded %s\nAdministrator admin\n%s\n' "$SITE_NAME" "$(date -u +%FT%TZ)" "$logins" >credentials.txt
 	chmod 600 credentials.txt
 	)
 }
@@ -119,17 +117,28 @@ healthy() {
 	done
 	return 1
 }
-prune_images() {
-	local current=$1 previous=$2 environment record image
+protect_images() (
+	flock -x 8 && printf '%s\n' "$@" >state/protected-images
+) 8>"$root/../.image-prune.lock"
+
+prune_images() (
+	local current=$1 previous=$2 environment record image state_dir
 	local exclusions=(-e "$current" -e "$previous")
-	# Preserve every installed environment's rollback image, even when stopped.
+	flock -x 8 || return $?
+	# Preserve rollback and in-flight promotion images across all local environments.
 	for environment in sample staging production; do
+		state_dir=$root/../$environment/state
 		for record in current previous; do
-			image=$(cat "$root/../$environment/state/$record" 2>/dev/null || true)
+			image=$(cat "$state_dir/$record" 2>/dev/null || true)
 			[[ ! $image =~ $image_pattern ]] || exclusions+=(-e "$image")
 		done
+		if [[ -f $state_dir/protected-images ]]; then
+			while IFS= read -r image; do
+				[[ ! $image =~ $image_pattern ]] || exclusions+=(-e "$image")
+			done <"$state_dir/protected-images"
+		fi
 	done
 	# Never force-remove an image another environment still uses.
 	docker images --digests --format '{{.Repository}}@{{.Digest}}' ghcr.io/ruoshui-git/temple_inventory |
 		grep -vxF "${exclusions[@]}" | xargs -r docker rmi >/dev/null 2>&1 || true
-}
+) 8>"$root/../.image-prune.lock"

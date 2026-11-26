@@ -48,6 +48,7 @@ case " $* " in
 	*' cp backend:'*)
 		destination=${!#}
 		case "$destination" in
+			*/database.sql.gz) printf '%s\n' '-- fixture database' | gzip >"$destination" ;;
 			*/site_config.json) printf '{"encryption_key":"fixture"}\n' >"$destination" ;;
 			*.tgz) tar -czf "$destination" --files-from /dev/null ;;
 			*) printf 'fixture\n' >"$destination" ;;

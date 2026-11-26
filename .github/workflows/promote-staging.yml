@@ -49,8 +49,7 @@ jobs:
             echo 'Expected one immutable ghcr.io/ruoshui-git/temple_inventory digest.' >&2
             exit 1
           fi
-          remote staging refresh
-          remote staging deploy "$image"
+          remote staging promote "$image"
       - name: Public health check
         run: |
           curl --fail --silent --show-error --retry 6 --retry-delay 10 \

@@ -26,7 +26,11 @@ if [[ -n $allowed && $environment != "$allowed" ]]; then
 		die "environment is not allowed for this key"
 fi
 case $action in
-	deploy) [[ ${#args[@]} == 3 ]] || die "usage: ENV deploy IMAGE" ;;
+	deploy|promote)
+		[[ $action != promote || $environment == staging ]] || die "promote is staging-only"
+		[[ ${#args[@]} == 3 && ${args[2]} =~ ^ghcr\.io/ruoshui-git/temple_inventory@sha256:[0-9a-f]{64}$ ]] ||
+			die "usage: ENV $action IMAGE (immutable ghcr digest)"
+		;;
 	status) [[ ${#args[@]} == 2 ]] || die "usage: ENV status" ;;
 	refresh|stop) [[ $environment == staging && ${#args[@]} == 2 ]] || die "action is staging-only" ;;
 	restore)

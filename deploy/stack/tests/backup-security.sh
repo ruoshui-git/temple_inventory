@@ -11,7 +11,8 @@ printf 'SITE_NAME=sample.kufang.online\nDB_ROOT_PASSWORD=dummy\n' >"$test_root/s
 image=ghcr.io/ruoshui-git/temple_inventory@sha256:$(printf '%064d' 8)
 printf '%s\n' "$image" >"$test_root/sample/state/current"
 printf 'IMAGE=%s\n' "$image" >"$test_root/sample/image.env"
-for name in database.sql.gz public-files.tgz private-files.tgz site_config.json image.txt; do
+printf '%s\n' '-- fixture database' | gzip >"$test_root/plain/database.sql.gz"
+for name in public-files.tgz private-files.tgz site_config.json image.txt; do
 	printf 'fixture-%s\n' "$name" >"$test_root/plain/$name"
 done
 printf '%s\n' "$image" >"$test_root/plain/image.txt"
@@ -66,6 +67,22 @@ if validate_backup "$test_root/encrypted" >/dev/null 2>&1; then
 	echo 'FAIL: encrypted checksum corruption passed validation' >&2
 	exit 1
 fi
+
+test_encrypted_partial_dump_is_rejected() (
+	local plain=$test_root/partial encrypted=$test_root/partial-encrypted member
+	cp -a "$test_root/plain" "$plain"
+	mkdir "$encrypted"
+	printf '%s\n' '-- Partial Backup of Frappe Site kufang.org' | gzip >"$plain/database.sql.gz"
+	(cd "$plain" && sha256sum database.sql.gz public-files.tgz private-files.tgz site_config.json image.txt >SHA256SUMS)
+	for member in "$plain/"*; do age -r age1fixture -o "$encrypted/${member##*/}.age" "$member"; done
+	if validate_backup "$encrypted" >"$test_root/partial-output" 2>&1; then
+		echo 'FAIL: encrypted partial database passed validation after decryption' >&2
+		exit 1
+	fi
+	grep -Fq 'backupstore: partial database backup' "$test_root/partial-output"
+	printf 'PASS: checksummed partial database is rejected after decryption\n'
+)
+test_encrypted_partial_dump_is_rejected
 unset BACKUP_AGE_IDENTITY
 cat >"$test_root/bin/docker" <<'STUB'
 #!/usr/bin/env bash

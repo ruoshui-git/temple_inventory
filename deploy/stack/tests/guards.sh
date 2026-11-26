@@ -43,6 +43,7 @@ for environment in sample staging production; do
 			refuse bash "$dir/deploy.sh" deploy "$image"
 			refuse bash "$dir/deploy.sh" reinstall "$image" --confirm-site "$site"
 			refuse bash "$dir/deploy.sh" refresh
+			refuse bash "$dir/deploy.sh" promote "$image"
 			refuse bash "$dir/deploy.sh" stop
 			refuse bash "$dir/deploy.sh" restore /tmp/not-a-backup
 			refuse bash "$dir/bootstrap.sh" "$image"
@@ -52,6 +53,7 @@ for environment in sample staging production; do
 	printf '%s\n' "$environment" >"$dir/ENVIRONMENT"
 	printf 'SITE_NAME=%s\nDB_ROOT_PASSWORD=dummy\n' "$site" >"$dir/.env"
 	refuse bash "$dir/deploy.sh" deploy 'ghcr.io/ruoshui-git/temple_inventory:main'
+	refuse bash "$dir/deploy.sh" promote 'ghcr.io/ruoshui-git/temple_inventory:main'
 	refuse bash "$dir/deploy.sh" reinstall 'ghcr.io/ruoshui-git/temple_inventory:main' --confirm-site "$site"
 	refuse bash "$dir/deploy.sh" reinstall "$image"
 	refuse bash "$dir/deploy.sh" reinstall "$image" --confirm-site wrong.site
@@ -60,6 +62,7 @@ for environment in sample staging production; do
 	refuse bash "$dir/backup.sh" extra
 	if [[ $environment != staging ]]; then
 		refuse bash "$dir/deploy.sh" refresh
+		refuse bash "$dir/deploy.sh" promote "$image"
 		refuse bash "$dir/deploy.sh" stop
 	fi
 	# A valid status without any installed image is permitted without Docker.
@@ -73,4 +76,20 @@ refuse env SSH_ORIGINAL_COMMAND='staging restore /tmp/backup' bash "$source_dir/
 refuse env SSH_ORIGINAL_COMMAND="staging reinstall $image --confirm-site staging.kufang.online" bash "$source_dir/dispatch.sh" --allow-env staging
 refuse env SSH_ORIGINAL_COMMAND='sample status; id' bash "$source_dir/dispatch.sh" --allow-env staging
 refuse env SSH_ORIGINAL_COMMAND='../../tmp status' bash "$source_dir/dispatch.sh"
+for environment in sample production; do
+	refuse env SSH_ORIGINAL_COMMAND="$environment promote $image" bash "$source_dir/dispatch.sh" --allow-env "$environment"
+	refuse env SSH_ORIGINAL_COMMAND="staging promote $image" bash "$source_dir/dispatch.sh" --allow-env "$environment"
+done
+for invalid in 'staging promote' 'staging promote ghcr.io/ruoshui-git/temple_inventory:main' "staging promote $image extra"; do
+	refuse env SSH_ORIGINAL_COMMAND="$invalid" bash "$source_dir/dispatch.sh" --allow-env staging
+done
+sed "s|^script=/srv/kufang/|script=$test_root/|" "$source_dir/dispatch.sh" >"$test_root/dispatch.sh"
+cat >"$test_root/staging/deploy.sh" <<'STUB'
+#!/usr/bin/env bash
+set -eu
+[[ -z ${SSH_ORIGINAL_COMMAND:-} ]]
+printf '%s\n' "$@"
+STUB
+chmod +x "$test_root/staging/deploy.sh"
+[[ $(SSH_ORIGINAL_COMMAND="staging promote $image" bash "$test_root/dispatch.sh" --allow-env staging) == "promote"$'\n'"$image" ]]
 printf 'PASS: %s offline guard checks; no Docker calls\n' "$checks"

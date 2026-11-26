@@ -25,7 +25,7 @@ for environment in production staging; do
 done
 printf '%s\n' "$image" >"$fixture/image.txt"
 printf '{"encryption_key":"fixture"}\n' >"$fixture/site_config.json"
-printf 'fixture database\n' >"$fixture/database.sql.gz"
+printf '%s\n' '-- fixture database' | gzip >"$fixture/database.sql.gz"
 
 cat >"$test_root/bin/rclone" <<'PY'
 #!/usr/bin/env python3
@@ -223,6 +223,13 @@ case " $* " in
 			echo 'simulated Bench failure' >&2
 			exit 43
 		fi
+		if [[ ${BACKUP_WITH_PARTIAL_DUMP:-} == 1 ]]; then
+			volume_dir=$test_root/volume/${!#}
+			mkdir -p "$volume_dir"
+			cp "$test_root/fixture/database.sql.gz" "$volume_dir/native-database.sql.gz"
+			printf '%s\n' '-- Partial Backup of Frappe Site kufang.org' | gzip >"$volume_dir/native-partial-database.sql.gz"
+			touch "$volume_dir/native-files.tgz" "$volume_dir/native-private-files.tgz"
+		fi
 		;;
 	*' backend bash -c '*'sites backup volume'*)
 		args=("$@")
@@ -231,10 +238,22 @@ case " $* " in
 	*' backend rm -rf -- '*)
 		rm -rf -- "$test_root/volume/${!#}"
 		;;
+	*' -e BACKUP_DIR='*' backend bash -c '*)
+		if [[ ${BACKUP_WITH_PARTIAL_DUMP:-} == 1 ]]; then
+			for arg in "$@"; do
+				if [[ $arg == BACKUP_DIR=* ]]; then export BACKUP_DIR=$test_root/volume/${arg#*=}; fi
+			done
+			bash -c "${!#}"
+		fi
+		;;
 	*' cp backend:'*)
 		args=("$@")
 		source=${args[$#-2]}
-		cp "$test_root/fixture/${source##*/}" "${!#}"
+		if [[ ${BACKUP_WITH_PARTIAL_DUMP:-} == 1 && $source == */database.sql.gz ]]; then
+			cp "$test_root/volume/${source#backend:}" "${!#}"
+		else
+			cp "$test_root/fixture/${source##*/}" "${!#}"
+		fi
 		;;
 	*' cp '*'/. backend:'*)
 		args=("$@")
@@ -495,6 +514,16 @@ test_failed_bench_attempts_bound_volume_copies() (
 	printf 'PASS: repeated Bench failures retain at most the latest attempt in the sites volume\n'
 )
 
+test_backup_capture_ignores_partial_dump_names() (
+	round3_case capture-full
+	if ! BACKUP_TEST_STAMP=$one BACKUP_WITH_PARTIAL_DUMP=1 bash "$test_root/production/deploy.sh" backup-local; then
+		echo 'FAIL: a partial dump alongside a full dump blocked backup capture' >&2
+		exit 1
+	fi
+	cmp "$fixture/database.sql.gz" "$test_root/production/backups/$one/database.sql.gz"
+	printf 'PASS: capture selects the full dump when a partial dump is present\n'
+)
+
 test_failed_staging_local_backup_preserves_snapshots() (
 	round3_case staging-volume
 	cp -a "$test_root/../staging" "$test_root/"
@@ -676,7 +705,7 @@ test_lost_marker_ack_keeps_set_and_deploy_snapshots() (
 	[[ -e $remote/$one/SHA256SUMS ]]
 	: >"$logfile"
 	: >"$test_root/docker-log"
-	printf 'database at deploy\n' >"$fixture/database.sql.gz"
+	printf 'database at deploy\n' | gzip >"$fixture/database.sql.gz"
 	BACKUP_TEST_STAMP=$one BACKUP_EXPECT_IMAGE=$new_image bash "$host/deploy.sh" deploy "$new_image"
 	grep -Fq "backup --with-files --compress --backup-path /home/frappe/frappe-bench/sites/.host-backups/$stamp" \
 		"$test_root/docker-log"
@@ -741,7 +770,7 @@ test_site_change_takes_fresh_backup_after_failure() (
 	new_image=ghcr.io/ruoshui-git/temple_inventory@sha256:$(printf '%064d' 8)
 	BACKUP_FAIL_UPLOAD=production/$one/SHA256SUMS expect_failure 'BACKUP_FAIL_UPLOAD' round3_writer "$one"
 	: >"$test_root/docker-log"
-	printf 'database at %s\n' "$operation" >"$fixture/database.sql.gz"
+	printf 'database at %s\n' "$operation" | gzip >"$fixture/database.sql.gz"
 	export BACKUP_TEST_STAMP=$one BACKUP_EXPECT_IMAGE=$new_image ADMIN_PASSWORD=fixture
 	if [[ $operation == deploy ]]; then
 		bash "$host/deploy.sh" deploy "$new_image"
@@ -878,7 +907,10 @@ PY
 		exit 1
 	fi
 	grep -Fq 'outside the attachment archive root' "$test_root/result"
-	[[ ! -s $test_root/docker-log ]]
+	if grep -Ev '^(pull -q [^ ]+|compose .* backend rm -rf -- /home/frappe/frappe-bench/sites/\.restore)$' "$test_root/docker-log"; then
+		echo 'restore touched the site before rejecting the attachment manifest' >&2
+		exit 1
+	fi
 	printf 'PASS: restore accepts only attachment roots in rebuilt manifests\n'
 )
 
@@ -907,6 +939,7 @@ STUB
 )
 
 # Run the new regressions before the existing multi-set fixture.
+test_backup_capture_ignores_partial_dump_names
 test_abandoned_attempt_frees_storage plain
 test_abandoned_attempt_frees_storage encrypted
 test_failed_uploads_leave_only_attempt_record

@@ -401,8 +401,9 @@ prepare_backup_snapshot() {
 		set -euo pipefail
 		cd "$BACKUP_DIR"
 		shopt -s nullglob
-		db=(*-database.sql.gz); public=(*-files.tgz); private=(*-private-files.tgz)
-		pub=()
+		public=(*-files.tgz); private=(*-private-files.tgz)
+		db=(); pub=()
+		for file in *-database.sql.gz; do [[ $file == *-partial-* ]] || db+=("$file"); done
 		for file in "${public[@]}"; do [[ $file == *-private-files.tgz ]] || pub+=("$file"); done
 		[[ ${#db[@]} == 1 && ${#pub[@]} == 1 && ${#private[@]} == 1 ]]
 		cp -- "${db[0]}" database.sql.gz
@@ -746,18 +747,60 @@ fetch_production_backup() {
 	printf '%s\n' "$destination" >state/refresh-backup
 }
 
-restore_host_backup() (
-	local dir=$1 image=$2 site=${3:-$SITE_NAME} tmp cache
+wipe_site_files() {
+	local image=$1
+	# shellcheck disable=SC2016
+	IMAGE=$image compose run --rm --no-deps -T -e SITE_NAME backend bash -c '
+		set -euo pipefail
+		cd "/home/frappe/frappe-bench/sites/$SITE_NAME"
+		find public/files private/files -mindepth 1 -delete
+	'
+}
+
+clear_restore_scratch() {
+	# The image entrypoint rewrites sites/assets, so bypass it during preflight.
+	IMAGE=$1 compose run --rm --no-deps -T --user root --entrypoint env backend \
+		rm -rf -- /home/frappe/frappe-bench/sites/.restore
+}
+
+cleanup_restore() {
+	local status=$1 image=$2 work=$3
+	if ! clear_restore_scratch "$image"; then
+		log "failed to remove sites/.restore" >&2
+		((status != 0)) || status=1
+	fi
+	rm -rf -- "$work" || { ((status != 0)) || status=1; }
+	exit "$status"
+}
+
+with_prepared_restore() (
+	trap - ERR
+	local dir=$1 image=$2 tmp cache cleanup
+	shift 2
 	cache=$(backup_cache "$dir") || return $?
+	# A stale copy can leave too little space to rebuild the attachments.
+	clear_restore_scratch "$image" || return $?
 	tmp=$(backup_workdir) || return $?
-	trap_backup_workdir_cleanup "$tmp"
+	printf -v cleanup 'cleanup_restore "$?" %q %q' "$image" "$tmp"
+	# shellcheck disable=SC2064 # Bind the quoted image and path at registration.
+	trap "$cleanup" EXIT
 	dir=$(prepare_backup "$dir" "$cache" "$tmp" restore) || return $?
+	"$@" "$dir"
+)
+
+restore_host_backup() {
+	with_prepared_restore "$1" "$2" restore_prepared_backup "$2" "${3:-$SITE_NAME}"
+}
+
+restore_prepared_backup() {
+	# Recovery also calls this function in a conditional, so propagate errors explicitly.
+	local image=$1 site=$2 dir=$3
 	# cp works with a stopped service. Configurator establishes volume ownership.
-	IMAGE=$image compose create backend
-	IMAGE=$image compose cp "$dir/." backend:/home/frappe/frappe-bench/sites/.restore
+	IMAGE=$image compose create backend || return $?
+	IMAGE=$image compose cp "$dir/." backend:/home/frappe/frappe-bench/sites/.restore || return $?
 	# Docker cp preserves host-only permissions but creates root-owned files.
 	IMAGE=$image compose run --rm --no-deps -T --user root backend chown -R frappe: \
-		/home/frappe/frappe-bench/sites/.restore
+		/home/frappe/frappe-bench/sites/.restore || return $?
 	# Preserve this environment's database credentials. Import only the source
 	# encryption key, which is required to decrypt restored native secrets.
 	# shellcheck disable=SC2016
@@ -774,28 +817,32 @@ config["maintenance_mode"] = 1
 if os.environ["ENVIRONMENT"] == "staging":
 	config.update(mute_emails=1, pause_scheduler=1)
 target.write_text(json.dumps(config))
-'
+' || return $?
+	if [[ $ENVIRONMENT == staging ]]; then
+		# Bench extracts over existing files. Staging mirrors the source set.
+		SITE_NAME=$site wipe_site_files "$image" || return $?
+	fi
 	bench_with "$image" --site "$site" restore /home/frappe/frappe-bench/sites/.restore/database.sql.gz \
 		--with-public-files /home/frappe/frappe-bench/sites/.restore/public-files.tgz \
 		--with-private-files /home/frappe/frappe-bench/sites/.restore/private-files.tgz \
-		--db-root-username root --db-root-password "$DB_ROOT_PASSWORD" --force
+		--db-root-username root --db-root-password "$DB_ROOT_PASSWORD" --force || return $?
 	# restore may clear maintenance config; reassert it before any services start.
-	SITE_NAME=$site maintenance "$image" on
-	SITE_NAME=$site site_policy "$image"
+	SITE_NAME=$site maintenance "$image" on || return $?
+	SITE_NAME=$site site_policy "$image" || return $?
 	if [[ $ENVIRONMENT == staging ]]; then
 		# Disable restored mail accounts and queued messages before starting workers.
 		# shellcheck disable=SC2016 # SQL identifiers are literal backticks.
 		bench_with "$image" --site "$site" execute frappe.db.sql \
-			--args '["UPDATE `tabEmail Account` SET enable_outgoing=0, enable_incoming=0"]'
+			--args '["UPDATE `tabEmail Account` SET enable_outgoing=0, enable_incoming=0"]' || return $?
 		# shellcheck disable=SC2016 # SQL identifiers are literal backticks.
 		bench_with "$image" --site "$site" execute frappe.db.sql \
-			--args '["UPDATE `tabEmail Queue` SET status=\u0027Cancelled\u0027 WHERE status IN (\u0027Not Sent\u0027, \u0027Sending\u0027)"]'
+			--args '["UPDATE `tabEmail Queue` SET status=\u0027Cancelled\u0027 WHERE status IN (\u0027Not Sent\u0027, \u0027Sending\u0027)"]' || return $?
 		# shellcheck disable=SC2016 # SQL identifiers are literal backticks.
 		bench_with "$image" --site "$site" execute frappe.db.sql \
-			--args '["DELETE FROM `__Auth` WHERE doctype IN (\u0027Email Account\u0027, \u0027Email Domain\u0027, \u0027Temple Inventory Settings\u0027)"]'
+			--args '["DELETE FROM `__Auth` WHERE doctype IN (\u0027Email Account\u0027, \u0027Email Domain\u0027, \u0027Temple Inventory Settings\u0027)"]' || return $?
 		# bench execute commits successful calls; outbound credentials are removed.
 	fi
-)
+}
 
 prune_local_sets() {
 	local prefix=$1 name stamp count=0 limit=3 listing last=""

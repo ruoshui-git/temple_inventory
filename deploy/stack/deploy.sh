@@ -18,6 +18,12 @@ volume_backup() {
 	compose exec -T backend bench --site "$SITE_NAME" backup --with-files --compress --backup-path "$dir"
 }
 
+hold_failed_site() {
+	maintenance "$1" on || compose stop frontend backend
+	stop_jobs || compose kill scheduler queue-short queue-long
+	stop_web || compose stop backend websocket
+}
+
 recover() {
 	local previous=$1 dir=$2 failed=$3 restored=1
 	trap - ERR
@@ -45,9 +51,7 @@ recover() {
 		maintenance "$previous" off && healthy "$previous" && start_jobs "$previous"; then
 		log "recovered on $previous"
 	else
-		maintenance "$previous" on || compose stop frontend backend
-		stop_jobs || compose kill scheduler queue-short queue-long
-		stop_web || compose stop backend websocket
+		hold_failed_site "$previous"
 		log "RECOVERY INCOMPLETE: restore=$restored; maintenance enabled; inspect deploy.sh status"
 	fi
 	printf '%s failed %s\n' "$(date -u +%FT%TZ)" "$failed" >>state/history
@@ -58,9 +62,7 @@ production_failure() {
 	local previous=$1 dir=$2 failed=$3
 	trap - ERR
 	set +e
-	maintenance "$previous" on || compose stop frontend backend
-	stop_jobs || compose kill scheduler queue-short queue-long
-	stop_web || compose stop backend websocket
+	hold_failed_site "$previous"
 	printf '%s failed %s\n' "$(date -u +%FT%TZ)" "$failed" >>state/history
 	log "OPERATION FAILED ($ENVIRONMENT); maintenance stays on. No automatic restore was attempted."
 	printf 'Previous image: %s\nBackup directory: %s\n' "$previous" "$dir" >&2
@@ -72,7 +74,10 @@ production_failure() {
 prune_volume_backups() {
 	# This directory holds only script-created timestamp paths.
 	compose exec -T backend bash -c \
-		'cd sites/.deploy-backups && ls -1 | sort | head -n -5 | xargs -r rm -rf --'
+		'set -o pipefail
+		if [[ -d sites/.deploy-backups ]]; then
+			cd sites/.deploy-backups && ls -1 | LC_ALL=C sort | head -n -2 | xargs -r rm -rf --
+		fi'
 }
 
 sample_snapshot=/home/frappe/frappe-bench/sites/.sample-snapshot
@@ -134,12 +139,7 @@ reseed_sample() {
 	local image=$1 key
 	key=$(seed_key "$image")
 	log "wipe files"
-	# shellcheck disable=SC2016
-	IMAGE=$image compose run --rm --no-deps -T -e SITE_NAME backend bash -c '
-		set -euo pipefail
-		cd "/home/frappe/frappe-bench/sites/$SITE_NAME"
-		find public/files private/files -mindepth 1 -delete
-	'
+	wipe_site_files "$image"
 	if fresh_snapshot "$image" "$key"; then
 		log "restore seeded snapshot $key"
 		bench_with "$image" --site "$SITE_NAME" restore "$sample_snapshot/database.sql.gz" \
@@ -204,7 +204,12 @@ sync_stack() {
 		rm -rf -- "$next"
 		die "stack update refused: could not remove extraction container"
 	fi
-	if [[ -e $next/backupstore.py ]] || grep -Fq backupstore.py "$next/backup-common.sh"; then
+	if [[ $ENVIRONMENT == staging && -s $next/deploy.sh ]] && ! grep -q '^[[:space:]]*promote)' "$next/deploy.sh"; then
+		# An older staging image can run the app with its Compose config. Keep
+		# the installed promotion, restore and backup entry points together.
+		keep_reader=1
+		files=(compose.yaml)
+	elif [[ -e $next/backupstore.py ]] || grep -Fq backupstore.py "$next/backup-common.sh"; then
 		files=(backupstore.py "${files[@]}")
 	elif [[ -e $root/backupstore.py ]]; then
 		# Keep pack backup entry points and the deploy guard that protects them.
@@ -268,9 +273,9 @@ deploy() {
 	current=$(current_image)
 	if [[ $new == "$current" ]]; then
 		healthy "$new" || die "health check failed"
-		# Refresh restores production's image; a successful explicit deploy still
-		# needs a staging promotion record even when the image is unchanged.
+		# An explicit deploy still records a health check for the selected image.
 		printf '%s deployed %s\n' "$(date -u +%FT%TZ)" "$new" >>state/history
+		[[ $ENVIRONMENT == production ]] || prune_volume_backups
 		log "already running $new"
 		return
 	fi
@@ -348,12 +353,7 @@ reinstall() {
 	bench_with "$new" --site "$SITE_NAME" reinstall --yes \
 		--db-root-username root --db-root-password "$DB_ROOT_PASSWORD" --admin-password "$ADMIN_PASSWORD"
 	bench_with "$new" purge-jobs --site "$SITE_NAME"
-	# shellcheck disable=SC2016
-	IMAGE=$new compose run --rm --no-deps -T -e SITE_NAME backend bash -c '
-		set -euo pipefail
-		cd "/home/frappe/frappe-bench/sites/$SITE_NAME"
-		find public/files private/files -mindepth 1 -delete
-	'
+	wipe_site_files "$new"
 	# Always remove the opt-in, including on a failed seed/bootstrap operation.
 	printf -v cleanup 'bench_with %q --site %q set-config temple_inventory_sample_site 0 || true' "$new" "$SITE_NAME"
 	# shellcheck disable=SC2064 # Bind the quoted image and site at registration.
@@ -391,26 +391,37 @@ reinstall() {
 	log "reinstalled $new"
 }
 
+prepare_site_restore() {
+	local image=$1 current=$2
+	# An on-demand staging stack may have been stopped completely.
+	IMAGE=$image compose up -d db redis-cache redis-queue || return $?
+	IMAGE=$image compose run --rm configurator || return $?
+	maintenance "$current" on || return $?
+	stop_jobs || return $?
+	compose stop frontend backend websocket
+}
+
+start_restored_site() {
+	local image=$1
+	start_web "$image" && maintenance "$image" off && healthy "$image" && start_jobs "$image"
+}
+
 restore() {
 	local dir image previous
 	[[ $1 == /* ]] || die "restore requires an absolute host backup directory"
 	dir=$(realpath -e -- "$1")
-	validate_backup "$dir"
 	image=$(backup_image "$dir")
 	previous=$(current_image)
 	docker pull -q "$image" >/dev/null
+	with_prepared_restore "$dir" "$image" restore_site_backup "$image" "$previous" "$dir"
+}
+
+restore_site_backup() {
+	local image=$1 previous=$2 dir=$3 prepared=$4
 	trap 'production_failure "$previous" "$dir" "$image"' ERR
-	# An on-demand staging stack may have been stopped completely.
-	IMAGE=$image compose up -d db redis-cache redis-queue
-	IMAGE=$image compose run --rm configurator
-	maintenance "$previous" on
-	stop_jobs
-	compose stop frontend backend websocket
-	restore_host_backup "$dir" "$image"
-	start_web "$image"
-	maintenance "$image" off
-	healthy "$image"
-	start_jobs "$image"
+	prepare_site_restore "$image" "$previous"
+	restore_prepared_backup "$image" "$SITE_NAME" "$prepared"
+	start_restored_site "$image"
 	trap - ERR
 	set_image "$image"
 	printf '%s\n' "$previous" >state/previous
@@ -424,6 +435,69 @@ refresh() {
 	restore "$(cat state/refresh-backup)"
 	prune_refresh_backups
 }
+
+record_site_image() {
+	set_image "$1" &&
+		printf '%s\n' "$2" >state/previous &&
+		printf '%s\n' "$1" >state/current
+}
+
+recover_promotion() {
+	local image=$1 dir=$2 failed=$3 current=$4 prepared=$5
+	trap - ERR
+	set +e
+	log "FAILED: restoring $dir with $image"
+	if clear_restore_scratch "$image" && prepare_site_restore "$image" "$image" &&
+		restore_prepared_backup "$image" "$SITE_NAME" "$prepared" &&
+		start_restored_site "$image" && record_site_image "$image" "$current"; then
+		log "recovered on $image"
+	else
+		hold_failed_site "$image"
+		log "RECOVERY INCOMPLETE: maintenance enabled; inspect deploy.sh status"
+		printf 'Restore after inspection: cd %q && ./deploy.sh restore %q\n' "$root" "$dir" >&2
+	fi
+	printf '%s failed %s\n' "$(date -u +%FT%TZ)" "$failed" >>state/history
+	exit 1
+}
+
+promote() {
+	local new=$1 current dir image
+	[[ $new =~ $image_pattern ]] || die "image must match $image_pattern"
+	current=$(current_image)
+	docker pull -q "$new" >/dev/null
+	sync_stack "$new"
+	fetch_production_backup
+	dir=$(cat state/refresh-backup)
+	image=$(backup_image "$dir")
+	trap 'flock "$root/../.image-prune.lock" rm -f -- state/protected-images' EXIT
+	protect_images "$new" "$image"
+	# A sibling deploy could have pruned the candidate during sync or fetch.
+	if ! docker image inspect "$new" >/dev/null 2>&1; then docker pull -q "$new" >/dev/null; fi
+	if [[ $image != "$new" ]]; then docker pull -q "$image" >/dev/null; fi
+	with_prepared_restore "$dir" "$image" promote_site_backup "$new" "$current" "$dir" "$image"
+	printf '%s deployed %s\n' "$(date -u +%FT%TZ)" "$new" >>state/history
+	prune_volume_backups
+	prune_refresh_backups
+	prune_images "$new" "$image"
+	log "deployed $new"
+}
+
+promote_site_backup() {
+	local new=$1 current=$2 dir=$3 image=$4 prepared=$5 rollback
+	printf -v rollback 'recover_promotion %q %q %q %q %q' "$image" "$dir" "$new" "$current" "$prepared"
+	# shellcheck disable=SC2064 # Called from Bench/Compose helpers with their own locals.
+	trap "$rollback" ERR
+	prepare_site_restore "$image" "$current"
+	restore_prepared_backup "$image" "$SITE_NAME" "$prepared"
+	log "migrate"
+	bench_with "$new" --site "$SITE_NAME" migrate
+	site_policy "$new"
+	log "recreate services"
+	start_restored_site "$new"
+	record_site_image "$new" "$image"
+	trap - ERR
+}
+
 status() {
 	printf 'environment: %s\nsite: %s\n' "$ENVIRONMENT" "$SITE_NAME"
 	printf 'current: %s\nprevious: %s\n' "$(cat state/current 2>/dev/null || echo none)" \
@@ -442,6 +516,11 @@ case ${args[0]:-} in
 		;;
 	status) [[ ${#args[@]} == 1 ]] || die "usage: status"; status ;;
 	refresh) [[ ${#args[@]} == 1 && $ENVIRONMENT == staging ]] || die "refresh is staging-only"; lock; refresh ;;
+	promote)
+		[[ ${#args[@]} == 2 && $ENVIRONMENT == staging ]] || die "usage: promote IMAGE (staging only)"
+		lock
+		promote "${args[1]}"
+		;;
 	stop) [[ ${#args[@]} == 1 && $ENVIRONMENT == staging ]] || die "stop is staging-only"; lock; compose stop ;;
 	backup-local)
 		[[ -z ${SSH_ORIGINAL_COMMAND:-} && ${#args[@]} == 1 ]] || die "usage: backup-local"
@@ -457,5 +536,5 @@ case ${args[0]:-} in
 		fetch_backup "$ENVIRONMENT" "${args[1]}"
 		;;
 	restore) [[ -z ${SSH_ORIGINAL_COMMAND:-} && ${#args[@]} == 2 ]] || die "usage: restore BACKUP_DIR"; lock; restore "${args[1]}" ;;
-	*) die "usage: deploy IMAGE | reinstall IMAGE --confirm-site SITE | status | refresh | stop | backup-local | fetch-backup UTC_TIMESTAMP | restore BACKUP_DIR" ;;
+	*) die "usage: deploy IMAGE | reinstall IMAGE --confirm-site SITE | status | refresh | promote IMAGE | stop | backup-local | fetch-backup UTC_TIMESTAMP | restore BACKUP_DIR" ;;
 esac
